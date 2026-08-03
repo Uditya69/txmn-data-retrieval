@@ -1149,13 +1149,14 @@ git commit -m "feat(retrieval-api): add GatewayClient httpx wrapper"
 - Test: `packages/retrieval-api/tests/test_loop1_search.py`
 
 **Interfaces:**
-- Consumes: `common.es_client.raw_search`, `common.milvus_client.hybrid_search`, `common.schemas.MILVUS_COLLECTIONS`.
-- Produces: `async def run_loop1(es_client, milvus_client, query: str) -> dict` — returns `{"es": list[dict] | None, "es_error": str | None, "milvus": dict[str, list[dict]] | None, "milvus_error": str | None}`. Each branch's exception is caught independently; a failing branch never prevents the other's result from being returned. Loop 1 does not call `model-gateway` — no query embedding, so `hybrid_search` is invoked with `dense_vector=None` and callers must treat that as "dense skipped, sparse-only" (documented here; Milvus wrapper already supports sparse-only via its own `anns_field`/BM25 function server-side — this task only needs `dense_vector` to be an accepted `None` passthrough).
+- Consumes: `common.es_client.raw_search`, `common.milvus_client.hybrid_search`, `common.schemas.MILVUS_COLLECTIONS`, `retrieval_api.gateway_client.GatewayClient.embed`.
+- Produces: `async def run_loop1(gateway, es_client, milvus_client, query: str) -> dict` — returns `{"es": list[dict] | None, "es_error": str | None, "milvus": dict[str, list[dict]] | None, "milvus_error": str | None}`. Each branch's exception is caught independently; a failing branch never prevents the other's result from being returned. Per the design spec, Loop 1's Milvus branch runs true dense ANN + sparse BM25 on the raw (unrewritten) query — it embeds the raw query via `gateway.embed(role="query_embed", text=query)` before calling `hybrid_search`. A gateway failure here counts as a Milvus-branch failure (caught the same way as a `hybrid_search` exception) — it must not affect the ES branch or block emitting a partial `loop1_result`.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # packages/retrieval-api/tests/test_loop1_search.py
+from unittest.mock import AsyncMock
 import pytest
 from retrieval_api.loop1.search import run_loop1
 
@@ -1168,17 +1169,22 @@ async def test_run_loop1_returns_both_branches_on_success(monkeypatch):
         return [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        assert dense_vector == [0.1, 0.2]  # Loop 1 embeds the raw query for true dense ANN
         return {"ruling": [{"chunk_id": "d1::ruling::0", "doc_id": "d1", "text": "t", "score": 0.9}]}
 
     monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
     monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
 
-    result = await run_loop1(es_client=object(), milvus_client=object(), query="tax exemption")
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    result = await run_loop1(gateway=gateway, es_client=object(), milvus_client=object(), query="tax exemption")
 
     assert result["es"] == [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
     assert result["es_error"] is None
     assert result["milvus"] == {"ruling": [{"chunk_id": "d1::ruling::0", "doc_id": "d1", "text": "t", "score": 0.9}]}
     assert result["milvus_error"] is None
+    gateway.embed.assert_awaited_once_with(role="query_embed", text="tax exemption")
 
 
 @pytest.mark.asyncio
@@ -1194,12 +1200,35 @@ async def test_run_loop1_returns_partial_result_when_es_fails(monkeypatch):
     monkeypatch.setattr(search_module, "raw_search", failing_raw_search)
     monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
 
-    result = await run_loop1(es_client=object(), milvus_client=object(), query="q")
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1]
+
+    result = await run_loop1(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
 
     assert result["es"] is None
     assert result["es_error"] == "ES down"
     assert result["milvus"] == {"ruling": []}
     assert result["milvus_error"] is None
+
+
+@pytest.mark.asyncio
+async def test_run_loop1_returns_partial_result_when_gateway_embed_fails(monkeypatch):
+    import retrieval_api.loop1.search as search_module
+
+    async def fake_raw_search(client, query, limit=20):
+        return [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+
+    gateway = AsyncMock()
+    gateway.embed.side_effect = RuntimeError("gateway down")
+
+    result = await run_loop1(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
+
+    assert result["es"] == [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
+    assert result["es_error"] is None
+    assert result["milvus"] is None
+    assert result["milvus_error"] == "gateway down"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1225,20 +1254,21 @@ async def _run_es(es_client, query: str) -> tuple[list[dict] | None, str | None]
         return None, str(exc)
 
 
-async def _run_milvus(milvus_client, query: str) -> tuple[dict | None, str | None]:
+async def _run_milvus(gateway, milvus_client, query: str) -> tuple[dict | None, str | None]:
     try:
+        dense_vector = await gateway.embed(role="query_embed", text=query)
         result = await hybrid_search(
-            milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None, sparse_query_text=query,
+            milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=dense_vector, sparse_query_text=query,
         )
         return result, None
     except Exception as exc:  # noqa: BLE001 - branch isolation is the point
         return None, str(exc)
 
 
-async def run_loop1(es_client, milvus_client, query: str) -> dict:
+async def run_loop1(gateway, es_client, milvus_client, query: str) -> dict:
     (es_result, es_error), (milvus_result, milvus_error) = await asyncio.gather(
         _run_es(es_client, query),
-        _run_milvus(milvus_client, query),
+        _run_milvus(gateway, milvus_client, query),
     )
     return {
         "es": es_result,
@@ -1945,7 +1975,7 @@ import retrieval_api.ws as ws_module
 
 
 def test_ws_search_sends_loop1_then_loop2_events(monkeypatch):
-    async def fake_run_loop1(es_client, milvus_client, query):
+    async def fake_run_loop1(gateway, es_client, milvus_client, query):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
 
     async def fake_run_loop2(gateway, es_client, milvus_client, query):
@@ -1970,7 +2000,7 @@ def test_ws_search_sends_loop1_then_loop2_events(monkeypatch):
 
 
 def test_ws_search_sends_loop2_error_event_on_failure(monkeypatch):
-    async def fake_run_loop1(es_client, milvus_client, query):
+    async def fake_run_loop1(gateway, es_client, milvus_client, query):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
     async def fake_run_loop2(gateway, es_client, milvus_client, query):
@@ -2028,7 +2058,7 @@ async def search(websocket: WebSocket):
     milvus_client = get_milvus_client()
     gateway = get_gateway_client()
 
-    loop1_task = asyncio.create_task(run_loop1(es_client, milvus_client, query))
+    loop1_task = asyncio.create_task(run_loop1(gateway, es_client, milvus_client, query))
     loop2_task = asyncio.create_task(run_loop2(gateway, es_client, milvus_client, query))
 
     loop1_result = await loop1_task
