@@ -1,0 +1,51 @@
+from unittest.mock import AsyncMock
+import pytest
+
+from retrieval_api.ai_mode.synthesize import synthesize
+
+
+@pytest.mark.asyncio
+async def test_synthesize_uses_prefetched_citations_without_extra_lookup(monkeypatch):
+    import retrieval_api.ai_mode.synthesize as module
+
+    fetch_calls = []
+
+    async def fake_fetch_citations(client, doc_ids):
+        fetch_calls.append(doc_ids)
+        return {}
+
+    monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
+
+    gateway = AsyncMock()
+    gateway.chat.return_value = "Final answer with citation."
+
+    result = await synthesize(
+        gateway, es_client=object(), query="q",
+        top_chunks=[{"chunk_id": "a", "doc_id": "d1", "text": "chunk text"}],
+        citations={"d1": {"masterinfo": {"court": "SC"}}},
+    )
+
+    assert fetch_calls == []  # already prefetched, no fallback lookup needed
+    assert result == {"answer": "Final answer with citation.", "citations": {"d1": {"masterinfo": {"court": "SC"}}}}
+
+
+@pytest.mark.asyncio
+async def test_synthesize_falls_back_to_on_demand_lookup_for_missing_doc(monkeypatch):
+    import retrieval_api.ai_mode.synthesize as module
+
+    async def fake_fetch_citations(client, doc_ids):
+        assert doc_ids == ["d2"]
+        return {"d2": {"masterinfo": {"court": "HC"}}}
+
+    monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
+
+    gateway = AsyncMock()
+    gateway.chat.return_value = "Answer."
+
+    result = await synthesize(
+        gateway, es_client=object(), query="q",
+        top_chunks=[{"chunk_id": "b", "doc_id": "d2", "text": "chunk text"}],
+        citations={},
+    )
+
+    assert result["citations"] == {"d2": {"masterinfo": {"court": "HC"}}}
