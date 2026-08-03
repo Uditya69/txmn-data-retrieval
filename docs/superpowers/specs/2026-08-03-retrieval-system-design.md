@@ -45,10 +45,18 @@ Docker-compose, two services:
   business logic and LLM/embedding/rerank providers. Routes:
   `POST /v1/chat`, `POST /v1/embed`, `POST /v1/rerank`, each taking a
   `role` (`slm`, `synthesis`, `query_embed`, `reranker`) that resolves to a
-  concrete model/provider via config. DeepInfra adapter first
-  (chat + embeddings + rerank-capable models). Adding a second provider
-  later means a new adapter behind the same `chat`/`embed`/`rerank`
-  Protocol — no caller-side change.
+  concrete model/provider via config. DeepInfra adapter for `slm`/
+  `synthesis`/`reranker`. `query_embed` is Voyage-only, not DeepInfra or any
+  other provider — the Milvus corpus's `dense_vector` field was embedded
+  with Voyage by `data-extraction-pipeline`, so a query embedded with a
+  different model would land in a different vector space and cosine
+  similarity against it would be meaningless. `retrieval-system` reuses the
+  same Voyage account/key `data-extraction-pipeline` already uses for
+  ingestion. Adding a second provider for the DeepInfra-backed roles later
+  means a new adapter behind the same `chat`/`embed`/`rerank` Protocol — no
+  caller-side change; swapping `query_embed`'s provider away from Voyage is
+  not a drop-in config change, since it would require re-embedding the
+  entire corpus.
 - **`retrieval-api`** — FastAPI + WebSocket app implementing Instant/AI Mode,
   using LangChain for prompt/chain orchestration against `model-gateway`.
 

@@ -702,19 +702,24 @@ git commit -m "feat(common): add Elasticsearch raw search, filter resolve, citat
 
 ---
 
-### Task 6: `model-gateway` — adapter Protocol + DeepInfra adapter
+### Task 6: `model-gateway` — adapter Protocol + DeepInfra adapter + Voyage embed adapter
+
+**Why two providers:** the Milvus corpus's `dense_vector` field was embedded with **Voyage** by `data-extraction-pipeline` (see its `docs/embedding.md`) — a query embedded with a different model lands in a different vector space and cosine similarity against `dense_vector` would be meaningless. So `query_embed` MUST go through Voyage, using the same Voyage account/key `data-extraction-pipeline` already uses for ingestion. DeepInfra remains the provider for `slm`/`synthesis` (chat) and `reranker` — those don't need to match the corpus's embedding space.
 
 **Files:**
 - Create: `packages/model-gateway/src/model_gateway/adapters/base.py`
 - Create: `packages/model-gateway/src/model_gateway/adapters/deepinfra.py`
+- Create: `packages/model-gateway/src/model_gateway/adapters/voyage.py`
 - Test: `packages/model-gateway/tests/test_deepinfra_adapter.py`
+- Test: `packages/model-gateway/tests/test_voyage_adapter.py`
 
 **Interfaces:**
 - Produces:
   - `ModelAdapter` Protocol: `async def chat(self, model: str, messages: list[dict]) -> str`, `async def embed(self, model: str, text: str) -> list[float]`, `async def rerank(self, model: str, query: str, documents: list[str]) -> list[float]` (relevance scores, same order as `documents`).
-  - `DeepInfraAdapter(api_key: str)` implementing the above via `httpx.AsyncClient` against `https://api.deepinfra.com/v1/openai/chat/completions`, `.../embeddings`, and `https://api.deepinfra.com/v1/inference/{model}` for rerank.
+  - `DeepInfraAdapter(api_key: str)` implementing all three via `httpx.AsyncClient` against `https://api.deepinfra.com/v1/openai/chat/completions`, `.../embeddings`, and `https://api.deepinfra.com/v1/inference/{model}` for rerank.
+  - `VoyageAdapter(api_key: str)` implementing only `embed()` for real, via `https://api.voyageai.com/v1/embeddings` (`{"input": [text], "model": model, "input_type": "query"}` — `input_type="query"` matches Voyage's asymmetric query/document embedding convention; `data-extraction-pipeline` embeds corpus rows with `input_type` implicitly `"document"` via `langchain_voyageai.VoyageAIEmbeddings`, so the query side must explicitly ask for `"query"` to get the matching asymmetric behavior). `chat()`/`rerank()` raise `NotImplementedError("VoyageAdapter does not support chat/rerank")` — `model-gateway`'s routing (Task 7) never calls them on this adapter, they exist only to satisfy the `ModelAdapter` shape.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
 ```python
 # packages/model-gateway/tests/test_deepinfra_adapter.py
@@ -764,10 +769,52 @@ async def test_rerank_returns_scores_in_input_order():
     assert result == [0.9, 0.2]
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+```python
+# packages/model-gateway/tests/test_voyage_adapter.py
+import httpx
+import pytest
+import respx
 
-Run: `cd packages/model-gateway && uv run pytest tests/test_deepinfra_adapter.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'model_gateway.adapters.deepinfra'`
+from model_gateway.adapters.voyage import VoyageAdapter
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_embed_sends_query_input_type_and_returns_vector():
+    route = respx.post("https://api.voyageai.com/v1/embeddings").mock(
+        return_value=httpx.Response(200, json={"data": [{"embedding": [0.4, 0.5, 0.6]}]})
+    )
+    adapter = VoyageAdapter(api_key="k")
+
+    result = await adapter.embed("voyage-4-large", "some query text")
+
+    assert result == [0.4, 0.5, 0.6]
+    sent_body = route.calls.last.request.content
+    import json
+    payload = json.loads(sent_body)
+    assert payload == {"input": ["some query text"], "model": "voyage-4-large", "input_type": "query"}
+
+
+@pytest.mark.asyncio
+async def test_chat_raises_not_implemented():
+    adapter = VoyageAdapter(api_key="k")
+
+    with pytest.raises(NotImplementedError):
+        await adapter.chat("model", [{"role": "user", "content": "hi"}])
+
+
+@pytest.mark.asyncio
+async def test_rerank_raises_not_implemented():
+    adapter = VoyageAdapter(api_key="k")
+
+    with pytest.raises(NotImplementedError):
+        await adapter.rerank("model", "query", ["a", "b"])
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `cd packages/model-gateway && uv run pytest tests/test_deepinfra_adapter.py tests/test_voyage_adapter.py -v`
+Expected: FAIL with `ModuleNotFoundError` for both `model_gateway.adapters.deepinfra` and `model_gateway.adapters.voyage`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -824,16 +871,49 @@ class DeepInfraAdapter:
             return response.json()["scores"]
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+```python
+# packages/model-gateway/src/model_gateway/adapters/voyage.py
+import httpx
 
-Run: `cd packages/model-gateway && uv run pytest tests/test_deepinfra_adapter.py -v`
-Expected: PASS
+_BASE_URL = "https://api.voyageai.com/v1"
+
+
+class VoyageAdapter:
+    """Embed-only adapter — Voyage is used exclusively for query_embed, to
+    stay in the same vector space as data-extraction-pipeline's Voyage-embedded
+    `dense_vector` corpus. See Task 6 note in the plan for why this must not
+    be swapped for another embedding provider."""
+
+    def __init__(self, api_key: str):
+        self._headers = {"Authorization": f"Bearer {api_key}"}
+
+    async def chat(self, model: str, messages: list[dict]) -> str:
+        raise NotImplementedError("VoyageAdapter does not support chat")
+
+    async def embed(self, model: str, text: str) -> list[float]:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{_BASE_URL}/embeddings",
+                json={"input": [text], "model": model, "input_type": "query"},
+                headers=self._headers,
+            )
+            response.raise_for_status()
+            return response.json()["data"][0]["embedding"]
+
+    async def rerank(self, model: str, query: str, documents: list[str]) -> list[float]:
+        raise NotImplementedError("VoyageAdapter does not support rerank")
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd packages/model-gateway && uv run pytest tests/test_deepinfra_adapter.py tests/test_voyage_adapter.py -v`
+Expected: PASS (both files)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/model-gateway/src/model_gateway/adapters packages/model-gateway/tests/test_deepinfra_adapter.py
-git commit -m "feat(model-gateway): add ModelAdapter protocol and DeepInfra adapter"
+git add packages/model-gateway/src/model_gateway/adapters packages/model-gateway/tests/test_deepinfra_adapter.py packages/model-gateway/tests/test_voyage_adapter.py
+git commit -m "feat(model-gateway): add ModelAdapter protocol, DeepInfra adapter, Voyage embed adapter"
 ```
 
 ---
@@ -847,11 +927,12 @@ git commit -m "feat(model-gateway): add ModelAdapter protocol and DeepInfra adap
 - Test: `packages/model-gateway/tests/test_routes.py`
 
 **Interfaces:**
-- Consumes: `model_gateway.adapters.deepinfra.DeepInfraAdapter`.
+- Consumes: `model_gateway.adapters.deepinfra.DeepInfraAdapter`, `model_gateway.adapters.voyage.VoyageAdapter`.
 - Produces:
-  - `GatewaySettings` (pydantic-settings): `deepinfra_api_key: str`, `chat_model_slm: str`, `chat_model_synthesis: str`, `embed_model: str`, `rerank_model: str`.
-  - `ROLE_MODEL_MAP: dict[str, str]` built from `GatewaySettings` (`"slm"`, `"synthesis"` -> chat models; `"query_embed"` -> embed model; `"reranker"` -> rerank model).
-  - FastAPI app (`main.app`) with routes `POST /v1/chat {"role": str, "messages": list[dict]} -> {"content": str}`, `POST /v1/embed {"role": str, "text": str} -> {"embedding": list[float]}`, `POST /v1/rerank {"role": str, "query": str, "documents": list[str]} -> {"scores": list[float]}`. Unknown `role` -> 400.
+  - `GatewaySettings` (pydantic-settings): `deepinfra_api_key: str`, `chat_model_slm: str`, `chat_model_synthesis: str`, `rerank_model: str`, `voyage_api_key: str`, `voyage_embed_model: str`. (Note: no generic `embed_model` — the embed role is Voyage-only, see Task 6.)
+  - `ROLE_MODEL_MAP: dict[str, str]` (`"slm"`/`"synthesis"` -> chat models, `"reranker"` -> rerank model, `"query_embed"` -> `settings.voyage_embed_model`) and `ROLE_PROVIDER_MAP: dict[str, str]` (`"slm"`/`"synthesis"`/`"reranker"` -> `"deepinfra"`, `"query_embed"` -> `"voyage"`), both built from `GatewaySettings`.
+  - FastAPI app (`main.app`) with routes `POST /v1/chat {"role": str, "messages": list[dict]} -> {"content": str}`, `POST /v1/embed {"role": str, "text": str} -> {"embedding": list[float]}`, `POST /v1/rerank {"role": str, "query": str, "documents": list[str]} -> {"scores": list[float]}`. Unknown `role` -> 400. Each route resolves the role to a provider via `ROLE_PROVIDER_MAP`, then dispatches to that provider's adapter instance — the embed route is the one that will always resolve to `VoyageAdapter` given `ROLE_PROVIDER_MAP["query_embed"] == "voyage"`.
+  - **Implementer note on `.env.example`:** Task 1 already created `.env.example` without Voyage variables. Add `VOYAGE_API_KEY=` and `VOYAGE_EMBED_MODEL=voyage-4-large` to it in this task (append, don't restructure the existing file) — this is expected, incremental growth of the env file as later tasks introduce new config, not a deviation.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -864,11 +945,12 @@ from model_gateway.main import app
 import model_gateway.routes as routes_module
 
 
-def test_chat_route_resolves_role_and_calls_adapter(monkeypatch):
+def test_chat_route_resolves_role_and_calls_deepinfra_adapter(monkeypatch):
     fake_adapter = AsyncMock()
     fake_adapter.chat.return_value = "the answer"
-    monkeypatch.setattr(routes_module, "get_adapter", lambda: fake_adapter)
+    monkeypatch.setattr(routes_module, "get_adapter", lambda provider: fake_adapter)
     monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"synthesis": "big-model"})
+    monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"synthesis": "deepinfra"})
 
     client = TestClient(app)
     response = client.post("/v1/chat", json={"role": "synthesis", "messages": [{"role": "user", "content": "hi"}]})
@@ -880,6 +962,7 @@ def test_chat_route_resolves_role_and_calls_adapter(monkeypatch):
 
 def test_chat_route_rejects_unknown_role(monkeypatch):
     monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"synthesis": "big-model"})
+    monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"synthesis": "deepinfra"})
     client = TestClient(app)
 
     response = client.post("/v1/chat", json={"role": "nonexistent", "messages": []})
@@ -887,23 +970,32 @@ def test_chat_route_rejects_unknown_role(monkeypatch):
     assert response.status_code == 400
 
 
-def test_embed_route(monkeypatch):
+def test_embed_route_resolves_query_embed_to_voyage_provider(monkeypatch):
     fake_adapter = AsyncMock()
     fake_adapter.embed.return_value = [0.1, 0.2]
-    monkeypatch.setattr(routes_module, "get_adapter", lambda: fake_adapter)
-    monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"query_embed": "embed-model"})
+    captured_providers = []
+
+    def fake_get_adapter(provider):
+        captured_providers.append(provider)
+        return fake_adapter
+
+    monkeypatch.setattr(routes_module, "get_adapter", fake_get_adapter)
+    monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"query_embed": "voyage-4-large"})
+    monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"query_embed": "voyage"})
 
     client = TestClient(app)
     response = client.post("/v1/embed", json={"role": "query_embed", "text": "hello"})
 
     assert response.json() == {"embedding": [0.1, 0.2]}
+    assert captured_providers == ["voyage"]  # embed route must resolve to the voyage provider, not deepinfra
 
 
 def test_rerank_route(monkeypatch):
     fake_adapter = AsyncMock()
     fake_adapter.rerank.return_value = [0.9, 0.1]
-    monkeypatch.setattr(routes_module, "get_adapter", lambda: fake_adapter)
+    monkeypatch.setattr(routes_module, "get_adapter", lambda provider: fake_adapter)
     monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"reranker": "rerank-model"})
+    monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"reranker": "deepinfra"})
 
     client = TestClient(app)
     response = client.post("/v1/rerank", json={"role": "reranker", "query": "q", "documents": ["a", "b"]})
@@ -930,8 +1022,9 @@ class GatewaySettings(BaseSettings):
     deepinfra_api_key: str
     chat_model_slm: str
     chat_model_synthesis: str
-    embed_model: str
     rerank_model: str
+    voyage_api_key: str
+    voyage_embed_model: str
 
 
 @lru_cache
@@ -943,8 +1036,17 @@ def build_role_model_map(settings: GatewaySettings) -> dict[str, str]:
     return {
         "slm": settings.chat_model_slm,
         "synthesis": settings.chat_model_synthesis,
-        "query_embed": settings.embed_model,
+        "query_embed": settings.voyage_embed_model,
         "reranker": settings.rerank_model,
+    }
+
+
+def build_role_provider_map() -> dict[str, str]:
+    return {
+        "slm": "deepinfra",
+        "synthesis": "deepinfra",
+        "reranker": "deepinfra",
+        "query_embed": "voyage",
     }
 ```
 
@@ -954,21 +1056,26 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from model_gateway.adapters.deepinfra import DeepInfraAdapter
-from model_gateway.config import build_role_model_map, get_gateway_settings
+from model_gateway.adapters.voyage import VoyageAdapter
+from model_gateway.config import build_role_model_map, build_role_provider_map, get_gateway_settings
 
 router = APIRouter()
 
 ROLE_MODEL_MAP: dict[str, str] = build_role_model_map(get_gateway_settings())
+ROLE_PROVIDER_MAP: dict[str, str] = build_role_provider_map()
 
 
-def get_adapter():
-    return DeepInfraAdapter(api_key=get_gateway_settings().deepinfra_api_key)
+def get_adapter(provider: str):
+    settings = get_gateway_settings()
+    if provider == "voyage":
+        return VoyageAdapter(api_key=settings.voyage_api_key)
+    return DeepInfraAdapter(api_key=settings.deepinfra_api_key)
 
 
-def _resolve_model(role: str) -> str:
-    if role not in ROLE_MODEL_MAP:
+def _resolve(role: str) -> tuple[str, str]:
+    if role not in ROLE_MODEL_MAP or role not in ROLE_PROVIDER_MAP:
         raise HTTPException(status_code=400, detail=f"unknown role: {role}")
-    return ROLE_MODEL_MAP[role]
+    return ROLE_MODEL_MAP[role], ROLE_PROVIDER_MAP[role]
 
 
 class ChatRequest(BaseModel):
@@ -989,22 +1096,22 @@ class RerankRequest(BaseModel):
 
 @router.post("/v1/chat")
 async def chat(req: ChatRequest):
-    model = _resolve_model(req.role)
-    content = await get_adapter().chat(model, req.messages)
+    model, provider = _resolve(req.role)
+    content = await get_adapter(provider).chat(model, req.messages)
     return {"content": content}
 
 
 @router.post("/v1/embed")
 async def embed(req: EmbedRequest):
-    model = _resolve_model(req.role)
-    embedding = await get_adapter().embed(model, req.text)
+    model, provider = _resolve(req.role)
+    embedding = await get_adapter(provider).embed(model, req.text)
     return {"embedding": embedding}
 
 
 @router.post("/v1/rerank")
 async def rerank(req: RerankRequest):
-    model = _resolve_model(req.role)
-    scores = await get_adapter().rerank(model, req.query, req.documents)
+    model, provider = _resolve(req.role)
+    scores = await get_adapter(provider).rerank(model, req.query, req.documents)
     return {"scores": scores}
 ```
 
@@ -1023,11 +1130,20 @@ app.include_router(router)
 Run: `cd packages/model-gateway && uv run pytest tests/test_routes.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Update `.env.example` and commit**
+
+Append to `.env.example` (root of repo):
 
 ```bash
-git add packages/model-gateway/src/model_gateway/config.py packages/model-gateway/src/model_gateway/routes.py packages/model-gateway/src/model_gateway/main.py packages/model-gateway/tests/test_routes.py
-git commit -m "feat(model-gateway): add role-based /v1/chat /v1/embed /v1/rerank routes"
+VOYAGE_API_KEY=
+VOYAGE_EMBED_MODEL=voyage-4-large
+```
+
+Remove the now-unused `DEEPINFRA_EMBED_MODEL` line from `.env.example` if Task 1 added one — `query_embed` no longer resolves through DeepInfra.
+
+```bash
+git add packages/model-gateway/src/model_gateway/config.py packages/model-gateway/src/model_gateway/routes.py packages/model-gateway/src/model_gateway/main.py packages/model-gateway/tests/test_routes.py .env.example
+git commit -m "feat(model-gateway): add per-role provider routing (Voyage for query_embed, DeepInfra otherwise)"
 ```
 
 ---
