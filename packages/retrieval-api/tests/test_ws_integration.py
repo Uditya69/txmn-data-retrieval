@@ -15,9 +15,10 @@ def test_ws_search_sends_instant_then_ai_mode_events(monkeypatch):
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_es_client", lambda: object())
-    monkeypatch.setattr(ws_module, "get_milvus_client", lambda: object())
-    monkeypatch.setattr(ws_module, "get_gateway_client", lambda: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: object())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: object())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
 
     client = TestClient(app)
     with client.websocket_connect("/ws/search") as websocket:
@@ -40,9 +41,10 @@ def test_ws_search_sends_ai_mode_error_event_on_failure(monkeypatch):
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_es_client", lambda: object())
-    monkeypatch.setattr(ws_module, "get_milvus_client", lambda: object())
-    monkeypatch.setattr(ws_module, "get_gateway_client", lambda: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: object())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: object())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
 
     client = TestClient(app)
     with client.websocket_connect("/ws/search") as websocket:

@@ -22,8 +22,8 @@ async def search(websocket: WebSocket):
     message = await websocket.receive_json()
     query = message["query"]
 
-    es_client = get_es_client()
-    milvus_client = get_milvus_client()
+    es_client = get_es_client(get_settings())
+    milvus_client = get_milvus_client(get_settings())
     gateway = get_gateway_client()
 
     instant_task = asyncio.create_task(run_instant(gateway, es_client, milvus_client, query))
