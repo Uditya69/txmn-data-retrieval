@@ -6,6 +6,7 @@ dependencies = [
   "pydantic-settings>=2.5",
   "pymilvus>=2.4",
   "elasticsearch>=8.15,<9",
+  "aiohttp>=3.9",
 ]
 
 [build-system]
