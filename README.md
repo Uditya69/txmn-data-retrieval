@@ -29,16 +29,14 @@ packages/
 ## Setup
 
 ```bash
-uv sync
+uv sync --all-packages   # NOT bare `uv sync` - drops editable installs of workspace members
 cp .env.example .env   # fill in MILVUS_*, ES_URL, DEEPINFRA_API_KEY, VOYAGE_API_KEY
 ```
 
-Run tests (per package):
+Run tests (aggregates all 3 packages from repo root):
 
 ```bash
-cd packages/common && uv run pytest
-cd packages/model-gateway && uv run pytest
-cd packages/retrieval-api && uv run pytest
+uv run pytest
 ```
 
 Run the stack:

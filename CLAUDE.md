@@ -26,13 +26,9 @@ Standalone repo. No code dependency on `data-extraction-pipeline` (the sibling r
 
 ## Running things
 
-No root-level test aggregation — run per package:
+`uv sync --all-packages`, NOT bare `uv sync` — the latter can drop editable installs of workspace members (`common`, `model-gateway`, `retrieval-api`), breaking local test collection.
 
-```bash
-cd packages/common && uv run pytest
-cd packages/model-gateway && uv run pytest
-cd packages/retrieval-api && uv run pytest
-```
+`uv run pytest` from repo root aggregates all 3 packages (49 tests). Scope to one package with `uv run pytest packages/<name>/tests` if needed.
 
 `docker compose build` / `docker compose up -d --build` from repo root.
 

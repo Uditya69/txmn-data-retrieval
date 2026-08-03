@@ -23,8 +23,8 @@ Instructions for coding agents working in this repo.
 ## Commands
 
 ```bash
-uv sync                                              # from repo root
-cd packages/<name> && uv run pytest                  # per-package, no root aggregation
+uv sync --all-packages                               # NOT bare `uv sync` - drops editable installs of workspace members
+uv run pytest                                        # aggregates all 3 packages from repo root
 docker compose up -d --build                         # run the stack
 ```
 
