@@ -33,6 +33,10 @@ async def resolve_doc_id_allowlist(client, filters: dict) -> list[str] | None:
         must.append({"term": {"masterinfo.court": filters["court"]}})
     if "act" in filters:
         must.append({"term": {"masterinfo.act": filters["act"]}})
+    if "section" in filters:
+        must.append({"term": {"masterinfo.section": filters["section"]}})
+    if "party" in filters:
+        must.append({"match": {"masterinfo.partyname": filters["party"]}})
     if "date_range" in filters:
         must.append({"range": {"masterinfo.date": filters["date_range"]}})
     if not must:

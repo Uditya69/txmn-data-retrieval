@@ -82,6 +82,40 @@ async def test_resolve_doc_id_allowlist_raises_on_unrecognized_filter_keys():
 
 
 @pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_queries_masterinfo_section_term():
+    client = FakeAsyncES(search_hits=[{"_source": {"doc_id": "d1"}}])
+
+    result = await resolve_doc_id_allowlist(client, {"section": "80C"})
+
+    assert result == ["d1"]
+    assert client.search_calls[0] == {
+        "bool": {"must": [{"term": {"masterinfo.section": "80C"}}]}
+    }
+
+
+@pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_queries_masterinfo_partyname_match():
+    client = FakeAsyncES(search_hits=[{"_source": {"doc_id": "d1"}}])
+
+    result = await resolve_doc_id_allowlist(client, {"party": "Reliance Industries"})
+
+    assert result == ["d1"]
+    assert client.search_calls[0] == {
+        "bool": {"must": [{"match": {"masterinfo.partyname": "Reliance Industries"}}]}
+    }
+
+
+@pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_party_only_filter_does_not_raise():
+    client = FakeAsyncES(search_hits=[])
+
+    # previously raised ValueError because "party" was not a recognized key
+    result = await resolve_doc_id_allowlist(client, {"party": "Reliance Industries"})
+
+    assert result == []
+
+
+@pytest.mark.asyncio
 async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
     client = FakeAsyncES(mget_docs={
         "d1": {
