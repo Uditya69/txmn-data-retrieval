@@ -5,8 +5,8 @@
 New standalone retrieval service for Taxmann legal/tax caselaw. Reads from
 the Milvus (`aic` DB, 7 collections) and Elasticsearch stores populated by
 the separate `data-extraction-pipeline` repo. Implements the two-loop "AI
-Mode" query flow: an instant raw-search preview (Loop 1) and a
-background SLM→rerank→LLM-synthesis pipeline (Loop 2), both fired from the
+Mode" query flow: an instant raw-search preview (Instant) and a
+background SLM→rerank→LLM-synthesis pipeline (AI Mode), both fired from the
 same query.
 
 Fully separate repo/deployment from `data-extraction-pipeline` — no code
@@ -49,7 +49,7 @@ Docker-compose, two services:
   (chat + embeddings + rerank-capable models). Adding a second provider
   later means a new adapter behind the same `chat`/`embed`/`rerank`
   Protocol — no caller-side change.
-- **`retrieval-api`** — FastAPI + WebSocket app implementing Loop 1/Loop 2,
+- **`retrieval-api`** — FastAPI + WebSocket app implementing Instant/AI Mode,
   using LangChain for prompt/chain orchestration against `model-gateway`.
 
 uv workspace, three packages:
@@ -76,9 +76,9 @@ retrieval-system/
         main.py
     retrieval-api/
       src/retrieval_api/
-        loop1/
+        instant/
           search.py           # parallel ES + Milvus raw fetch
-        loop2/
+        ai_mode/
           intent.py           # SLM rewrite/intent/filter extraction
           filter_resolve.py   # ES filter -> doc_id allowlist
           retrieve.py         # rewritten-query Milvus fetch, RRF merge
@@ -93,20 +93,20 @@ retrieval-system/
 ## Data flow
 
 One WebSocket connection per query (`/ws/search`). At `t=0` the query is
-dispatched to Loop 1 and Loop 2 concurrently (`asyncio.gather` style, not
+dispatched to Instant and AI Mode concurrently (`asyncio.gather` style, not
 sequential).
 
-**Loop 1 — instant preview (~300-800ms)**
+**Instant — instant preview (~300-800ms)**
 - Fork: `es_search(raw_query)` (BM25 + Snowball stemming + slop + fuzzy,
   whole-document fields — `facts_text`/`held_text`/`headnotes_text`/etc.,
   doc-level scoring) **and** `milvus_search(raw_query)` (dense ANN +
   native sparse BM25, fired across all 7 collections at once, chunk-level
   scoring, no query rewriting) — run concurrently.
-- Join: emit one `loop1_result` WebSocket event with both result sets
+- Join: emit one `instant_result` WebSocket event with both result sets
   side by side, explicitly labeled as an unranked preview. This event is
   sent exactly once and never revised later.
 
-**Loop 2 — AI Mode (background)**
+**AI Mode — background pipeline**
 1. `gateway.chat(role="slm")` — produces rewritten query (crosswalk
    expansion, e.g. IPC→BNS), intent category, and structured filters
    (court/act/section/date/party). Must complete before step 3 — the
@@ -115,7 +115,7 @@ sequential).
    allowlist (pure filter lookup, not scored full-text). Skipped entirely
    if no filters were detected.
 3. `gateway.embed(role="query_embed")` on the rewritten query, then Milvus
-   dense+sparse fetch (own top-50/top-50, independent from Loop 1's raw
+   dense+sparse fetch (own top-50/top-50, independent from Instant's raw
    fetch), scoped to the allowlist if one exists.
 4. RRF (Reciprocal Rank Fusion) merges the dense-50 and sparse-50 lists
    into ~100 candidate chunks.
@@ -125,9 +125,9 @@ sequential).
    score) pulling `masterinfo` citation/court/bench/judge/party fields.
 6. Join: `gateway.chat(role="synthesis")` receives the query + top 2-3
    reranked chunks + prefetched citation metadata, streams the answer back
-   as `loop2_token` events, then a final `loop2_done` event with full
+   as `ai_mode_token` events, then a final `ai_mode_done` event with full
    citations. If the winning chunk's `doc_id` wasn't in the prefetched set,
-   one on-demand ES lookup covers just that doc before `loop2_done`.
+   one on-demand ES lookup covers just that doc before `ai_mode_done`.
 
 Confirmed invariants carried over from the artifact (not to be violated by
 implementation): AI Mode searches all 7 Milvus collections every query, no
@@ -137,14 +137,14 @@ intent-routing layer, not an agentic loop.
 
 ## Error handling
 
-- Loop 1: if either ES or Milvus fails, still emit `loop1_result` with the
+- Instant: if either ES or Milvus fails, still emit `instant_result` with the
   other branch's data, explicitly flagged partial (e.g.
   `{"es": null, "es_error": "...", "milvus": [...]}`) — never blocks on one
   slow/failed branch waiting for a retry.
-- Loop 2: any stage failure (gateway unreachable, ES filter lookup error,
-  etc.) emits a `loop2_error` event with the failure reason. Loop 1's
-  result, already delivered, is untouched — Loop 2 failing never retracts
-  or blocks Loop 1.
+- AI Mode: any stage failure (gateway unreachable, ES filter lookup error,
+  etc.) emits a `ai_mode_error` event with the failure reason. Instant's
+  result, already delivered, is untouched — AI Mode failing never retracts
+  or blocks Instant.
 - `model-gateway` adapter failures (provider timeout/5xx) surface as a
   typed error response (not a raw 500 passthrough) so `retrieval-api` can
   distinguish "gateway down" from "provider rejected the request".
@@ -156,15 +156,15 @@ intent-routing layer, not an agentic loop.
 - `model-gateway`: unit tests per adapter (request/response shape) with
   DeepInfra calls mocked at the HTTP layer; route-level tests for role→model
   resolution.
-- `retrieval-api`: unit tests per Loop 2 stage (intent parsing, RRF merge
+- `retrieval-api`: unit tests per AI Mode stage (intent parsing, RRF merge
   math, prefetch/rerank fork-join) with `common`/gateway_client mocked;
   one integration test running the full `/ws/search` flow against a
   docker-compose test stack with fixture Milvus/ES data, asserting both
-  `loop1_result` and `loop2_done` events arrive with expected shape.
+  `instant_result` and `ai_mode_done` events arrive with expected shape.
 
 ## Open items (explicitly deferred, not blocking v1)
 
-- Second embedder / `dense_vector_2` parity in Loop 2's Milvus fetch — v1
+- Second embedder / `dense_vector_2` parity in AI Mode's Milvus fetch — v1
   queries `dense_vector` (Voyage) only, matching the existing
   `retrieval.milvus.rag` CLI's current scope; wiring in `dense_vector_2`
   is a follow-up once its corpus coverage is fuller.

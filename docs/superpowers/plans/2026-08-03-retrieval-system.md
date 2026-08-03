@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the two-loop ("Loop 1" instant preview + "Loop 2" AI Mode: SLM rewrite → RRF → rerank → LLM synthesis) legal-caselaw retrieval service described in `docs/superpowers/specs/2026-08-03-retrieval-system-design.md`, as a standalone uv-workspace repo with a `model-gateway` provider-abstraction service and a `retrieval-api` orchestration service.
+**Goal:** Build the two-loop ("Instant" instant preview + "AI Mode" AI Mode: SLM rewrite → RRF → rerank → LLM synthesis) legal-caselaw retrieval service described in `docs/superpowers/specs/2026-08-03-retrieval-system-design.md`, as a standalone uv-workspace repo with a `model-gateway` provider-abstraction service and a `retrieval-api` orchestration service.
 
-**Architecture:** Two FastAPI services in docker-compose. `model-gateway` exposes `/v1/chat`, `/v1/embed`, `/v1/rerank`, each keyed by a `role` resolved to a DeepInfra model via config — the only seam that knows about providers. `retrieval-api` implements Loop 1 (parallel raw ES+Milvus fetch) and Loop 2 (SLM→filter→Milvus→RRF→rerank/citations→synthesis) over one WebSocket per query, calling `model-gateway` for every model call.
+**Architecture:** Two FastAPI services in docker-compose. `model-gateway` exposes `/v1/chat`, `/v1/embed`, `/v1/rerank`, each keyed by a `role` resolved to a DeepInfra model via config — the only seam that knows about providers. `retrieval-api` implements Instant (parallel raw ES+Milvus fetch) and AI Mode (SLM→filter→Milvus→RRF→rerank/citations→synthesis) over one WebSocket per query, calling `model-gateway` for every model call.
 
 **Tech Stack:** Python 3.11, uv workspace, FastAPI, pydantic-settings, httpx, pymilvus, elasticsearch-py, LangChain (chain/prompt orchestration in `retrieval-api`), pytest, pytest-asyncio, respx (HTTP mocking).
 
@@ -63,10 +63,10 @@ retrieval-system/
       src/retrieval_api/
         __init__.py
         gateway_client.py                 # httpx client -> model-gateway
-        loop1/
+        instant/
           __init__.py
           search.py                       # parallel ES + Milvus raw fetch
-        loop2/
+        ai_mode/
           __init__.py
           intent.py                       # SLM rewrite/intent/filters
           filter_resolve.py               # ES filter -> doc_id allowlist
@@ -79,13 +79,13 @@ retrieval-system/
         main.py
       tests/
         test_gateway_client.py
-        test_loop1_search.py
-        test_loop2_intent.py
-        test_loop2_filter_resolve.py
-        test_loop2_retrieve.py
-        test_loop2_rerank_citations.py
-        test_loop2_synthesize.py
-        test_loop2_pipeline.py
+        test_instant_search.py
+        test_ai_mode_intent.py
+        test_ai_mode_filter_resolve.py
+        test_ai_mode_retrieve.py
+        test_ai_mode_rerank_citations.py
+        test_ai_mode_synthesize.py
+        test_ai_mode_pipeline.py
         test_ws_integration.py
 ```
 
@@ -195,10 +195,10 @@ packages = ["src/retrieval_api"]
 ```bash
 mkdir -p packages/common/src/common packages/common/tests
 mkdir -p packages/model-gateway/src/model_gateway/adapters packages/model-gateway/tests
-mkdir -p packages/retrieval-api/src/retrieval_api/loop1 packages/retrieval-api/src/retrieval_api/loop2 packages/retrieval-api/tests
+mkdir -p packages/retrieval-api/src/retrieval_api/instant packages/retrieval-api/src/retrieval_api/ai_mode packages/retrieval-api/tests
 touch packages/common/src/common/__init__.py
 touch packages/model-gateway/src/model_gateway/__init__.py packages/model-gateway/src/model_gateway/adapters/__init__.py
-touch packages/retrieval-api/src/retrieval_api/__init__.py packages/retrieval-api/src/retrieval_api/loop1/__init__.py packages/retrieval-api/src/retrieval_api/loop2/__init__.py
+touch packages/retrieval-api/src/retrieval_api/__init__.py packages/retrieval-api/src/retrieval_api/instant/__init__.py packages/retrieval-api/src/retrieval_api/ai_mode/__init__.py
 ```
 
 - [ ] **Step 6: Write `.env.example`**
@@ -1142,34 +1142,34 @@ git commit -m "feat(retrieval-api): add GatewayClient httpx wrapper"
 
 ---
 
-### Task 9: `retrieval-api` — Loop 1 parallel search
+### Task 9: `retrieval-api` — Instant parallel search
 
 **Files:**
-- Create: `packages/retrieval-api/src/retrieval_api/loop1/search.py`
-- Test: `packages/retrieval-api/tests/test_loop1_search.py`
+- Create: `packages/retrieval-api/src/retrieval_api/instant/search.py`
+- Test: `packages/retrieval-api/tests/test_instant_search.py`
 
 **Interfaces:**
 - Consumes: `common.es_client.raw_search`, `common.milvus_client.hybrid_search`, `common.schemas.MILVUS_COLLECTIONS`, `retrieval_api.gateway_client.GatewayClient.embed`.
-- Produces: `async def run_loop1(gateway, es_client, milvus_client, query: str) -> dict` — returns `{"es": list[dict] | None, "es_error": str | None, "milvus": dict[str, list[dict]] | None, "milvus_error": str | None}`. Each branch's exception is caught independently; a failing branch never prevents the other's result from being returned. Per the design spec, Loop 1's Milvus branch runs true dense ANN + sparse BM25 on the raw (unrewritten) query — it embeds the raw query via `gateway.embed(role="query_embed", text=query)` before calling `hybrid_search`. A gateway failure here counts as a Milvus-branch failure (caught the same way as a `hybrid_search` exception) — it must not affect the ES branch or block emitting a partial `loop1_result`.
+- Produces: `async def run_instant(gateway, es_client, milvus_client, query: str) -> dict` — returns `{"es": list[dict] | None, "es_error": str | None, "milvus": dict[str, list[dict]] | None, "milvus_error": str | None}`. Each branch's exception is caught independently; a failing branch never prevents the other's result from being returned. Per the design spec, Instant's Milvus branch runs true dense ANN + sparse BM25 on the raw (unrewritten) query — it embeds the raw query via `gateway.embed(role="query_embed", text=query)` before calling `hybrid_search`. A gateway failure here counts as a Milvus-branch failure (caught the same way as a `hybrid_search` exception) — it must not affect the ES branch or block emitting a partial `instant_result`.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# packages/retrieval-api/tests/test_loop1_search.py
+# packages/retrieval-api/tests/test_instant_search.py
 from unittest.mock import AsyncMock
 import pytest
-from retrieval_api.loop1.search import run_loop1
+from retrieval_api.instant.search import run_instant
 
 
 @pytest.mark.asyncio
-async def test_run_loop1_returns_both_branches_on_success(monkeypatch):
-    import retrieval_api.loop1.search as search_module
+async def test_run_instant_returns_both_branches_on_success(monkeypatch):
+    import retrieval_api.instant.search as search_module
 
     async def fake_raw_search(client, query, limit=20):
         return [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
-        assert dense_vector == [0.1, 0.2]  # Loop 1 embeds the raw query for true dense ANN
+        assert dense_vector == [0.1, 0.2]  # Instant embeds the raw query for true dense ANN
         return {"ruling": [{"chunk_id": "d1::ruling::0", "doc_id": "d1", "text": "t", "score": 0.9}]}
 
     monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
@@ -1178,7 +1178,7 @@ async def test_run_loop1_returns_both_branches_on_success(monkeypatch):
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]
 
-    result = await run_loop1(gateway=gateway, es_client=object(), milvus_client=object(), query="tax exemption")
+    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="tax exemption")
 
     assert result["es"] == [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
     assert result["es_error"] is None
@@ -1188,8 +1188,8 @@ async def test_run_loop1_returns_both_branches_on_success(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_loop1_returns_partial_result_when_es_fails(monkeypatch):
-    import retrieval_api.loop1.search as search_module
+async def test_run_instant_returns_partial_result_when_es_fails(monkeypatch):
+    import retrieval_api.instant.search as search_module
 
     async def failing_raw_search(client, query, limit=20):
         raise RuntimeError("ES down")
@@ -1203,7 +1203,7 @@ async def test_run_loop1_returns_partial_result_when_es_fails(monkeypatch):
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1]
 
-    result = await run_loop1(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
+    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
 
     assert result["es"] is None
     assert result["es_error"] == "ES down"
@@ -1212,8 +1212,8 @@ async def test_run_loop1_returns_partial_result_when_es_fails(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_loop1_returns_partial_result_when_gateway_embed_fails(monkeypatch):
-    import retrieval_api.loop1.search as search_module
+async def test_run_instant_returns_partial_result_when_gateway_embed_fails(monkeypatch):
+    import retrieval_api.instant.search as search_module
 
     async def fake_raw_search(client, query, limit=20):
         return [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
@@ -1223,7 +1223,7 @@ async def test_run_loop1_returns_partial_result_when_gateway_embed_fails(monkeyp
     gateway = AsyncMock()
     gateway.embed.side_effect = RuntimeError("gateway down")
 
-    result = await run_loop1(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
+    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
 
     assert result["es"] == [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
     assert result["es_error"] is None
@@ -1233,13 +1233,13 @@ async def test_run_loop1_returns_partial_result_when_gateway_embed_fails(monkeyp
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop1_search.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.loop1.search'`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_instant_search.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.instant.search'`
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# packages/retrieval-api/src/retrieval_api/loop1/search.py
+# packages/retrieval-api/src/retrieval_api/instant/search.py
 import asyncio
 
 from common.es_client import raw_search
@@ -1265,7 +1265,7 @@ async def _run_milvus(gateway, milvus_client, query: str) -> tuple[dict | None, 
         return None, str(exc)
 
 
-async def run_loop1(gateway, es_client, milvus_client, query: str) -> dict:
+async def run_instant(gateway, es_client, milvus_client, query: str) -> dict:
     (es_result, es_error), (milvus_result, milvus_error) = await asyncio.gather(
         _run_es(es_client, query),
         _run_milvus(gateway, milvus_client, query),
@@ -1280,37 +1280,37 @@ async def run_loop1(gateway, es_client, milvus_client, query: str) -> dict:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop1_search.py -v`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_instant_search.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/retrieval-api/src/retrieval_api/loop1/search.py packages/retrieval-api/tests/test_loop1_search.py
-git commit -m "feat(retrieval-api): add Loop 1 parallel ES+Milvus raw search with branch isolation"
+git add packages/retrieval-api/src/retrieval_api/instant/search.py packages/retrieval-api/tests/test_instant_search.py
+git commit -m "feat(retrieval-api): add Instant parallel ES+Milvus raw search with branch isolation"
 ```
 
 ---
 
-### Task 10: `retrieval-api` — Loop 2 intent extraction
+### Task 10: `retrieval-api` — AI Mode intent extraction
 
 **Files:**
-- Create: `packages/retrieval-api/src/retrieval_api/loop2/intent.py`
-- Test: `packages/retrieval-api/tests/test_loop2_intent.py`
+- Create: `packages/retrieval-api/src/retrieval_api/ai_mode/intent.py`
+- Test: `packages/retrieval-api/tests/test_ai_mode_intent.py`
 
 **Interfaces:**
 - Consumes: `retrieval_api.gateway_client.GatewayClient.chat`.
-- Produces: `async def extract_intent(gateway: GatewayClient, query: str) -> dict` — calls `gateway.chat(role="slm", messages=[...])` with a prompt instructing JSON output `{"rewritten_query": str, "intent": str, "filters": dict}`, parses the JSON response, returns that dict. Raises `ValueError` on unparseable output (caller in Task 15 turns this into a `loop2_error` event).
+- Produces: `async def extract_intent(gateway: GatewayClient, query: str) -> dict` — calls `gateway.chat(role="slm", messages=[...])` with a prompt instructing JSON output `{"rewritten_query": str, "intent": str, "filters": dict}`, parses the JSON response, returns that dict. Raises `ValueError` on unparseable output (caller in Task 15 turns this into a `ai_mode_error` event).
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# packages/retrieval-api/tests/test_loop2_intent.py
+# packages/retrieval-api/tests/test_ai_mode_intent.py
 import json
 from unittest.mock import AsyncMock
 import pytest
 
-from retrieval_api.loop2.intent import extract_intent
+from retrieval_api.ai_mode.intent import extract_intent
 
 
 @pytest.mark.asyncio
@@ -1345,13 +1345,13 @@ async def test_extract_intent_raises_on_unparseable_response():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_intent.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.loop2.intent'`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_intent.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.ai_mode.intent'`
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# packages/retrieval-api/src/retrieval_api/loop2/intent.py
+# packages/retrieval-api/src/retrieval_api/ai_mode/intent.py
 import json
 
 from retrieval_api.gateway_client import GatewayClient
@@ -1383,34 +1383,34 @@ async def extract_intent(gateway: GatewayClient, query: str) -> dict:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_intent.py -v`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_intent.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/retrieval-api/src/retrieval_api/loop2/intent.py packages/retrieval-api/tests/test_loop2_intent.py
-git commit -m "feat(retrieval-api): add Loop 2 SLM intent/rewrite/filter extraction"
+git add packages/retrieval-api/src/retrieval_api/ai_mode/intent.py packages/retrieval-api/tests/test_ai_mode_intent.py
+git commit -m "feat(retrieval-api): add AI Mode SLM intent/rewrite/filter extraction"
 ```
 
 ---
 
-### Task 11: `retrieval-api` — Loop 2 ES filter resolution
+### Task 11: `retrieval-api` — AI Mode ES filter resolution
 
 **Files:**
-- Create: `packages/retrieval-api/src/retrieval_api/loop2/filter_resolve.py`
-- Test: `packages/retrieval-api/tests/test_loop2_filter_resolve.py`
+- Create: `packages/retrieval-api/src/retrieval_api/ai_mode/filter_resolve.py`
+- Test: `packages/retrieval-api/tests/test_ai_mode_filter_resolve.py`
 
 **Interfaces:**
 - Consumes: `common.es_client.resolve_doc_id_allowlist`.
-- Produces: `async def resolve_allowlist(es_client, filters: dict) -> list[str] | None` — thin passthrough to `common.es_client.resolve_doc_id_allowlist`, kept as its own module per the design's step numbering (Loop 2 step 2) so `pipeline.py` (Task 15) reads as a 1:1 mirror of the spec's numbered steps.
+- Produces: `async def resolve_allowlist(es_client, filters: dict) -> list[str] | None` — thin passthrough to `common.es_client.resolve_doc_id_allowlist`, kept as its own module per the design's step numbering (AI Mode step 2) so `pipeline.py` (Task 15) reads as a 1:1 mirror of the spec's numbered steps.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# packages/retrieval-api/tests/test_loop2_filter_resolve.py
+# packages/retrieval-api/tests/test_ai_mode_filter_resolve.py
 import pytest
-from retrieval_api.loop2.filter_resolve import resolve_allowlist
+from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
 
 
 @pytest.mark.asyncio
@@ -1420,7 +1420,7 @@ async def test_resolve_allowlist_returns_none_for_empty_filters():
 
 @pytest.mark.asyncio
 async def test_resolve_allowlist_delegates_to_common_es_client(monkeypatch):
-    import retrieval_api.loop2.filter_resolve as module
+    import retrieval_api.ai_mode.filter_resolve as module
 
     async def fake_resolve(client, filters):
         assert filters == {"court": "Supreme Court"}
@@ -1435,13 +1435,13 @@ async def test_resolve_allowlist_delegates_to_common_es_client(monkeypatch):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_filter_resolve.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.loop2.filter_resolve'`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_filter_resolve.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.ai_mode.filter_resolve'`
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# packages/retrieval-api/src/retrieval_api/loop2/filter_resolve.py
+# packages/retrieval-api/src/retrieval_api/ai_mode/filter_resolve.py
 from common.es_client import resolve_doc_id_allowlist
 
 
@@ -1451,23 +1451,23 @@ async def resolve_allowlist(es_client, filters: dict) -> list[str] | None:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_filter_resolve.py -v`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_filter_resolve.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/retrieval-api/src/retrieval_api/loop2/filter_resolve.py packages/retrieval-api/tests/test_loop2_filter_resolve.py
-git commit -m "feat(retrieval-api): add Loop 2 ES filter -> doc_id allowlist step"
+git add packages/retrieval-api/src/retrieval_api/ai_mode/filter_resolve.py packages/retrieval-api/tests/test_ai_mode_filter_resolve.py
+git commit -m "feat(retrieval-api): add AI Mode ES filter -> doc_id allowlist step"
 ```
 
 ---
 
-### Task 12: `retrieval-api` — Loop 2 rewritten-query retrieval + RRF merge
+### Task 12: `retrieval-api` — AI Mode rewritten-query retrieval + RRF merge
 
 **Files:**
-- Create: `packages/retrieval-api/src/retrieval_api/loop2/retrieve.py`
-- Test: `packages/retrieval-api/tests/test_loop2_retrieve.py`
+- Create: `packages/retrieval-api/src/retrieval_api/ai_mode/retrieve.py`
+- Test: `packages/retrieval-api/tests/test_ai_mode_retrieve.py`
 
 **Interfaces:**
 - Consumes: `retrieval_api.gateway_client.GatewayClient.embed`, `common.milvus_client.hybrid_search`, `common.schemas.MILVUS_COLLECTIONS`.
@@ -1478,11 +1478,11 @@ git commit -m "feat(retrieval-api): add Loop 2 ES filter -> doc_id allowlist ste
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# packages/retrieval-api/tests/test_loop2_retrieve.py
+# packages/retrieval-api/tests/test_ai_mode_retrieve.py
 from unittest.mock import AsyncMock
 import pytest
 
-from retrieval_api.loop2.retrieve import rrf_merge, retrieve
+from retrieval_api.ai_mode.retrieve import rrf_merge, retrieve
 
 
 def test_rrf_merge_combines_and_ranks_by_reciprocal_rank():
@@ -1508,7 +1508,7 @@ def test_rrf_merge_dedupes_by_chunk_id():
 
 @pytest.mark.asyncio
 async def test_retrieve_embeds_rewritten_query_and_merges_dense_sparse(monkeypatch):
-    import retrieval_api.loop2.retrieve as module
+    import retrieval_api.ai_mode.retrieve as module
 
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]
@@ -1528,13 +1528,13 @@ async def test_retrieve_embeds_rewritten_query_and_merges_dense_sparse(monkeypat
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_retrieve.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.loop2.retrieve'`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_retrieve.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.ai_mode.retrieve'`
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# packages/retrieval-api/src/retrieval_api/loop2/retrieve.py
+# packages/retrieval-api/src/retrieval_api/ai_mode/retrieve.py
 from common.milvus_client import hybrid_search
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.gateway_client import GatewayClient
@@ -1579,24 +1579,24 @@ async def retrieve(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_retrieve.py -v`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_retrieve.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/retrieval-api/src/retrieval_api/loop2/retrieve.py packages/retrieval-api/tests/test_loop2_retrieve.py
-git commit -m "feat(retrieval-api): add Loop 2 rewritten-query retrieval with RRF merge"
+git add packages/retrieval-api/src/retrieval_api/ai_mode/retrieve.py packages/retrieval-api/tests/test_ai_mode_retrieve.py
+git commit -m "feat(retrieval-api): add AI Mode rewritten-query retrieval with RRF merge"
 ```
 
 ---
 
-### Task 13: `retrieval-api` — Loop 2 rerank + citation prefetch fork
+### Task 13: `retrieval-api` — AI Mode rerank + citation prefetch fork
 
 **Files:**
-- Create: `packages/retrieval-api/src/retrieval_api/loop2/rerank.py`
-- Create: `packages/retrieval-api/src/retrieval_api/loop2/citations.py`
-- Test: `packages/retrieval-api/tests/test_loop2_rerank_citations.py`
+- Create: `packages/retrieval-api/src/retrieval_api/ai_mode/rerank.py`
+- Create: `packages/retrieval-api/src/retrieval_api/ai_mode/citations.py`
+- Test: `packages/retrieval-api/tests/test_ai_mode_rerank_citations.py`
 
 **Interfaces:**
 - Consumes: `retrieval_api.gateway_client.GatewayClient.rerank`, `common.es_client.fetch_citations`.
@@ -1608,12 +1608,12 @@ git commit -m "feat(retrieval-api): add Loop 2 rewritten-query retrieval with RR
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# packages/retrieval-api/tests/test_loop2_rerank_citations.py
+# packages/retrieval-api/tests/test_ai_mode_rerank_citations.py
 from unittest.mock import AsyncMock
 import pytest
 
-from retrieval_api.loop2.rerank import rerank_top_chunks
-from retrieval_api.loop2.citations import prefetch_citations, rerank_and_prefetch
+from retrieval_api.ai_mode.rerank import rerank_top_chunks
+from retrieval_api.ai_mode.citations import prefetch_citations, rerank_and_prefetch
 
 
 @pytest.mark.asyncio
@@ -1634,7 +1634,7 @@ async def test_rerank_top_chunks_sorts_by_score_and_truncates():
 
 @pytest.mark.asyncio
 async def test_prefetch_citations_dedupes_doc_ids_and_caps_at_top_n(monkeypatch):
-    import retrieval_api.loop2.citations as module
+    import retrieval_api.ai_mode.citations as module
 
     async def fake_fetch_citations(client, doc_ids):
         assert doc_ids == ["d1", "d2"]
@@ -1654,8 +1654,8 @@ async def test_prefetch_citations_dedupes_doc_ids_and_caps_at_top_n(monkeypatch)
 
 @pytest.mark.asyncio
 async def test_rerank_and_prefetch_runs_both_concurrently(monkeypatch):
-    import retrieval_api.loop2.citations as citations_module
-    import retrieval_api.loop2.rerank as rerank_module
+    import retrieval_api.ai_mode.citations as citations_module
+    import retrieval_api.ai_mode.rerank as rerank_module
 
     async def fake_prefetch(es_client, candidates, top_n_docs=20):
         return {"d1": {"masterinfo": {}}}
@@ -1676,13 +1676,13 @@ async def test_rerank_and_prefetch_runs_both_concurrently(monkeypatch):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_rerank_citations.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.loop2.rerank'`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_rerank_citations.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.ai_mode.rerank'`
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# packages/retrieval-api/src/retrieval_api/loop2/rerank.py
+# packages/retrieval-api/src/retrieval_api/ai_mode/rerank.py
 from retrieval_api.gateway_client import GatewayClient
 
 
@@ -1696,11 +1696,11 @@ async def rerank_top_chunks(
 ```
 
 ```python
-# packages/retrieval-api/src/retrieval_api/loop2/citations.py
+# packages/retrieval-api/src/retrieval_api/ai_mode/citations.py
 import asyncio
 
 from common.es_client import fetch_citations
-from retrieval_api.loop2.rerank import rerank_top_chunks
+from retrieval_api.ai_mode.rerank import rerank_top_chunks
 
 
 async def prefetch_citations(es_client, candidates: list[dict], top_n_docs: int = 20) -> dict[str, dict]:
@@ -1727,23 +1727,23 @@ async def rerank_and_prefetch(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_rerank_citations.py -v`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_rerank_citations.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/retrieval-api/src/retrieval_api/loop2/rerank.py packages/retrieval-api/src/retrieval_api/loop2/citations.py packages/retrieval-api/tests/test_loop2_rerank_citations.py
-git commit -m "feat(retrieval-api): add Loop 2 cross-encoder rerank + ES citation prefetch fork"
+git add packages/retrieval-api/src/retrieval_api/ai_mode/rerank.py packages/retrieval-api/src/retrieval_api/ai_mode/citations.py packages/retrieval-api/tests/test_ai_mode_rerank_citations.py
+git commit -m "feat(retrieval-api): add AI Mode cross-encoder rerank + ES citation prefetch fork"
 ```
 
 ---
 
-### Task 14: `retrieval-api` — Loop 2 synthesis with fallback citation lookup
+### Task 14: `retrieval-api` — AI Mode synthesis with fallback citation lookup
 
 **Files:**
-- Create: `packages/retrieval-api/src/retrieval_api/loop2/synthesize.py`
-- Test: `packages/retrieval-api/tests/test_loop2_synthesize.py`
+- Create: `packages/retrieval-api/src/retrieval_api/ai_mode/synthesize.py`
+- Test: `packages/retrieval-api/tests/test_ai_mode_synthesize.py`
 
 **Interfaces:**
 - Consumes: `retrieval_api.gateway_client.GatewayClient.chat`, `common.es_client.fetch_citations`.
@@ -1752,16 +1752,16 @@ git commit -m "feat(retrieval-api): add Loop 2 cross-encoder rerank + ES citatio
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# packages/retrieval-api/tests/test_loop2_synthesize.py
+# packages/retrieval-api/tests/test_ai_mode_synthesize.py
 from unittest.mock import AsyncMock
 import pytest
 
-from retrieval_api.loop2.synthesize import synthesize
+from retrieval_api.ai_mode.synthesize import synthesize
 
 
 @pytest.mark.asyncio
 async def test_synthesize_uses_prefetched_citations_without_extra_lookup(monkeypatch):
-    import retrieval_api.loop2.synthesize as module
+    import retrieval_api.ai_mode.synthesize as module
 
     fetch_calls = []
 
@@ -1786,7 +1786,7 @@ async def test_synthesize_uses_prefetched_citations_without_extra_lookup(monkeyp
 
 @pytest.mark.asyncio
 async def test_synthesize_falls_back_to_on_demand_lookup_for_missing_doc(monkeypatch):
-    import retrieval_api.loop2.synthesize as module
+    import retrieval_api.ai_mode.synthesize as module
 
     async def fake_fetch_citations(client, doc_ids):
         assert doc_ids == ["d2"]
@@ -1808,13 +1808,13 @@ async def test_synthesize_falls_back_to_on_demand_lookup_for_missing_doc(monkeyp
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_synthesize.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.loop2.synthesize'`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_synthesize.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.ai_mode.synthesize'`
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# packages/retrieval-api/src/retrieval_api/loop2/synthesize.py
+# packages/retrieval-api/src/retrieval_api/ai_mode/synthesize.py
 from common.es_client import fetch_citations
 
 
@@ -1835,40 +1835,40 @@ async def synthesize(gateway, es_client, query: str, top_chunks: list[dict], cit
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_synthesize.py -v`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_synthesize.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/retrieval-api/src/retrieval_api/loop2/synthesize.py packages/retrieval-api/tests/test_loop2_synthesize.py
-git commit -m "feat(retrieval-api): add Loop 2 LLM synthesis with fallback citation lookup"
+git add packages/retrieval-api/src/retrieval_api/ai_mode/synthesize.py packages/retrieval-api/tests/test_ai_mode_synthesize.py
+git commit -m "feat(retrieval-api): add AI Mode LLM synthesis with fallback citation lookup"
 ```
 
 ---
 
-### Task 15: `retrieval-api` — Loop 2 pipeline wiring
+### Task 15: `retrieval-api` — AI Mode pipeline wiring
 
 **Files:**
-- Create: `packages/retrieval-api/src/retrieval_api/loop2/pipeline.py`
-- Test: `packages/retrieval-api/tests/test_loop2_pipeline.py`
+- Create: `packages/retrieval-api/src/retrieval_api/ai_mode/pipeline.py`
+- Test: `packages/retrieval-api/tests/test_ai_mode_pipeline.py`
 
 **Interfaces:**
 - Consumes: `extract_intent`, `resolve_allowlist`, `retrieve`, `rerank_and_prefetch`, `synthesize` (all from this task's sibling modules).
-- Produces: `async def run_loop2(gateway, es_client, milvus_client, query: str) -> dict` — runs the six spec-numbered steps in order, wrapping the whole thing in one `try/except`. On success returns `{"ok": True, "answer": str, "citations": dict}`. On any exception returns `{"ok": False, "error": str}` — this is what `ws.py` (Task 16) turns into `loop2_done` vs `loop2_error`.
+- Produces: `async def run_ai_mode(gateway, es_client, milvus_client, query: str) -> dict` — runs the six spec-numbered steps in order, wrapping the whole thing in one `try/except`. On success returns `{"ok": True, "answer": str, "citations": dict}`. On any exception returns `{"ok": False, "error": str}` — this is what `ws.py` (Task 16) turns into `ai_mode_done` vs `ai_mode_error`.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# packages/retrieval-api/tests/test_loop2_pipeline.py
+# packages/retrieval-api/tests/test_ai_mode_pipeline.py
 import pytest
 
-from retrieval_api.loop2.pipeline import run_loop2
+from retrieval_api.ai_mode.pipeline import run_ai_mode
 
 
 @pytest.mark.asyncio
-async def test_run_loop2_success_path(monkeypatch):
-    import retrieval_api.loop2.pipeline as module
+async def test_run_ai_mode_success_path(monkeypatch):
+    import retrieval_api.ai_mode.pipeline as module
 
     async def fake_extract_intent(gateway, query):
         return {"rewritten_query": "rewritten", "intent": "x", "filters": {}}
@@ -1891,42 +1891,42 @@ async def test_run_loop2_success_path(monkeypatch):
     monkeypatch.setattr(module, "rerank_and_prefetch", fake_rerank_and_prefetch)
     monkeypatch.setattr(module, "synthesize", fake_synthesize)
 
-    result = await run_loop2(gateway=object(), es_client=object(), milvus_client=object(), query="original query")
+    result = await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="original query")
 
     assert result == {"ok": True, "answer": "final answer", "citations": {"d1": {}}}
 
 
 @pytest.mark.asyncio
-async def test_run_loop2_returns_error_on_any_stage_failure(monkeypatch):
-    import retrieval_api.loop2.pipeline as module
+async def test_run_ai_mode_returns_error_on_any_stage_failure(monkeypatch):
+    import retrieval_api.ai_mode.pipeline as module
 
     async def failing_extract_intent(gateway, query):
         raise ValueError("SLM did not return valid JSON")
 
     monkeypatch.setattr(module, "extract_intent", failing_extract_intent)
 
-    result = await run_loop2(gateway=object(), es_client=object(), milvus_client=object(), query="q")
+    result = await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="q")
 
     assert result == {"ok": False, "error": "SLM did not return valid JSON"}
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_pipeline.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.loop2.pipeline'`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_pipeline.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'retrieval_api.ai_mode.pipeline'`
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# packages/retrieval-api/src/retrieval_api/loop2/pipeline.py
-from retrieval_api.loop2.intent import extract_intent
-from retrieval_api.loop2.filter_resolve import resolve_allowlist
-from retrieval_api.loop2.retrieve import retrieve
-from retrieval_api.loop2.citations import rerank_and_prefetch
-from retrieval_api.loop2.synthesize import synthesize
+# packages/retrieval-api/src/retrieval_api/ai_mode/pipeline.py
+from retrieval_api.ai_mode.intent import extract_intent
+from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
+from retrieval_api.ai_mode.retrieve import retrieve
+from retrieval_api.ai_mode.citations import rerank_and_prefetch
+from retrieval_api.ai_mode.synthesize import synthesize
 
 
-async def run_loop2(gateway, es_client, milvus_client, query: str) -> dict:
+async def run_ai_mode(gateway, es_client, milvus_client, query: str) -> dict:
     try:
         intent_result = await extract_intent(gateway, query)
         doc_id_allowlist = await resolve_allowlist(es_client, intent_result["filters"])
@@ -1934,20 +1934,20 @@ async def run_loop2(gateway, es_client, milvus_client, query: str) -> dict:
         top_chunks, citations = await rerank_and_prefetch(gateway, es_client, query, candidates)
         synthesis = await synthesize(gateway, es_client, query, top_chunks, citations)
         return {"ok": True, "answer": synthesis["answer"], "citations": synthesis["citations"]}
-    except Exception as exc:  # noqa: BLE001 - Loop 2 failure must never crash Loop 1's result
+    except Exception as exc:  # noqa: BLE001 - AI Mode failure must never crash Instant's result
         return {"ok": False, "error": str(exc)}
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd packages/retrieval-api && uv run pytest tests/test_loop2_pipeline.py -v`
+Run: `cd packages/retrieval-api && uv run pytest tests/test_ai_mode_pipeline.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/retrieval-api/src/retrieval_api/loop2/pipeline.py packages/retrieval-api/tests/test_loop2_pipeline.py
-git commit -m "feat(retrieval-api): wire Loop 2 pipeline stages 1-6 with error isolation"
+git add packages/retrieval-api/src/retrieval_api/ai_mode/pipeline.py packages/retrieval-api/tests/test_ai_mode_pipeline.py
+git commit -m "feat(retrieval-api): wire AI Mode pipeline stages 1-6 with error isolation"
 ```
 
 ---
@@ -1960,8 +1960,8 @@ git commit -m "feat(retrieval-api): wire Loop 2 pipeline stages 1-6 with error i
 - Test: `packages/retrieval-api/tests/test_ws_integration.py`
 
 **Interfaces:**
-- Consumes: `retrieval_api.loop1.search.run_loop1`, `retrieval_api.loop2.pipeline.run_loop2`, `retrieval_api.gateway_client.GatewayClient`.
-- Produces: FastAPI `WebSocket` route `/ws/search`. Protocol: client sends `{"query": str}`; server sends, in order: one `{"type": "loop1_result", **run_loop1_output}` (Loop 1 and Loop 2 dispatched via `asyncio.gather` at the same time, but Loop 1's message is sent as soon as its own task resolves — it does not wait for Loop 2), then either `{"type": "loop2_done", "answer": str, "citations": dict}` or `{"type": "loop2_error", "error": str}`.
+- Consumes: `retrieval_api.instant.search.run_instant`, `retrieval_api.ai_mode.pipeline.run_ai_mode`, `retrieval_api.gateway_client.GatewayClient`.
+- Produces: FastAPI `WebSocket` route `/ws/search`. Protocol: client sends `{"query": str}`; server sends, in order: one `{"type": "instant_result", **run_instant_output}` (Instant and AI Mode dispatched via `asyncio.gather` at the same time, but Instant's message is sent as soon as its own task resolves — it does not wait for AI Mode), then either `{"type": "ai_mode_done", "answer": str, "citations": dict}` or `{"type": "ai_mode_error", "error": str}`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1974,15 +1974,15 @@ from retrieval_api.main import app
 import retrieval_api.ws as ws_module
 
 
-def test_ws_search_sends_loop1_then_loop2_events(monkeypatch):
-    async def fake_run_loop1(gateway, es_client, milvus_client, query):
+def test_ws_search_sends_instant_then_ai_mode_events(monkeypatch):
+    async def fake_run_instant(gateway, es_client, milvus_client, query):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_loop2(gateway, es_client, milvus_client, query):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query):
         return {"ok": True, "answer": "final answer", "citations": {"d1": {}}}
 
-    monkeypatch.setattr(ws_module, "run_loop1", fake_run_loop1)
-    monkeypatch.setattr(ws_module, "run_loop2", fake_run_loop2)
+    monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
+    monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
     monkeypatch.setattr(ws_module, "get_es_client", lambda: object())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda: object())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda: AsyncMock())
@@ -1994,20 +1994,20 @@ def test_ws_search_sends_loop1_then_loop2_events(monkeypatch):
         first = websocket.receive_json()
         second = websocket.receive_json()
 
-    assert first["type"] == "loop1_result"
+    assert first["type"] == "instant_result"
     assert first["es"] == [{"doc_id": "d1"}]
-    assert second == {"type": "loop2_done", "answer": "final answer", "citations": {"d1": {}}}
+    assert second == {"type": "ai_mode_done", "answer": "final answer", "citations": {"d1": {}}}
 
 
-def test_ws_search_sends_loop2_error_event_on_failure(monkeypatch):
-    async def fake_run_loop1(gateway, es_client, milvus_client, query):
+def test_ws_search_sends_ai_mode_error_event_on_failure(monkeypatch):
+    async def fake_run_instant(gateway, es_client, milvus_client, query):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_loop2(gateway, es_client, milvus_client, query):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query):
         return {"ok": False, "error": "gateway unreachable"}
 
-    monkeypatch.setattr(ws_module, "run_loop1", fake_run_loop1)
-    monkeypatch.setattr(ws_module, "run_loop2", fake_run_loop2)
+    monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
+    monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
     monkeypatch.setattr(ws_module, "get_es_client", lambda: object())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda: object())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda: AsyncMock())
@@ -2015,10 +2015,10 @@ def test_ws_search_sends_loop2_error_event_on_failure(monkeypatch):
     client = TestClient(app)
     with client.websocket_connect("/ws/search") as websocket:
         websocket.send_json({"query": "q"})
-        websocket.receive_json()  # loop1_result
+        websocket.receive_json()  # instant_result
         second = websocket.receive_json()
 
-    assert second == {"type": "loop2_error", "error": "gateway unreachable"}
+    assert second == {"type": "ai_mode_error", "error": "gateway unreachable"}
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -2038,8 +2038,8 @@ from common.config import get_settings
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
 from retrieval_api.gateway_client import GatewayClient
-from retrieval_api.loop1.search import run_loop1
-from retrieval_api.loop2.pipeline import run_loop2
+from retrieval_api.instant.search import run_instant
+from retrieval_api.ai_mode.pipeline import run_ai_mode
 
 router = APIRouter()
 
@@ -2058,19 +2058,19 @@ async def search(websocket: WebSocket):
     milvus_client = get_milvus_client()
     gateway = get_gateway_client()
 
-    loop1_task = asyncio.create_task(run_loop1(gateway, es_client, milvus_client, query))
-    loop2_task = asyncio.create_task(run_loop2(gateway, es_client, milvus_client, query))
+    instant_task = asyncio.create_task(run_instant(gateway, es_client, milvus_client, query))
+    ai_mode_task = asyncio.create_task(run_ai_mode(gateway, es_client, milvus_client, query))
 
-    loop1_result = await loop1_task
-    await websocket.send_json({"type": "loop1_result", **loop1_result})
+    instant_result = await instant_task
+    await websocket.send_json({"type": "instant_result", **instant_result})
 
-    loop2_result = await loop2_task
-    if loop2_result["ok"]:
+    ai_mode_result = await ai_mode_task
+    if ai_mode_result["ok"]:
         await websocket.send_json({
-            "type": "loop2_done", "answer": loop2_result["answer"], "citations": loop2_result["citations"],
+            "type": "ai_mode_done", "answer": ai_mode_result["answer"], "citations": ai_mode_result["citations"],
         })
     else:
-        await websocket.send_json({"type": "loop2_error", "error": loop2_result["error"]})
+        await websocket.send_json({"type": "ai_mode_error", "error": ai_mode_result["error"]})
 
     await websocket.close()
 ```
@@ -2096,7 +2096,7 @@ Expected: PASS
 
 ```bash
 git add packages/retrieval-api/src/retrieval_api/ws.py packages/retrieval-api/src/retrieval_api/main.py packages/retrieval-api/tests/test_ws_integration.py
-git commit -m "feat(retrieval-api): add /ws/search endpoint wiring Loop 1 + Loop 2"
+git commit -m "feat(retrieval-api): add /ws/search endpoint wiring Instant + AI Mode"
 ```
 
 ---
@@ -2173,6 +2173,6 @@ git commit -m "chore: add docker-compose stack for model-gateway + retrieval-api
 
 ## Self-Review Notes
 
-- **Spec coverage:** Loop 1 (Task 9), Loop 2 steps 1-6 (Tasks 10-15), WebSocket wiring (Task 16), model-gateway (Tasks 6-7), error handling/partial-failure isolation (Tasks 9, 15, 16), docker-compose (Task 17) — all spec sections have a task. `dense_vector_2` and a second gateway provider are explicitly out of scope per the spec's "Open items" and left untouched.
+- **Spec coverage:** Instant (Task 9), AI Mode steps 1-6 (Tasks 10-15), WebSocket wiring (Task 16), model-gateway (Tasks 6-7), error handling/partial-failure isolation (Tasks 9, 15, 16), docker-compose (Task 17) — all spec sections have a task. `dense_vector_2` and a second gateway provider are explicitly out of scope per the spec's "Open items" and left untouched.
 - **Placeholder scan:** no TBD/TODO; every step has runnable code.
-- **Type consistency:** `chunk_id`/`doc_id`/`text`/`score` row shape introduced in Task 4 (`common.milvus_client`) is reused unchanged through Tasks 9, 12, 13, 14. `GatewayClient.chat/embed/rerank` signatures from Task 8 match every call site in Tasks 10, 12, 13, 14. `run_loop2`'s `{"ok": bool, ...}` shape from Task 15 matches its consumption in Task 16.
+- **Type consistency:** `chunk_id`/`doc_id`/`text`/`score` row shape introduced in Task 4 (`common.milvus_client`) is reused unchanged through Tasks 9, 12, 13, 14. `GatewayClient.chat/embed/rerank` signatures from Task 8 match every call site in Tasks 10, 12, 13, 14. `run_ai_mode`'s `{"ok": bool, ...}` shape from Task 15 matches its consumption in Task 16.
