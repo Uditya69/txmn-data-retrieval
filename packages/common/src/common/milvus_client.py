@@ -17,11 +17,19 @@ def _doc_id_filter(doc_id_allowlist: list[str] | None) -> str | None:
     return f"doc_id in [{quoted}]"
 
 
-def _search_one(client, collection: str, dense_vector, limit: int, filter_expr: str | None) -> list[dict]:
+def _search_one(
+    client, collection: str, dense_vector, sparse_query_text: str, limit: int, filter_expr: str | None
+) -> list[dict]:
+    if dense_vector is not None:
+        anns_field = "dense_vector"
+        data = [dense_vector]
+    else:
+        anns_field = "sparse_vector"
+        data = [sparse_query_text]
     hits = client.search(
         collection_name=collection,
-        data=[dense_vector],
-        anns_field="dense_vector",
+        data=data,
+        anns_field=anns_field,
         limit=limit,
         filter=filter_expr,
         output_fields=["doc_id", "text"],
@@ -47,7 +55,7 @@ async def hybrid_search(
 ) -> dict[str, list[dict]]:
     filter_expr = _doc_id_filter(doc_id_allowlist)
     results = await asyncio.gather(*[
-        asyncio.to_thread(_search_one, client, collection, dense_vector, limit, filter_expr)
+        asyncio.to_thread(_search_one, client, collection, dense_vector, sparse_query_text, limit, filter_expr)
         for collection in collections
     ])
     return dict(zip(collections, results))
