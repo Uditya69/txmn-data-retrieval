@@ -1,0 +1,53 @@
+import asyncio
+import json
+
+from pymilvus import MilvusClient
+
+from common.config import Settings
+
+
+def get_milvus_client(settings: Settings) -> MilvusClient:
+    return MilvusClient(uri=settings.milvus_uri, token=settings.milvus_token, db_name=settings.milvus_db)
+
+
+def _doc_id_filter(doc_id_allowlist: list[str] | None) -> str | None:
+    if not doc_id_allowlist:
+        return None
+    quoted = ", ".join(f'"{d}"' for d in doc_id_allowlist)
+    return f"doc_id in [{quoted}]"
+
+
+def _search_one(client, collection: str, dense_vector, limit: int, filter_expr: str | None) -> list[dict]:
+    hits = client.search(
+        collection_name=collection,
+        data=[dense_vector],
+        anns_field="dense_vector",
+        limit=limit,
+        filter=filter_expr,
+        output_fields=["doc_id", "text"],
+    )[0]
+    return [
+        {
+            "chunk_id": h["id"],
+            "doc_id": h["entity"]["doc_id"],
+            "text": h["entity"]["text"],
+            "score": h["distance"],
+        }
+        for h in hits
+    ]
+
+
+async def hybrid_search(
+    client,
+    collections: list[str],
+    dense_vector: list[float] | None,
+    sparse_query_text: str,
+    doc_id_allowlist: list[str] | None = None,
+    limit: int = 50,
+) -> dict[str, list[dict]]:
+    filter_expr = _doc_id_filter(doc_id_allowlist)
+    results = await asyncio.gather(*[
+        asyncio.to_thread(_search_one, client, collection, dense_vector, limit, filter_expr)
+        for collection in collections
+    ])
+    return dict(zip(collections, results))
