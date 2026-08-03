@@ -12,8 +12,8 @@ from retrieval_api.ai_mode.pipeline import run_ai_mode
 router = APIRouter()
 
 
-def get_gateway_client() -> GatewayClient:
-    return GatewayClient(base_url=get_settings().gateway_url)
+def get_gateway_client(settings) -> GatewayClient:
+    return GatewayClient(base_url=settings.gateway_url)
 
 
 @router.websocket("/ws/search")
@@ -22,22 +22,27 @@ async def search(websocket: WebSocket):
     message = await websocket.receive_json()
     query = message["query"]
 
-    es_client = get_es_client(get_settings())
-    milvus_client = get_milvus_client(get_settings())
-    gateway = get_gateway_client()
+    settings = get_settings()
+    es_client = get_es_client(settings)
+    milvus_client = get_milvus_client(settings)
+    gateway = get_gateway_client(settings)
 
-    instant_task = asyncio.create_task(run_instant(gateway, es_client, milvus_client, query))
-    ai_mode_task = asyncio.create_task(run_ai_mode(gateway, es_client, milvus_client, query))
+    try:
+        instant_task = asyncio.create_task(run_instant(gateway, es_client, milvus_client, query))
+        ai_mode_task = asyncio.create_task(run_ai_mode(gateway, es_client, milvus_client, query))
 
-    instant_result = await instant_task
-    await websocket.send_json({"type": "instant_result", **instant_result})
+        instant_result = await instant_task
+        await websocket.send_json({"type": "instant_result", **instant_result})
 
-    ai_mode_result = await ai_mode_task
-    if ai_mode_result["ok"]:
-        await websocket.send_json({
-            "type": "ai_mode_done", "answer": ai_mode_result["answer"], "citations": ai_mode_result["citations"],
-        })
-    else:
-        await websocket.send_json({"type": "ai_mode_error", "error": ai_mode_result["error"]})
+        ai_mode_result = await ai_mode_task
+        if ai_mode_result["ok"]:
+            await websocket.send_json({
+                "type": "ai_mode_done", "answer": ai_mode_result["answer"], "citations": ai_mode_result["citations"],
+            })
+        else:
+            await websocket.send_json({"type": "ai_mode_error", "error": ai_mode_result["error"]})
 
-    await websocket.close()
+        await websocket.close()
+    finally:
+        await es_client.close()
+        milvus_client.close()

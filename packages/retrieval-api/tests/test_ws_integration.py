@@ -1,5 +1,5 @@
 # packages/retrieval-api/tests/test_ws_integration.py
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from fastapi.testclient import TestClient
 
 from retrieval_api.main import app
@@ -16,8 +16,8 @@ def test_ws_search_sends_instant_then_ai_mode_events(monkeypatch):
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
     monkeypatch.setattr(ws_module, "get_settings", lambda: object())
-    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: object())
-    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
 
     client = TestClient(app)
@@ -42,8 +42,8 @@ def test_ws_search_sends_ai_mode_error_event_on_failure(monkeypatch):
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
     monkeypatch.setattr(ws_module, "get_settings", lambda: object())
-    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: object())
-    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
 
     client = TestClient(app)
