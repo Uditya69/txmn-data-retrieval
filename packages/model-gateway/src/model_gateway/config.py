@@ -6,9 +6,9 @@ class GatewaySettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     deepinfra_api_key: str
-    chat_model_slm: str
-    chat_model_synthesis: str
-    rerank_model: str
+    deepinfra_chat_model_slm: str
+    deepinfra_chat_model_synthesis: str
+    deepinfra_rerank_model: str
     voyage_api_key: str
     voyage_embed_model: str
 
@@ -20,10 +20,10 @@ def get_gateway_settings() -> GatewaySettings:
 
 def build_role_model_map(settings: GatewaySettings) -> dict[str, str]:
     return {
-        "slm": settings.chat_model_slm,
-        "synthesis": settings.chat_model_synthesis,
+        "slm": settings.deepinfra_chat_model_slm,
+        "synthesis": settings.deepinfra_chat_model_synthesis,
         "query_embed": settings.voyage_embed_model,
-        "reranker": settings.rerank_model,
+        "reranker": settings.deepinfra_rerank_model,
     }
 
 
