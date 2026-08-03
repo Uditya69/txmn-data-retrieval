@@ -1,5 +1,27 @@
 import pytest
 from common.es_client import raw_search, resolve_doc_id_allowlist, fetch_citations
+from common.schemas import MASTERINFO_CITATION_FIELDS
+
+
+def _filter_source(source: dict, fields: list[str]) -> dict:
+    """Mimic Elasticsearch's `_source` include filtering for dotted field paths."""
+    result: dict = {}
+    for path in fields:
+        parts = path.split(".")
+        node = source
+        found = True
+        for part in parts:
+            if isinstance(node, dict) and part in node:
+                node = node[part]
+            else:
+                found = False
+                break
+        if found:
+            dest = result
+            for part in parts[:-1]:
+                dest = dest.setdefault(part, {})
+            dest[parts[-1]] = node
+    return result
 
 
 class FakeAsyncES:
@@ -13,9 +35,15 @@ class FakeAsyncES:
         self.search_calls.append(query)
         return {"hits": {"hits": self.search_hits}}
 
-    async def mget(self, index, ids):
-        self.mget_calls.append(ids)
-        return {"docs": [{"_id": i, "found": True, "_source": self.mget_docs.get(i, {})} for i in ids]}
+    async def mget(self, index, ids, _source=None):
+        self.mget_calls.append({"ids": ids, "_source": _source})
+        docs = []
+        for i in ids:
+            source = self.mget_docs.get(i, {})
+            if _source is not None:
+                source = _filter_source(source, _source)
+            docs.append({"_id": i, "found": True, "_source": source})
+        return {"docs": docs}
 
 
 @pytest.mark.asyncio
@@ -46,11 +74,25 @@ async def test_resolve_doc_id_allowlist_queries_masterinfo_and_returns_doc_ids()
 
 
 @pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_raises_on_unrecognized_filter_keys():
+    client = FakeAsyncES()
+
+    with pytest.raises(ValueError):
+        await resolve_doc_id_allowlist(client, {"unknown_key": "whatever"})
+
+
+@pytest.mark.asyncio
 async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
     client = FakeAsyncES(mget_docs={
-        "d1": {"masterinfo": {"court": "Supreme Court", "citations": ["2020 SCC 1"]}},
+        "d1": {
+            "masterinfo": {"court": "Supreme Court", "citations": ["2020 SCC 1"]},
+            "judgment_text": "irrelevant text that should not be returned",
+        },
     })
 
     result = await fetch_citations(client, ["d1"])
 
     assert result == {"d1": {"masterinfo": {"court": "Supreme Court", "citations": ["2020 SCC 1"]}}}
+    assert "judgment_text" not in result["d1"]
+    # confirm the field restriction was actually passed through to ES (mget _source param)
+    assert client.mget_calls[0]["_source"] == MASTERINFO_CITATION_FIELDS
