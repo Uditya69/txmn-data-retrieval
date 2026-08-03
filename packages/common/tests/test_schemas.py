@@ -1,0 +1,31 @@
+from common.schemas import (
+    MILVUS_COLLECTIONS,
+    CHUNKED_COLLECTIONS,
+    BM25_SOURCE_FIELD,
+    MASTERINFO_CITATION_FIELDS,
+)
+
+
+def test_seven_collections():
+    assert set(MILVUS_COLLECTIONS) == {
+        "case_summary", "digest", "headnotes", "facts", "held", "ruling", "metadata",
+    }
+
+
+def test_chunked_collections_match_verified_code_behavior():
+    assert CHUNKED_COLLECTIONS == {"digest", "facts", "held", "ruling"}
+    assert "case_summary" not in CHUNKED_COLLECTIONS
+    assert "headnotes" not in CHUNKED_COLLECTIONS
+    assert "metadata" not in CHUNKED_COLLECTIONS
+
+
+def test_bm25_source_field_metadata_uses_heading_subheading():
+    assert BM25_SOURCE_FIELD["metadata"] == "heading_subheading_text"
+    assert BM25_SOURCE_FIELD["ruling"] == "text"
+
+
+def test_masterinfo_citation_fields():
+    assert MASTERINFO_CITATION_FIELDS == [
+        "masterinfo.citations", "masterinfo.court", "masterinfo.bench",
+        "masterinfo.judge", "masterinfo.partyname",
+    ]
