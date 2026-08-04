@@ -4,6 +4,7 @@ Run: uv run streamlit run packages/test-ui/src/test_ui/app.py
 """
 import asyncio
 import json
+import os
 
 import streamlit as st
 import websockets
@@ -11,9 +12,11 @@ import websockets
 st.set_page_config(page_title="Retrieval System Chat", layout="wide")
 st.title("Retrieval System")
 
+DEFAULT_WS_URL = os.environ.get("WS_URL", "ws://localhost:8010/ws/search")
+
 with st.sidebar:
     st.subheader("Connection")
-    ws_url = st.text_input("WebSocket URL", value="ws://localhost:8010/ws/search")
+    ws_url = st.text_input("WebSocket URL", value=DEFAULT_WS_URL)
     if st.button("Clear chat", use_container_width=True):
         st.session_state.messages = []
         st.rerun()

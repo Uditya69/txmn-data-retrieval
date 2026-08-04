@@ -15,3 +15,12 @@ services:
     environment:
       GATEWAY_URL: http://model-gateway:8001
     depends_on: [model-gateway]
+
+  web:
+    build:
+      context: .
+      dockerfile: packages/web/Dockerfile
+    ports: ["8501:8501"]
+    environment:
+      WS_URL: ws://retrieval-api:8000/ws/search
+    depends_on: [retrieval-api]
