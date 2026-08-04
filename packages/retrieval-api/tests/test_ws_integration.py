@@ -85,3 +85,47 @@ def test_ws_search_still_answers_when_milvus_client_construction_fails(monkeypat
         "milvus": None, "milvus_error": "connection refused",
     }
     assert second == {"type": "ai_mode_error", "error": "connection refused"}
+
+
+def test_ws_search_instant_mode_skips_ai_mode(monkeypatch):
+    async def fake_run_instant(gateway, es_client, milvus_client, query):
+        return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query):
+        raise AssertionError("ai_mode should not run in instant-only mode")
+
+    monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
+    monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "q", "mode": "instant"})
+        only = websocket.receive_json()
+
+    assert only["type"] == "instant_result"
+
+
+def test_ws_search_ai_mode_only_skips_instant(monkeypatch):
+    async def fake_run_instant(gateway, es_client, milvus_client, query):
+        raise AssertionError("instant should not run in ai_mode-only mode")
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query):
+        return {"ok": True, "answer": "final answer", "citations": {}}
+
+    monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
+    monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "q", "mode": "ai_mode"})
+        only = websocket.receive_json()
+
+    assert only == {"type": "ai_mode_done", "answer": "final answer", "citations": {}}

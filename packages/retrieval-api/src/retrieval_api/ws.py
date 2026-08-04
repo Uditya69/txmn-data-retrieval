@@ -21,6 +21,7 @@ async def search(websocket: WebSocket):
     await websocket.accept()
     message = await websocket.receive_json()
     query = message["query"]
+    mode = message.get("mode", "both")  # "instant" | "ai_mode" | "both"
 
     settings = get_settings()
     es_client = get_es_client(settings)
@@ -31,19 +32,27 @@ async def search(websocket: WebSocket):
         milvus_client = None
 
     try:
-        instant_task = asyncio.create_task(run_instant(gateway, es_client, milvus_client, query))
-        ai_mode_task = asyncio.create_task(run_ai_mode(gateway, es_client, milvus_client, query))
+        instant_task = (
+            asyncio.create_task(run_instant(gateway, es_client, milvus_client, query))
+            if mode in ("instant", "both") else None
+        )
+        ai_mode_task = (
+            asyncio.create_task(run_ai_mode(gateway, es_client, milvus_client, query))
+            if mode in ("ai_mode", "both") else None
+        )
 
-        instant_result = await instant_task
-        await websocket.send_json({"type": "instant_result", **instant_result})
+        if instant_task is not None:
+            instant_result = await instant_task
+            await websocket.send_json({"type": "instant_result", **instant_result})
 
-        ai_mode_result = await ai_mode_task
-        if ai_mode_result["ok"]:
-            await websocket.send_json({
-                "type": "ai_mode_done", "answer": ai_mode_result["answer"], "citations": ai_mode_result["citations"],
-            })
-        else:
-            await websocket.send_json({"type": "ai_mode_error", "error": ai_mode_result["error"]})
+        if ai_mode_task is not None:
+            ai_mode_result = await ai_mode_task
+            if ai_mode_result["ok"]:
+                await websocket.send_json({
+                    "type": "ai_mode_done", "answer": ai_mode_result["answer"], "citations": ai_mode_result["citations"],
+                })
+            else:
+                await websocket.send_json({"type": "ai_mode_error", "error": ai_mode_result["error"]})
 
         await websocket.close()
     finally:
