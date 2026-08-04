@@ -1,6 +1,9 @@
 import json
+import re
 
 from retrieval_api.gateway_client import GatewayClient
+
+_CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
 
 _SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
 Given a user query, return ONLY a JSON object with exactly these keys:
@@ -21,7 +24,8 @@ async def extract_intent(gateway: GatewayClient, query: str) -> dict:
             {"role": "user", "content": query},
         ],
     )
+    cleaned = _CODE_FENCE_RE.sub("", response.strip())
     try:
-        return json.loads(response)
+        return json.loads(cleaned)
     except json.JSONDecodeError as exc:
         raise ValueError(f"SLM did not return valid JSON: {response!r}") from exc

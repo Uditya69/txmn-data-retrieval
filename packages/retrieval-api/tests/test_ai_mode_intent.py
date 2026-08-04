@@ -27,6 +27,24 @@ async def test_extract_intent_parses_json_response():
 
 
 @pytest.mark.asyncio
+async def test_extract_intent_strips_markdown_code_fence():
+    gateway = AsyncMock()
+    gateway.chat.return_value = "```json\n" + json.dumps({
+        "rewritten_query": "capital gains set off against carried forward business losses",
+        "intent": "taxation",
+        "filters": {"act": "Income-tax Act, 1961"},
+    }) + "\n```"
+
+    result = await extract_intent(gateway, "set off capital gains against brought forward business losses")
+
+    assert result == {
+        "rewritten_query": "capital gains set off against carried forward business losses",
+        "intent": "taxation",
+        "filters": {"act": "Income-tax Act, 1961"},
+    }
+
+
+@pytest.mark.asyncio
 async def test_extract_intent_raises_on_unparseable_response():
     gateway = AsyncMock()
     gateway.chat.return_value = "not json"
