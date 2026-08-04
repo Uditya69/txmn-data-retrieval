@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react'
 import { parseCitations } from '../lib/citations'
 import type { AiModeResult } from '../api/useSearch'
+import { extractPartyName } from './DocumentCard'
 import styles from './OverviewCard.module.css'
 
 export interface OverviewCardProps {
@@ -59,16 +60,19 @@ export default function OverviewCard({ aiMode, loading, onCitationClick }: Overv
       </p>
       {parsed && parsed.citations.length > 0 && (
         <div className={styles.chipRow}>
-          {parsed.citations.map((citation) => (
-            <button
-              key={citation.doc_id}
-              type="button"
-              className={styles.chip}
-              onClick={() => onCitationClick(citation.doc_id)}
-            >
-              {citation.number}. {citation.doc_id} ({citation.count})
-            </button>
-          ))}
+          {parsed.citations.map((citation) => {
+            const label = extractPartyName(aiMode.ok ? aiMode.citations?.[citation.doc_id] : undefined) ?? citation.doc_id
+            return (
+              <button
+                key={citation.doc_id}
+                type="button"
+                className={styles.chip}
+                onClick={() => onCitationClick(citation.doc_id)}
+              >
+                {citation.number}. {label} ({citation.count})
+              </button>
+            )
+          })}
         </div>
       )}
       <button type="button" className={styles.reasoningToggle} onClick={() => setReasoningOpen((open) => !open)}>

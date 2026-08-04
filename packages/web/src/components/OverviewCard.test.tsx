@@ -31,6 +31,26 @@ describe('OverviewCard', () => {
     expect(onCitationClick).toHaveBeenCalledWith('d1')
   })
 
+  it('shows the party name label from citation metadata when available', () => {
+    const onCitationClick = vi.fn()
+    render(
+      <OverviewCard
+        aiMode={{
+          ok: true,
+          answer: 'Yes. [d1] Also see [d1, d2].',
+          citations: { d1: { otherinfo: { partyname: 'ACME v. Widget Co' } } },
+        }}
+        loading={false}
+        onCitationClick={onCitationClick}
+      />,
+    )
+
+    expect(screen.getByText('1. ACME v. Widget Co (2)')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('1. ACME v. Widget Co (2)'))
+    expect(onCitationClick).toHaveBeenCalledWith('d1')
+  })
+
   it('shows an inline error message when AI Mode failed', () => {
     render(<OverviewCard aiMode={{ ok: false, error: 'boom' }} loading={false} onCitationClick={vi.fn()} />)
     expect(screen.getByText(/AI Mode is currently unavailable: boom/)).toBeInTheDocument()

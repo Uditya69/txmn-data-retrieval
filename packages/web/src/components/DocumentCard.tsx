@@ -17,7 +17,7 @@ function truncate(text: string, length: number): string {
   return `${text.slice(0, length).trimEnd()}…`
 }
 
-function extractPartyName(citation?: AiModeCitation): string | null {
+export function extractPartyName(citation?: AiModeCitation): string | null {
   // fetch_citations() returns ES's raw nested _source shape (confirmed
   // against packages/common/tests/test_es_client.py), e.g.
   // { otherinfo: { partyname: ... } } - NOT a flat "otherinfo.partyname" key.
