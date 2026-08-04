@@ -1,87 +1,100 @@
-"""Manual test/validation UI for the retrieval-system /ws/search endpoint.
+"""Chat interface for the retrieval-system /ws/search endpoint.
 
 Run: uv run streamlit run packages/test-ui/src/test_ui/app.py
 """
 import asyncio
 import json
-import time
 
 import streamlit as st
 import websockets
 
-st.set_page_config(page_title="Retrieval System Tester", layout="wide")
-st.title("Retrieval System — Manual Test UI")
+st.set_page_config(page_title="Retrieval System Chat", layout="wide")
+st.title("Retrieval System")
 
 with st.sidebar:
-    ws_url = st.text_input("WebSocket URL", value="ws://localhost:8000/ws/search")
-    query = st.text_area("Query", value="", height=100)
-    send = st.button("Send", type="primary", use_container_width=True)
+    st.subheader("Connection")
+    ws_url = st.text_input("WebSocket URL", value="ws://localhost:8010/ws/search")
+    if st.button("Clear chat", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 
-async def run_query(url: str, q: str, events: list):
+async def run_query(url: str, q: str) -> dict:
+    result = {"instant": None, "ai_mode": None}
     async with websockets.connect(url, open_timeout=10) as ws:
         await ws.send(json.dumps({"query": q}))
-        t0 = time.monotonic()
         try:
             while True:
-                raw = await ws.recv()
-                events.append((time.monotonic() - t0, json.loads(raw)))
+                msg = json.loads(await ws.recv())
+                if msg["type"] == "instant_result":
+                    result["instant"] = msg
+                elif msg["type"] in ("ai_mode_done", "ai_mode_error"):
+                    result["ai_mode"] = msg
         except websockets.exceptions.ConnectionClosedOK:
             pass
+    return result
 
 
-def render_instant(msg: dict):
-    st.subheader("Instant result", divider=True)
-    es = msg.get("es_result")
-    es_err = msg.get("es_error")
-    milvus = msg.get("milvus_result")
-    milvus_err = msg.get("milvus_error")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**Elasticsearch**")
-        if es_err:
-            st.error(es_err)
-        else:
-            st.json(es, expanded=False)
-    with col2:
-        st.markdown("**Milvus**")
-        if milvus_err:
-            st.error(milvus_err)
-        else:
-            st.json(milvus, expanded=False)
-
-
-def render_ai_mode(msg: dict):
-    st.subheader("AI Mode result", divider=True)
-    if msg["type"] == "ai_mode_error":
-        st.error(msg["error"])
+def render_instant(instant: dict):
+    if instant is None:
         return
-    st.markdown(msg["answer"])
-    with st.expander(f"Citations ({len(msg.get('citations', []))})"):
-        st.json(msg["citations"])
+    with st.expander("Instant results (ES + Milvus)"):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Elasticsearch**")
+            if instant.get("es_error"):
+                st.error(instant["es_error"])
+            else:
+                st.json(instant.get("es_result"), expanded=False)
+        with col2:
+            st.markdown("**Milvus**")
+            if instant.get("milvus_error"):
+                st.error(instant["milvus_error"])
+            else:
+                st.json(instant.get("milvus_result"), expanded=False)
 
 
-if send:
-    if not query.strip():
-        st.warning("Enter a query first.")
-    else:
-        events = []
-        status = st.status("Querying...", expanded=True)
-        try:
-            asyncio.run(run_query(ws_url, query, events))
-            status.update(label="Done", state="complete")
-        except Exception as e:
-            status.update(label="Failed", state="error")
-            st.error(f"{type(e).__name__}: {e}")
+def render_assistant_turn(turn: dict):
+    render_instant(turn.get("instant"))
 
-        for elapsed, msg in events:
-            st.caption(f"t+{elapsed:.2f}s — {msg['type']}")
-            if msg["type"] == "instant_result":
-                render_instant(msg)
-            elif msg["type"] in ("ai_mode_done", "ai_mode_error"):
-                render_ai_mode(msg)
-            with st.expander("raw"):
-                st.json(msg)
-else:
-    st.info("Enter a query in the sidebar and click Send.")
+    ai_mode = turn.get("ai_mode")
+    if ai_mode is None:
+        st.warning("No AI Mode response received.")
+        return
+
+    if ai_mode["type"] == "ai_mode_error":
+        st.error(ai_mode["error"])
+        return
+
+    st.markdown(ai_mode["answer"])
+    citations = ai_mode.get("citations", [])
+    if citations:
+        with st.expander(f"Citations ({len(citations)})"):
+            st.json(citations)
+
+
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        if message["role"] == "user":
+            st.markdown(message["content"])
+        else:
+            render_assistant_turn(message["content"])
+
+query = st.chat_input("Ask a legal/tax question...")
+if query:
+    st.session_state.messages.append({"role": "user", "content": query})
+    with st.chat_message("user"):
+        st.markdown(query)
+
+    with st.chat_message("assistant"):
+        with st.spinner("Searching..."):
+            try:
+                turn = asyncio.run(run_query(ws_url, query))
+            except Exception as e:
+                turn = {"instant": None, "ai_mode": {"type": "ai_mode_error", "error": f"{type(e).__name__}: {e}"}}
+        render_assistant_turn(turn)
+
+    st.session_state.messages.append({"role": "assistant", "content": turn})

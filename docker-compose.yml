@@ -10,7 +10,7 @@ services:
     build:
       context: .
       dockerfile: packages/retrieval-api/Dockerfile
-    ports: ["8000:8000"]
+    ports: ["8010:8000"]
     env_file: .env
     environment:
       GATEWAY_URL: http://model-gateway:8001
