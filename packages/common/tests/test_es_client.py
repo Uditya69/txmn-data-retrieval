@@ -1,5 +1,6 @@
 import pytest
-from common.es_client import raw_search, resolve_doc_id_allowlist, fetch_citations
+from common.config import Settings
+from common.es_client import get_es_client, raw_search, resolve_doc_id_allowlist, fetch_citations
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
 
@@ -25,14 +26,16 @@ def _filter_source(source: dict, fields: list[str]) -> dict:
 
 
 class FakeAsyncES:
-    def __init__(self, search_hits=None, mget_docs=None):
+    def __init__(self, search_hits=None, mget_docs=None, index="test_index"):
         self.search_hits = search_hits or []
         self.mget_docs = mget_docs or {}
         self.search_calls = []
         self.mget_calls = []
+        self.index = index
 
     async def search(self, index, query, size):
         self.search_calls.append(query)
+        self.searched_index = index
         return {"hits": {"hits": self.search_hits}}
 
     async def mget(self, index, ids, _source=None):
@@ -50,11 +53,26 @@ class FakeAsyncES:
 async def test_raw_search_returns_doc_id_score_snippet():
     client = FakeAsyncES(search_hits=[
         {"_source": {"doc_id": "d1", "facts_text": "assessee claimed exemption"}, "_score": 4.2},
-    ])
+    ], index="researchindex_aic_test")
 
     results = await raw_search(client, "exemption claim", limit=20)
 
     assert results == [{"doc_id": "d1", "score": 4.2, "snippet": "assessee claimed exemption"}]
+    # index comes from the client (sourced from Settings.es_index), never hardcoded
+    assert client.searched_index == "researchindex_aic_test"
+
+
+def test_get_es_client_reads_index_and_auth_from_settings():
+    settings = Settings(
+        milvus_uri="http://milvus:19530", milvus_token="root:Milvus",
+        es_uri="https://es:9200", es_username="elastic", es_password="secret",
+        es_index="researchindex_aic_test", es_verify_certs=False,
+        gateway_url="http://model-gateway:8001",
+    )
+
+    client = get_es_client(settings)
+
+    assert client.index == "researchindex_aic_test"
 
 
 @pytest.mark.asyncio

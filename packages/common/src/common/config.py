@@ -8,7 +8,11 @@ class Settings(BaseSettings):
     milvus_uri: str
     milvus_token: str
     milvus_db: str = "aic"
-    es_url: str
+    es_uri: str
+    es_username: str | None = None
+    es_password: str | None = None
+    es_index: str = "taxmann_caselaw"
+    es_verify_certs: bool = True
     gateway_url: str
 
 

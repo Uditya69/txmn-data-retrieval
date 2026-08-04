@@ -7,16 +7,31 @@ _RAW_SEARCH_FIELDS = [
     "facts_text", "held_text", "headnotes_text", "judgment_text", "case_review_text",
 ]
 
-_INDEX = "taxmann_caselaw"
+
+class IndexedESClient:
+    """Wraps a real ES client with the index name it should query, sourced
+    from Settings.es_index (env-driven) at construction time - no index name
+    is ever hardcoded downstream."""
+
+    def __init__(self, client: AsyncElasticsearch, index: str):
+        self._client = client
+        self.index = index
+
+    def __getattr__(self, name):
+        return getattr(self._client, name)
 
 
-def get_es_client(settings: Settings) -> AsyncElasticsearch:
-    return AsyncElasticsearch(settings.es_url)
+def get_es_client(settings: Settings) -> IndexedESClient:
+    auth = (settings.es_username, settings.es_password) if settings.es_username else None
+    client = AsyncElasticsearch(
+        settings.es_uri, basic_auth=auth, verify_certs=settings.es_verify_certs,
+    )
+    return IndexedESClient(client, settings.es_index)
 
 
 async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
     body = {"multi_match": {"query": query, "fields": _RAW_SEARCH_FIELDS, "fuzziness": "AUTO"}}
-    response = await client.search(index=_INDEX, query=body, size=limit)
+    response = await client.search(index=client.index, query=body, size=limit)
     results = []
     for hit in response["hits"]["hits"]:
         source = hit["_source"]
@@ -41,14 +56,14 @@ async def resolve_doc_id_allowlist(client, filters: dict) -> list[str] | None:
         must.append({"range": {"masterinfo.date": filters["date_range"]}})
     if not must:
         raise ValueError(f"No recognized filter keys in {filters!r}")
-    response = await client.search(index=_INDEX, query={"bool": {"must": must}}, size=1000)
+    response = await client.search(index=client.index, query={"bool": {"must": must}}, size=1000)
     return [hit["_source"]["doc_id"] for hit in response["hits"]["hits"]]
 
 
 async def fetch_citations(client, doc_ids: list[str]) -> dict[str, dict]:
     if not doc_ids:
         return {}
-    response = await client.mget(index=_INDEX, ids=doc_ids, _source=MASTERINFO_CITATION_FIELDS)
+    response = await client.mget(index=client.index, ids=doc_ids, _source=MASTERINFO_CITATION_FIELDS)
     return {
         doc["_id"]: doc["_source"]
         for doc in response["docs"]

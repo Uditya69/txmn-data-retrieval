@@ -55,6 +55,8 @@ async def test_run_ai_mode_succeeds_with_party_only_filter(monkeypatch):
     import retrieval_api.ai_mode.pipeline as module
 
     class FakeESClient:
+        index = "test_index"
+
         async def search(self, index, query, size):
             assert query == {
                 "bool": {"must": [{"match": {"masterinfo.partyname": "Reliance Industries"}}]}

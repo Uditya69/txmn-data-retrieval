@@ -30,7 +30,7 @@ packages/
 
 ```bash
 uv sync --all-packages   # NOT bare `uv sync` - drops editable installs of workspace members
-cp .env.example .env   # fill in MILVUS_*, ES_URL, DEEPINFRA_API_KEY, VOYAGE_API_KEY
+cp .env.example .env   # fill in MILVUS_*, ES_URI/ES_USERNAME/ES_PASSWORD/ES_INDEX, DEEPINFRA_API_KEY, VOYAGE_API_KEY
 ```
 
 Run tests (aggregates all 3 packages from repo root):
