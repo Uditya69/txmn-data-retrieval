@@ -24,8 +24,11 @@ async def search(websocket: WebSocket):
 
     settings = get_settings()
     es_client = get_es_client(settings)
-    milvus_client = get_milvus_client(settings)
     gateway = get_gateway_client(settings)
+    try:
+        milvus_client = get_milvus_client(settings)
+    except Exception:
+        milvus_client = None
 
     try:
         instant_task = asyncio.create_task(run_instant(gateway, es_client, milvus_client, query))
@@ -45,4 +48,5 @@ async def search(websocket: WebSocket):
         await websocket.close()
     finally:
         await es_client.close()
-        milvus_client.close()
+        if milvus_client is not None:
+            milvus_client.close()

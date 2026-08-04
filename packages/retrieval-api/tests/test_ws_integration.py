@@ -53,3 +53,35 @@ def test_ws_search_sends_ai_mode_error_event_on_failure(monkeypatch):
         second = websocket.receive_json()
 
     assert second == {"type": "ai_mode_error", "error": "gateway unreachable"}
+
+
+def test_ws_search_still_answers_when_milvus_client_construction_fails(monkeypatch):
+    async def fake_run_instant(gateway, es_client, milvus_client, query):
+        assert milvus_client is None
+        return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": None, "milvus_error": "connection refused"}
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query):
+        assert milvus_client is None
+        return {"ok": False, "error": "connection refused"}
+
+    def raise_milvus_unavailable(*_):
+        raise ConnectionError("Milvus unavailable")
+
+    monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
+    monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", raise_milvus_unavailable)
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "cgst"})
+        first = websocket.receive_json()
+        second = websocket.receive_json()
+
+    assert first == {
+        "type": "instant_result", "es": [{"doc_id": "d1"}], "es_error": None,
+        "milvus": None, "milvus_error": "connection refused",
+    }
+    assert second == {"type": "ai_mode_error", "error": "connection refused"}
