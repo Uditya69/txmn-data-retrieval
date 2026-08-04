@@ -1843,9 +1843,16 @@ nginx listens on port 80 inside the container (its default config), not 8501 - o
       dockerfile: packages/web/Dockerfile
     ports: ["8501:80"]
     environment:
-      WS_URL: ws://retrieval-api:8000/ws/search
+      # The websocket connection is made client-side, from the user's
+      # browser on the host - not server-side inside the compose network
+      # (unlike the old Streamlit app, which made this same connection
+      # from Python running inside the container). Must be the host-mapped
+      # port, not the internal service hostname.
+      WS_URL: ws://localhost:8010/ws/search
     depends_on: [retrieval-api]
 ```
+
+**Corrected during live verification:** this step originally specified `WS_URL: ws://retrieval-api:8000/ws/search` (the internal Docker-network hostname), copied from the old Streamlit setup without accounting for *where* the websocket connection actually originates. The old Streamlit app was a Python server process running inside the container, so the internal hostname resolved correctly. The new React app only ships JS to the browser - the actual `new WebSocket(...)` call happens on the user's host machine, where `retrieval-api` is not a resolvable hostname. Live browser testing caught this immediately ("Connection to the search service failed."); fixed to the host-mapped port above.
 
 - [ ] **Step 5: Rebuild and start the stack**
 
@@ -1858,7 +1865,7 @@ Run: `curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8501`
 Expected: `200`
 
 Run: `curl -s http://localhost:8501/env-config.js`
-Expected: `window.__ENV__ = { WS_URL: "ws://retrieval-api:8000/ws/search" };` (the real container env value, not the `public/env-config.js` dev default)
+Expected: `window.__ENV__ = { WS_URL: "ws://localhost:8010/ws/search" };` (the real container env value, not the `public/env-config.js` dev default)
 
 - [ ] **Step 7: Live browser verification**
 

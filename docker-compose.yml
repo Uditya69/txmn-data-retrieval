@@ -22,5 +22,8 @@ services:
       dockerfile: packages/web/Dockerfile
     ports: ["8501:80"]
     environment:
-      WS_URL: ws://retrieval-api:8000/ws/search
+      # The websocket connection is made client-side, from the user's
+      # browser on the host - not server-side inside the compose network
+      # (unlike the old Streamlit app). Must be the host-mapped port.
+      WS_URL: ws://localhost:8010/ws/search
     depends_on: [retrieval-api]
