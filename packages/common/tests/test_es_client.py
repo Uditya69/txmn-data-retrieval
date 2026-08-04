@@ -51,8 +51,10 @@ class FakeAsyncES:
 
 @pytest.mark.asyncio
 async def test_raw_search_returns_doc_id_score_snippet():
+    # "id", not "doc_id", is the real ES document identifier field
+    # (verified against the live researchindex_aic_test mapping).
     client = FakeAsyncES(search_hits=[
-        {"_source": {"doc_id": "d1", "facts_text": "assessee claimed exemption"}, "_score": 4.2},
+        {"_source": {"id": "d1", "facts_text": "assessee claimed exemption"}, "_score": 4.2},
     ], index="researchindex_aic_test")
 
     results = await raw_search(client, "exemption claim", limit=20)
@@ -83,12 +85,14 @@ async def test_resolve_doc_id_allowlist_returns_none_when_no_filters():
 
 @pytest.mark.asyncio
 async def test_resolve_doc_id_allowlist_queries_masterinfo_and_returns_doc_ids():
-    client = FakeAsyncES(search_hits=[{"_source": {"doc_id": "d1"}}, {"_source": {"doc_id": "d2"}}])
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}, {"_source": {"id": "d2"}}])
 
     result = await resolve_doc_id_allowlist(client, {"court": "Supreme Court"})
 
     assert result == ["d1", "d2"]
-    assert client.search_calls  # a query was actually issued
+    assert client.search_calls[0] == {
+        "bool": {"must": [{"term": {"masterinfo.info.court.name.keyword": "Supreme Court"}}]}
+    }
 
 
 @pytest.mark.asyncio
@@ -101,25 +105,25 @@ async def test_resolve_doc_id_allowlist_raises_on_unrecognized_filter_keys():
 
 @pytest.mark.asyncio
 async def test_resolve_doc_id_allowlist_queries_masterinfo_section_term():
-    client = FakeAsyncES(search_hits=[{"_source": {"doc_id": "d1"}}])
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}])
 
     result = await resolve_doc_id_allowlist(client, {"section": "80C"})
 
     assert result == ["d1"]
     assert client.search_calls[0] == {
-        "bool": {"must": [{"term": {"masterinfo.section": "80C"}}]}
+        "bool": {"must": [{"term": {"masterinfo.info.section.name.keyword": "80C"}}]}
     }
 
 
 @pytest.mark.asyncio
-async def test_resolve_doc_id_allowlist_queries_masterinfo_partyname_match():
-    client = FakeAsyncES(search_hits=[{"_source": {"doc_id": "d1"}}])
+async def test_resolve_doc_id_allowlist_queries_otherinfo_partyname_match():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}])
 
     result = await resolve_doc_id_allowlist(client, {"party": "Reliance Industries"})
 
     assert result == ["d1"]
     assert client.search_calls[0] == {
-        "bool": {"must": [{"match": {"masterinfo.partyname": "Reliance Industries"}}]}
+        "bool": {"must": [{"match": {"otherinfo.partyname.name": "Reliance Industries"}}]}
     }
 
 
@@ -137,14 +141,20 @@ async def test_resolve_doc_id_allowlist_party_only_filter_does_not_raise():
 async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
     client = FakeAsyncES(mget_docs={
         "d1": {
-            "masterinfo": {"court": "Supreme Court", "citations": ["2020 SCC 1"]},
+            "masterinfo": {"info": {"court": "Supreme Court"}, "citations": ["2020 SCC 1"]},
+            "otherinfo": {"judge": "J. Smith", "partyname": "State v. Doe"},
             "judgment_text": "irrelevant text that should not be returned",
         },
     })
 
     result = await fetch_citations(client, ["d1"])
 
-    assert result == {"d1": {"masterinfo": {"court": "Supreme Court", "citations": ["2020 SCC 1"]}}}
+    assert result == {
+        "d1": {
+            "masterinfo": {"info": {"court": "Supreme Court"}, "citations": ["2020 SCC 1"]},
+            "otherinfo": {"judge": "J. Smith", "partyname": "State v. Doe"},
+        }
+    }
     assert "judgment_text" not in result["d1"]
     # confirm the field restriction was actually passed through to ES (mget _source param)
     assert client.mget_calls[0]["_source"] == MASTERINFO_CITATION_FIELDS

@@ -25,7 +25,10 @@ def test_bm25_source_field_metadata_uses_heading_subheading():
 
 
 def test_masterinfo_citation_fields():
+    # Paths verified against the real production ES index mapping
+    # (researchindex_aic_test) - court/bench live under masterinfo.info,
+    # judge/partyname live under otherinfo, not masterinfo.
     assert MASTERINFO_CITATION_FIELDS == [
-        "masterinfo.citations", "masterinfo.court", "masterinfo.bench",
-        "masterinfo.judge", "masterinfo.partyname",
+        "masterinfo.citations", "masterinfo.info.court", "masterinfo.info.bench",
+        "otherinfo.judge", "otherinfo.partyname",
     ]

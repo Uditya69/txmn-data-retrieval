@@ -4,7 +4,7 @@ from common.config import Settings
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
 _RAW_SEARCH_FIELDS = [
-    "facts_text", "held_text", "headnotes_text", "judgment_text", "case_review_text",
+    "facts_text", "held_text", "headnotes_text",
 ]
 
 
@@ -36,7 +36,7 @@ async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
     for hit in response["hits"]["hits"]:
         source = hit["_source"]
         snippet = next((source[f] for f in _RAW_SEARCH_FIELDS if source.get(f)), "")
-        results.append({"doc_id": source["doc_id"], "score": hit["_score"], "snippet": snippet})
+        results.append({"doc_id": source["id"], "score": hit["_score"], "snippet": snippet})
     return results
 
 
@@ -45,19 +45,19 @@ async def resolve_doc_id_allowlist(client, filters: dict) -> list[str] | None:
         return None
     must = []
     if "court" in filters:
-        must.append({"term": {"masterinfo.court": filters["court"]}})
+        must.append({"term": {"masterinfo.info.court.name.keyword": filters["court"]}})
     if "act" in filters:
-        must.append({"term": {"masterinfo.act": filters["act"]}})
+        must.append({"term": {"masterinfo.info.act.name.keyword": filters["act"]}})
     if "section" in filters:
-        must.append({"term": {"masterinfo.section": filters["section"]}})
+        must.append({"term": {"masterinfo.info.section.name.keyword": filters["section"]}})
     if "party" in filters:
-        must.append({"match": {"masterinfo.partyname": filters["party"]}})
+        must.append({"match": {"otherinfo.partyname.name": filters["party"]}})
     if "date_range" in filters:
-        must.append({"range": {"masterinfo.date": filters["date_range"]}})
+        must.append({"range": {"formatteddocumentdate": filters["date_range"]}})
     if not must:
         raise ValueError(f"No recognized filter keys in {filters!r}")
     response = await client.search(index=client.index, query={"bool": {"must": must}}, size=1000)
-    return [hit["_source"]["doc_id"] for hit in response["hits"]["hits"]]
+    return [hit["_source"]["id"] for hit in response["hits"]["hits"]]
 
 
 async def fetch_citations(client, doc_ids: list[str]) -> dict[str, dict]:

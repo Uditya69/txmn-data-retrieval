@@ -59,9 +59,9 @@ async def test_run_ai_mode_succeeds_with_party_only_filter(monkeypatch):
 
         async def search(self, index, query, size):
             assert query == {
-                "bool": {"must": [{"match": {"masterinfo.partyname": "Reliance Industries"}}]}
+                "bool": {"must": [{"match": {"otherinfo.partyname.name": "Reliance Industries"}}]}
             }
-            return {"hits": {"hits": [{"_source": {"doc_id": "d1"}}]}}
+            return {"hits": {"hits": [{"_source": {"id": "d1"}}]}}
 
     async def fake_extract_intent(gateway, query):
         return {

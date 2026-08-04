@@ -9,8 +9,8 @@ BM25_SOURCE_FIELD["metadata"] = "heading_subheading_text"
 
 MASTERINFO_CITATION_FIELDS = [
     "masterinfo.citations",
-    "masterinfo.court",
-    "masterinfo.bench",
-    "masterinfo.judge",
-    "masterinfo.partyname",
+    "masterinfo.info.court",
+    "masterinfo.info.bench",
+    "otherinfo.judge",
+    "otherinfo.partyname",
 ]
