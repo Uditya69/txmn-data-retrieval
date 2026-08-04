@@ -1,9 +1,48 @@
+// src/App.tsx
+import { useEffect, useState } from 'react'
+import SearchBar from './components/SearchBar'
+import OverviewCard from './components/OverviewCard'
+import DocumentsFeed from './components/DocumentsFeed'
+import DevModeToggle from './components/DevModeToggle'
+import { useSearch } from './api/useSearch'
 import styles from './App.module.css'
 
+function resolveWsUrl(): string {
+  const fromEnv = window.__ENV__?.WS_URL
+  return fromEnv && fromEnv.length > 0 ? fromEnv : 'ws://localhost:8010/ws/search'
+}
+
+function readDevModeFromUrl(): boolean {
+  return new URLSearchParams(window.location.search).get('dev') === '1'
+}
+
 export default function App() {
+  const wsUrl = resolveWsUrl()
+  const { instant, aiMode, loading, wsError, search } = useSearch(wsUrl)
+  const [devMode, setDevMode] = useState(readDevModeFromUrl)
+  const [highlightedDocId, setHighlightedDocId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (highlightedDocId === null) return
+    const timeout = window.setTimeout(() => setHighlightedDocId(null), 2000)
+    return () => window.clearTimeout(timeout)
+  }, [highlightedDocId])
+
+  function handleCitationClick(docId: string) {
+    setHighlightedDocId(docId)
+    document.getElementById(`document-${docId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   return (
     <div className={styles.page}>
-      <h1>Taxmann Retrieval</h1>
+      <header className={styles.header}>
+        <h1>Taxmann Retrieval</h1>
+        <DevModeToggle devMode={devMode} onToggle={setDevMode} />
+      </header>
+      <SearchBar onSearch={search} disabled={loading} />
+      {wsError && <p className={styles.wsError}>{wsError}</p>}
+      <OverviewCard aiMode={aiMode} loading={loading} onCitationClick={handleCitationClick} />
+      <DocumentsFeed instant={instant} aiMode={aiMode} devMode={devMode} highlightedDocId={highlightedDocId} />
     </div>
   )
 }

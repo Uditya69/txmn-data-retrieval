@@ -1,6 +1,19 @@
+/* src/App.module.css */
 .page {
   max-width: 800px;
   margin: 0 auto;
   padding: 24px;
   font-family: system-ui, sans-serif;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.wsError {
+  color: #b91c1c;
+  margin-bottom: 16px;
 }
