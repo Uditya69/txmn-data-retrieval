@@ -56,7 +56,7 @@ export default function DocumentCard({
         {citedCount > 0 && <span className={styles.citedBadge}>Cited {citedCount}</span>}
       </div>
       <h3 className={styles.title}>{title}</h3>
-      <p className={styles.snippet}>{card.snippet}</p>
+      {title !== card.snippet && <p className={styles.snippet}>{card.snippet}</p>}
       <div className={styles.footerRow}>
         <div className={styles.relevance}>
           <div className={styles.relevanceBar} style={{ width: `${relevance}%` }} />
