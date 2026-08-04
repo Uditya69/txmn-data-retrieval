@@ -45,6 +45,24 @@ async def test_extract_intent_strips_markdown_code_fence():
 
 
 @pytest.mark.asyncio
+async def test_extract_intent_strips_leading_prose_and_code_fence():
+    gateway = AsyncMock()
+    gateway.chat.return_value = "Here is a JSON object with the requested information:\n\n```\n" + json.dumps({
+        "rewritten_query": "CGST meaning",
+        "intent": "taxation",
+        "filters": {"act": "CGST Act"},
+    }) + "\n```"
+
+    result = await extract_intent(gateway, "what is cgst")
+
+    assert result == {
+        "rewritten_query": "CGST meaning",
+        "intent": "taxation",
+        "filters": {"act": "CGST Act"},
+    }
+
+
+@pytest.mark.asyncio
 async def test_extract_intent_raises_on_unparseable_response():
     gateway = AsyncMock()
     gateway.chat.return_value = "not json"

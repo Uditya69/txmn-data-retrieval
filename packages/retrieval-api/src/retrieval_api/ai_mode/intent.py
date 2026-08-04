@@ -1,9 +1,15 @@
 import json
-import re
 
 from retrieval_api.gateway_client import GatewayClient
 
-_CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
+
+def _extract_json_object(text: str) -> str:
+    """SLMs often wrap JSON in prose and/or a markdown code fence despite
+    instructions not to - pull out the outermost {...} object."""
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        return text
+    return text[start:end + 1]
 
 _SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
 Given a user query, return ONLY a JSON object with exactly these keys:
@@ -24,7 +30,7 @@ async def extract_intent(gateway: GatewayClient, query: str) -> dict:
             {"role": "user", "content": query},
         ],
     )
-    cleaned = _CODE_FENCE_RE.sub("", response.strip())
+    cleaned = _extract_json_object(response.strip())
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError as exc:

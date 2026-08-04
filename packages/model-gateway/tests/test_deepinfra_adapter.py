@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 import respx
@@ -34,7 +36,7 @@ async def test_embed_returns_vector():
 @pytest.mark.asyncio
 @respx.mock
 async def test_rerank_returns_scores_in_input_order():
-    respx.post("https://api.deepinfra.com/v1/inference/rerank-model").mock(
+    route = respx.post("https://api.deepinfra.com/v1/inference/rerank-model").mock(
         return_value=httpx.Response(200, json={"scores": [0.9, 0.2]})
     )
     adapter = DeepInfraAdapter(api_key="k")
@@ -42,3 +44,8 @@ async def test_rerank_returns_scores_in_input_order():
     result = await adapter.rerank("rerank-model", "query", ["doc a", "doc b"])
 
     assert result == [0.9, 0.2]
+    # DeepInfra's reranker models (e.g. Qwen3-Reranker) require "queries" as a
+    # list, not a bare "query" string - the old bge-reranker-large shape 404s.
+    assert json.loads(route.calls.last.request.content) == {
+        "queries": ["query"], "documents": ["doc a", "doc b"],
+    }

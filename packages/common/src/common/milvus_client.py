@@ -4,6 +4,11 @@ import json
 from pymilvus import MilvusClient
 
 from common.config import Settings
+from common.schemas import BM25_SOURCE_FIELD
+
+# "metadata" is a doc-level collection (one row per document, keyed by doc_id
+# itself) - every other collection is chunked with its own chunk_id primary key.
+_DOC_LEVEL_COLLECTION = "metadata"
 
 
 def get_milvus_client(settings: Settings) -> MilvusClient:
@@ -26,19 +31,21 @@ def _search_one(
     else:
         anns_field = "sparse_vector"
         data = [sparse_query_text]
+    text_field = BM25_SOURCE_FIELD[collection]
     hits = client.search(
         collection_name=collection,
         data=data,
         anns_field=anns_field,
         limit=limit,
         filter=filter_expr,
-        output_fields=["doc_id", "text"],
+        output_fields=["doc_id", text_field],
     )[0]
+    is_doc_level = collection == _DOC_LEVEL_COLLECTION
     return [
         {
-            "chunk_id": h["id"],
+            "chunk_id": h["doc_id"] if is_doc_level else h["chunk_id"],
             "doc_id": h["entity"]["doc_id"],
-            "text": h["entity"]["text"],
+            "text": h["entity"][text_field],
             "score": h["distance"],
         }
         for h in hits

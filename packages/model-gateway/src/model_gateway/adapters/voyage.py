@@ -16,7 +16,7 @@ class VoyageAdapter:
         raise NotImplementedError("VoyageAdapter does not support chat")
 
     async def embed(self, model: str, text: str) -> list[float]:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{_BASE_URL}/embeddings",
                 json={"input": [text], "model": model, "input_type": "query"},

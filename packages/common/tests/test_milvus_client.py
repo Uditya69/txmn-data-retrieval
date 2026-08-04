@@ -15,7 +15,7 @@ class FakeMilvusClient:
 
 
 def _hit(chunk_id, doc_id, text, score):
-    return {"id": chunk_id, "distance": score, "entity": {"doc_id": doc_id, "text": text}}
+    return {"chunk_id": chunk_id, "distance": score, "entity": {"doc_id": doc_id, "text": text}}
 
 
 @pytest.mark.asyncio
@@ -62,3 +62,22 @@ async def test_hybrid_search_uses_sparse_bm25_search_when_dense_vector_is_none()
     _, anns_field, _, data = client.calls[0]
     assert anns_field == "sparse_vector"
     assert data == ["income tax"]
+
+
+@pytest.mark.asyncio
+async def test_hybrid_search_uses_doc_id_as_chunk_id_and_alternate_text_field_for_metadata_collection():
+    client = FakeMilvusClient({
+        "metadata": [{
+            "doc_id": "d1", "distance": 0.7,
+            "entity": {"doc_id": "d1", "heading_subheading_text": "Some Party vs. Other Party"},
+        }],
+    })
+
+    result = await hybrid_search(
+        client, collections=["metadata"],
+        dense_vector=[0.1], sparse_query_text="income tax",
+    )
+
+    assert result["metadata"] == [
+        {"chunk_id": "d1", "doc_id": "d1", "text": "Some Party vs. Other Party", "score": 0.7},
+    ]
