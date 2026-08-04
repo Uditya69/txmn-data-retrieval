@@ -20,7 +20,7 @@ services:
     build:
       context: .
       dockerfile: packages/web/Dockerfile
-    ports: ["8501:8501"]
+    ports: ["8501:80"]
     environment:
       WS_URL: ws://retrieval-api:8000/ws/search
     depends_on: [retrieval-api]
