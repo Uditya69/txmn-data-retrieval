@@ -61,7 +61,11 @@ def _build_filter_must(filters: dict, fuzzy: bool) -> list[dict]:
             else {"term": {f"{field}.keyword": filters[key]}}
         )
     if "party" in filters:
-        must.append({"match": {"otherinfo.partyname.name": filters["party"]}})
+        # operator "and" requires every name token to match - a plain match
+        # query ORs analyzed tokens, so "Meenaben Maheshchandra Patel" would
+        # match any document naming a party with just "Patel" (a very common
+        # surname), effectively returning almost the whole index unfiltered.
+        must.append({"match": {"otherinfo.partyname.name": {"query": filters["party"], "operator": "and"}}})
     date_range = filters.get("date_range")
     if isinstance(date_range, dict) and ("gte" in date_range or "lte" in date_range):
         must.append({"range": {"formatteddocumentdate": date_range}})

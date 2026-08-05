@@ -144,7 +144,7 @@ async def test_resolve_doc_id_allowlist_queries_otherinfo_partyname_match():
 
     assert result == ["d1"]
     assert client.search_calls[0] == {
-        "bool": {"must": [{"match": {"otherinfo.partyname.name": "Reliance Industries"}}]}
+        "bool": {"must": [{"match": {"otherinfo.partyname.name": {"query": "Reliance Industries", "operator": "and"}}}]}
     }
 
 

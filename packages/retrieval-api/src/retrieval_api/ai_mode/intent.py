@@ -36,11 +36,23 @@ Given a user query, return ONLY a JSON object with exactly these keys:
   collection descriptions below since it will be embedded and searched
   against all of them at once.
 - "intent": one short intent category label.
-- "filters": an object with any of "court", "act", "section", "date_range", "party"
-  the query explicitly mentions; omit keys that aren't mentioned.
+- "filters": an object with any of "court", "act", "section", "date_range", "party" -
+  ONLY include a key if its value is LITERALLY written in the query. Never
+  guess, infer, or fill in a plausible-sounding court, act, section, or date
+  range that the query does not state - a wrong filter silently excludes the
+  correct document from the search entirely, which is worse than no filter.
+  If the query names a person or company (very often written as
+  "X vs. Y" or "X v. Y"), put that name under "party" - never under
+  "section" or any other key. If nothing is explicitly stated, "filters"
+  should be an empty object.
   "date_range" MUST be an object with ISO date strings, e.g.
   {"gte": "2020-01-01", "lte": "2022-01-01"} - either key may be omitted,
-  but never output "date_range" as a plain string or year number.
+  but never output "date_range" as a plain string or year number, and never
+  invent one when no date was mentioned.
+
+Example: query "case law for Ramesh Gupta vs. Income-tax Officer" mentions
+no court, act, section, or date - only a party name - so filters must be
+exactly {"party": "Ramesh Gupta"}.
 
 """ + build_schema_context()
 

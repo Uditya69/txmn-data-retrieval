@@ -59,7 +59,7 @@ async def test_run_ai_mode_succeeds_with_party_only_filter(monkeypatch):
 
         async def search(self, index, query, size):
             assert query == {
-                "bool": {"must": [{"match": {"otherinfo.partyname.name": "Reliance Industries"}}]}
+                "bool": {"must": [{"match": {"otherinfo.partyname.name": {"query": "Reliance Industries", "operator": "and"}}}]}
             }
             return {"hits": {"hits": [{"_source": {"id": "d1"}}]}}
 
