@@ -61,3 +61,32 @@ async def test_rerank_and_prefetch_runs_both_concurrently(monkeypatch):
 
     assert top_chunks == [{"chunk_id": "a"}]
     assert citations == {"d1": {"masterinfo": {}}}
+
+
+@pytest.mark.asyncio
+async def test_rerank_and_prefetch_emits_rerank_step(monkeypatch):
+    import retrieval_api.ai_mode.citations as citations_module
+    import retrieval_api.ai_mode.rerank as rerank_module
+
+    async def fake_prefetch(es_client, candidates, top_n_docs=20):
+        return {"d1": {"masterinfo": {}}}
+
+    async def fake_rerank_top(gateway, query, candidates, top_n=3):
+        return [{"chunk_id": "a", "doc_id": "d1", "text": "chunk text", "rerank_score": 0.95}]
+
+    monkeypatch.setattr(citations_module, "prefetch_citations", fake_prefetch)
+    monkeypatch.setattr(rerank_module, "rerank_top_chunks", fake_rerank_top)
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    await rerank_and_prefetch(
+        gateway=object(), es_client=object(), query="q",
+        candidates=[{"chunk_id": "a", "doc_id": "d1"}], on_step=on_step,
+    )
+
+    assert steps == [("rerank", {
+        "considered_count": 1,
+        "top_chunks": [{"chunk_id": "a", "doc_id": "d1", "rerank_score": 0.95, "text": "chunk text"}],
+    })]
