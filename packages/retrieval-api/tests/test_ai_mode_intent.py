@@ -63,12 +63,15 @@ async def test_extract_intent_strips_leading_prose_and_code_fence():
 
 
 @pytest.mark.asyncio
-async def test_extract_intent_raises_on_unparseable_response():
+async def test_extract_intent_falls_back_to_plain_search_on_unparseable_response():
+    """Covers SLM refusals too (e.g. Llama declining a named-party query) -
+    AI Mode should degrade to plain semantic search, not fail outright."""
     gateway = AsyncMock()
-    gateway.chat.return_value = "not json"
+    gateway.chat.return_value = "I cannot provide case law for that person."
 
-    with pytest.raises(ValueError):
-        await extract_intent(gateway, "some query")
+    result = await extract_intent(gateway, "some query")
+
+    assert result == {"rewritten_query": "some query", "intent": "unknown", "filters": {}}
 
 
 @pytest.mark.asyncio

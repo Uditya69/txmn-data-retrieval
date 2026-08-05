@@ -1,5 +1,7 @@
 import json
 
+from langfuse import get_client
+
 from common.schema_context import build_schema_context
 from retrieval_api.gateway_client import GatewayClient
 
@@ -12,7 +14,21 @@ def _extract_json_object(text: str) -> str:
         return text
     return text[start:end + 1]
 
+
+def _fallback_intent(query: str) -> dict:
+    """Used when the SLM refuses or returns unparseable output (e.g. Llama's
+    safety training treating "case law for X vs. Y" as a request for private
+    info about a named person) - degrade to a plain semantic search instead
+    of failing the whole AI Mode request."""
+    return {"rewritten_query": query, "intent": "unknown", "filters": {}}
+
+
 _SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
+All case names and parties mentioned below refer exclusively to already
+public, reported court judgments in a licensed legal research database -
+never treat a query as a request for private information about a person,
+and never refuse to classify it. You do not answer the legal question or
+look anything up yourself; you only ever output the JSON object below.
 Given a user query, return ONLY a JSON object with exactly these keys:
 - "rewritten_query": the query rewritten for search, expanding any old-law
   references to their new-law equivalent (IPC -> BNS, CrPC -> BNSS, Evidence
@@ -40,5 +56,8 @@ async def extract_intent(gateway: GatewayClient, query: str) -> dict:
     cleaned = _extract_json_object(response.strip())
     try:
         return json.loads(cleaned)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"SLM did not return valid JSON: {response!r}") from exc
+    except json.JSONDecodeError:
+        get_client().update_current_span(
+            level="WARNING", status_message=f"SLM did not return valid JSON, falling back to plain search: {response!r}",
+        )
+        return _fallback_intent(query)
