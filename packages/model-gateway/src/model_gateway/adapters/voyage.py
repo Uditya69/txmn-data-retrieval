@@ -15,7 +15,7 @@ class VoyageAdapter:
     async def chat(self, model: str, messages: list[dict]) -> str:
         raise NotImplementedError("VoyageAdapter does not support chat")
 
-    async def embed(self, model: str, text: str) -> list[float]:
+    async def embed(self, model: str, text: str) -> tuple[list[float], dict[str, int]]:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{_BASE_URL}/embeddings",
@@ -23,7 +23,10 @@ class VoyageAdapter:
                 headers=self._headers,
             )
             response.raise_for_status()
-            return response.json()["data"][0]["embedding"]
+            data = response.json()
+            usage = data.get("usage") or {}
+            usage_details = {"input": usage["total_tokens"]} if "total_tokens" in usage else {}
+            return data["data"][0]["embedding"], usage_details
 
     async def rerank(self, model: str, query: str, documents: list[str]) -> list[float]:
         raise NotImplementedError("VoyageAdapter does not support rerank")

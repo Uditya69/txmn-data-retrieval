@@ -1,4 +1,21 @@
 import httpx
+from langfuse import get_client
+
+# Retrieval-api and model-gateway are separate processes; Langfuse's OTel
+# context doesn't cross the HTTP hop on its own, so the current trace/span
+# id is forwarded as headers and re-attached on the gateway side via
+# trace_context (see model_gateway.routes._trace_context_from_headers).
+_TRACE_ID_HEADER = "x-langfuse-trace-id"
+_PARENT_SPAN_ID_HEADER = "x-langfuse-parent-observation-id"
+
+
+def _trace_headers() -> dict[str, str]:
+    langfuse = get_client()
+    trace_id = langfuse.get_current_trace_id()
+    observation_id = langfuse.get_current_observation_id()
+    if not trace_id or not observation_id:
+        return {}
+    return {_TRACE_ID_HEADER: trace_id, _PARENT_SPAN_ID_HEADER: observation_id}
 
 
 class GatewayClient:
@@ -7,20 +24,26 @@ class GatewayClient:
 
     async def chat(self, role: str, messages: list[dict]) -> str:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(f"{self._base_url}/v1/chat", json={"role": role, "messages": messages})
+            response = await client.post(
+                f"{self._base_url}/v1/chat", json={"role": role, "messages": messages}, headers=_trace_headers(),
+            )
             response.raise_for_status()
             return response.json()["content"]
 
     async def embed(self, role: str, text: str) -> list[float]:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(f"{self._base_url}/v1/embed", json={"role": role, "text": text})
+            response = await client.post(
+                f"{self._base_url}/v1/embed", json={"role": role, "text": text}, headers=_trace_headers(),
+            )
             response.raise_for_status()
             return response.json()["embedding"]
 
     async def rerank(self, role: str, query: str, documents: list[str]) -> list[float]:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                f"{self._base_url}/v1/rerank", json={"role": role, "query": query, "documents": documents}
+                f"{self._base_url}/v1/rerank",
+                json={"role": role, "query": query, "documents": documents},
+                headers=_trace_headers(),
             )
             response.raise_for_status()
             return response.json()["scores"]

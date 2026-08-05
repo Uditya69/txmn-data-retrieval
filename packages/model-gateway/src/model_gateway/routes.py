@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from langfuse import get_client
 from pydantic import BaseModel
 
 from model_gateway.adapters.deepinfra import DeepInfraAdapter
@@ -9,6 +10,19 @@ router = APIRouter()
 
 ROLE_MODEL_MAP: dict[str, str] = build_role_model_map(get_gateway_settings())
 ROLE_PROVIDER_MAP: dict[str, str] = build_role_provider_map()
+
+# Matches the headers retrieval_api.gateway_client sets so this generation
+# nests under the caller's trace instead of starting a new one.
+_TRACE_ID_HEADER = "x-langfuse-trace-id"
+_PARENT_SPAN_ID_HEADER = "x-langfuse-parent-observation-id"
+
+
+def _trace_context_from_headers(request: Request) -> dict[str, str] | None:
+    trace_id = request.headers.get(_TRACE_ID_HEADER)
+    parent_span_id = request.headers.get(_PARENT_SPAN_ID_HEADER)
+    if not trace_id or not parent_span_id:
+        return None
+    return {"trace_id": trace_id, "parent_span_id": parent_span_id}
 
 
 def get_adapter(provider: str):
@@ -41,21 +55,51 @@ class RerankRequest(BaseModel):
 
 
 @router.post("/v1/chat")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, request: Request):
     model, provider = _resolve(req.role)
-    content = await get_adapter(provider).chat(model, req.messages)
+    langfuse = get_client()
+    with langfuse.start_as_current_observation(
+        as_type="generation",
+        name=f"chat:{req.role}",
+        model=model,
+        input=req.messages,
+        metadata={"provider": provider},
+        trace_context=_trace_context_from_headers(request),
+    ) as generation:
+        content, usage_details = await get_adapter(provider).chat(model, req.messages)
+        generation.update(output=content, usage_details=usage_details)
     return {"content": content}
 
 
 @router.post("/v1/embed")
-async def embed(req: EmbedRequest):
+async def embed(req: EmbedRequest, request: Request):
     model, provider = _resolve(req.role)
-    embedding = await get_adapter(provider).embed(model, req.text)
+    langfuse = get_client()
+    with langfuse.start_as_current_observation(
+        as_type="embedding",
+        name=f"embed:{req.role}",
+        model=model,
+        input=req.text,
+        metadata={"provider": provider},
+        trace_context=_trace_context_from_headers(request),
+    ) as generation:
+        embedding, usage_details = await get_adapter(provider).embed(model, req.text)
+        generation.update(output={"dimensions": len(embedding)}, usage_details=usage_details)
     return {"embedding": embedding}
 
 
 @router.post("/v1/rerank")
-async def rerank(req: RerankRequest):
+async def rerank(req: RerankRequest, request: Request):
     model, provider = _resolve(req.role)
-    scores = await get_adapter(provider).rerank(model, req.query, req.documents)
+    langfuse = get_client()
+    with langfuse.start_as_current_observation(
+        as_type="generation",
+        name=f"rerank:{req.role}",
+        model=model,
+        input={"query": req.query, "documents": req.documents},
+        metadata={"provider": provider, "num_documents": len(req.documents)},
+        trace_context=_trace_context_from_headers(request),
+    ) as generation:
+        scores = await get_adapter(provider).rerank(model, req.query, req.documents)
+        generation.update(output=scores)
     return {"scores": scores}

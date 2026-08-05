@@ -3,11 +3,21 @@ import httpx
 _BASE_URL = "https://api.deepinfra.com/v1"
 
 
+def _openai_usage_details(usage: dict) -> dict[str, int]:
+    """Map an OpenAI-shaped usage block to Langfuse's usage_details keys."""
+    details = {}
+    if "prompt_tokens" in usage:
+        details["input"] = usage["prompt_tokens"]
+    if "completion_tokens" in usage:
+        details["output"] = usage["completion_tokens"]
+    return details
+
+
 class DeepInfraAdapter:
     def __init__(self, api_key: str):
         self._headers = {"Authorization": f"Bearer {api_key}"}
 
-    async def chat(self, model: str, messages: list[dict]) -> str:
+    async def chat(self, model: str, messages: list[dict]) -> tuple[str, dict[str, int]]:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{_BASE_URL}/openai/chat/completions",
@@ -15,9 +25,11 @@ class DeepInfraAdapter:
                 headers=self._headers,
             )
             response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"]
+            data = response.json()
+            usage = data.get("usage") or {}
+            return data["choices"][0]["message"]["content"], _openai_usage_details(usage)
 
-    async def embed(self, model: str, text: str) -> list[float]:
+    async def embed(self, model: str, text: str) -> tuple[list[float], dict[str, int]]:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{_BASE_URL}/openai/embeddings",
@@ -25,7 +37,9 @@ class DeepInfraAdapter:
                 headers=self._headers,
             )
             response.raise_for_status()
-            return response.json()["data"][0]["embedding"]
+            data = response.json()
+            usage = data.get("usage") or {}
+            return data["data"][0]["embedding"], _openai_usage_details(usage)
 
     async def rerank(self, model: str, query: str, documents: list[str]) -> list[float]:
         async with httpx.AsyncClient(timeout=60.0) as client:

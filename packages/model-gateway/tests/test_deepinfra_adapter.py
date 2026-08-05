@@ -11,26 +11,34 @@ from model_gateway.adapters.deepinfra import DeepInfraAdapter
 @respx.mock
 async def test_chat_posts_openai_shape_and_returns_content():
     respx.post("https://api.deepinfra.com/v1/openai/chat/completions").mock(
-        return_value=httpx.Response(200, json={"choices": [{"message": {"content": "hello"}}]})
+        return_value=httpx.Response(200, json={
+            "choices": [{"message": {"content": "hello"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        })
     )
     adapter = DeepInfraAdapter(api_key="k")
 
-    result = await adapter.chat("some-model", [{"role": "user", "content": "hi"}])
+    content, usage = await adapter.chat("some-model", [{"role": "user", "content": "hi"}])
 
-    assert result == "hello"
+    assert content == "hello"
+    assert usage == {"input": 10, "output": 5}
 
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_embed_returns_vector():
     respx.post("https://api.deepinfra.com/v1/openai/embeddings").mock(
-        return_value=httpx.Response(200, json={"data": [{"embedding": [0.1, 0.2, 0.3]}]})
+        return_value=httpx.Response(200, json={
+            "data": [{"embedding": [0.1, 0.2, 0.3]}],
+            "usage": {"prompt_tokens": 4},
+        })
     )
     adapter = DeepInfraAdapter(api_key="k")
 
-    result = await adapter.embed("embed-model", "some text")
+    embedding, usage = await adapter.embed("embed-model", "some text")
 
-    assert result == [0.1, 0.2, 0.3]
+    assert embedding == [0.1, 0.2, 0.3]
+    assert usage == {"input": 4}
 
 
 @pytest.mark.asyncio
