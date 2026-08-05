@@ -28,17 +28,17 @@ beforeEach(() => {
 })
 
 describe('useSearch', () => {
-  it('sends the query with mode "both" once the socket opens, and stores the instant result', () => {
+  it('sends the query with mode "both" and the trace flag once the socket opens, and stores the instant result', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
 
     act(() => {
-      result.current.search('cgst')
+      result.current.search('cgst', true)
     })
     const socket = MockWebSocket.instances[0]
     act(() => {
       socket.emit('open')
     })
-    expect(socket.sent).toEqual([JSON.stringify({ query: 'cgst', mode: 'both' })])
+    expect(socket.sent).toEqual([JSON.stringify({ query: 'cgst', mode: 'both', trace: true })])
 
     act(() => {
       socket.emit('message', {
@@ -64,7 +64,7 @@ describe('useSearch', () => {
   it('marks loading false and stores the answer on ai_mode_done', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
     act(() => {
-      result.current.search('cgst')
+      result.current.search('cgst', false)
     })
     const socket = MockWebSocket.instances[0]
     act(() => {
@@ -79,7 +79,7 @@ describe('useSearch', () => {
   it('marks loading false and stores the error on ai_mode_error', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
     act(() => {
-      result.current.search('cgst')
+      result.current.search('cgst', false)
     })
     const socket = MockWebSocket.instances[0]
     act(() => {
@@ -94,7 +94,7 @@ describe('useSearch', () => {
   it('accumulates ai_mode_trace messages into traceSteps, in arrival order', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
     act(() => {
-      result.current.search('cgst')
+      result.current.search('cgst', true)
     })
     const socket = MockWebSocket.instances[0]
     act(() => {
@@ -119,7 +119,7 @@ describe('useSearch', () => {
   it('resets traceSteps to empty when a new search starts', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
     act(() => {
-      result.current.search('first query')
+      result.current.search('first query', true)
     })
     let socket = MockWebSocket.instances[0]
     act(() => {
@@ -131,7 +131,7 @@ describe('useSearch', () => {
     expect(result.current.traceSteps).toHaveLength(1)
 
     act(() => {
-      result.current.search('second query')
+      result.current.search('second query', true)
     })
     expect(result.current.traceSteps).toEqual([])
   })

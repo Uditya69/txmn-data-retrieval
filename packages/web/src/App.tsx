@@ -49,7 +49,7 @@ export default function App() {
         <h1>Taxmann Retrieval</h1>
         <DevModeToggle devMode={devMode} onToggle={setDevMode} />
       </header>
-      <SearchBar onSearch={search} disabled={loading} />
+      <SearchBar onSearch={(query) => search(query, devMode)} disabled={loading} />
       {wsError && <p className={styles.wsError}>{wsError}</p>}
       {showTrace ? (
         <div className={styles.splitLayout}>

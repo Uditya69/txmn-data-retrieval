@@ -3,6 +3,12 @@ from typing import Awaitable, Callable
 
 from retrieval_api.gateway_client import GatewayClient
 
+# Invariant: on_step implementations must not raise. The current only caller
+# (ws.py's emit_trace_step / _emit_trace_step) guarantees this by swallowing
+# any exception from sending a trace frame. A future caller that passes a
+# raising callback would have that exception propagate into run_ai_mode's
+# blanket `except Exception`, incorrectly turning a successful pipeline run
+# into an ai_mode_error.
 OnStep = Callable[[str, dict], Awaitable[None]]
 
 

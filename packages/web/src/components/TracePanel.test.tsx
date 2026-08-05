@@ -41,4 +41,36 @@ describe('TracePanel', () => {
     expect(screen.getByText(/preview 5/)).toBeInTheDocument()
     expect(screen.getByText(/preview 7/)).toBeInTheDocument()
   })
+
+  it('renders rrf_score (not score) for rrf_merge candidates', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'rrf_merge',
+        data: {
+          candidate_count: 1,
+          top_candidates: [{ chunk_id: 'c1', doc_id: 'd1', rrf_score: 0.016393, text_preview: 'hello' }],
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.getByText(/\[0\.0164\]/)).toBeInTheDocument()
+    expect(screen.queryByText(/^\[\]/)).not.toBeInTheDocument()
+  })
+
+  it('renders rerank_score (not score) for rerank top chunks', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'rerank',
+        data: {
+          considered_count: 1,
+          top_chunks: [{ chunk_id: 'c1', doc_id: 'd1', rerank_score: 0.87654, text: 'hello' }],
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.getByText(/\[0\.8765\]/)).toBeInTheDocument()
+    expect(screen.queryByText(/^\[\]/)).not.toBeInTheDocument()
+  })
 })

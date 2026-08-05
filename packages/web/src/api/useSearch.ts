@@ -30,12 +30,12 @@ export interface SearchState {
 
 const INITIAL_STATE: SearchState = { loading: false, instant: null, aiMode: null, traceSteps: [], wsError: null }
 
-export function useSearch(wsUrl: string): SearchState & { search: (query: string) => void } {
+export function useSearch(wsUrl: string): SearchState & { search: (query: string, trace: boolean) => void } {
   const [state, setState] = useState<SearchState>(INITIAL_STATE)
   const socketRef = useRef<WebSocket | null>(null)
 
   const search = useCallback(
-    (query: string) => {
+    (query: string, trace: boolean) => {
       socketRef.current?.close()
       setState({ loading: true, instant: null, aiMode: null, traceSteps: [], wsError: null })
 
@@ -49,7 +49,7 @@ export function useSearch(wsUrl: string): SearchState & { search: (query: string
       socketRef.current = socket
 
       socket.addEventListener('open', () => {
-        socket.send(JSON.stringify({ query, mode: 'both' }))
+        socket.send(JSON.stringify({ query, mode: 'both', trace }))
       })
 
       socket.addEventListener('message', (event) => {

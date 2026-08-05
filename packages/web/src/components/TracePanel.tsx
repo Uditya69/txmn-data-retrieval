@@ -45,11 +45,14 @@ function TruncatedHitList({ hits }: { hits: Array<Record<string, any>> }) {
   return (
     <>
       <ul className={styles.hitList}>
-        {visible.map((hit, i) => (
-          <li key={hit.chunk_id ?? i}>
-            [{hit.score?.toFixed?.(3) ?? hit.score}] {hit.doc_id}: {hit.text_preview ?? hit.text}
-          </li>
-        ))}
+        {visible.map((hit, i) => {
+          const score = hit.score ?? hit.rrf_score ?? hit.rerank_score
+          return (
+            <li key={hit.chunk_id ?? i}>
+              [{score?.toFixed?.(4) ?? score}] {hit.doc_id}: {hit.text_preview ?? hit.text}
+            </li>
+          )
+        })}
       </ul>
       {remaining > 0 && (
         <button type="button" className={styles.showMore} onClick={() => setExpanded(true)}>

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from fastapi import APIRouter, WebSocket
 
@@ -11,6 +12,8 @@ from retrieval_api.ai_mode.pipeline import run_ai_mode
 
 router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
 
 def get_gateway_client(settings) -> GatewayClient:
     return GatewayClient(base_url=settings.gateway_url)
@@ -22,8 +25,8 @@ async def _emit_trace_step(send, step: str, data: dict) -> None:
     pipeline or its final answer."""
     try:
         await send({"type": "ai_mode_trace", "step": step, "data": data})
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("trace step %r dropped: %s", step, exc)
 
 
 @router.websocket("/ws/search")
@@ -32,6 +35,7 @@ async def search(websocket: WebSocket):
     message = await websocket.receive_json()
     query = message["query"]
     mode = message.get("mode", "both")  # "instant" | "ai_mode" | "both"
+    trace = message.get("trace", False)
 
     settings = get_settings()
     es_client = get_es_client(settings)
@@ -56,7 +60,12 @@ async def search(websocket: WebSocket):
             if mode in ("instant", "both") else None
         )
         ai_mode_task = (
-            asyncio.create_task(run_ai_mode(gateway, es_client, milvus_client, query, on_step=emit_trace_step))
+            asyncio.create_task(
+                run_ai_mode(
+                    gateway, es_client, milvus_client, query,
+                    on_step=emit_trace_step if trace else None,
+                )
+            )
             if mode in ("ai_mode", "both") else None
         )
 

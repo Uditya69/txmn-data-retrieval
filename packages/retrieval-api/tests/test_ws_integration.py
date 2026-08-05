@@ -51,7 +51,7 @@ def test_ws_search_streams_ai_mode_trace_steps_before_final_answer(monkeypatch):
 
     client = TestClient(app)
     with client.websocket_connect("/ws/search") as websocket:
-        websocket.send_json({"query": "q"})
+        websocket.send_json({"query": "q", "trace": True})
         messages = []
         while True:
             msg = websocket.receive_json()
@@ -87,6 +87,60 @@ async def test_emit_trace_step_swallows_send_errors():
         raise RuntimeError("connection closed")
 
     await _emit_trace_step(failing_send, "intent", {"foo": "bar"})  # must not raise
+
+
+def test_ws_search_does_not_pass_on_step_when_trace_flag_is_absent(monkeypatch):
+    async def fake_run_instant(gateway, es_client, milvus_client, query):
+        return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
+
+    captured_on_step = "unset"
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None):
+        nonlocal captured_on_step
+        captured_on_step = on_step
+        return {"ok": True, "answer": "final answer", "citations": {}}
+
+    monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
+    monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "q"})  # no "trace" field
+        websocket.receive_json()
+        websocket.receive_json()
+
+    assert captured_on_step is None
+
+
+def test_ws_search_passes_on_step_when_trace_flag_is_true(monkeypatch):
+    async def fake_run_instant(gateway, es_client, milvus_client, query):
+        return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
+
+    captured_on_step = "unset"
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None):
+        nonlocal captured_on_step
+        captured_on_step = on_step
+        return {"ok": True, "answer": "final answer", "citations": {}}
+
+    monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
+    monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "q", "trace": True})
+        websocket.receive_json()
+        websocket.receive_json()
+
+    assert callable(captured_on_step)
 
 
 def test_ws_search_instant_mode_does_not_emit_trace_steps(monkeypatch):

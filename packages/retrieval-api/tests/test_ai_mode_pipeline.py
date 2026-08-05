@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock
+
 import pytest
 
 from retrieval_api.ai_mode.pipeline import run_ai_mode
@@ -136,4 +138,67 @@ async def test_run_ai_mode_forwards_on_step_to_every_stage(monkeypatch):
         ("retrieve", on_step),
         ("rerank_and_prefetch", on_step),
         ("synthesize", on_step),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_ai_mode_emits_all_seven_trace_steps_in_order_end_to_end(monkeypatch):
+    """Genuine integration test: only the true I/O boundaries (gateway calls,
+    hybrid_search, resolve_doc_id_allowlist, fetch_citations) are faked. All 5
+    real stage functions and the real pipeline orchestration run, so this is
+    the cheapest test that would catch a dropped emit, a renamed step, or a
+    reordering - none of which the mocked-stage tests above can catch."""
+    import retrieval_api.ai_mode.intent as intent_module
+    import retrieval_api.ai_mode.filter_resolve as filter_resolve_module
+    import retrieval_api.ai_mode.retrieve as retrieve_module
+    import retrieval_api.ai_mode.citations as citations_module
+    import retrieval_api.ai_mode.synthesize as synthesize_module
+
+    async def fake_resolve_doc_id_allowlist(client, filters):
+        return None
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        if dense_vector is not None:
+            return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "dense text", "score": 0.9}]}
+        return {"ruling": [{"chunk_id": "b", "doc_id": "d1", "text": "sparse text", "score": 5.0}]}
+
+    async def fake_fetch_citations(client, doc_ids):
+        return {doc_id: {"title": doc_id} for doc_id in doc_ids}
+
+    monkeypatch.setattr(filter_resolve_module, "resolve_doc_id_allowlist", fake_resolve_doc_id_allowlist)
+    monkeypatch.setattr(retrieve_module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(citations_module, "fetch_citations", fake_fetch_citations)
+    monkeypatch.setattr(synthesize_module, "fetch_citations", fake_fetch_citations)
+
+    gateway = AsyncMock()
+
+    async def fake_chat(role, messages):
+        if role == "slm":
+            return '{"rewritten_query": "rewritten query", "intent": "case_lookup", "filters": {}}'
+        if role == "synthesis":
+            return "final synthesized answer"
+        raise AssertionError(f"unexpected chat role: {role}")
+
+    gateway.chat.side_effect = fake_chat
+    gateway.embed.return_value = [0.1, 0.2]
+    gateway.rerank.return_value = [0.5, 0.9]
+
+    collected: list[tuple[str, dict]] = []
+
+    async def collector(step, data):
+        collected.append((step, data))
+
+    result = await run_ai_mode(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="original query", on_step=collector
+    )
+
+    assert result["ok"] is True
+    assert [step for step, _ in collected] == [
+        "intent",
+        "filters_resolved",
+        "milvus_dense",
+        "milvus_sparse",
+        "rrf_merge",
+        "rerank",
+        "synthesis_prompt",
     ]
