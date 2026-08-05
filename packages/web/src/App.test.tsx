@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import App from './App'
+import { useSearch } from './api/useSearch'
 
 describe('App', () => {
   it('renders the page title', () => {
@@ -10,14 +11,14 @@ describe('App', () => {
 })
 
 vi.mock('./api/useSearch', () => ({
-  useSearch: () => ({
+  useSearch: vi.fn(() => ({
     loading: false,
     instant: null,
     aiMode: null,
     traceSteps: [{ step: 'intent', data: { query: 'q', rewritten_query: 'q', intent: 'x', filters: {} } }],
     wsError: null,
     search: () => {},
-  }),
+  })),
 }))
 
 describe('App with a trace', () => {
@@ -25,5 +26,19 @@ describe('App with a trace', () => {
     window.history.pushState({}, '', '/?dev=1')
     render(<App />)
     expect(screen.getByText(/Intent/)).toBeInTheDocument()
+  })
+
+  it('does not show the TracePanel when dev mode is on but there are no trace steps yet', () => {
+    vi.mocked(useSearch).mockReturnValue({
+      loading: false,
+      instant: null,
+      aiMode: null,
+      traceSteps: [],
+      wsError: null,
+      search: () => {},
+    })
+    window.history.pushState({}, '', '/?dev=1')
+    render(<App />)
+    expect(screen.queryByText(/Intent/)).not.toBeInTheDocument()
   })
 })
