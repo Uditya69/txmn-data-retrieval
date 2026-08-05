@@ -73,7 +73,23 @@ describe('useSearch', () => {
     })
 
     expect(result.current.loading).toBe(false)
-    expect(result.current.aiMode).toEqual({ ok: true, answer: 'answer text', citations: {} })
+    expect(result.current.aiMode).toEqual({ ok: true, answer: 'answer text', citations: {}, reasoning: null })
+  })
+
+  it('stores the reasoning trace when the backend provides one', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+    act(() => {
+      result.current.search('cgst')
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+      socket.emit('message', {
+        data: JSON.stringify({ type: 'ai_mode_done', answer: 'answer text', citations: {}, reasoning: 'step by step...' }),
+      })
+    })
+
+    expect(result.current.aiMode).toEqual({ ok: true, answer: 'answer text', citations: {}, reasoning: 'step by step...' })
   })
 
   it('marks loading false and stores the error on ai_mode_error', () => {

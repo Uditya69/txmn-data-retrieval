@@ -64,10 +64,11 @@
   font-size: 13px;
 }
 
-.reasoningPlaceholder {
+.reasoning {
   margin-top: 8px;
-  color: #777;
+  color: #555;
   font-size: 13px;
+  line-height: 1.5;
 }
 
 .error {

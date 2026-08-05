@@ -64,9 +64,12 @@ async def search(websocket: WebSocket):
                 ai_mode_result = await ai_mode_task
                 if ai_mode_result["ok"]:
                     output["answer"] = ai_mode_result["answer"]
-                    await websocket.send_json({
+                    ai_mode_message = {
                         "type": "ai_mode_done", "answer": ai_mode_result["answer"], "citations": ai_mode_result["citations"],
-                    })
+                    }
+                    if ai_mode_result.get("reasoning"):
+                        ai_mode_message["reasoning"] = ai_mode_result["reasoning"]
+                    await websocket.send_json(ai_mode_message)
                 else:
                     output["ai_mode_error"] = ai_mode_result["error"]
                     await websocket.send_json({"type": "ai_mode_error", "error": ai_mode_result["error"]})

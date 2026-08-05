@@ -17,7 +17,7 @@ class DeepInfraAdapter:
     def __init__(self, api_key: str):
         self._headers = {"Authorization": f"Bearer {api_key}"}
 
-    async def chat(self, model: str, messages: list[dict]) -> tuple[str, dict[str, int]]:
+    async def chat(self, model: str, messages: list[dict]) -> tuple[str, dict[str, int], str | None]:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{_BASE_URL}/openai/chat/completions",
@@ -27,7 +27,10 @@ class DeepInfraAdapter:
             response.raise_for_status()
             data = response.json()
             usage = data.get("usage") or {}
-            return data["choices"][0]["message"]["content"], _openai_usage_details(usage)
+            message = data["choices"][0]["message"]
+            # Reasoning models (DeepSeek-R1, QwQ, ...) expose their chain of
+            # thought as a separate field alongside the final content.
+            return message["content"], _openai_usage_details(usage), message.get("reasoning_content")
 
     async def embed(self, model: str, text: str) -> tuple[list[float], dict[str, int]]:
         async with httpx.AsyncClient(timeout=60.0) as client:

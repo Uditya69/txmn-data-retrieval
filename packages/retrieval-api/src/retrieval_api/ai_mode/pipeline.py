@@ -38,8 +38,12 @@ async def run_ai_mode(gateway, es_client, milvus_client, query: str) -> dict:
             with langfuse.start_as_current_observation(as_type="chain", name="synthesize", input={"query": query}) as span:
                 synthesis = await synthesize(gateway, es_client, query, top_chunks, citations)
                 span.update(output=synthesis["answer"])
+                if synthesis.get("reasoning"):
+                    span.update(metadata={"reasoning": synthesis["reasoning"]})
 
             result = {"ok": True, "answer": synthesis["answer"], "citations": synthesis["citations"]}
+            if synthesis.get("reasoning"):
+                result["reasoning"] = synthesis["reasoning"]
             root_span.update(output=result)
             return result
         except Exception as exc:  # noqa: BLE001 - AI Mode failure must never crash Instant's result

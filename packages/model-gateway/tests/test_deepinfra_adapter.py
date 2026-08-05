@@ -18,10 +18,26 @@ async def test_chat_posts_openai_shape_and_returns_content():
     )
     adapter = DeepInfraAdapter(api_key="k")
 
-    content, usage = await adapter.chat("some-model", [{"role": "user", "content": "hi"}])
+    content, usage, reasoning = await adapter.chat("some-model", [{"role": "user", "content": "hi"}])
 
     assert content == "hello"
     assert usage == {"input": 10, "output": 5}
+    assert reasoning is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_chat_extracts_reasoning_content_when_present():
+    respx.post("https://api.deepinfra.com/v1/openai/chat/completions").mock(
+        return_value=httpx.Response(200, json={
+            "choices": [{"message": {"content": "the answer", "reasoning_content": "thinking it through..."}}],
+        })
+    )
+    adapter = DeepInfraAdapter(api_key="k")
+
+    _content, _usage, reasoning = await adapter.chat("reasoning-model", [{"role": "user", "content": "hi"}])
+
+    assert reasoning == "thinking it through..."
 
 
 @pytest.mark.asyncio

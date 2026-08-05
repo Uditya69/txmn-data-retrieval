@@ -23,12 +23,17 @@ class GatewayClient:
         self._base_url = base_url
 
     async def chat(self, role: str, messages: list[dict]) -> str:
+        content, _reasoning = await self.chat_with_reasoning(role, messages)
+        return content
+
+    async def chat_with_reasoning(self, role: str, messages: list[dict]) -> tuple[str, str | None]:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{self._base_url}/v1/chat", json={"role": role, "messages": messages}, headers=_trace_headers(),
             )
             response.raise_for_status()
-            return response.json()["content"]
+            data = response.json()
+            return data["content"], data.get("reasoning")
 
     async def embed(self, role: str, text: str) -> list[float]:
         async with httpx.AsyncClient(timeout=60.0) as client:

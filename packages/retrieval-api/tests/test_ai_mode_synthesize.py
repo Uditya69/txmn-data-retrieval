@@ -17,7 +17,7 @@ async def test_synthesize_uses_prefetched_citations_without_extra_lookup(monkeyp
     monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
 
     gateway = AsyncMock()
-    gateway.chat.return_value = "Final answer with citation."
+    gateway.chat_with_reasoning.return_value = ("Final answer with citation.", None)
 
     result = await synthesize(
         gateway, es_client=object(), query="q",
@@ -26,7 +26,11 @@ async def test_synthesize_uses_prefetched_citations_without_extra_lookup(monkeyp
     )
 
     assert fetch_calls == []  # already prefetched, no fallback lookup needed
-    assert result == {"answer": "Final answer with citation.", "citations": {"d1": {"masterinfo": {"court": "SC"}}}}
+    assert result == {
+        "answer": "Final answer with citation.",
+        "citations": {"d1": {"masterinfo": {"court": "SC"}}},
+        "reasoning": None,
+    }
 
 
 @pytest.mark.asyncio
@@ -40,7 +44,7 @@ async def test_synthesize_falls_back_to_on_demand_lookup_for_missing_doc(monkeyp
     monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
 
     gateway = AsyncMock()
-    gateway.chat.return_value = "Answer."
+    gateway.chat_with_reasoning.return_value = ("Answer.", None)
 
     result = await synthesize(
         gateway, es_client=object(), query="q",
@@ -49,3 +53,21 @@ async def test_synthesize_falls_back_to_on_demand_lookup_for_missing_doc(monkeyp
     )
 
     assert result["citations"] == {"d2": {"masterinfo": {"court": "HC"}}}
+
+
+@pytest.mark.asyncio
+async def test_synthesize_surfaces_reasoning_when_present(monkeypatch):
+    import retrieval_api.ai_mode.synthesize as module
+
+    monkeypatch.setattr(module, "fetch_citations", AsyncMock(return_value={}))
+
+    gateway = AsyncMock()
+    gateway.chat_with_reasoning.return_value = ("Answer.", "step by step reasoning...")
+
+    result = await synthesize(
+        gateway, es_client=object(), query="q",
+        top_chunks=[{"chunk_id": "a", "doc_id": "d1", "text": "chunk text"}],
+        citations={"d1": {}},
+    )
+
+    assert result["reasoning"] == "step by step reasoning..."

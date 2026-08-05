@@ -20,6 +20,20 @@ async def test_chat_calls_gateway_and_unwraps_content():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_chat_with_reasoning_returns_content_and_reasoning():
+    respx.post("http://gateway/v1/chat").mock(
+        return_value=httpx.Response(200, json={"content": "hi there", "reasoning": "thinking..."})
+    )
+    client = GatewayClient(base_url="http://gateway")
+
+    content, reasoning = await client.chat_with_reasoning(role="synthesis", messages=[{"role": "user", "content": "hi"}])
+
+    assert content == "hi there"
+    assert reasoning == "thinking..."
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_embed_unwraps_embedding():
     respx.post("http://gateway/v1/embed").mock(
         return_value=httpx.Response(200, json={"embedding": [1.0, 2.0]})

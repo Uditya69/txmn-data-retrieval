@@ -1,6 +1,7 @@
 // src/components/OverviewCard.tsx
 import { useMemo, useState } from 'react'
 import { parseCitations } from '../lib/citations'
+import { groupIntoParagraphs, renderInlineText, splitPlainTextIntoParagraphs } from '../lib/richText'
 import type { AiModeResult } from '../api/useSearch'
 import { extractPartyName } from './DocumentCard'
 import styles from './OverviewCard.module.css'
@@ -17,6 +18,8 @@ export default function OverviewCard({ aiMode, loading, onCitationClick }: Overv
     if (!aiMode?.ok || !aiMode.answer) return null
     return parseCitations(aiMode.answer)
   }, [aiMode])
+  const paragraphs = useMemo(() => (parsed ? groupIntoParagraphs(parsed.segments) : []), [parsed])
+  const reasoning = aiMode?.ok ? aiMode.reasoning : null
 
   if (loading && !aiMode) {
     return (
@@ -43,21 +46,23 @@ export default function OverviewCard({ aiMode, loading, onCitationClick }: Overv
   return (
     <section className={styles.card}>
       <h2>Overview</h2>
-      <p className={styles.answer}>
-        {parsed?.segments.map((segment, index) =>
-          segment.type === 'text' ? (
-            <span key={index}>{segment.text}</span>
-          ) : (
-            <span key={index} className={styles.citationGroup}>
-              {segment.numbers.map((n, i) => (
-                <sup key={i} className={styles.pill}>
-                  {n}
-                </sup>
-              ))}
-            </span>
-          ),
-        )}
-      </p>
+      {paragraphs.map((paragraph, pIndex) => (
+        <p key={pIndex} className={styles.answer}>
+          {paragraph.map((segment, index) =>
+            segment.type === 'text' ? (
+              renderInlineText(segment.text, `${pIndex}-${index}`)
+            ) : (
+              <span key={index} className={styles.citationGroup}>
+                {segment.numbers.map((n, i) => (
+                  <sup key={i} className={styles.pill}>
+                    {n}
+                  </sup>
+                ))}
+              </span>
+            ),
+          )}
+        </p>
+      ))}
       {parsed && parsed.citations.length > 0 && (
         <div className={styles.chipRow}>
           {parsed.citations.map((citation) => {
@@ -75,10 +80,19 @@ export default function OverviewCard({ aiMode, loading, onCitationClick }: Overv
           })}
         </div>
       )}
-      <button type="button" className={styles.reasoningToggle} onClick={() => setReasoningOpen((open) => !open)}>
-        {reasoningOpen ? 'Hide' : 'Show'} detailed reasoning
-      </button>
-      {reasoningOpen && <p className={styles.reasoningPlaceholder}>Reasoning trace coming soon.</p>}
+      {reasoning && (
+        <>
+          <button type="button" className={styles.reasoningToggle} onClick={() => setReasoningOpen((open) => !open)}>
+            {reasoningOpen ? 'Hide' : 'Show'} detailed reasoning
+          </button>
+          {reasoningOpen &&
+            splitPlainTextIntoParagraphs(reasoning).map((paragraph, index) => (
+              <p key={index} className={styles.reasoning}>
+                {renderInlineText(paragraph, `reasoning-${index}`)}
+              </p>
+            ))}
+        </>
+      )}
     </section>
   )
 }

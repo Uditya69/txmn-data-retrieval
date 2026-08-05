@@ -55,4 +55,38 @@ describe('OverviewCard', () => {
     render(<OverviewCard aiMode={{ ok: false, error: 'boom' }} loading={false} onCitationClick={vi.fn()} />)
     expect(screen.getByText(/AI Mode is currently unavailable: boom/)).toBeInTheDocument()
   })
+
+  it('hides the reasoning toggle when no reasoning trace is available', () => {
+    render(<OverviewCard aiMode={{ ok: true, answer: 'Yes.', citations: {} }} loading={false} onCitationClick={vi.fn()} />)
+    expect(screen.queryByText(/detailed reasoning/)).not.toBeInTheDocument()
+  })
+
+  it('reveals the reasoning trace on toggle when the backend provides one', () => {
+    render(
+      <OverviewCard
+        aiMode={{ ok: true, answer: 'Yes.', citations: {}, reasoning: 'First step.\n\nSecond step.' }}
+        loading={false}
+        onCitationClick={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByText('First step.')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Show detailed reasoning'))
+    expect(screen.getByText('First step.')).toBeInTheDocument()
+    expect(screen.getByText('Second step.')).toBeInTheDocument()
+  })
+
+  it('renders paragraph breaks and bold case names in the answer', () => {
+    const { container } = render(
+      <OverviewCard
+        aiMode={{ ok: true, answer: '**Case A** [d1] held X.\n\n**Case B** [d2] held Y.', citations: {} }}
+        loading={false}
+        onCitationClick={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Case A').tagName).toBe('STRONG')
+    expect(screen.getByText('Case B').tagName).toBe('STRONG')
+    expect(container.querySelectorAll('p.answer, p[class*="answer"]').length).toBe(2)
+  })
 })

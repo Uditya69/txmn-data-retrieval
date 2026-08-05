@@ -11,7 +11,7 @@ export interface InstantResult {
 }
 
 export type AiModeResult =
-  | { ok: true; answer: string; citations: Record<string, AiModeCitation> }
+  | { ok: true; answer: string; citations: Record<string, AiModeCitation>; reasoning?: string | null }
   | { ok: false; error: string }
 
 export interface SearchState {
@@ -62,7 +62,7 @@ export function useSearch(wsUrl: string): SearchState & { search: (query: string
           setState((prev) => ({
             ...prev,
             loading: false,
-            aiMode: { ok: true, answer: message.answer, citations: message.citations ?? {} },
+            aiMode: { ok: true, answer: message.answer, citations: message.citations ?? {}, reasoning: message.reasoning ?? null },
           }))
         } else if (message.type === 'ai_mode_error') {
           setState((prev) => ({ ...prev, loading: false, aiMode: { ok: false, error: message.error } }))
