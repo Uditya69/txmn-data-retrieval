@@ -1,6 +1,6 @@
 import pytest
 from common.config import Settings
-from common.es_client import get_es_client, raw_search, resolve_doc_id_allowlist, fetch_citations
+from common.es_client import get_es_client, raw_search, resolve_doc_id_allowlist, fetch_citations, fetch_fullcontent
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
 
@@ -187,6 +187,25 @@ async def test_resolve_doc_id_allowlist_party_only_filter_does_not_raise():
     result = await resolve_doc_id_allowlist(client, {"party": "Reliance Industries"})
 
     assert result == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_fullcontent_returns_field_for_matching_doc_id():
+    client = FakeAsyncES(search_hits=[{"_source": {"fullcontent": "<document>...</document>"}}])
+
+    result = await fetch_fullcontent(client, "101010000000322113")
+
+    assert result == "<document>...</document>"
+    assert client.search_calls[0] == {"bool": {"must": [{"term": {"id": "101010000000322113"}}]}}
+
+
+@pytest.mark.asyncio
+async def test_fetch_fullcontent_returns_none_when_doc_not_found():
+    client = FakeAsyncES(search_hits=[])
+
+    result = await fetch_fullcontent(client, "missing")
+
+    assert result is None
 
 
 @pytest.mark.asyncio

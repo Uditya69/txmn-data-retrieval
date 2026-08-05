@@ -10,6 +10,7 @@ export interface DocumentsFeedProps {
   aiMode: AiModeResult | null
   devMode: boolean
   highlightedDocId: string | null
+  onOpenDocument?: (docId: string) => void
 }
 
 function computeRelevance(cards: MergedCard[]): number[] {
@@ -21,8 +22,16 @@ function computeRelevance(cards: MergedCard[]): number[] {
   return scores.map((s) => Math.round(((s - min) / (max - min)) * 100))
 }
 
-export default function DocumentsFeed({ instant, aiMode, devMode, highlightedDocId }: DocumentsFeedProps) {
-  const cards = useMemo(() => mergeResults(instant?.es, instant?.milvus), [instant])
+const MAX_RENDERED_CARDS = 20
+
+export default function DocumentsFeed({ instant, aiMode, devMode, highlightedDocId, onOpenDocument }: DocumentsFeedProps) {
+  const cards = useMemo(
+    () =>
+      mergeResults(instant?.es, instant?.milvus)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, MAX_RENDERED_CARDS),
+    [instant],
+  )
   const relevance = useMemo(() => computeRelevance(cards), [cards])
   const citationCounts = useMemo(() => {
     if (!aiMode?.ok || !aiMode.answer) return new Map<string, number>()
@@ -53,6 +62,7 @@ export default function DocumentsFeed({ instant, aiMode, devMode, highlightedDoc
             relevance={relevance[index]}
             devMode={devMode}
             highlighted={card.doc_id === highlightedDocId}
+            onOpenDocument={onOpenDocument}
           />
         ))}
       </ul>

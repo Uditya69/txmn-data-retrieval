@@ -10,6 +10,7 @@ export interface DocumentCardProps {
   relevance: number
   devMode: boolean
   highlighted?: boolean
+  onOpenDocument?: (docId: string) => void
 }
 
 function truncate(text: string, length: number): string {
@@ -45,12 +46,18 @@ export default function DocumentCard({
   relevance,
   devMode,
   highlighted = false,
+  onOpenDocument,
 }: DocumentCardProps) {
   const partyName = extractPartyName(citation)
   const title = partyName ?? truncate(card.snippet, 80)
 
   return (
-    <li id={`document-${card.doc_id}`} className={highlighted ? `${styles.card} ${styles.highlighted}` : styles.card}>
+    <li
+      id={`document-${card.doc_id}`}
+      className={highlighted ? `${styles.card} ${styles.highlighted}` : styles.card}
+      onClick={onOpenDocument ? () => onOpenDocument(card.doc_id) : undefined}
+      style={onOpenDocument ? { cursor: 'pointer' } : undefined}
+    >
       <div className={styles.headerRow}>
         <span className={styles.typeBadge}>Case Law</span>
         {citedCount > 0 && <span className={styles.citedBadge}>Cited {citedCount}</span>}

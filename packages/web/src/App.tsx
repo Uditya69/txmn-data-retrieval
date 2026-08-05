@@ -4,12 +4,17 @@ import SearchBar from './components/SearchBar'
 import OverviewCard from './components/OverviewCard'
 import DocumentsFeed from './components/DocumentsFeed'
 import DevModeToggle from './components/DevModeToggle'
+import DocumentModal from './components/DocumentModal'
 import { useSearch } from './api/useSearch'
 import styles from './App.module.css'
 
 function resolveWsUrl(): string {
   const fromEnv = window.__ENV__?.WS_URL
   return fromEnv && fromEnv.length > 0 ? fromEnv : 'ws://localhost:8010/ws/search'
+}
+
+function resolveApiBaseUrl(wsUrl: string): string {
+  return wsUrl.replace(/^ws/, 'http').replace(/\/ws\/search$/, '')
 }
 
 function readDevModeFromUrl(): boolean {
@@ -21,6 +26,7 @@ export default function App() {
   const { instant, aiMode, loading, wsError, search } = useSearch(wsUrl)
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
   const [highlightedDocId, setHighlightedDocId] = useState<string | null>(null)
+  const [openDocId, setOpenDocId] = useState<string | null>(null)
 
   useEffect(() => {
     if (highlightedDocId === null) return
@@ -31,6 +37,7 @@ export default function App() {
   function handleCitationClick(docId: string) {
     setHighlightedDocId(docId)
     document.getElementById(`document-${docId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setOpenDocId(docId)
   }
 
   return (
@@ -42,7 +49,19 @@ export default function App() {
       <SearchBar onSearch={search} disabled={loading} />
       {wsError && <p className={styles.wsError}>{wsError}</p>}
       <OverviewCard aiMode={aiMode} loading={loading} onCitationClick={handleCitationClick} />
-      <DocumentsFeed instant={instant} aiMode={aiMode} devMode={devMode} highlightedDocId={highlightedDocId} />
+      <DocumentsFeed
+        instant={instant}
+        aiMode={aiMode}
+        devMode={devMode}
+        highlightedDocId={highlightedDocId}
+        onOpenDocument={setOpenDocId}
+      />
+      <DocumentModal
+        docId={openDocId}
+        apiBaseUrl={resolveApiBaseUrl(wsUrl)}
+        onClose={() => setOpenDocId(null)}
+        onNavigate={setOpenDocId}
+      />
     </div>
   )
 }

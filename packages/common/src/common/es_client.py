@@ -79,6 +79,16 @@ async def resolve_doc_id_allowlist(client, filters: dict) -> list[str] | None:
     return [hit["_source"]["id"] for hit in hits]
 
 
+async def fetch_fullcontent(client, doc_id: str) -> str | None:
+    response = await client.search(
+        index=client.index, query={"bool": {"must": [{"term": {"id": doc_id}}]}}, size=1,
+    )
+    hits = response["hits"]["hits"]
+    if not hits:
+        return None
+    return hits[0]["_source"]["fullcontent"]
+
+
 async def fetch_citations(client, doc_ids: list[str]) -> dict[str, dict]:
     if not doc_ids:
         return {}

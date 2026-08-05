@@ -1,6 +1,6 @@
 // src/components/DocumentCard.test.tsx
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import DocumentCard from './DocumentCard'
 import type { MergedCard } from '../lib/mergeResults'
 
@@ -41,5 +41,14 @@ describe('DocumentCard', () => {
   it('hides the source badge outside dev mode', () => {
     render(<DocumentCard card={baseCard} citedCount={0} relevance={80} devMode={false} />)
     expect(screen.queryByText(/ES · score/)).not.toBeInTheDocument()
+  })
+
+  it('calls onOpenDocument with the doc_id when the card is clicked', () => {
+    const onOpenDocument = vi.fn()
+    render(
+      <DocumentCard card={baseCard} citedCount={0} relevance={80} devMode={false} onOpenDocument={onOpenDocument} />,
+    )
+    fireEvent.click(screen.getByRole('heading'))
+    expect(onOpenDocument).toHaveBeenCalledWith('d1')
   })
 })

@@ -39,6 +39,27 @@ describe('DocumentsFeed', () => {
     expect(screen.getByText(/Milvus snippet text/)).toBeInTheDocument()
   })
 
+  it('caps rendered cards at 20, keeping the highest-scored ones', () => {
+    const es = Array.from({ length: 25 }, (_, i) => ({
+      doc_id: `d${i}`,
+      score: i, // d24 highest, d0 lowest
+      snippet: `snippet ${i}`,
+    }))
+    render(
+      <DocumentsFeed
+        instant={{ es, es_error: null, milvus: null, milvus_error: null }}
+        aiMode={null}
+        devMode={false}
+        highlightedDocId={null}
+      />,
+    )
+    expect(screen.getByText('20')).toBeInTheDocument()
+    expect(screen.getByText(/snippet 24/)).toBeInTheDocument()
+    expect(screen.getByText(/snippet 5/)).toBeInTheDocument()
+    expect(screen.queryByText(/snippet 4$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/snippet 0$/)).not.toBeInTheDocument()
+  })
+
   it('shows a cited badge derived from the AI Mode answer text', () => {
     render(
       <DocumentsFeed
