@@ -65,3 +65,26 @@ def test_parse_fullcontent_skips_blank_paragraphs():
 def test_parse_fullcontent_raises_value_error_on_malformed_xml():
     with pytest.raises(ValueError):
         parse_fullcontent("<document><body><para>unclosed</body></document>")
+
+
+def test_parse_fullcontent_extracts_paragraphs_from_legacy_html_documents():
+    """Older indexed documents store fullcontent as a full XHTML page, not
+    the newer <document><body><para> schema - its unescaped void elements
+    (<meta>, <br>) aren't well-formed XML, so it needs the lenient path."""
+    html = (
+        '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN">\r\n'
+        '<html xmlns="http://www.w3.org/1999/xhtml"><head>\r\n'
+        '<meta http-equiv="content-type" content="text/html;charset=utf-8">\r\n'
+        "</head><body>\r\n"
+        '<p align="right"><font face="Times New Roman"><span style="font-size:9pt">'
+        "<b>[1991] 58 TAXMAN 216 (CAL)</b></span></font></p>\r\n"
+        "<p>Commissioner of Income-tax v. Arvind Investments Ltd.</p>\r\n"
+        "</body></html>"
+    )
+
+    blocks = parse_fullcontent(html)
+
+    assert blocks == [
+        {"type": "paragraph", "text": "[1991] 58 TAXMAN 216 (CAL)", "links": []},
+        {"type": "paragraph", "text": "Commissioner of Income-tax v. Arvind Investments Ltd.", "links": []},
+    ]
