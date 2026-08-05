@@ -52,21 +52,31 @@ def test_ws_search_streams_ai_mode_trace_steps_before_final_answer(monkeypatch):
     client = TestClient(app)
     with client.websocket_connect("/ws/search") as websocket:
         websocket.send_json({"query": "q"})
-        instant_msg = websocket.receive_json()
-        trace_1 = websocket.receive_json()
-        trace_2 = websocket.receive_json()
-        final = websocket.receive_json()
+        messages = []
+        while True:
+            msg = websocket.receive_json()
+            messages.append(msg)
+            if msg["type"] in ("ai_mode_done", "ai_mode_error"):
+                break
 
-    assert instant_msg["type"] == "instant_result"
-    assert trace_1 == {
+    trace_1 = {
         "type": "ai_mode_trace", "step": "intent",
         "data": {"query": "q", "rewritten_query": "r", "intent": "x", "filters": {}},
     }
-    assert trace_2 == {
+    trace_2 = {
         "type": "ai_mode_trace", "step": "filters_resolved",
         "data": {"filters": {}, "doc_id_count": 0, "doc_id_sample": []},
     }
-    assert final == {"type": "ai_mode_done", "answer": "final answer", "citations": {}}
+    final = {"type": "ai_mode_done", "answer": "final answer", "citations": {}}
+
+    # instant_result arrives at some point (no cross-stream ordering guarantee
+    # with ai_mode's trace steps - both paths run concurrently).
+    assert any(m["type"] == "instant_result" for m in messages)
+
+    # trace steps preserve pipeline stage order, and both land before the
+    # final answer.
+    types_and_payloads = [m for m in messages if m["type"] in ("ai_mode_trace", "ai_mode_done")]
+    assert types_and_payloads == [trace_1, trace_2, final]
 
 
 @pytest.mark.asyncio

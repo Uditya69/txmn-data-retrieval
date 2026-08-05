@@ -42,23 +42,12 @@ async def search(websocket: WebSocket):
         milvus_client = None
 
     send_lock = asyncio.Lock()
-    # Guards message ORDER on the wire (not thread-safety - send_lock already
-    # covers that). Both tasks are created concurrently below so their real
-    # work overlaps, but if instant is running at all, ai_mode's trace steps
-    # must not reach the client before instant_result does. Without this,
-    # asyncio's call_soon scheduling can let ai_mode's first on_step -> send
-    # reach the websocket queue before instant's completion callback even
-    # resumes this handler, delivering ai_mode_trace ahead of instant_result.
-    instant_sent = asyncio.Event()
-    if mode not in ("instant", "both"):
-        instant_sent.set()
 
     async def send(payload: dict) -> None:
         async with send_lock:
             await websocket.send_json(payload)
 
     async def emit_trace_step(step: str, data: dict) -> None:
-        await instant_sent.wait()
         await _emit_trace_step(send, step, data)
 
     try:
@@ -74,7 +63,6 @@ async def search(websocket: WebSocket):
         if instant_task is not None:
             instant_result = await instant_task
             await send({"type": "instant_result", **instant_result})
-        instant_sent.set()
 
         if ai_mode_task is not None:
             ai_mode_result = await ai_mode_task
