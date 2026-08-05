@@ -1,7 +1,8 @@
 export interface EsHit {
   doc_id: string
   score: number
-  snippet: string
+  heading: string
+  subheading: string
 }
 
 export interface MilvusHit {
@@ -19,6 +20,7 @@ export interface MergedCard {
   collection?: string
   score: number
   snippet: string
+  heading?: string
 }
 
 /**
@@ -38,7 +40,7 @@ export function mergeResults(
   for (const hit of es ?? []) {
     if (seen.has(hit.doc_id)) continue
     seen.add(hit.doc_id)
-    cards.push({ doc_id: hit.doc_id, source: 'es', score: hit.score, snippet: hit.snippet })
+    cards.push({ doc_id: hit.doc_id, source: 'es', score: hit.score, heading: hit.heading, snippet: hit.subheading })
   }
 
   const bestMilvusByDocId = new Map<string, MergedCard>()

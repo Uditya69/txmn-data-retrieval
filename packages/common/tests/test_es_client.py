@@ -50,18 +50,39 @@ class FakeAsyncES:
 
 
 @pytest.mark.asyncio
-async def test_raw_search_returns_doc_id_score_snippet():
+async def test_raw_search_returns_doc_id_score_heading_subheading():
     # "id", not "doc_id", is the real ES document identifier field
     # (verified against the live researchindex_aic_test mapping).
     client = FakeAsyncES(search_hits=[
-        {"_source": {"id": "d1", "facts_text": "assessee claimed exemption"}, "_score": 4.2},
+        {
+            "_source": {
+                "id": "d1",
+                "heading": "[2022] 140 taxmann.com 136 (Punjab & Haryana)",
+                "subheading": "Krishana Goel vs. Principal Chief Commissioner of Income-tax",
+            },
+            "_score": 4.2,
+        },
     ], index="researchindex_aic_test")
 
     results = await raw_search(client, "exemption claim", limit=20)
 
-    assert results == [{"doc_id": "d1", "score": 4.2, "snippet": "assessee claimed exemption"}]
+    assert results == [{
+        "doc_id": "d1",
+        "score": 4.2,
+        "heading": "[2022] 140 taxmann.com 136 (Punjab & Haryana)",
+        "subheading": "Krishana Goel vs. Principal Chief Commissioner of Income-tax",
+    }]
     # index comes from the client (sourced from Settings.es_index), never hardcoded
     assert client.searched_index == "researchindex_aic_test"
+
+
+@pytest.mark.asyncio
+async def test_raw_search_defaults_missing_heading_subheading_to_empty_string():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}, "_score": 1.0}])
+
+    results = await raw_search(client, "query", limit=20)
+
+    assert results == [{"doc_id": "d1", "score": 1.0, "heading": "", "subheading": ""}]
 
 
 def test_get_es_client_reads_index_and_auth_from_settings():

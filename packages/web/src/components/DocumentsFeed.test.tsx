@@ -24,7 +24,7 @@ describe('DocumentsFeed', () => {
     render(
       <DocumentsFeed
         instant={{
-          es: [{ doc_id: 'd1', score: 10, snippet: 'ES snippet about capital gains' }],
+          es: [{ doc_id: 'd1', score: 10, heading: 'Heading about capital gains', subheading: 'Party A vs. Party B' }],
           es_error: null,
           milvus: { facts: [{ chunk_id: 'd2::facts::0', doc_id: 'd2', text: 'Milvus snippet text', score: 5 }] },
           milvus_error: null,
@@ -35,7 +35,7 @@ describe('DocumentsFeed', () => {
       />,
     )
     expect(screen.getByText('2')).toBeInTheDocument()
-    expect(screen.getByText(/ES snippet about capital gains/)).toBeInTheDocument()
+    expect(screen.getByText('Heading about capital gains')).toBeInTheDocument()
     expect(screen.getByText(/Milvus snippet text/)).toBeInTheDocument()
   })
 
@@ -43,7 +43,8 @@ describe('DocumentsFeed', () => {
     const es = Array.from({ length: 25 }, (_, i) => ({
       doc_id: `d${i}`,
       score: i, // d24 highest, d0 lowest
-      snippet: `snippet ${i}`,
+      heading: `heading ${i}`,
+      subheading: `snippet ${i}`,
     }))
     render(
       <DocumentsFeed
@@ -64,7 +65,7 @@ describe('DocumentsFeed', () => {
     render(
       <DocumentsFeed
         instant={{
-          es: [{ doc_id: 'd1', score: 10, snippet: 'ES snippet' }],
+          es: [{ doc_id: 'd1', score: 10, heading: 'Heading', subheading: 'ES snippet' }],
           es_error: null,
           milvus: null,
           milvus_error: null,

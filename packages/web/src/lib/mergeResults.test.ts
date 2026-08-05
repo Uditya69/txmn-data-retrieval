@@ -8,14 +8,14 @@ describe('mergeResults', () => {
     expect(mergeResults(undefined, undefined)).toEqual([])
   })
 
-  it('returns ES-only cards in their own order when Milvus has nothing', () => {
+  it('returns ES-only cards with heading/subheading in their own order when Milvus has nothing', () => {
     const es = [
-      { doc_id: 'd1', score: 10, snippet: 'first' },
-      { doc_id: 'd2', score: 8, snippet: 'second' },
+      { doc_id: 'd1', score: 10, heading: 'Heading 1', subheading: 'Party A vs. Party B' },
+      { doc_id: 'd2', score: 8, heading: 'Heading 2', subheading: 'Party C vs. Party D' },
     ]
     expect(mergeResults(es, {})).toEqual([
-      { doc_id: 'd1', source: 'es', score: 10, snippet: 'first' },
-      { doc_id: 'd2', source: 'es', score: 8, snippet: 'second' },
+      { doc_id: 'd1', source: 'es', score: 10, heading: 'Heading 1', snippet: 'Party A vs. Party B' },
+      { doc_id: 'd2', source: 'es', score: 8, heading: 'Heading 2', snippet: 'Party C vs. Party D' },
     ])
   })
 
@@ -32,7 +32,7 @@ describe('mergeResults', () => {
   })
 
   it('puts ES cards first, then Milvus-only cards, without re-ranking either group', () => {
-    const es = [{ doc_id: 'd1', score: 1, snippet: 'es hit' }]
+    const es = [{ doc_id: 'd1', score: 1, heading: 'Heading 1', subheading: 'es hit' }]
     const milvus = {
       facts: [
         { chunk_id: 'd1::facts::0', doc_id: 'd1', text: 'already in es, ignored', score: 999 },
@@ -40,7 +40,7 @@ describe('mergeResults', () => {
       ],
     }
     expect(mergeResults(es, milvus)).toEqual([
-      { doc_id: 'd1', source: 'es', score: 1, snippet: 'es hit' },
+      { doc_id: 'd1', source: 'es', score: 1, heading: 'Heading 1', snippet: 'es hit' },
       { doc_id: 'd2', source: 'milvus', collection: 'facts', score: 2, snippet: 'milvus only' },
     ])
   })

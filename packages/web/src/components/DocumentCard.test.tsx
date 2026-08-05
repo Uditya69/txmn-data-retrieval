@@ -43,6 +43,19 @@ describe('DocumentCard', () => {
     expect(screen.queryByText(/ES · score/)).not.toBeInTheDocument()
   })
 
+  it('prefers the real ES heading as the title, with subheading shown below', () => {
+    render(
+      <DocumentCard
+        card={{ ...baseCard, heading: '[2022] 140 taxmann.com 136', snippet: 'Party A vs. Party B' }}
+        citedCount={0}
+        relevance={80}
+        devMode={false}
+      />,
+    )
+    expect(screen.getByRole('heading')).toHaveTextContent('[2022] 140 taxmann.com 136')
+    expect(screen.getByText('Party A vs. Party B')).toBeInTheDocument()
+  })
+
   it('calls onOpenDocument with the doc_id when the card is clicked', () => {
     const onOpenDocument = vi.fn()
     render(

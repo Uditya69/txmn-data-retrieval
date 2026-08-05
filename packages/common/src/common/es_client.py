@@ -35,8 +35,12 @@ async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
     results = []
     for hit in response["hits"]["hits"]:
         source = hit["_source"]
-        snippet = next((source[f] for f in _RAW_SEARCH_FIELDS if source.get(f)), "")
-        results.append({"doc_id": source["id"], "score": hit["_score"], "snippet": snippet})
+        results.append({
+            "doc_id": source["id"],
+            "score": hit["_score"],
+            "heading": source.get("heading", ""),
+            "subheading": source.get("subheading", ""),
+        })
     return results
 
 

@@ -49,7 +49,7 @@ export default function DocumentCard({
   onOpenDocument,
 }: DocumentCardProps) {
   const partyName = extractPartyName(citation)
-  const title = partyName ?? truncate(card.snippet, 80)
+  const title = card.heading || partyName || truncate(card.snippet, 80)
 
   return (
     <li
