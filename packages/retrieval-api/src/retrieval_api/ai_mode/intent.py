@@ -22,6 +22,9 @@ Given a user query, return ONLY a JSON object with exactly these keys:
 - "intent": one short intent category label.
 - "filters": an object with any of "court", "act", "section", "date_range", "party"
   the query explicitly mentions; omit keys that aren't mentioned.
+  "date_range" MUST be an object with ISO date strings, e.g.
+  {"gte": "2020-01-01", "lte": "2022-01-01"} - either key may be omitted,
+  but never output "date_range" as a plain string or year number.
 
 """ + build_schema_context()
 

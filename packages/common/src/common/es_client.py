@@ -58,8 +58,9 @@ def _build_filter_must(filters: dict, fuzzy: bool) -> list[dict]:
         )
     if "party" in filters:
         must.append({"match": {"otherinfo.partyname.name": filters["party"]}})
-    if "date_range" in filters:
-        must.append({"range": {"formatteddocumentdate": filters["date_range"]}})
+    date_range = filters.get("date_range")
+    if isinstance(date_range, dict) and ("gte" in date_range or "lte" in date_range):
+        must.append({"range": {"formatteddocumentdate": date_range}})
     return must
 
 

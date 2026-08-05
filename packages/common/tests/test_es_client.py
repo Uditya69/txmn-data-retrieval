@@ -148,6 +148,38 @@ async def test_resolve_doc_id_allowlist_falls_back_to_fuzzy_match_when_exact_ter
 
 
 @pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_drops_malformed_date_range_instead_of_querying_es():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}])
+
+    result = await resolve_doc_id_allowlist(client, {"court": "Supreme Court", "date_range": "2020"})
+
+    assert result == ["d1"]
+    assert client.search_calls[0] == {
+        "bool": {"must": [{"term": {"masterinfo.info.court.name.keyword": "Supreme Court"}}]}
+    }
+
+
+@pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_raises_when_only_filter_is_malformed_date_range():
+    client = FakeAsyncES()
+
+    with pytest.raises(ValueError):
+        await resolve_doc_id_allowlist(client, {"date_range": "2020"})
+
+
+@pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_accepts_well_formed_date_range():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}])
+
+    result = await resolve_doc_id_allowlist(client, {"date_range": {"gte": "2020-01-01", "lte": "2022-01-01"}})
+
+    assert result == ["d1"]
+    assert client.search_calls[0] == {
+        "bool": {"must": [{"range": {"formatteddocumentdate": {"gte": "2020-01-01", "lte": "2022-01-01"}}}]}
+    }
+
+
+@pytest.mark.asyncio
 async def test_resolve_doc_id_allowlist_party_only_filter_does_not_raise():
     client = FakeAsyncES(search_hits=[])
 

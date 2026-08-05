@@ -85,3 +85,5 @@ async def test_extract_intent_system_prompt_includes_schema_context():
     assert "facts" in system_message["content"]
     assert "Supreme Court" in system_message["content"]
     assert '"section"' in system_message["content"]
+    assert '"gte"' in system_message["content"]
+    assert '"lte"' in system_message["content"]
