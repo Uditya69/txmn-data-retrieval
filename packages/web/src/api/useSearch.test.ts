@@ -90,4 +90,49 @@ describe('useSearch', () => {
     expect(result.current.loading).toBe(false)
     expect(result.current.aiMode).toEqual({ ok: false, error: 'boom' })
   })
+
+  it('accumulates ai_mode_trace messages into traceSteps, in arrival order', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+    act(() => {
+      result.current.search('cgst')
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+      socket.emit('message', {
+        data: JSON.stringify({ type: 'ai_mode_trace', step: 'intent', data: { rewritten_query: 'r' } }),
+      })
+    })
+    expect(result.current.traceSteps).toEqual([{ step: 'intent', data: { rewritten_query: 'r' } }])
+
+    act(() => {
+      socket.emit('message', {
+        data: JSON.stringify({ type: 'ai_mode_trace', step: 'filters_resolved', data: { doc_id_count: 0 } }),
+      })
+    })
+    expect(result.current.traceSteps).toEqual([
+      { step: 'intent', data: { rewritten_query: 'r' } },
+      { step: 'filters_resolved', data: { doc_id_count: 0 } },
+    ])
+  })
+
+  it('resets traceSteps to empty when a new search starts', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+    act(() => {
+      result.current.search('first query')
+    })
+    let socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+      socket.emit('message', {
+        data: JSON.stringify({ type: 'ai_mode_trace', step: 'intent', data: {} }),
+      })
+    })
+    expect(result.current.traceSteps).toHaveLength(1)
+
+    act(() => {
+      result.current.search('second query')
+    })
+    expect(result.current.traceSteps).toEqual([])
+  })
 })
