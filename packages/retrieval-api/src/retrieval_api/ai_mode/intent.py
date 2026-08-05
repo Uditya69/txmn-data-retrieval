@@ -1,5 +1,6 @@
 import json
 
+from common.schema_context import build_schema_context
 from retrieval_api.gateway_client import GatewayClient
 
 
@@ -15,11 +16,14 @@ _SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case 
 Given a user query, return ONLY a JSON object with exactly these keys:
 - "rewritten_query": the query rewritten for search, expanding any old-law
   references to their new-law equivalent (IPC -> BNS, CrPC -> BNSS, Evidence
-  Act -> BSA) where applicable.
+  Act -> BSA) where applicable, and phrased to read naturally against the
+  collection descriptions below since it will be embedded and searched
+  against all of them at once.
 - "intent": one short intent category label.
-- "filters": an object with any of "court", "act", "date_range", "party"
+- "filters": an object with any of "court", "act", "section", "date_range", "party"
   the query explicitly mentions; omit keys that aren't mentioned.
-"""
+
+""" + build_schema_context()
 
 
 async def extract_intent(gateway: GatewayClient, query: str) -> dict:

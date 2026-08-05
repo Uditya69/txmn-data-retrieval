@@ -128,6 +128,26 @@ async def test_resolve_doc_id_allowlist_queries_otherinfo_partyname_match():
 
 
 @pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_falls_back_to_fuzzy_match_when_exact_term_misses():
+    class ExactMissFuzzyHitES(FakeAsyncES):
+        async def search(self, index, query, size):
+            self.search_calls.append(query)
+            if {"term": {"masterinfo.info.court.name.keyword": "Bombay High Court"}} in query["bool"]["must"]:
+                return {"hits": {"hits": []}}
+            return {"hits": {"hits": [{"_source": {"id": "d1"}}]}}
+
+    client = ExactMissFuzzyHitES()
+
+    result = await resolve_doc_id_allowlist(client, {"court": "Bombay High Court"})
+
+    assert result == ["d1"]
+    assert len(client.search_calls) == 2
+    assert client.search_calls[1] == {
+        "bool": {"must": [{"match": {"masterinfo.info.court.name": "Bombay High Court"}}]}
+    }
+
+
+@pytest.mark.asyncio
 async def test_resolve_doc_id_allowlist_party_only_filter_does_not_raise():
     client = FakeAsyncES(search_hits=[])
 

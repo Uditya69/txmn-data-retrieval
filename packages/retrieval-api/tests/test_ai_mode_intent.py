@@ -69,3 +69,19 @@ async def test_extract_intent_raises_on_unparseable_response():
 
     with pytest.raises(ValueError):
         await extract_intent(gateway, "some query")
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_system_prompt_includes_schema_context():
+    gateway = AsyncMock()
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "q", "intent": "x", "filters": {},
+    })
+
+    await extract_intent(gateway, "some query")
+
+    system_message = gateway.chat.await_args.kwargs["messages"][0]
+    assert system_message["role"] == "system"
+    assert "facts" in system_message["content"]
+    assert "Supreme Court" in system_message["content"]
+    assert '"section"' in system_message["content"]

@@ -40,24 +40,42 @@ async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
     return results
 
 
-async def resolve_doc_id_allowlist(client, filters: dict) -> list[str] | None:
-    if not filters:
-        return None
+_TERM_FILTER_FIELDS = {
+    "court": "masterinfo.info.court.name",
+    "act": "masterinfo.info.act.name",
+    "section": "masterinfo.info.section.name",
+}
+
+
+def _build_filter_must(filters: dict, fuzzy: bool) -> list[dict]:
     must = []
-    if "court" in filters:
-        must.append({"term": {"masterinfo.info.court.name.keyword": filters["court"]}})
-    if "act" in filters:
-        must.append({"term": {"masterinfo.info.act.name.keyword": filters["act"]}})
-    if "section" in filters:
-        must.append({"term": {"masterinfo.info.section.name.keyword": filters["section"]}})
+    for key, field in _TERM_FILTER_FIELDS.items():
+        if key not in filters:
+            continue
+        must.append(
+            {"match": {field: filters[key]}} if fuzzy
+            else {"term": {f"{field}.keyword": filters[key]}}
+        )
     if "party" in filters:
         must.append({"match": {"otherinfo.partyname.name": filters["party"]}})
     if "date_range" in filters:
         must.append({"range": {"formatteddocumentdate": filters["date_range"]}})
+    return must
+
+
+async def resolve_doc_id_allowlist(client, filters: dict) -> list[str] | None:
+    if not filters:
+        return None
+    must = _build_filter_must(filters, fuzzy=False)
     if not must:
         raise ValueError(f"No recognized filter keys in {filters!r}")
     response = await client.search(index=client.index, query={"bool": {"must": must}}, size=1000)
-    return [hit["_source"]["id"] for hit in response["hits"]["hits"]]
+    hits = response["hits"]["hits"]
+    if not hits and any(key in filters for key in _TERM_FILTER_FIELDS):
+        fuzzy_must = _build_filter_must(filters, fuzzy=True)
+        response = await client.search(index=client.index, query={"bool": {"must": fuzzy_must}}, size=1000)
+        hits = response["hits"]["hits"]
+    return [hit["_source"]["id"] for hit in hits]
 
 
 async def fetch_citations(client, doc_ids: list[str]) -> dict[str, dict]:
