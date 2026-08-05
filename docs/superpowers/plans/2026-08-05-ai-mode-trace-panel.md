@@ -809,6 +809,7 @@ Replace the contents of `packages/retrieval-api/tests/test_ws_integration.py`:
 ```python
 # packages/retrieval-api/tests/test_ws_integration.py
 from unittest.mock import AsyncMock, Mock
+import pytest
 from fastapi.testclient import TestClient
 
 from retrieval_api.main import app
@@ -875,6 +876,16 @@ def test_ws_search_streams_ai_mode_trace_steps_before_final_answer(monkeypatch):
         "data": {"filters": {}, "doc_id_count": 0, "doc_id_sample": []},
     }
     assert final == {"type": "ai_mode_done", "answer": "final answer", "citations": {}}
+
+
+@pytest.mark.asyncio
+async def test_emit_trace_step_swallows_send_errors():
+    from retrieval_api.ws import _emit_trace_step
+
+    async def failing_send(payload):
+        raise RuntimeError("connection closed")
+
+    await _emit_trace_step(failing_send, "intent", {"foo": "bar"})  # must not raise
 
 
 def test_ws_search_instant_mode_does_not_emit_trace_steps(monkeypatch):
@@ -1001,7 +1012,7 @@ def test_ws_search_ai_mode_only_skips_instant(monkeypatch):
 - [ ] **Step 2: Run tests to verify the new ones fail**
 
 Run: `uv run pytest packages/retrieval-api/tests/test_ws_integration.py -v`
-Expected: `test_ws_search_streams_ai_mode_trace_steps_before_final_answer` FAILS (extra `receive_json()` calls time out / mismatch — `ws.py` doesn't call `on_step` yet). Others should still pass since fakes now default `on_step=None` and `ws.py` doesn't pass it, which is a no-op.
+Expected: `test_ws_search_streams_ai_mode_trace_steps_before_final_answer` FAILS (extra `receive_json()` calls time out / mismatch — `ws.py` doesn't call `on_step` yet). `test_emit_trace_step_swallows_send_errors` FAILS at collection (`ImportError: cannot import name '_emit_trace_step'`). Others should still pass since fakes now default `on_step=None` and `ws.py` doesn't pass it, which is a no-op.
 
 - [ ] **Step 3: Implement**
 
@@ -1026,6 +1037,16 @@ def get_gateway_client(settings) -> GatewayClient:
     return GatewayClient(base_url=settings.gateway_url)
 
 
+async def _emit_trace_step(send, step: str, data: dict) -> None:
+    """Swallows any exception from `send` (e.g. the client disconnected
+    mid-stream) - a dead trace channel must never fail the AI Mode
+    pipeline or its final answer."""
+    try:
+        await send({"type": "ai_mode_trace", "step": step, "data": data})
+    except Exception:
+        pass
+
+
 @router.websocket("/ws/search")
 async def search(websocket: WebSocket):
     await websocket.accept()
@@ -1048,7 +1069,7 @@ async def search(websocket: WebSocket):
             await websocket.send_json(payload)
 
     async def emit_trace_step(step: str, data: dict) -> None:
-        await send({"type": "ai_mode_trace", "step": step, "data": data})
+        await _emit_trace_step(send, step, data)
 
     try:
         instant_task = (
@@ -1083,12 +1104,12 @@ async def search(websocket: WebSocket):
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest packages/retrieval-api/tests/test_ws_integration.py -v`
-Expected: all PASS (7 tests total: 5 existing + 2 new).
+Expected: all PASS (8 tests total: 5 existing + 3 new).
 
 - [ ] **Step 5: Run the full backend suite**
 
 Run: `uv run pytest -q`
-Expected: all tests pass (backend total grows from 57 to 57 + 2 + 2 + 2 + 1 + 1 + 1 + 2 = 68).
+Expected: all tests pass (backend total grows from 57 to 57 + 2 + 2 + 2 + 1 + 1 + 1 + 3 = 69).
 
 - [ ] **Step 6: Commit**
 
