@@ -7,19 +7,19 @@ from retrieval_api.ai_mode.pipeline import run_ai_mode
 async def test_run_ai_mode_success_path(monkeypatch):
     import retrieval_api.ai_mode.pipeline as module
 
-    async def fake_extract_intent(gateway, query):
+    async def fake_extract_intent(gateway, query, on_step=None):
         return {"rewritten_query": "rewritten", "intent": "x", "filters": {}}
 
-    async def fake_resolve_allowlist(es_client, filters):
+    async def fake_resolve_allowlist(es_client, filters, on_step=None):
         return None
 
-    async def fake_retrieve(gateway, milvus_client, rewritten_query, doc_id_allowlist):
+    async def fake_retrieve(gateway, milvus_client, rewritten_query, doc_id_allowlist, on_step=None):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
-    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates):
+    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None):
         return {"answer": "final answer", "citations": citations}
 
     monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
@@ -37,7 +37,7 @@ async def test_run_ai_mode_success_path(monkeypatch):
 async def test_run_ai_mode_returns_error_on_any_stage_failure(monkeypatch):
     import retrieval_api.ai_mode.pipeline as module
 
-    async def failing_extract_intent(gateway, query):
+    async def failing_extract_intent(gateway, query, on_step=None):
         raise ValueError("SLM did not return valid JSON")
 
     monkeypatch.setattr(module, "extract_intent", failing_extract_intent)
@@ -63,21 +63,21 @@ async def test_run_ai_mode_succeeds_with_party_only_filter(monkeypatch):
             }
             return {"hits": {"hits": [{"_source": {"id": "d1"}}]}}
 
-    async def fake_extract_intent(gateway, query):
+    async def fake_extract_intent(gateway, query, on_step=None):
         return {
             "rewritten_query": "rewritten",
             "intent": "x",
             "filters": {"party": "Reliance Industries"},
         }
 
-    async def fake_retrieve(gateway, milvus_client, rewritten_query, doc_id_allowlist):
+    async def fake_retrieve(gateway, milvus_client, rewritten_query, doc_id_allowlist, on_step=None):
         assert doc_id_allowlist == ["d1"]
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
-    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates):
+    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None):
         return {"answer": "final answer", "citations": citations}
 
     monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
@@ -91,3 +91,49 @@ async def test_run_ai_mode_succeeds_with_party_only_filter(monkeypatch):
 
     assert result["ok"] is True
     assert result == {"ok": True, "answer": "final answer", "citations": {"d1": {}}}
+
+
+@pytest.mark.asyncio
+async def test_run_ai_mode_forwards_on_step_to_every_stage(monkeypatch):
+    import retrieval_api.ai_mode.pipeline as module
+
+    received_on_steps = []
+
+    async def fake_extract_intent(gateway, query, on_step=None):
+        received_on_steps.append(("extract_intent", on_step))
+        return {"rewritten_query": "rewritten", "intent": "x", "filters": {}}
+
+    async def fake_resolve_allowlist(es_client, filters, on_step=None):
+        received_on_steps.append(("resolve_allowlist", on_step))
+        return None
+
+    async def fake_retrieve(gateway, milvus_client, rewritten_query, doc_id_allowlist, on_step=None):
+        received_on_steps.append(("retrieve", on_step))
+        return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
+
+    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
+        received_on_steps.append(("rerank_and_prefetch", on_step))
+        return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None):
+        received_on_steps.append(("synthesize", on_step))
+        return {"answer": "final answer", "citations": citations}
+
+    monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_resolve_allowlist)
+    monkeypatch.setattr(module, "retrieve", fake_retrieve)
+    monkeypatch.setattr(module, "rerank_and_prefetch", fake_rerank_and_prefetch)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+
+    async def on_step(step, data):
+        pass
+
+    await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="q", on_step=on_step)
+
+    assert received_on_steps == [
+        ("extract_intent", on_step),
+        ("resolve_allowlist", on_step),
+        ("retrieve", on_step),
+        ("rerank_and_prefetch", on_step),
+        ("synthesize", on_step),
+    ]
