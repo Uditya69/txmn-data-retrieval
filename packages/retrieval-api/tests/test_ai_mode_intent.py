@@ -69,3 +69,37 @@ async def test_extract_intent_raises_on_unparseable_response():
 
     with pytest.raises(ValueError):
         await extract_intent(gateway, "some query")
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_emits_intent_step_when_on_step_given():
+    gateway = AsyncMock()
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "rewritten",
+        "intent": "taxation",
+        "filters": {"act": "CGST Act"},
+    })
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    result = await extract_intent(gateway, "original query", on_step=on_step)
+
+    assert result == {"rewritten_query": "rewritten", "intent": "taxation", "filters": {"act": "CGST Act"}}
+    assert steps == [("intent", {
+        "query": "original query",
+        "rewritten_query": "rewritten",
+        "intent": "taxation",
+        "filters": {"act": "CGST Act"},
+    })]
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_skips_on_step_when_none():
+    gateway = AsyncMock()
+    gateway.chat.return_value = json.dumps({"rewritten_query": "r", "intent": "x", "filters": {}})
+
+    result = await extract_intent(gateway, "q")  # no on_step passed
+
+    assert result == {"rewritten_query": "r", "intent": "x", "filters": {}}

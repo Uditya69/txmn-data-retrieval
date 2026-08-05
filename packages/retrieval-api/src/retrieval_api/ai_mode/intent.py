@@ -1,6 +1,9 @@
 import json
+from typing import Awaitable, Callable
 
 from retrieval_api.gateway_client import GatewayClient
+
+OnStep = Callable[[str, dict], Awaitable[None]]
 
 
 def _extract_json_object(text: str) -> str:
@@ -22,7 +25,7 @@ Given a user query, return ONLY a JSON object with exactly these keys:
 """
 
 
-async def extract_intent(gateway: GatewayClient, query: str) -> dict:
+async def extract_intent(gateway: GatewayClient, query: str, on_step: OnStep | None = None) -> dict:
     response = await gateway.chat(
         role="slm",
         messages=[
@@ -32,6 +35,11 @@ async def extract_intent(gateway: GatewayClient, query: str) -> dict:
     )
     cleaned = _extract_json_object(response.strip())
     try:
-        return json.loads(cleaned)
+        result = json.loads(cleaned)
     except json.JSONDecodeError as exc:
         raise ValueError(f"SLM did not return valid JSON: {response!r}") from exc
+
+    if on_step is not None:
+        await on_step("intent", {"query": query, **result})
+
+    return result
