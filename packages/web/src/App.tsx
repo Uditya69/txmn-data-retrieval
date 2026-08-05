@@ -4,6 +4,7 @@ import SearchBar from './components/SearchBar'
 import OverviewCard from './components/OverviewCard'
 import DocumentsFeed from './components/DocumentsFeed'
 import DevModeToggle from './components/DevModeToggle'
+import TracePanel from './components/TracePanel'
 import { useSearch } from './api/useSearch'
 import styles from './App.module.css'
 
@@ -18,7 +19,7 @@ function readDevModeFromUrl(): boolean {
 
 export default function App() {
   const wsUrl = resolveWsUrl()
-  const { instant, aiMode, loading, wsError, search } = useSearch(wsUrl)
+  const { instant, aiMode, traceSteps, loading, wsError, search } = useSearch(wsUrl)
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
   const [highlightedDocId, setHighlightedDocId] = useState<string | null>(null)
 
@@ -33,6 +34,15 @@ export default function App() {
     document.getElementById(`document-${docId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
+  const showTrace = devMode && traceSteps.length > 0
+
+  const mainContent = (
+    <div>
+      <OverviewCard aiMode={aiMode} loading={loading} onCitationClick={handleCitationClick} />
+      <DocumentsFeed instant={instant} aiMode={aiMode} devMode={devMode} highlightedDocId={highlightedDocId} />
+    </div>
+  )
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -41,8 +51,17 @@ export default function App() {
       </header>
       <SearchBar onSearch={search} disabled={loading} />
       {wsError && <p className={styles.wsError}>{wsError}</p>}
-      <OverviewCard aiMode={aiMode} loading={loading} onCitationClick={handleCitationClick} />
-      <DocumentsFeed instant={instant} aiMode={aiMode} devMode={devMode} highlightedDocId={highlightedDocId} />
+      {showTrace ? (
+        <div className={styles.splitLayout}>
+          {mainContent}
+          <aside className={styles.tracePane}>
+            <h2>AI Mode trace</h2>
+            <TracePanel steps={traceSteps} />
+          </aside>
+        </div>
+      ) : (
+        mainContent
+      )}
     </div>
   )
 }
