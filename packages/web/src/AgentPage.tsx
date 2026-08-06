@@ -21,6 +21,7 @@ export default function AgentPage() {
       {result && result.ok && (
         <section>
           <p>{result.answer}</p>
+          <p data-testid="cited-doc-ids">Cited: {result.docIds.join(', ')}</p>
         </section>
       )}
       {result && !result.ok && <p className={styles.wsError}>{result.error}</p>}

@@ -43,7 +43,7 @@ describe('AgentPage', () => {
     render(<AgentPage />, { wrapper: MemoryRouter })
 
     expect(screen.getByText(/See \[d1\]\./)).toBeInTheDocument()
-    expect(screen.getByText(/d1/)).toBeInTheDocument()
+    expect(screen.getByTestId('cited-doc-ids')).toHaveTextContent('d1')
   })
 
   it('renders an unverifiable/error result distinctly from a successful answer', () => {
