@@ -9,11 +9,23 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "agents",
     "common",
     "model-gateway",
     "retrieval-api",
     "retrieval-system",
 ]
+
+[[package]]
+name = "agents"
+version = "0.1.0"
+source = { editable = "packages/agents" }
+dependencies = [
+    { name = "common" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "common", editable = "packages/common" }]
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -927,6 +939,7 @@ name = "retrieval-api"
 version = "0.1.0"
 source = { editable = "packages/retrieval-api" }
 dependencies = [
+    { name = "agents" },
     { name = "common" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -937,6 +950,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "agents", editable = "packages/agents" },
     { name = "common", editable = "packages/common" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },

@@ -80,6 +80,7 @@ Existing retrieval-eval CLI gets a new target mode that runs the same query set 
 
 ## Open Questions / Future Work
 
+- Per-model prompt tuning for `agent_chat`: the system prompt driving the tool-calling loop is currently one fixed string, independent of which model `DEEPINFRA_CHAT_MODEL_AGENT` points to. Different tool-calling models want different prompt shapes (explicit step-by-step framing vs. terse instructions, reasoning-model framing vs. instruct-model framing). Out of scope for the initial build — revisit once a specific model has been picked and evaluated.
 - Step cap on the tool-calling loop, if latency/cost becomes an issue in practice.
 - Non-search tools (calculator, statute lookup API, etc.).
 - Whether this path graduates from standalone page into the main search UI as a third mode, pending eval results.

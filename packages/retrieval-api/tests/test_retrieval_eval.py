@@ -103,6 +103,57 @@ async def test_evaluate_case_reports_each_retrieval_stage(monkeypatch):
     assert result["ranks"] == {
         "es": 1, "raw_dense": 1, "raw_sparse": 1,
         "rewritten_dense": 1, "rewritten_sparse": 1, "rrf": 1, "reranker": 1,
+        "agentic": None,
     }
     assert result["collection_ranks"]["raw_dense"]["facts"] == 1
     assert result["rewritten_query"] == "rewritten"
+
+
+@pytest.mark.asyncio
+async def test_evaluate_case_records_agentic_hit_when_gold_doc_cited(monkeypatch):
+    import retrieval_api.retrieval_eval as eval_module
+
+    async def fake_run_agentic_search(gateway, es_client, milvus_client, query, on_step=None):
+        return {"ok": True, "answer": "See [gold-doc].", "doc_ids": ["gold-doc", "other-doc"]}
+
+    monkeypatch.setattr(eval_module, "run_agentic_search", fake_run_agentic_search)
+
+    class Gateway:
+        async def embed(self, role, text):
+            return [0.1]
+
+    case = {
+        "id": "Q1", "class": "direct", "query": "q", "gold_doc_ids": ["gold-doc"],
+        "expected_collections": ["metadata"], "pass_at": 5,
+    }
+    result = await eval_module.evaluate_case(
+        case, Gateway(), object(), object(), langfuse_enabled=False,
+    )
+
+    assert result["ranks"]["agentic"] == 1
+    assert "agentic" not in result["errors"]
+
+
+@pytest.mark.asyncio
+async def test_evaluate_case_records_agentic_miss_when_unverifiable(monkeypatch):
+    import retrieval_api.retrieval_eval as eval_module
+
+    async def fake_run_agentic_search(gateway, es_client, milvus_client, query, on_step=None):
+        return {"ok": False, "error": "unverifiable_answer", "invalid_doc_ids": ["bad-doc"]}
+
+    monkeypatch.setattr(eval_module, "run_agentic_search", fake_run_agentic_search)
+
+    class Gateway:
+        async def embed(self, role, text):
+            return [0.1]
+
+    case = {
+        "id": "Q2", "class": "direct", "query": "q", "gold_doc_ids": ["gold-doc"],
+        "expected_collections": ["metadata"], "pass_at": 5,
+    }
+    result = await eval_module.evaluate_case(
+        case, Gateway(), object(), object(), langfuse_enabled=False,
+    )
+
+    assert result["ranks"]["agentic"] is None
+    assert "unverifiable_answer" in result["errors"]["agentic"]

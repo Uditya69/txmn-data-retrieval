@@ -4,7 +4,7 @@ Guidance for Claude Code sessions in this repo.
 
 ## What this is
 
-Retrieval service for Taxmann caselaw. Two paths, one query: Instant (raw ES+Milvus preview) and AI Mode (SLM rewrite → RRF → rerank → LLM synthesis). Full design: `docs/superpowers/specs/2026-08-03-retrieval-system-design.md`. Full build plan (17 tasks, TDD, each with brief/report): `docs/superpowers/plans/2026-08-03-retrieval-system.md`.
+Retrieval service for Taxmann caselaw. Three paths, one query: Instant (raw ES+Milvus preview), AI Mode (SLM rewrite → RRF → rerank → LLM synthesis), and Agentic search (an LLM tool-calling agent over the same ES/Milvus tools, with citation validation, served at `/ws/agent` and the `packages/agents` package). Full design: `docs/superpowers/specs/2026-08-03-retrieval-system-design.md`. Full build plan (17 tasks, TDD, each with brief/report): `docs/superpowers/plans/2026-08-03-retrieval-system.md`.
 
 Standalone repo. No code dependency on `data-extraction-pipeline` (the sibling repo that populates Milvus/ES) — own client code here, kept in sync by hand with its `schemas/Milvus.json`/`schemas/ES.json`.
 
@@ -26,9 +26,9 @@ Standalone repo. No code dependency on `data-extraction-pipeline` (the sibling r
 
 ## Running things
 
-`uv sync --all-packages`, NOT bare `uv sync` — the latter can drop editable installs of workspace members (`common`, `model-gateway`, `retrieval-api`), breaking local test collection.
+`uv sync --all-packages`, NOT bare `uv sync` — the latter can drop editable installs of workspace members (`common`, `model-gateway`, `retrieval-api`, `agents`), breaking local test collection.
 
-`uv run pytest` from repo root aggregates all 3 packages (49 tests). Scope to one package with `uv run pytest packages/<name>/tests` if needed.
+`uv run pytest` from repo root aggregates all 4 packages (143 tests). Scope to one package with `uv run pytest packages/<name>/tests` if needed.
 
 `docker compose build` / `docker compose up -d --build` from repo root.
 

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from langfuse import get_client
 
+from agents.pipeline import run_agentic_search
 from common.config import get_settings
 from common.es_client import get_es_client, raw_search
 from common.milvus_client import get_milvus_client, hybrid_search
@@ -89,6 +90,12 @@ def _collection_ranks(by_collection: dict[str, list[dict]], gold: set[str]) -> d
     return {name: doc_rank(rows, gold) for name, rows in by_collection.items()}
 
 
+def _agentic_hit_rank(doc_ids: list[str] | None, gold: set[str]) -> int | None:
+    if not doc_ids:
+        return None
+    return 1 if gold & set(doc_ids) else None
+
+
 async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit: int = 50,
                         langfuse_enabled: bool = True) -> dict:
     query = case["query"]
@@ -150,6 +157,14 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
         ) if merged else []
         reranked = reranked or []
 
+        agentic_result = await measured("agentic", run_agentic_search(gateway, es_client, milvus_client, query))
+        agentic_doc_ids = None
+        if agentic_result is not None:
+            if agentic_result.get("ok"):
+                agentic_doc_ids = agentic_result.get("doc_ids")
+            else:
+                errors["agentic"] = f"unverifiable_answer: {agentic_result.get('invalid_doc_ids')}"
+
         ranks = {
             "es": doc_rank(es_rows, gold),
             "raw_dense": doc_rank(_flatten(raw_dense), gold),
@@ -158,6 +173,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             "rewritten_sparse": doc_rank(sparse_flat, gold),
             "rrf": doc_rank(merged, gold),
             "reranker": doc_rank(reranked, gold),
+            "agentic": _agentic_hit_rank(agentic_doc_ids, gold),
         }
         result = {
             "id": case["id"], "pair": case.get("pair"), "class": case["class"],
@@ -186,7 +202,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
 
 
 def _print_summary(results: list[dict]) -> None:
-    stages = ["es", "raw_dense", "raw_sparse", "rewritten_dense", "rewritten_sparse", "rrf", "reranker"]
+    stages = ["es", "raw_dense", "raw_sparse", "rewritten_dense", "rewritten_sparse", "rrf", "reranker", "agentic"]
     print("ID   class     " + "  ".join(f"{s[:8]:>8}" for s in stages))
     for result in results:
         values = [str(result["ranks"][stage] or ">50") for stage in stages]
