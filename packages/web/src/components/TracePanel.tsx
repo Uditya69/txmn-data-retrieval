@@ -126,7 +126,7 @@ function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: 
     return <pre className={styles.hitList}>{d.prompt}</pre>
   }
   if (step.step === 'agent_tool_result' && d.result?.rows) {
-    return <TruncatedHitList hits={d.result.rows} />
+    return <TruncatedHitList hits={d.result.rows} onOpenDocument={onOpenDocument} />
   }
   return null
 }

@@ -121,4 +121,24 @@ describe('TracePanel', () => {
     expect(screen.getByText('Agent answer')).toBeInTheDocument()
     expect(screen.getByText(/1 doc/)).toBeInTheDocument()
   })
+
+  it('renders agent_tool_result rows as clickable links when onOpenDocument is provided', async () => {
+    const user = userEvent.setup()
+    const onOpenDocument = vi.fn()
+    const steps: TraceStep[] = [
+      {
+        step: 'agent_tool_result',
+        data: {
+          name: 'search_es',
+          result: { rows: [{ doc_id: 'd2', score: 3.5, heading: 'Tool Result' }] },
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} onOpenDocument={onOpenDocument} />)
+
+    const link = screen.getByRole('button', { name: 'd2' })
+    await user.click(link)
+
+    expect(onOpenDocument).toHaveBeenCalledWith('d2')
+  })
 })
