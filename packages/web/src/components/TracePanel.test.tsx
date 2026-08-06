@@ -73,4 +73,38 @@ describe('TracePanel', () => {
     expect(screen.getByText(/\[0\.8765\]/)).toBeInTheDocument()
     expect(screen.queryByText(/^\[\]/)).not.toBeInTheDocument()
   })
+
+  it('renders an agent_tool_call step with its name and arguments', () => {
+    render(<TracePanel steps={[{ step: 'agent_tool_call', data: { name: 'search_es', arguments: { query: 'gst rate' } } }]} />)
+    expect(screen.getByText('Agent tool call')).toBeInTheDocument()
+    expect(screen.getByText(/search_es/)).toBeInTheDocument()
+    expect(screen.getByText(/gst rate/)).toBeInTheDocument()
+  })
+
+  it('renders an agent_tool_result step showing hit count', () => {
+    render(<TracePanel steps={[{
+      step: 'agent_tool_result',
+      data: { name: 'search_es', result: { rows: [{ doc_id: 'd1', score: 1, heading: 'H' }] } },
+    }]} />)
+    expect(screen.getByText('Agent tool result')).toBeInTheDocument()
+    expect(screen.getByText(/1 row/)).toBeInTheDocument()
+  })
+
+  it('renders an agent_tool_result error without crashing', () => {
+    render(<TracePanel steps={[{ step: 'agent_tool_result', data: { name: 'search_es', result: { error: 'ES timed out' } } }]} />)
+    expect(screen.getByText(/error: ES timed out/)).toBeInTheDocument()
+  })
+
+  it('renders an agent_citation_rejected step with attempt and invalid ids', () => {
+    render(<TracePanel steps={[{ step: 'agent_citation_rejected', data: { invalid_doc_ids: ['d999'], attempt: 1 } }]} />)
+    expect(screen.getByText('Citation rejected — retrying')).toBeInTheDocument()
+    expect(screen.getByText(/attempt 1/)).toBeInTheDocument()
+    expect(screen.getByText(/d999/)).toBeInTheDocument()
+  })
+
+  it('renders an agent_answer step with cited doc count', () => {
+    render(<TracePanel steps={[{ step: 'agent_answer', data: { answer: 'See [d1].', doc_ids: ['d1'] } }]} />)
+    expect(screen.getByText('Agent answer')).toBeInTheDocument()
+    expect(screen.getByText(/1 doc/)).toBeInTheDocument()
+  })
 })

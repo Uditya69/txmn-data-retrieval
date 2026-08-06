@@ -11,6 +11,10 @@ const STEP_LABELS: Record<string, string> = {
   rrf_merge: 'RRF merge',
   rerank: 'Rerank',
   synthesis_prompt: 'Synthesis prompt',
+  agent_tool_call: 'Agent tool call',
+  agent_tool_result: 'Agent tool result',
+  agent_citation_rejected: 'Citation rejected — retrying',
+  agent_answer: 'Agent answer',
 }
 
 function summarize(step: TraceStep): string {
@@ -32,6 +36,18 @@ function summarize(step: TraceStep): string {
       return `${d.considered_count} considered, top ${d.top_chunks?.length ?? 0} kept`
     case 'synthesis_prompt':
       return `${(d.prompt ?? '').length} chars`
+    case 'agent_tool_call':
+      return `${d.name}(${JSON.stringify(d.arguments)})`
+    case 'agent_tool_result': {
+      if (d.result?.error) return `error: ${d.result.error}`
+      if (d.result?.citation !== undefined) return d.result.citation ? 'citation found' : 'citation not found'
+      const rows = d.result?.rows ?? []
+      return `${rows.length} row(s)`
+    }
+    case 'agent_citation_rejected':
+      return `attempt ${d.attempt}: invalid doc_id(s) ${(d.invalid_doc_ids ?? []).join(', ')}`
+    case 'agent_answer':
+      return `${(d.doc_ids ?? []).length} doc(s) cited`
     default:
       return ''
   }
@@ -85,6 +101,9 @@ function StepBody({ step }: { step: TraceStep }) {
   }
   if (step.step === 'synthesis_prompt') {
     return <pre className={styles.hitList}>{d.prompt}</pre>
+  }
+  if (step.step === 'agent_tool_result' && d.result?.rows) {
+    return <TruncatedHitList hits={d.result.rows} />
   }
   return null
 }
