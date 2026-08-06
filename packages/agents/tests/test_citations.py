@@ -18,3 +18,25 @@ def test_validate_citations_returns_empty_list_when_all_cited_ids_were_seen():
 def test_validate_citations_returns_sorted_invalid_ids():
     answer = "See [999] and [111] and [222]."
     assert validate_citations(answer, {"222"}) == ["111", "999"]
+
+
+def test_extract_cited_doc_ids_ignores_prose_bracket_with_spaces():
+    answer = "This is important [emphasis added] and cited in [d1]."
+    assert extract_cited_doc_ids(answer) == {"d1"}
+
+
+def test_extract_cited_doc_ids_ignores_markdown_link_bracket():
+    answer = "See [Section 80C](https://example.com/80c) and [d1]."
+    # "Section 80C" contains a space so the prose/markdown-label bracket is
+    # not treated as a citation; only [d1] is.
+    assert extract_cited_doc_ids(answer) == {"d1"}
+
+
+def test_extract_cited_doc_ids_splits_comma_separated_ids_in_one_bracket():
+    answer = "Confirmed in [d1, d2]."
+    assert extract_cited_doc_ids(answer) == {"d1", "d2"}
+
+
+def test_validate_citations_does_not_falsely_reject_answer_with_prose_bracket():
+    answer = "The rate is 10% [emphasis added], see [12345]."
+    assert validate_citations(answer, {"12345"}) == []

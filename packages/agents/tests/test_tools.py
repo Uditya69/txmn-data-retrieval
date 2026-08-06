@@ -96,3 +96,26 @@ async def test_dispatch_lookup_doc_returns_citation_or_none(monkeypatch):
 async def test_dispatch_unknown_tool_raises_value_error():
     with pytest.raises(ValueError, match="unknown tool"):
         await dispatch_tool_call("not_a_tool", {}, gateway=None, es_client=None, milvus_client=None)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_search_es_truncates_long_text_field(monkeypatch):
+    import agents.tools as tools_module
+
+    long_text = "x" * 5000
+    original_row = {"doc_id": "d1", "score": 1.0, "text": long_text}
+
+    async def fake_raw_search(client, query, limit=20):
+        return [original_row]
+
+    monkeypatch.setattr(tools_module, "raw_search", fake_raw_search)
+
+    result = await dispatch_tool_call(
+        "search_es", {"query": "gst exemption"}, gateway=None, es_client=object(), milvus_client=None,
+    )
+
+    returned_text = result["rows"][0]["text"]
+    assert len(returned_text) < len(long_text)
+    assert returned_text.startswith("x" * 500)
+    # original row dict must not be mutated in place - it may be shared
+    assert original_row["text"] == long_text

@@ -1,4 +1,4 @@
-from agents.citations import validate_citations
+from agents.citations import extract_cited_doc_ids, validate_citations
 from agents.loop import build_initial_messages, run_agent_loop
 
 MAX_CITATION_RETRIES = 3
@@ -15,9 +15,10 @@ async def run_agentic_search(gateway, es_client, milvus_client, query: str, on_s
         invalid = validate_citations(loop_result["answer"], seen_doc_ids)
 
         if not invalid:
+            cited_doc_ids = sorted(extract_cited_doc_ids(loop_result["answer"]))
             if on_step:
-                await on_step("agent_answer", {"answer": loop_result["answer"], "doc_ids": sorted(seen_doc_ids)})
-            return {"ok": True, "answer": loop_result["answer"], "doc_ids": sorted(seen_doc_ids)}
+                await on_step("agent_answer", {"answer": loop_result["answer"], "doc_ids": cited_doc_ids})
+            return {"ok": True, "answer": loop_result["answer"], "doc_ids": cited_doc_ids}
 
         if on_step:
             await on_step("agent_citation_rejected", {"invalid_doc_ids": invalid, "attempt": attempt})

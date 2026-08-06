@@ -303,6 +303,68 @@ def test_ws_agent_sends_unverifiable_when_citations_fail(monkeypatch):
     assert message == {"type": "agent_unverifiable", "invalid_doc_ids": ["d999"]}
 
 
+def test_ws_agent_runs_real_pipeline_and_streams_tool_trace(monkeypatch):
+    """Exercises the REAL run_agentic_search -> run_agent_loop -> dispatch_tool_call
+    chain end to end (only dispatch_tool_call's lowest layer is mocked), so a
+    mismatch between the real implementations of these pieces would be caught
+    here - unlike other tests in this file, which mock run_agentic_search
+    itself and therefore never call the real on_step trace callback."""
+    import json
+
+    import agents.loop as loop_module
+
+    call_count = {"n": 0}
+
+    class FakeGateway:
+        async def chat_with_tools(self, role, messages, tools, tool_choice=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return {
+                    "content": None,
+                    "reasoning": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "search_es", "arguments": json.dumps({"query": "gst rate"})},
+                        }
+                    ],
+                }
+            return {"content": "The rate is confirmed. [d1]", "reasoning": None, "tool_calls": None}
+
+    async def fake_dispatch_tool_call(name, arguments, *, gateway, es_client, milvus_client):
+        assert name == "search_es"
+        return {"rows": [{"doc_id": "d1", "score": 1.0, "text": "some case text"}]}
+
+    monkeypatch.setattr(loop_module, "dispatch_tool_call", fake_dispatch_tool_call)
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: FakeGateway())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/agent") as websocket:
+        websocket.send_json({"query": "gst rate"})
+
+        messages = []
+        while True:
+            message = websocket.receive_json()
+            messages.append(message)
+            if message["type"] in ("agent_done", "agent_unverifiable", "agent_error"):
+                break
+
+    trace_steps = [m for m in messages if m["type"] == "ai_mode_trace"]
+    tool_call_steps = [m for m in trace_steps if m["step"] == "agent_tool_call"]
+    tool_result_steps = [m for m in trace_steps if m["step"] == "agent_tool_result"]
+    assert len(tool_call_steps) == 1
+    assert tool_call_steps[0]["data"] == {"name": "search_es", "arguments": {"query": "gst rate"}}
+    assert len(tool_result_steps) == 1
+    assert tool_result_steps[0]["data"]["result"]["rows"][0]["doc_id"] == "d1"
+
+    done = messages[-1]
+    assert done == {"type": "agent_done", "answer": "The rate is confirmed. [d1]", "doc_ids": ["d1"]}
+
+
 def test_ws_agent_sends_error_on_pipeline_exception(monkeypatch):
     async def fake_run_agentic_search(gateway, es_client, milvus_client, query, on_step=None):
         raise RuntimeError("gateway down")

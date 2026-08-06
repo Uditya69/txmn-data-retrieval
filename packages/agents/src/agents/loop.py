@@ -41,7 +41,9 @@ async def run_agent_loop(
         response = await gateway.chat_with_tools(role="agent_chat", messages=messages, tools=TOOL_SCHEMAS)
         tool_calls = response.get("tool_calls")
         if not tool_calls:
-            return {"answer": response.get("content") or "", "seen_doc_ids": seen_doc_ids, "messages": messages}
+            answer = response.get("content") or ""
+            messages.append({"role": "assistant", "content": answer})
+            return {"answer": answer, "seen_doc_ids": seen_doc_ids, "messages": messages}
 
         messages.append({"role": "assistant", "content": response.get("content"), "tool_calls": tool_calls})
         for call in tool_calls:
