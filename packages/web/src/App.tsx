@@ -55,6 +55,7 @@ export default function App() {
         <h1>Taxmann Retrieval</h1>
         <div className={styles.headerActions}>
           <Link to="/debug">Retrieval debug</Link>
+          <Link to="/agent">Agentic search</Link>
           <DevModeToggle devMode={devMode} onToggle={setDevMode} />
         </div>
       </header>

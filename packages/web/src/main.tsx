@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App'
 import DebugPage from './DebugPage'
+import AgentPage from './AgentPage'
 
 const container = document.getElementById('root')
 if (!container) {
@@ -15,6 +16,7 @@ createRoot(container).render(
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/debug" element={<DebugPage />} />
+        <Route path="/agent" element={<AgentPage />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
