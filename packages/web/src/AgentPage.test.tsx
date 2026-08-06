@@ -58,14 +58,45 @@ describe('AgentPage', () => {
     expect(search).toHaveBeenCalledWith('gst rate')
   })
 
-  it('renders a successful cited answer with its doc_ids', () => {
+  it('renders a successful cited answer with the citation hyperlinked and doc_ids verified', () => {
     vi.mocked(useAgentSearch).mockReturnValue({
       loading: false, traceSteps: [], result: { ok: true, answer: 'See [d1].', docIds: ['d1'] }, wsError: null, search: vi.fn(),
     })
     render(<AgentPage />, { wrapper: MemoryRouter })
 
-    expect(screen.getByText(/See \[d1\]\./)).toBeInTheDocument()
+    expect(screen.getByText(/See/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /1\. d1/ })).toBeInTheDocument()
     expect(screen.getByTestId('cited-doc-ids')).toHaveTextContent('d1')
+    expect(screen.getAllByRole('button', { name: /d1/ }).length).toBeGreaterThan(0)
+  })
+
+  it('opens the document modal when a citation is clicked', async () => {
+    vi.mocked(useAgentSearch).mockReturnValue({
+      loading: false, traceSteps: [], result: { ok: true, answer: 'See [d1].', docIds: ['d1'] }, wsError: null, search: vi.fn(),
+    })
+    const { default: userEvent } = await import('@testing-library/user-event')
+    const user = userEvent.setup()
+    render(<AgentPage />, { wrapper: MemoryRouter })
+
+    await user.click(screen.getByTestId('cited-doc-ids').querySelector('button')!)
+
+    expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument()
+  })
+
+  it('renders multiple citations without any limit on count', () => {
+    vi.mocked(useAgentSearch).mockReturnValue({
+      loading: false,
+      traceSteps: [],
+      result: { ok: true, answer: 'See [d1], [d2], and [d3].', docIds: ['d1', 'd2', 'd3'] },
+      wsError: null,
+      search: vi.fn(),
+    })
+    render(<AgentPage />, { wrapper: MemoryRouter })
+
+    const citedRow = screen.getByTestId('cited-doc-ids')
+    expect(citedRow).toHaveTextContent('d1')
+    expect(citedRow).toHaveTextContent('d2')
+    expect(citedRow).toHaveTextContent('d3')
   })
 
   it('renders an unverifiable/error result distinctly from a successful answer', () => {

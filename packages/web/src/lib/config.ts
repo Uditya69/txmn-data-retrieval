@@ -5,7 +5,7 @@ export function resolveWsUrl(): string {
 }
 
 export function resolveApiBaseUrl(wsUrl: string): string {
-  return wsUrl.replace(/^ws/, 'http').replace(/\/ws\/search$/, '')
+  return wsUrl.replace(/^ws/, 'http').replace(/\/ws\/(search|agent)$/, '')
 }
 
 export function resolveAgentWsUrl(): string {
