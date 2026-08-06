@@ -13,6 +13,12 @@
   margin-bottom: 24px;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .wsError {
   color: #b91c1c;
   margin-bottom: 16px;

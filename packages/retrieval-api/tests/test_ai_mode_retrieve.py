@@ -46,10 +46,10 @@ async def test_retrieve_embeds_rewritten_query_and_merges_dense_sparse(monkeypat
 
 
 def test_collection_trace_caps_top_hits_at_five_and_builds_preview():
-    from retrieval_api.ai_mode.retrieve import _collection_trace
+    from retrieval_api.trace_utils import collection_trace
 
     rows = [{"chunk_id": f"c{i}", "doc_id": "d1", "text": "x" * 250, "score": float(i)} for i in range(7)]
-    trace = _collection_trace({"ruling": rows})
+    trace = collection_trace({"ruling": rows})
 
     assert trace == {
         "collections": [{

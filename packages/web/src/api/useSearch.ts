@@ -7,6 +7,7 @@ export interface InstantResult {
   es: EsHit[] | null
   es_error: string | null
   milvus: MilvusByCollection | null
+  milvus_sparse: MilvusByCollection | null
   milvus_error: string | null
 }
 
@@ -30,12 +31,16 @@ export interface SearchState {
 
 const INITIAL_STATE: SearchState = { loading: false, instant: null, aiMode: null, traceSteps: [], wsError: null }
 
-export function useSearch(wsUrl: string): SearchState & { search: (query: string, trace: boolean) => void } {
+export type SearchMode = 'instant' | 'ai_mode' | 'both'
+
+export function useSearch(
+  wsUrl: string,
+): SearchState & { search: (query: string, trace: boolean, mode?: SearchMode) => void } {
   const [state, setState] = useState<SearchState>(INITIAL_STATE)
   const socketRef = useRef<WebSocket | null>(null)
 
   const search = useCallback(
-    (query: string, trace: boolean) => {
+    (query: string, trace: boolean, mode: SearchMode = 'both') => {
       socketRef.current?.close()
       setState({ loading: true, instant: null, aiMode: null, traceSteps: [], wsError: null })
 
@@ -49,7 +54,7 @@ export function useSearch(wsUrl: string): SearchState & { search: (query: string
       socketRef.current = socket
 
       socket.addEventListener('open', () => {
-        socket.send(JSON.stringify({ query, mode: 'both', trace }))
+        socket.send(JSON.stringify({ query, mode, trace }))
       })
 
       socket.addEventListener('message', (event) => {
@@ -61,6 +66,7 @@ export function useSearch(wsUrl: string): SearchState & { search: (query: string
               es: message.es ?? null,
               es_error: message.es_error ?? null,
               milvus: message.milvus ?? null,
+              milvus_sparse: message.milvus_sparse ?? null,
               milvus_error: message.milvus_error ?? null,
             },
           }))

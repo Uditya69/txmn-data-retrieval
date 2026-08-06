@@ -11,7 +11,7 @@ describe('DocumentsFeed', () => {
   it('shows a no-results message when both legs are empty', () => {
     render(
       <DocumentsFeed
-        instant={{ es: [], es_error: null, milvus: {}, milvus_error: null }}
+        instant={{ es: [], es_error: null, milvus: {}, milvus_sparse: null, milvus_error: null }}
         aiMode={null}
         devMode={false}
         highlightedDocId={null}
@@ -27,6 +27,7 @@ describe('DocumentsFeed', () => {
           es: [{ doc_id: 'd1', score: 10, heading: 'Heading about capital gains', subheading: 'Party A vs. Party B' }],
           es_error: null,
           milvus: { facts: [{ chunk_id: 'd2::facts::0', doc_id: 'd2', text: 'Milvus snippet text', score: 5 }] },
+          milvus_sparse: null,
           milvus_error: null,
         }}
         aiMode={null}
@@ -48,7 +49,7 @@ describe('DocumentsFeed', () => {
     }))
     render(
       <DocumentsFeed
-        instant={{ es, es_error: null, milvus: null, milvus_error: null }}
+        instant={{ es, es_error: null, milvus: null, milvus_sparse: null, milvus_error: null }}
         aiMode={null}
         devMode={false}
         highlightedDocId={null}
@@ -68,6 +69,7 @@ describe('DocumentsFeed', () => {
           es: [{ doc_id: 'd1', score: 10, heading: 'Heading', subheading: 'ES snippet' }],
           es_error: null,
           milvus: null,
+          milvus_sparse: null,
           milvus_error: null,
         }}
         aiMode={{ ok: true, answer: 'Cited once [d1] and again [d1].', citations: {} }}

@@ -1,5 +1,6 @@
 // src/App.tsx
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import SearchBar from './components/SearchBar'
 import OverviewCard from './components/OverviewCard'
 import DocumentsFeed from './components/DocumentsFeed'
@@ -7,16 +8,8 @@ import DevModeToggle from './components/DevModeToggle'
 import DocumentModal from './components/DocumentModal'
 import TracePanel from './components/TracePanel'
 import { useSearch } from './api/useSearch'
+import { resolveWsUrl, resolveApiBaseUrl } from './lib/config'
 import styles from './App.module.css'
-
-function resolveWsUrl(): string {
-  const fromEnv = window.__ENV__?.WS_URL
-  return fromEnv && fromEnv.length > 0 ? fromEnv : 'ws://localhost:8010/ws/search'
-}
-
-function resolveApiBaseUrl(wsUrl: string): string {
-  return wsUrl.replace(/^ws/, 'http').replace(/\/ws\/search$/, '')
-}
 
 function readDevModeFromUrl(): boolean {
   return new URLSearchParams(window.location.search).get('dev') === '1'
@@ -60,7 +53,10 @@ export default function App() {
     <div className={styles.page}>
       <header className={styles.header}>
         <h1>Taxmann Retrieval</h1>
-        <DevModeToggle devMode={devMode} onToggle={setDevMode} />
+        <div className={styles.headerActions}>
+          <Link to="/debug">Retrieval debug</Link>
+          <DevModeToggle devMode={devMode} onToggle={setDevMode} />
+        </div>
       </header>
       <SearchBar onSearch={(query) => search(query, devMode)} disabled={loading} />
       {wsError && <p className={styles.wsError}>{wsError}</p>}
@@ -69,7 +65,7 @@ export default function App() {
           {mainContent}
           <aside className={styles.tracePane}>
             <h2>AI Mode trace</h2>
-            <TracePanel steps={traceSteps} />
+            <TracePanel steps={traceSteps} onOpenDocument={setOpenDocId} />
           </aside>
         </div>
       ) : (

@@ -2,6 +2,7 @@ from common.milvus_client import hybrid_search
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.gateway_client import GatewayClient
+from retrieval_api.trace_utils import collection_trace
 
 
 def rrf_merge(dense_ranked: list[dict], sparse_ranked: list[dict], k: int = 60) -> list[dict]:
@@ -21,27 +22,6 @@ def _flatten(by_collection: dict[str, list[dict]]) -> list[dict]:
     return sorted(flattened, key=lambda row: row["score"], reverse=True)
 
 
-def _collection_trace(by_collection: dict[str, list[dict]]) -> dict:
-    return {
-        "collections": [
-            {
-                "name": name,
-                "hit_count": len(rows),
-                "top_hits": [
-                    {
-                        "chunk_id": row["chunk_id"],
-                        "doc_id": row["doc_id"],
-                        "score": row["score"],
-                        "text_preview": row["text"][:200],
-                    }
-                    for row in rows[:5]
-                ],
-            }
-            for name, rows in by_collection.items()
-        ]
-    }
-
-
 async def retrieve(
     gateway: GatewayClient,
     milvus_client,
@@ -56,14 +36,14 @@ async def retrieve(
         sparse_query_text=rewritten_query, doc_id_allowlist=doc_id_allowlist, limit=50,
     )
     if on_step is not None:
-        await on_step("milvus_dense", _collection_trace(dense_by_collection))
+        await on_step("milvus_dense", collection_trace(dense_by_collection))
 
     sparse_by_collection = await hybrid_search(
         milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None,
         sparse_query_text=rewritten_query, doc_id_allowlist=doc_id_allowlist, limit=50,
     )
     if on_step is not None:
-        await on_step("milvus_sparse", _collection_trace(sparse_by_collection))
+        await on_step("milvus_sparse", collection_trace(sparse_by_collection))
 
     merged = rrf_merge(_flatten(dense_by_collection), _flatten(sparse_by_collection))
 
