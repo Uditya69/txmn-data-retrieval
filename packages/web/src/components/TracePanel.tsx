@@ -138,7 +138,7 @@ export interface TracePanelProps {
 
 export default function TracePanel({ steps, onOpenDocument }: TracePanelProps) {
   if (steps.length === 0) {
-    return <p className={styles.placeholder}>No trace yet — run an AI Mode query to see it here.</p>
+    return <p className={styles.placeholder}>No trace yet — run a query to see it here.</p>
   }
 
   return (

@@ -15,11 +15,33 @@ vi.mock('./api/useAgentSearch', () => ({
 }))
 
 describe('AgentPage', () => {
-  it('renders a heading, a link back to search, and the trace panel placeholder', () => {
+  it('renders a heading and a link back to search, with no trace pane by default', () => {
     render(<AgentPage />, { wrapper: MemoryRouter })
     expect(screen.getByText(/Agentic Search/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /back to search/i })).toBeInTheDocument()
-    expect(screen.getByText(/no trace yet/i)).toBeInTheDocument()
+    expect(screen.queryByText(/agent trace/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the trace pane in a two-column layout only when dev mode is on and steps exist', () => {
+    vi.mocked(useAgentSearch).mockReturnValue({
+      loading: false,
+      traceSteps: [{ step: 'agent_tool_call', data: { name: 'search_es', arguments: { query: 'q' } } }],
+      result: null,
+      wsError: null,
+      search: vi.fn(),
+    })
+    window.history.pushState({}, '', '/?dev=1')
+    render(<AgentPage />, { wrapper: MemoryRouter })
+    expect(screen.getByText(/agent trace/i)).toBeInTheDocument()
+  })
+
+  it('does not show the trace pane when dev mode is on but there are no trace steps yet', () => {
+    vi.mocked(useAgentSearch).mockReturnValue({
+      loading: false, traceSteps: [], result: null, wsError: null, search: vi.fn(),
+    })
+    window.history.pushState({}, '', '/?dev=1')
+    render(<AgentPage />, { wrapper: MemoryRouter })
+    expect(screen.queryByText(/agent trace/i)).not.toBeInTheDocument()
   })
 
   it('calls search with the typed query', async () => {
