@@ -26,4 +26,5 @@ services:
       # browser on the host - not server-side inside the compose network
       # (unlike the old Streamlit app). Must be the host-mapped port.
       WS_URL: ws://localhost:8010/ws/search
+      AGENT_WS_URL: ws://localhost:8010/ws/agent
     depends_on: [retrieval-api]

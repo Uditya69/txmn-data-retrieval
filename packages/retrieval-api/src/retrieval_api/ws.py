@@ -152,10 +152,11 @@ async def agent_search(websocket: WebSocket):
             await send({"type": "agent_done", "answer": result["answer"], "doc_ids": result["doc_ids"]})
         else:
             await send({"type": "agent_unverifiable", "invalid_doc_ids": result["invalid_doc_ids"]})
+        await websocket.close()
     except Exception as exc:
         await send({"type": "agent_error", "error": f"{type(exc).__name__}: {exc}"})
-    finally:
         await websocket.close()
+    finally:
         await es_client.close()
         if milvus_client is not None:
             milvus_client.close()
