@@ -9,6 +9,7 @@ dependencies = [
   "langchain-core>=0.3",
   "langfuse>=4.14",
   "common",
+  "agents",
 ]
 
 [build-system]
