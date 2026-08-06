@@ -1,8 +1,18 @@
 import json
+from pathlib import Path
 
 import pytest
 
 from retrieval_api.retrieval_eval import doc_rank, evaluate_case, load_cases
+
+
+def test_repository_eval_dataset_spans_1936_to_2026_and_has_stress_cases():
+    root = Path(__file__).parents[3]
+    cases = load_cases(root / "evals" / "retrieval_cases.json")
+    assert len(cases) == 53
+    assert {case["class"] for case in cases} == {"direct", "indirect", "adversarial"}
+    assert cases[20]["id"] == "Q21"
+    assert cases[-1]["id"] == "Q53"
 
 
 def test_doc_rank_dedupes_chunks_and_returns_first_gold_document_rank():

@@ -228,7 +228,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the case-law retrieval evaluation set")
     parser.add_argument("--dataset", type=Path, default=Path("evals/retrieval_cases.json"))
     parser.add_argument("--query", action="append", help="run one query ID; may be repeated")
-    parser.add_argument("--class", dest="query_class", choices=["direct", "indirect"])
+    parser.add_argument("--class", dest="query_class", choices=["direct", "indirect", "adversarial"])
     parser.add_argument("--limit", type=int, default=50)
     parser.add_argument("--run-name", default="retrieval-eval")
     parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")

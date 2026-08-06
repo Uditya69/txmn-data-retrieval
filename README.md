@@ -19,7 +19,7 @@ Build plan: [`docs/superpowers/plans/2026-08-03-retrieval-system.md`](docs/super
 
 ## Retrieval evaluation
 
-Run the 20 corpus-backed direct/indirect queries against ES, Milvus dense,
+Run the 53 corpus-backed direct/indirect/adversarial queries against ES, Milvus dense,
 Milvus sparse, rewritten retrieval, RRF, and the reranker:
 
 ```bash
@@ -27,7 +27,8 @@ uv run retrieval-eval --gateway-url http://localhost:8001 \
   --langfuse-base-url http://localhost:3030
 ```
 
-Use `--query Q06`, `--class indirect`, or `--no-langfuse` for focused/local
+Use `--query Q06`, `--class indirect`, `--class adversarial`, or
+`--no-langfuse` for focused/local
 runs. Full rank and per-collection results are written to
 `.eval-results/latest.json` by default.
 
