@@ -40,3 +40,21 @@ def test_extract_cited_doc_ids_splits_comma_separated_ids_in_one_bracket():
 def test_validate_citations_does_not_falsely_reject_answer_with_prose_bracket():
     answer = "The rate is 10% [emphasis added], see [12345]."
     assert validate_citations(answer, {"12345"}) == []
+
+
+def test_extract_cited_doc_ids_ignores_single_alphabetic_word_bracket():
+    answer = "The court noted [sic] in the ruling, cited in [12345]."
+    assert extract_cited_doc_ids(answer) == {"12345"}
+    assert "sic" not in extract_cited_doc_ids(answer)
+
+
+def test_extract_cited_doc_ids_ignores_lone_digit_footnote_marker():
+    answer = "This is disputed [1], see [12345]."
+    result = extract_cited_doc_ids(answer)
+    assert "1" not in result
+    assert result == {"12345"}
+
+
+def test_extract_cited_doc_ids_still_extracts_realistic_short_doc_ids():
+    answer = "Confirmed in [d1] and also [999]."
+    assert extract_cited_doc_ids(answer) == {"d1", "999"}
