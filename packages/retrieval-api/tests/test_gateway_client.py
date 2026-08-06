@@ -82,3 +82,43 @@ async def test_chat_with_tools_posts_tools_and_returns_tool_calls():
     }
     sent = json.loads(route.calls.last.request.content)
     assert sent == {"role": "agent_chat", "messages": [{"role": "user", "content": "hi"}], "tools": tools, "tool_choice": "auto"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_trace_enabled_false_sends_no_trace_headers():
+    route = respx.post("http://gateway/v1/chat").mock(
+        return_value=httpx.Response(200, json={"content": "hi there"})
+    )
+    client = GatewayClient(base_url="http://gateway", trace_enabled=False)
+
+    await client.chat(role="slm", messages=[{"role": "user", "content": "hi"}])
+
+    sent_headers = route.calls.last.request.headers
+    assert "x-langfuse-trace-id" not in sent_headers
+    assert "x-langfuse-parent-observation-id" not in sent_headers
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_trace_enabled_default_sends_trace_headers_when_trace_active(monkeypatch):
+    import retrieval_api.gateway_client as gateway_client_module
+
+    monkeypatch.setattr(
+        gateway_client_module,
+        "_trace_headers",
+        lambda: {
+            "x-langfuse-trace-id": "trace-123",
+            "x-langfuse-parent-observation-id": "obs-456",
+        },
+    )
+    route = respx.post("http://gateway/v1/chat").mock(
+        return_value=httpx.Response(200, json={"content": "hi there"})
+    )
+    client = GatewayClient(base_url="http://gateway")
+
+    await client.chat(role="slm", messages=[{"role": "user", "content": "hi"}])
+
+    sent_headers = route.calls.last.request.headers
+    assert sent_headers.get("x-langfuse-trace-id") == "trace-123"
+    assert sent_headers.get("x-langfuse-parent-observation-id") == "obs-456"

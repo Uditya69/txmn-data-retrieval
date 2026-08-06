@@ -12,6 +12,9 @@ dependencies = [
   "agents",
 ]
 
+[project.scripts]
+retrieval-eval = "retrieval_api.retrieval_eval:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
