@@ -4,6 +4,6 @@ export {}
 
 declare global {
   interface Window {
-    __ENV__?: { WS_URL?: string }
+    __ENV__?: { WS_URL?: string; AGENT_WS_URL?: string }
   }
 }
