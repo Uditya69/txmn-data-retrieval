@@ -12,7 +12,9 @@ class VoyageAdapter:
     def __init__(self, api_key: str):
         self._headers = {"Authorization": f"Bearer {api_key}"}
 
-    async def chat(self, model: str, messages: list[dict]) -> str:
+    async def chat(
+        self, model: str, messages: list[dict], tools: list[dict] | None = None, tool_choice: str | None = None,
+    ) -> tuple[str | None, dict[str, int], str | None, list[dict] | None]:
         raise NotImplementedError("VoyageAdapter does not support chat")
 
     async def embed(self, model: str, text: str) -> tuple[list[float], dict[str, int]]:
