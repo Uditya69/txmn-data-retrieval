@@ -37,6 +37,6 @@ def build_schema_context() -> str:
         f"Recognized filter fields: {', '.join(KNOWN_FILTER_FIELDS)}\n"
         f"Common courts: {', '.join(KNOWN_COURTS)}\n"
         f"Common acts: {', '.join(KNOWN_ACTS)}\n"
-        "These lists are not exhaustive - if the query names a court/act not listed, "
-        "use your best guess for its value anyway."
+        "These lists are not exhaustive. If the query names a court/act not listed, "
+        "preserve the user's exact wording; never guess or canonicalize its value."
     )
