@@ -46,10 +46,11 @@ async def run_agent_loop(
         messages.append({"role": "assistant", "content": response.get("content"), "tool_calls": tool_calls})
         for call in tool_calls:
             name = call["function"]["name"]
-            arguments = json.loads(call["function"]["arguments"])
-            if on_step:
-                await on_step("agent_tool_call", {"name": name, "arguments": arguments})
+            arguments = {}
             try:
+                arguments = json.loads(call["function"]["arguments"])
+                if on_step:
+                    await on_step("agent_tool_call", {"name": name, "arguments": arguments})
                 result = await dispatch_tool_call(
                     name, arguments, gateway=gateway, es_client=es_client, milvus_client=milvus_client,
                 )

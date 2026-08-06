@@ -103,3 +103,32 @@ async def test_loop_records_lookup_doc_citation_doc_id_and_survives_tool_error(m
     assert result["seen_doc_ids"] == {"d2"}
     tool_messages = [m for m in result["messages"] if m["role"] == "tool"]
     assert "RuntimeError: ES timed out" in tool_messages[0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_loop_survives_malformed_json_arguments():
+    calls = {"n": 0}
+
+    class FakeGateway:
+        async def chat_with_tools(self, role, messages, tools, tool_choice=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return {
+                    "content": None,
+                    "tool_calls": [
+                        {"id": "call_1", "type": "function", "function": {"name": "search_es", "arguments": "{bad json, missing quote"}},
+                    ],
+                    "reasoning": None,
+                }
+            return {"content": "final answer", "tool_calls": None, "reasoning": None}
+
+    result = await run_agent_loop(
+        FakeGateway(), es_client=None, milvus_client=None,
+        messages=build_initial_messages("q"), seen_doc_ids=set(),
+    )
+
+    assert result["answer"] == "final answer"
+    assert result["seen_doc_ids"] == set()
+    tool_messages = [m for m in result["messages"] if m["role"] == "tool"]
+    assert len(tool_messages) == 1
+    assert "JSONDecodeError" in tool_messages[0]["content"]
