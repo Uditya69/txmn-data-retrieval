@@ -262,3 +262,60 @@ def test_ws_search_ai_mode_only_skips_instant(monkeypatch):
         only = websocket.receive_json()
 
     assert only == {"type": "ai_mode_done", "answer": "final answer", "citations": {}}
+
+
+def test_ws_agent_sends_trace_then_done(monkeypatch):
+    async def fake_run_agentic_search(gateway, es_client, milvus_client, query, on_step=None):
+        if on_step:
+            import asyncio
+            asyncio.get_event_loop()
+        return {"ok": True, "answer": "See [d1].", "doc_ids": ["d1"]}
+
+    monkeypatch.setattr(ws_module, "run_agentic_search", fake_run_agentic_search)
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/agent") as websocket:
+        websocket.send_json({"query": "gst rate"})
+        done = websocket.receive_json()
+
+    assert done == {"type": "agent_done", "answer": "See [d1].", "doc_ids": ["d1"]}
+
+
+def test_ws_agent_sends_unverifiable_when_citations_fail(monkeypatch):
+    async def fake_run_agentic_search(gateway, es_client, milvus_client, query, on_step=None):
+        return {"ok": False, "error": "unverifiable_answer", "invalid_doc_ids": ["d999"]}
+
+    monkeypatch.setattr(ws_module, "run_agentic_search", fake_run_agentic_search)
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/agent") as websocket:
+        websocket.send_json({"query": "gst rate"})
+        message = websocket.receive_json()
+
+    assert message == {"type": "agent_unverifiable", "invalid_doc_ids": ["d999"]}
+
+
+def test_ws_agent_sends_error_on_pipeline_exception(monkeypatch):
+    async def fake_run_agentic_search(gateway, es_client, milvus_client, query, on_step=None):
+        raise RuntimeError("gateway down")
+
+    monkeypatch.setattr(ws_module, "run_agentic_search", fake_run_agentic_search)
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/agent") as websocket:
+        websocket.send_json({"query": "gst rate"})
+        message = websocket.receive_json()
+
+    assert message == {"type": "agent_error", "error": "RuntimeError: gateway down"}
