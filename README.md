@@ -28,9 +28,16 @@ uv run retrieval-eval --gateway-url http://localhost:8001 \
 ```
 
 Use `--query Q06`, `--class indirect`, `--class adversarial`, or
-`--no-langfuse` for focused/local
-runs. Full rank and per-collection results are written to
-`.eval-results/latest.json` by default.
+`--no-langfuse` for focused/local runs. Every run writes a timestamped result
+and its exact dataset snapshot under `.eval-results/`; `latest.json` and
+`latest.dataset.json` mirror the newest run. Reproduce an older run with:
+
+```bash
+uv run retrieval-eval \
+  --dataset .eval-results/20260806T123456Z-retrieval-eval.dataset.json \
+  --run-name rerun-old-dataset \
+  --gateway-url http://localhost:8001
+```
 
 ## Packages
 

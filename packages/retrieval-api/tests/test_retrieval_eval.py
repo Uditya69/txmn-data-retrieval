@@ -1,9 +1,29 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-from retrieval_api.retrieval_eval import doc_rank, evaluate_case, load_cases
+from retrieval_api.retrieval_eval import _run_paths, doc_rank, evaluate_case, load_cases
+
+
+def test_default_run_paths_are_timestamped_and_keep_latest_aliases():
+    created_at = datetime(2026, 8, 6, 12, 34, 56, tzinfo=timezone.utc)
+    result, snapshot, latest, latest_snapshot = _run_paths(None, "BM25 before fix", created_at)
+    assert result == Path(".eval-results/20260806T123456000000Z-BM25-before-fix.json")
+    assert snapshot == Path(".eval-results/20260806T123456000000Z-BM25-before-fix.dataset.json")
+    assert latest == Path(".eval-results/latest.json")
+    assert latest_snapshot == Path(".eval-results/latest.dataset.json")
+
+
+def test_explicit_output_keeps_snapshot_beside_result():
+    result, snapshot, latest, latest_snapshot = _run_paths(
+        Path("/tmp/result.json"), "ignored", datetime.now(timezone.utc),
+    )
+    assert result == Path("/tmp/result.json")
+    assert snapshot == Path("/tmp/result.dataset.json")
+    assert latest is None
+    assert latest_snapshot is None
 
 
 def test_repository_eval_dataset_spans_1936_to_2026_and_has_stress_cases():

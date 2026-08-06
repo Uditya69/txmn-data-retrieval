@@ -1,7 +1,10 @@
 import argparse
 import asyncio
+import hashlib
 import json
 import os
+import re
+import subprocess
 import time
 from contextlib import nullcontext
 from datetime import datetime, timezone
@@ -53,6 +56,33 @@ def doc_rank(rows: list[dict], gold_doc_ids: set[str]) -> int | None:
         if doc_id in gold_doc_ids:
             return rank
     return None
+
+
+def _run_paths(output: Path | None, run_name: str, created_at: datetime) -> tuple[Path, Path, Path | None, Path | None]:
+    if output is not None:
+        return output, output.with_suffix(".dataset.json"), None, None
+    timestamp = created_at.strftime("%Y%m%dT%H%M%S%fZ")
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", run_name).strip("-") or "retrieval-eval"
+    base = Path(".eval-results") / f"{timestamp}-{slug}"
+    return base.with_suffix(".json"), base.with_suffix(".dataset.json"), Path(".eval-results/latest.json"), Path(".eval-results/latest.dataset.json")
+
+
+def _git_revision() -> str | None:
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def _git_dirty() -> bool | None:
+    try:
+        return bool(subprocess.run(
+            ["git", "status", "--porcelain"], check=True, capture_output=True, text=True,
+        ).stdout.strip())
+    except (OSError, subprocess.CalledProcessError):
+        return None
 
 
 def _collection_ranks(by_collection: dict[str, list[dict]], gold: set[str]) -> dict[str, int | None]:
@@ -185,6 +215,15 @@ async def _run(args) -> int:
     if not cases:
         raise ValueError("no eval cases selected")
 
+    created_at = datetime.now(timezone.utc)
+    result_path, snapshot_path, latest_path, latest_snapshot_path = _run_paths(
+        args.output, args.run_name, created_at,
+    )
+    snapshot_json = json.dumps(cases, indent=2)
+    dataset_hash = hashlib.sha256(snapshot_json.encode()).hexdigest()
+    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_path.write_text(snapshot_json)
+
     settings = get_settings()
     es_client = get_es_client(settings)
     milvus_client = get_milvus_client(settings)
@@ -209,13 +248,28 @@ async def _run(args) -> int:
             )
         payload = {
             "run_name": args.run_name,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": created_at.isoformat(),
+            "git_revision": _git_revision(),
+            "git_dirty": _git_dirty(),
+            "dataset_sha256": dataset_hash,
+            "dataset_snapshot": str(snapshot_path),
+            "parameters": {
+                "limit": args.limit,
+                "query_ids": args.query,
+                "query_class": args.query_class,
+                "langfuse_enabled": not args.no_langfuse,
+            },
             "results": results,
         }
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(payload, indent=2))
+        result_json = json.dumps(payload, indent=2)
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(result_json)
+        if latest_path is not None and latest_snapshot_path is not None:
+            latest_path.write_text(result_json)
+            latest_snapshot_path.write_text(snapshot_json)
         _print_summary(results)
-        print(f"Full results: {args.output}")
+        print(f"Full results: {result_path}")
+        print(f"Dataset snapshot: {snapshot_path}")
         return 0
     finally:
         await es_client.close()
@@ -233,7 +287,7 @@ def main() -> None:
     parser.add_argument("--run-name", default="retrieval-eval")
     parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")
     parser.add_argument("--langfuse-base-url", help="override LANGFUSE_BASE_URL for host-side runs")
-    parser.add_argument("--output", type=Path, default=Path(".eval-results/latest.json"))
+    parser.add_argument("--output", type=Path, help="exact result path; default creates a timestamped archive")
     parser.add_argument("--no-langfuse", action="store_true")
     args = parser.parse_args()
     raise SystemExit(asyncio.run(_run(args)))
