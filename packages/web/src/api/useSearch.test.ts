@@ -28,17 +28,17 @@ beforeEach(() => {
 })
 
 describe('useSearch', () => {
-  it('sends the query with mode "both" once the socket opens, and stores the instant result', () => {
+  it('sends the query with mode "both" and the trace flag once the socket opens, and stores the instant result', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
 
     act(() => {
-      result.current.search('cgst')
+      result.current.search('cgst', true)
     })
     const socket = MockWebSocket.instances[0]
     act(() => {
       socket.emit('open')
     })
-    expect(socket.sent).toEqual([JSON.stringify({ query: 'cgst', mode: 'both' })])
+    expect(socket.sent).toEqual([JSON.stringify({ query: 'cgst', mode: 'both', trace: true })])
 
     act(() => {
       socket.emit('message', {
@@ -64,7 +64,7 @@ describe('useSearch', () => {
   it('marks loading false and stores the answer on ai_mode_done', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
     act(() => {
-      result.current.search('cgst')
+      result.current.search('cgst', false)
     })
     const socket = MockWebSocket.instances[0]
     act(() => {
@@ -79,7 +79,7 @@ describe('useSearch', () => {
   it('stores the reasoning trace when the backend provides one', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
     act(() => {
-      result.current.search('cgst')
+      result.current.search('cgst', false)
     })
     const socket = MockWebSocket.instances[0]
     act(() => {
@@ -95,7 +95,7 @@ describe('useSearch', () => {
   it('marks loading false and stores the error on ai_mode_error', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
     act(() => {
-      result.current.search('cgst')
+      result.current.search('cgst', false)
     })
     const socket = MockWebSocket.instances[0]
     act(() => {
@@ -105,5 +105,50 @@ describe('useSearch', () => {
 
     expect(result.current.loading).toBe(false)
     expect(result.current.aiMode).toEqual({ ok: false, error: 'boom' })
+  })
+
+  it('accumulates ai_mode_trace messages into traceSteps, in arrival order', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+      socket.emit('message', {
+        data: JSON.stringify({ type: 'ai_mode_trace', step: 'intent', data: { rewritten_query: 'r' } }),
+      })
+    })
+    expect(result.current.traceSteps).toEqual([{ step: 'intent', data: { rewritten_query: 'r' } }])
+
+    act(() => {
+      socket.emit('message', {
+        data: JSON.stringify({ type: 'ai_mode_trace', step: 'filters_resolved', data: { doc_id_count: 0 } }),
+      })
+    })
+    expect(result.current.traceSteps).toEqual([
+      { step: 'intent', data: { rewritten_query: 'r' } },
+      { step: 'filters_resolved', data: { doc_id_count: 0 } },
+    ])
+  })
+
+  it('resets traceSteps to empty when a new search starts', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+    act(() => {
+      result.current.search('first query', true)
+    })
+    let socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+      socket.emit('message', {
+        data: JSON.stringify({ type: 'ai_mode_trace', step: 'intent', data: {} }),
+      })
+    })
+    expect(result.current.traceSteps).toHaveLength(1)
+
+    act(() => {
+      result.current.search('second query', true)
+    })
+    expect(result.current.traceSteps).toEqual([])
   })
 })

@@ -1,9 +1,18 @@
 import json
+from typing import Awaitable, Callable
 
 from langfuse import get_client
 
 from common.schema_context import build_schema_context
 from retrieval_api.gateway_client import GatewayClient
+
+# Invariant: on_step implementations must not raise. The current only caller
+# (ws.py's emit_trace_step / _emit_trace_step) guarantees this by swallowing
+# any exception from sending a trace frame. A future caller that passes a
+# raising callback would have that exception propagate into run_ai_mode's
+# blanket `except Exception`, incorrectly turning a successful pipeline run
+# into an ai_mode_error.
+OnStep = Callable[[str, dict], Awaitable[None]]
 
 
 def _extract_json_object(text: str) -> str:
@@ -57,7 +66,7 @@ exactly {"party": "Ramesh Gupta"}.
 """ + build_schema_context()
 
 
-async def extract_intent(gateway: GatewayClient, query: str) -> dict:
+async def extract_intent(gateway: GatewayClient, query: str, on_step: OnStep | None = None) -> dict:
     response = await gateway.chat(
         role="slm",
         messages=[
@@ -67,9 +76,14 @@ async def extract_intent(gateway: GatewayClient, query: str) -> dict:
     )
     cleaned = _extract_json_object(response.strip())
     try:
-        return json.loads(cleaned)
+        result = json.loads(cleaned)
     except json.JSONDecodeError:
         get_client().update_current_span(
             level="WARNING", status_message=f"SLM did not return valid JSON, falling back to plain search: {response!r}",
         )
-        return _fallback_intent(query)
+        result = _fallback_intent(query)
+
+    if on_step is not None:
+        await on_step("intent", {"query": query, **result})
+
+    return result

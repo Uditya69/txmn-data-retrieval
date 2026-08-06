@@ -14,24 +14,30 @@ export type AiModeResult =
   | { ok: true; answer: string; citations: Record<string, AiModeCitation>; reasoning?: string | null }
   | { ok: false; error: string }
 
+export interface TraceStep {
+  step: string
+  data: Record<string, unknown>
+}
+
 export interface SearchState {
   /** true from search() until ai_mode_done/ai_mode_error/an error/close arrives - tracks AI Mode specifically, not the Documents feed (that only depends on `instant`). */
   loading: boolean
   instant: InstantResult | null
   aiMode: AiModeResult | null
+  traceSteps: TraceStep[]
   wsError: string | null
 }
 
-const INITIAL_STATE: SearchState = { loading: false, instant: null, aiMode: null, wsError: null }
+const INITIAL_STATE: SearchState = { loading: false, instant: null, aiMode: null, traceSteps: [], wsError: null }
 
-export function useSearch(wsUrl: string): SearchState & { search: (query: string) => void } {
+export function useSearch(wsUrl: string): SearchState & { search: (query: string, trace: boolean) => void } {
   const [state, setState] = useState<SearchState>(INITIAL_STATE)
   const socketRef = useRef<WebSocket | null>(null)
 
   const search = useCallback(
-    (query: string) => {
+    (query: string, trace: boolean) => {
       socketRef.current?.close()
-      setState({ loading: true, instant: null, aiMode: null, wsError: null })
+      setState({ loading: true, instant: null, aiMode: null, traceSteps: [], wsError: null })
 
       let socket: WebSocket
       try {
@@ -43,7 +49,7 @@ export function useSearch(wsUrl: string): SearchState & { search: (query: string
       socketRef.current = socket
 
       socket.addEventListener('open', () => {
-        socket.send(JSON.stringify({ query, mode: 'both' }))
+        socket.send(JSON.stringify({ query, mode: 'both', trace }))
       })
 
       socket.addEventListener('message', (event) => {
@@ -57,6 +63,11 @@ export function useSearch(wsUrl: string): SearchState & { search: (query: string
               milvus: message.milvus ?? null,
               milvus_error: message.milvus_error ?? null,
             },
+          }))
+        } else if (message.type === 'ai_mode_trace') {
+          setState((prev) => ({
+            ...prev,
+            traceSteps: [...prev.traceSteps, { step: message.step, data: message.data }],
           }))
         } else if (message.type === 'ai_mode_done') {
           setState((prev) => ({

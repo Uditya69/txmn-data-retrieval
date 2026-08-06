@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from fastapi import APIRouter, WebSocket
 from langfuse import get_client
@@ -12,9 +13,21 @@ from retrieval_api.ai_mode.pipeline import run_ai_mode
 
 router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
 
 def get_gateway_client(settings) -> GatewayClient:
     return GatewayClient(base_url=settings.gateway_url)
+
+
+async def _emit_trace_step(send, step: str, data: dict) -> None:
+    """Swallows any exception from `send` (e.g. the client disconnected
+    mid-stream) - a dead trace channel must never fail the AI Mode
+    pipeline or its final answer."""
+    try:
+        await send({"type": "ai_mode_trace", "step": step, "data": data})
+    except Exception as exc:
+        logger.debug("trace step %r dropped: %s", step, exc)
 
 
 @router.websocket("/ws/search")
@@ -23,6 +36,7 @@ async def search(websocket: WebSocket):
     message = await websocket.receive_json()
     query = message["query"]
     mode = message.get("mode", "both")  # "instant" | "ai_mode" | "both"
+    trace = message.get("trace", False)
 
     settings = get_settings()
     es_client = get_es_client(settings)
@@ -31,6 +45,15 @@ async def search(websocket: WebSocket):
         milvus_client = get_milvus_client(settings)
     except Exception:
         milvus_client = None
+
+    send_lock = asyncio.Lock()
+
+    async def send(payload: dict) -> None:
+        async with send_lock:
+            await websocket.send_json(payload)
+
+    async def emit_trace_step(step: str, data: dict) -> None:
+        await _emit_trace_step(send, step, data)
 
     langfuse = get_client()
     try:
@@ -42,7 +65,12 @@ async def search(websocket: WebSocket):
                 if mode in ("instant", "both") else None
             )
             ai_mode_task = (
-                asyncio.create_task(run_ai_mode(gateway, es_client, milvus_client, query))
+                asyncio.create_task(
+                    run_ai_mode(
+                        gateway, es_client, milvus_client, query,
+                        on_step=emit_trace_step if trace else None,
+                    )
+                )
                 if mode in ("ai_mode", "both") else None
             )
 
@@ -58,7 +86,7 @@ async def search(websocket: WebSocket):
                     "instant_es_error": instant_result["es_error"] or "",
                     "instant_milvus_error": instant_result["milvus_error"] or "",
                 })
-                await websocket.send_json({"type": "instant_result", **instant_result})
+                await send({"type": "instant_result", **instant_result})
 
             if ai_mode_task is not None:
                 ai_mode_result = await ai_mode_task
@@ -69,10 +97,10 @@ async def search(websocket: WebSocket):
                     }
                     if ai_mode_result.get("reasoning"):
                         ai_mode_message["reasoning"] = ai_mode_result["reasoning"]
-                    await websocket.send_json(ai_mode_message)
+                    await send(ai_mode_message)
                 else:
                     output["ai_mode_error"] = ai_mode_result["error"]
-                    await websocket.send_json({"type": "ai_mode_error", "error": ai_mode_result["error"]})
+                    await send({"type": "ai_mode_error", "error": ai_mode_result["error"]})
 
             root_span.update(output=output)
             # Distributed trace: model-gateway's generations auto-export on

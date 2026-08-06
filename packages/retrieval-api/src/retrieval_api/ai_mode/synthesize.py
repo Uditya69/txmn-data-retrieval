@@ -1,4 +1,5 @@
 from common.es_client import fetch_citations
+from retrieval_api.ai_mode.intent import OnStep
 
 _SYSTEM_PROMPT = """You are a knowledgeable legal researcher explaining case
 law findings to a colleague in conversation - not a database dumping search
@@ -21,13 +22,19 @@ Formatting:
 """
 
 
-async def synthesize(gateway, es_client, query: str, top_chunks: list[dict], citations: dict) -> dict:
+async def synthesize(
+    gateway, es_client, query: str, top_chunks: list[dict], citations: dict, on_step: OnStep | None = None
+) -> dict:
     missing_doc_ids = [c["doc_id"] for c in top_chunks if c["doc_id"] not in citations]
     if missing_doc_ids:
         citations = {**citations, **await fetch_citations(es_client, missing_doc_ids)}
 
     chunk_block = "\n\n".join(f"[{c['doc_id']}] {c['text']}" for c in top_chunks)
     prompt = f"Question: {query}\n\nRelevant excerpts:\n{chunk_block}"
+
+    if on_step is not None:
+        await on_step("synthesis_prompt", {"prompt": prompt})
+
     answer, reasoning = await gateway.chat_with_reasoning(
         role="synthesis",
         messages=[

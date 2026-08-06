@@ -5,6 +5,7 @@ import OverviewCard from './components/OverviewCard'
 import DocumentsFeed from './components/DocumentsFeed'
 import DevModeToggle from './components/DevModeToggle'
 import DocumentModal from './components/DocumentModal'
+import TracePanel from './components/TracePanel'
 import { useSearch } from './api/useSearch'
 import styles from './App.module.css'
 
@@ -23,7 +24,7 @@ function readDevModeFromUrl(): boolean {
 
 export default function App() {
   const wsUrl = resolveWsUrl()
-  const { instant, aiMode, loading, wsError, search } = useSearch(wsUrl)
+  const { instant, aiMode, traceSteps, loading, wsError, search } = useSearch(wsUrl)
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
   const [highlightedDocId, setHighlightedDocId] = useState<string | null>(null)
   const [openDocId, setOpenDocId] = useState<string | null>(null)
@@ -40,14 +41,10 @@ export default function App() {
     setOpenDocId(docId)
   }
 
-  return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <h1>Taxmann Retrieval</h1>
-        <DevModeToggle devMode={devMode} onToggle={setDevMode} />
-      </header>
-      <SearchBar onSearch={search} disabled={loading} />
-      {wsError && <p className={styles.wsError}>{wsError}</p>}
+  const showTrace = devMode && traceSteps.length > 0
+
+  const mainContent = (
+    <div>
       <OverviewCard aiMode={aiMode} loading={loading} onCitationClick={handleCitationClick} />
       <DocumentsFeed
         instant={instant}
@@ -56,6 +53,28 @@ export default function App() {
         highlightedDocId={highlightedDocId}
         onOpenDocument={setOpenDocId}
       />
+    </div>
+  )
+
+  return (
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <h1>Taxmann Retrieval</h1>
+        <DevModeToggle devMode={devMode} onToggle={setDevMode} />
+      </header>
+      <SearchBar onSearch={(query) => search(query, devMode)} disabled={loading} />
+      {wsError && <p className={styles.wsError}>{wsError}</p>}
+      {showTrace ? (
+        <div className={styles.splitLayout}>
+          {mainContent}
+          <aside className={styles.tracePane}>
+            <h2>AI Mode trace</h2>
+            <TracePanel steps={traceSteps} />
+          </aside>
+        </div>
+      ) : (
+        mainContent
+      )}
       <DocumentModal
         docId={openDocId}
         apiBaseUrl={resolveApiBaseUrl(wsUrl)}
