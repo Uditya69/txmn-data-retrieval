@@ -19,8 +19,12 @@ def _trace_headers() -> dict[str, str]:
 
 
 class GatewayClient:
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, trace_enabled: bool = True):
         self._base_url = base_url
+        self._trace_enabled = trace_enabled
+
+    def _headers(self) -> dict[str, str]:
+        return _trace_headers() if self._trace_enabled else {}
 
     async def chat(self, role: str, messages: list[dict]) -> str:
         content, _reasoning = await self.chat_with_reasoning(role, messages)
@@ -29,7 +33,7 @@ class GatewayClient:
     async def chat_with_reasoning(self, role: str, messages: list[dict]) -> tuple[str, str | None]:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                f"{self._base_url}/v1/chat", json={"role": role, "messages": messages}, headers=_trace_headers(),
+                f"{self._base_url}/v1/chat", json={"role": role, "messages": messages}, headers=self._headers(),
             )
             response.raise_for_status()
             data = response.json()
@@ -38,7 +42,7 @@ class GatewayClient:
     async def embed(self, role: str, text: str) -> list[float]:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                f"{self._base_url}/v1/embed", json={"role": role, "text": text}, headers=_trace_headers(),
+                f"{self._base_url}/v1/embed", json={"role": role, "text": text}, headers=self._headers(),
             )
             response.raise_for_status()
             return response.json()["embedding"]
@@ -48,7 +52,7 @@ class GatewayClient:
             response = await client.post(
                 f"{self._base_url}/v1/rerank",
                 json={"role": role, "query": query, "documents": documents},
-                headers=_trace_headers(),
+                headers=self._headers(),
             )
             response.raise_for_status()
             return response.json()["scores"]

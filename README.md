@@ -17,6 +17,20 @@ Two services, docker-compose:
 Full design: [`docs/superpowers/specs/2026-08-03-retrieval-system-design.md`](docs/superpowers/specs/2026-08-03-retrieval-system-design.md)
 Build plan: [`docs/superpowers/plans/2026-08-03-retrieval-system.md`](docs/superpowers/plans/2026-08-03-retrieval-system.md)
 
+## Retrieval evaluation
+
+Run the 20 corpus-backed direct/indirect queries against ES, Milvus dense,
+Milvus sparse, rewritten retrieval, RRF, and the reranker:
+
+```bash
+uv run retrieval-eval --gateway-url http://localhost:8001 \
+  --langfuse-base-url http://localhost:3030
+```
+
+Use `--query Q06`, `--class indirect`, or `--no-langfuse` for focused/local
+runs. Full rank and per-collection results are written to
+`.eval-results/latest.json` by default.
+
 ## Packages
 
 ```

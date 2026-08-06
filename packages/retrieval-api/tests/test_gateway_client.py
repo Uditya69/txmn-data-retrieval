@@ -5,6 +5,13 @@ import respx
 from retrieval_api.gateway_client import GatewayClient
 
 
+def test_trace_headers_can_be_disabled(monkeypatch):
+    import retrieval_api.gateway_client as module
+
+    monkeypatch.setattr(module, "_trace_headers", lambda: (_ for _ in ()).throw(AssertionError("called")))
+    assert GatewayClient("http://gateway", trace_enabled=False)._headers() == {}
+
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_chat_calls_gateway_and_unwraps_content():
