@@ -7,7 +7,7 @@ import model_gateway.routes as routes_module
 
 def test_chat_route_resolves_role_and_calls_deepinfra_adapter(monkeypatch):
     fake_adapter = AsyncMock()
-    fake_adapter.chat.return_value = ("the answer", {"input": 3, "output": 2}, None)
+    fake_adapter.chat.return_value = ("the answer", {"input": 3, "output": 2}, None, None)
     monkeypatch.setattr(routes_module, "get_adapter", lambda provider: fake_adapter)
     monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"synthesis": "big-model"})
     monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"synthesis": "deepinfra"})
@@ -16,13 +16,13 @@ def test_chat_route_resolves_role_and_calls_deepinfra_adapter(monkeypatch):
     response = client.post("/v1/chat", json={"role": "synthesis", "messages": [{"role": "user", "content": "hi"}]})
 
     assert response.status_code == 200
-    assert response.json() == {"content": "the answer", "reasoning": None}
-    fake_adapter.chat.assert_awaited_once_with("big-model", [{"role": "user", "content": "hi"}])
+    assert response.json() == {"content": "the answer", "reasoning": None, "tool_calls": None}
+    fake_adapter.chat.assert_awaited_once_with("big-model", [{"role": "user", "content": "hi"}], None, None)
 
 
 def test_chat_route_surfaces_reasoning_when_present(monkeypatch):
     fake_adapter = AsyncMock()
-    fake_adapter.chat.return_value = ("the answer", {}, "thinking it through...")
+    fake_adapter.chat.return_value = ("the answer", {}, "thinking it through...", None)
     monkeypatch.setattr(routes_module, "get_adapter", lambda provider: fake_adapter)
     monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"synthesis": "big-model"})
     monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"synthesis": "deepinfra"})
@@ -30,7 +30,7 @@ def test_chat_route_surfaces_reasoning_when_present(monkeypatch):
     client = TestClient(app)
     response = client.post("/v1/chat", json={"role": "synthesis", "messages": [{"role": "user", "content": "hi"}]})
 
-    assert response.json() == {"content": "the answer", "reasoning": "thinking it through..."}
+    assert response.json() == {"content": "the answer", "reasoning": "thinking it through...", "tool_calls": None}
 
 
 def test_chat_route_rejects_unknown_role(monkeypatch):
@@ -74,3 +74,20 @@ def test_rerank_route(monkeypatch):
     response = client.post("/v1/rerank", json={"role": "reranker", "query": "q", "documents": ["a", "b"]})
 
     assert response.json() == {"scores": [0.9, 0.1]}
+
+
+def test_chat_route_passes_tools_and_returns_tool_calls(monkeypatch):
+    fake_adapter = AsyncMock()
+    fake_adapter.chat.return_value = (None, {}, None, [{"id": "call_1", "type": "function", "function": {"name": "search_es", "arguments": "{}"}}])
+    monkeypatch.setattr(routes_module, "get_adapter", lambda provider: fake_adapter)
+    monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"agent_chat": "agent-model"})
+    monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"agent_chat": "deepinfra"})
+    tools = [{"type": "function", "function": {"name": "search_es", "description": "d", "parameters": {"type": "object", "properties": {}}}}]
+
+    client = TestClient(app)
+    response = client.post("/v1/chat", json={
+        "role": "agent_chat", "messages": [{"role": "user", "content": "hi"}], "tools": tools, "tool_choice": "auto",
+    })
+
+    assert response.json()["tool_calls"] == [{"id": "call_1", "type": "function", "function": {"name": "search_es", "arguments": "{}"}}]
+    fake_adapter.chat.assert_awaited_once_with("agent-model", [{"role": "user", "content": "hi"}], tools, "auto")
