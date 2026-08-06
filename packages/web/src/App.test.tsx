@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import App from './App'
 import { useSearch } from './api/useSearch'
 
 describe('App', () => {
   it('renders the page title', () => {
-    render(<App />)
+    render(<App />, { wrapper: MemoryRouter })
     expect(screen.getByText('Taxmann Retrieval')).toBeInTheDocument()
   })
 })
@@ -24,7 +25,7 @@ vi.mock('./api/useSearch', () => ({
 describe('App with a trace', () => {
   it('shows the TracePanel in a two-column layout when dev mode is on', () => {
     window.history.pushState({}, '', '/?dev=1')
-    render(<App />)
+    render(<App />, { wrapper: MemoryRouter })
     expect(screen.getByText(/Intent/)).toBeInTheDocument()
   })
 
@@ -38,7 +39,7 @@ describe('App with a trace', () => {
       search: () => {},
     })
     window.history.pushState({}, '', '/?dev=1')
-    render(<App />)
+    render(<App />, { wrapper: MemoryRouter })
     expect(screen.queryByText(/Intent/)).not.toBeInTheDocument()
   })
 })

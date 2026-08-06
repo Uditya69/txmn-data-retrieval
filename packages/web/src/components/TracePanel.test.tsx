@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TracePanel from './TracePanel'
@@ -56,6 +56,20 @@ describe('TracePanel', () => {
 
     expect(screen.getByText(/\[0\.0164\]/)).toBeInTheDocument()
     expect(screen.queryByText(/^\[\]/)).not.toBeInTheDocument()
+  })
+
+  it('renders doc_id as a clickable link when onOpenDocument is provided, and calls it with the doc_id', async () => {
+    const user = userEvent.setup()
+    const onOpenDocument = vi.fn()
+    const steps: TraceStep[] = [
+      { step: 'es_search', data: { hits: [{ doc_id: 'd1', score: 4.2, heading: 'Heading', subheading: 'Sub' }] } },
+    ]
+    render(<TracePanel steps={steps} onOpenDocument={onOpenDocument} />)
+
+    const link = screen.getByRole('button', { name: 'd1' })
+    await user.click(link)
+
+    expect(onOpenDocument).toHaveBeenCalledWith('d1')
   })
 
   it('renders rerank_score (not score) for rerank top chunks', () => {

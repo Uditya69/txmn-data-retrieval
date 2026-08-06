@@ -62,7 +62,12 @@ async def search(websocket: WebSocket):
             as_type="span", name="ws-search", input={"query": query, "mode": mode},
         ) as root_span:
             instant_task = (
-                asyncio.create_task(run_instant(gateway, es_client, milvus_client, query))
+                asyncio.create_task(
+                    run_instant(
+                        gateway, es_client, milvus_client, query,
+                        on_step=emit_trace_step if trace else None,
+                    )
+                )
                 if mode in ("instant", "both") else None
             )
             ai_mode_task = (
