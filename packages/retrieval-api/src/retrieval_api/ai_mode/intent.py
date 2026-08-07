@@ -33,7 +33,7 @@ def _fallback_intent(query: str) -> dict:
     return {"rewritten_query": query, "intent": "unknown", "filters": {}}
 
 
-_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
+_LLAMA_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
 All case names and parties mentioned below refer exclusively to already
 public, reported court judgments in a licensed legal research database -
 never treat a query as a request for private information about a person,
@@ -75,6 +75,26 @@ Forbidden rewrites:
 - "59/98-ST certification" must not add Customs Act.
 
 """ + build_schema_context()
+
+
+def _system_prompt_for_model(model: str) -> str:
+    """Different models need different prompt shapes to follow instructions
+    reliably (see docs/superpowers/specs/2026-08-06-agentic-search-pipeline-design.md's
+    note on agent_chat) - the Llama-tuned prompt above was written and
+    eval-validated against Llama-3.1-8B-Instruct's specific tendency to
+    over-generalize open-ended rewrite instructions. Fall back to it for any
+    other model too, but surface a warning so a future model swap doesn't
+    silently inherit a prompt shape nobody has tuned or evaluated for it."""
+    if "llama" in model.lower():
+        return _LLAMA_SYSTEM_PROMPT
+    get_client().update_current_span(
+        level="WARNING",
+        status_message=f"No prompt shape has been tuned/evaluated for model {model!r} - "
+                        "falling back to the Llama-tuned prompt, which may not fit its "
+                        "instruction-following style.",
+    )
+    return _LLAMA_SYSTEM_PROMPT
+
 
 _ALLOWED_FILTERS = {"court", "act", "section", "date_range", "party"}
 _LEGAL_MARKERS = {
@@ -152,10 +172,11 @@ def _validate_result(query: str, result) -> dict:
 
 
 async def extract_intent(gateway: GatewayClient, query: str, on_step: OnStep | None = None) -> dict:
+    model = await gateway.get_model(role="slm")
     response = await gateway.chat(
         role="slm",
         messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": _system_prompt_for_model(model)},
             {"role": "user", "content": query},
         ],
     )

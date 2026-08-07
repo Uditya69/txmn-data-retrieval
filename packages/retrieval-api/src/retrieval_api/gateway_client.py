@@ -52,6 +52,12 @@ class GatewayClient:
             data = response.json()
             return {"content": data.get("content"), "tool_calls": data.get("tool_calls"), "reasoning": data.get("reasoning")}
 
+    async def get_model(self, role: str) -> str:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(f"{self._base_url}/v1/models/{role}")
+            response.raise_for_status()
+            return response.json()["model"]
+
     async def embed(self, role: str, text: str) -> list[float]:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(

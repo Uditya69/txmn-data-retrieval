@@ -38,6 +38,13 @@ def _resolve(role: str) -> tuple[str, str]:
     return ROLE_MODEL_MAP[role], ROLE_PROVIDER_MAP[role]
 
 
+@router.get("/v1/models/{role}")
+async def get_model(role: str):
+    if role not in ROLE_MODEL_MAP:
+        raise HTTPException(status_code=404, detail=f"unknown role: {role}")
+    return {"role": role, "model": ROLE_MODEL_MAP[role]}
+
+
 class ChatRequest(BaseModel):
     role: str
     messages: list[dict]

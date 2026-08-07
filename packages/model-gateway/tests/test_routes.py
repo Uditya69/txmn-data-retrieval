@@ -76,6 +76,25 @@ def test_rerank_route(monkeypatch):
     assert response.json() == {"scores": [0.9, 0.1]}
 
 
+def test_get_model_route_returns_model_for_known_role(monkeypatch):
+    monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"slm": "meta-llama/Meta-Llama-3.1-8B-Instruct"})
+    client = TestClient(app)
+
+    response = client.get("/v1/models/slm")
+
+    assert response.status_code == 200
+    assert response.json() == {"role": "slm", "model": "meta-llama/Meta-Llama-3.1-8B-Instruct"}
+
+
+def test_get_model_route_rejects_unknown_role(monkeypatch):
+    monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"slm": "some-model"})
+    client = TestClient(app)
+
+    response = client.get("/v1/models/nonexistent")
+
+    assert response.status_code == 404
+
+
 def test_chat_route_passes_tools_and_returns_tool_calls(monkeypatch):
     fake_adapter = AsyncMock()
     fake_adapter.chat.return_value = (None, {}, None, [{"id": "call_1", "type": "function", "function": {"name": "search_es", "arguments": "{}"}}])

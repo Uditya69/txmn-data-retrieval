@@ -69,6 +69,19 @@ async def test_rerank_unwraps_scores():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_get_model_returns_model_for_role():
+    respx.get("http://gateway/v1/models/slm").mock(
+        return_value=httpx.Response(200, json={"role": "slm", "model": "meta-llama/Meta-Llama-3.1-8B-Instruct"})
+    )
+    client = GatewayClient(base_url="http://gateway")
+
+    result = await client.get_model(role="slm")
+
+    assert result == "meta-llama/Meta-Llama-3.1-8B-Instruct"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_chat_with_tools_posts_tools_and_returns_tool_calls():
     route = respx.post("http://gateway/v1/chat").mock(
         return_value=httpx.Response(200, json={
