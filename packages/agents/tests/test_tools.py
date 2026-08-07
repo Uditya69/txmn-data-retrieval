@@ -1,15 +1,19 @@
 import pytest
 
 from agents.tools import TOOL_SCHEMAS, dispatch_tool_call
+from common.schemas import MILVUS_COLLECTIONS
 
 
-def test_tool_schemas_cover_all_four_tools_with_milvus_collection_enum():
+def test_tool_schemas_cover_all_four_tools_and_milvus_tools_have_no_collection_param():
     names = {schema["function"]["name"] for schema in TOOL_SCHEMAS}
     assert names == {"search_es", "search_milvus_dense", "search_milvus_sparse", "lookup_doc"}
-    dense_schema = next(s for s in TOOL_SCHEMAS if s["function"]["name"] == "search_milvus_dense")
-    assert dense_schema["function"]["parameters"]["properties"]["collection"]["enum"] == [
-        "case_summary", "digest", "headnotes", "facts", "held", "ruling", "metadata",
-    ]
+    # The model must never pick a single Milvus collection to search - guessing wrong
+    # silently misses gold hits (the same failure CLAUDE.md hard rule 4 documents for
+    # AI Mode's collection routing). Every Milvus tool call searches all 7 collections.
+    for name in ("search_milvus_dense", "search_milvus_sparse"):
+        schema = next(s for s in TOOL_SCHEMAS if s["function"]["name"] == name)
+        assert "collection" not in schema["function"]["parameters"]["properties"]
+        assert schema["function"]["parameters"]["required"] == ["query"]
 
 
 @pytest.mark.asyncio
@@ -30,7 +34,7 @@ async def test_dispatch_search_es_calls_raw_search(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_dispatch_search_milvus_dense_embeds_then_searches_one_collection(monkeypatch):
+async def test_dispatch_search_milvus_dense_embeds_then_searches_all_collections(monkeypatch):
     import agents.tools as tools_module
 
     class FakeGateway:
@@ -39,38 +43,68 @@ async def test_dispatch_search_milvus_dense_embeds_then_searches_one_collection(
             return [0.1, 0.2]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
-        assert collections == ["held"]
+        assert collections == MILVUS_COLLECTIONS
         assert dense_vector == [0.1, 0.2]
-        return {"held": [{"chunk_id": "c1", "doc_id": "d1", "score": 0.9}]}
+        return {
+            "held": [{"chunk_id": "c1", "doc_id": "d1", "score": 0.9}],
+            "facts": [{"chunk_id": "c2", "doc_id": "d2", "score": 0.95}],
+        }
 
     monkeypatch.setattr(tools_module, "hybrid_search", fake_hybrid_search)
 
     result = await dispatch_tool_call(
-        "search_milvus_dense", {"collection": "held", "query": "gst"},
+        "search_milvus_dense", {"query": "gst"},
         gateway=FakeGateway(), es_client=None, milvus_client=object(),
     )
 
-    assert result == {"rows": [{"chunk_id": "c1", "doc_id": "d1", "score": 0.9}]}
+    # Merged across collections, tagged with source collection, sorted by score desc.
+    assert result == {"rows": [
+        {"chunk_id": "c2", "doc_id": "d2", "score": 0.95, "collection": "facts"},
+        {"chunk_id": "c1", "doc_id": "d1", "score": 0.9, "collection": "held"},
+    ]}
 
 
 @pytest.mark.asyncio
-async def test_dispatch_search_milvus_sparse_passes_none_dense_vector(monkeypatch):
+async def test_dispatch_search_milvus_sparse_passes_none_dense_vector_and_all_collections(monkeypatch):
     import agents.tools as tools_module
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
         assert dense_vector is None
         assert sparse_query_text == "gst"
-        assert collections == ["digest"]
+        assert collections == MILVUS_COLLECTIONS
         return {"digest": [{"chunk_id": "c2", "doc_id": "d2", "score": 3.1}]}
 
     monkeypatch.setattr(tools_module, "hybrid_search", fake_hybrid_search)
 
     result = await dispatch_tool_call(
-        "search_milvus_sparse", {"collection": "digest", "query": "gst"},
+        "search_milvus_sparse", {"query": "gst"},
         gateway=object(), es_client=None, milvus_client=object(),
     )
 
-    assert result == {"rows": [{"chunk_id": "c2", "doc_id": "d2", "score": 3.1}]}
+    assert result == {"rows": [{"chunk_id": "c2", "doc_id": "d2", "score": 3.1, "collection": "digest"}]}
+
+
+@pytest.mark.asyncio
+async def test_dispatch_search_milvus_merges_and_truncates_to_top_n(monkeypatch):
+    import agents.tools as tools_module
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {
+            collection: [{"chunk_id": f"{collection}-{i}", "doc_id": f"d{i}", "score": i / 100}
+                         for i in range(10)]
+            for collection in collections
+        }
+
+    monkeypatch.setattr(tools_module, "hybrid_search", fake_hybrid_search)
+
+    result = await dispatch_tool_call(
+        "search_milvus_sparse", {"query": "gst"},
+        gateway=object(), es_client=None, milvus_client=object(),
+    )
+
+    assert len(result["rows"]) == tools_module.MILVUS_MERGE_LIMIT
+    scores = [row["score"] for row in result["rows"]]
+    assert scores == sorted(scores, reverse=True)
 
 
 @pytest.mark.asyncio

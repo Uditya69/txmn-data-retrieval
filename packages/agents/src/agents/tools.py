@@ -19,14 +19,14 @@ TOOL_SCHEMAS: list[dict] = [
         "type": "function",
         "function": {
             "name": "search_milvus_dense",
-            "description": "Dense embedding similarity search within one Milvus collection.",
+            "description": (
+                "Dense embedding similarity search across all Milvus collections "
+                "(case_summary, digest, headnotes, facts, held, ruling, metadata)."
+            ),
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "collection": {"type": "string", "enum": MILVUS_COLLECTIONS},
-                    "query": {"type": "string"},
-                },
-                "required": ["collection", "query"],
+                "properties": {"query": {"type": "string"}},
+                "required": ["query"],
             },
         },
     },
@@ -34,14 +34,14 @@ TOOL_SCHEMAS: list[dict] = [
         "type": "function",
         "function": {
             "name": "search_milvus_sparse",
-            "description": "BM25 sparse search within one Milvus collection.",
+            "description": (
+                "BM25 sparse search across all Milvus collections "
+                "(case_summary, digest, headnotes, facts, held, ruling, metadata)."
+            ),
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "collection": {"type": "string", "enum": MILVUS_COLLECTIONS},
-                    "query": {"type": "string"},
-                },
-                "required": ["collection", "query"],
+                "properties": {"query": {"type": "string"}},
+                "required": ["query"],
             },
         },
     },
@@ -61,6 +61,20 @@ TOOL_SCHEMAS: list[dict] = [
 
 
 _TEXT_TRUNCATE_LEN = 500
+
+# Merging all 7 Milvus collections into one tool result would otherwise dump up to
+# 7 * 50 = 350 rows into the agent's message history per call - keep only the
+# strongest cross-collection hits.
+MILVUS_MERGE_LIMIT = 20
+
+
+def _merge_collection_results(result: dict[str, list[dict]]) -> list[dict]:
+    merged = []
+    for collection, rows in result.items():
+        for row in rows:
+            merged.append({**row, "collection": collection})
+    merged.sort(key=lambda row: row["score"], reverse=True)
+    return merged[:MILVUS_MERGE_LIMIT]
 
 
 def _truncate_rows(rows: list[dict]) -> list[dict]:
@@ -83,14 +97,12 @@ async def dispatch_tool_call(name: str, arguments: dict, *, gateway, es_client, 
         rows = await raw_search(es_client, arguments["query"])
         return {"rows": _truncate_rows(rows)}
     if name == "search_milvus_dense":
-        collection = arguments["collection"]
         vector = await gateway.embed(role="query_embed", text=arguments["query"])
-        result = await hybrid_search(milvus_client, [collection], vector, arguments["query"])
-        return {"rows": _truncate_rows(result.get(collection, []))}
+        result = await hybrid_search(milvus_client, MILVUS_COLLECTIONS, vector, arguments["query"])
+        return {"rows": _truncate_rows(_merge_collection_results(result))}
     if name == "search_milvus_sparse":
-        collection = arguments["collection"]
-        result = await hybrid_search(milvus_client, [collection], None, arguments["query"])
-        return {"rows": _truncate_rows(result.get(collection, []))}
+        result = await hybrid_search(milvus_client, MILVUS_COLLECTIONS, None, arguments["query"])
+        return {"rows": _truncate_rows(_merge_collection_results(result))}
     if name == "lookup_doc":
         citations = await fetch_citations(es_client, [arguments["doc_id"]])
         return {"citation": citations.get(arguments["doc_id"])}
