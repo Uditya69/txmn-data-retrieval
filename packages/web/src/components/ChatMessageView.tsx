@@ -41,7 +41,6 @@ function TraceSection({ result, onOpenDocument }: { result: ResultState | undefi
 }
 
 function InstantPane({ result, devMode, onOpenDocument }: { result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void }) {
-  if (!devMode) return null
   const instant = result?.instant
   const cards = mergeResults(instant?.es, instant?.milvus)
 
@@ -71,15 +70,19 @@ function InstantPane({ result, devMode, onOpenDocument }: { result: ResultState 
                 <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
                   {card.heading ?? card.doc_id}
                 </span>
-                <span className="text-xs shrink-0 font-mono" style={{ color: 'var(--text-faint)' }}>
-                  {card.score.toFixed(3)}
-                </span>
+                {devMode && (
+                  <span className="text-xs shrink-0 font-mono" style={{ color: 'var(--text-faint)' }}>
+                    {card.score.toFixed(3)}
+                  </span>
+                )}
               </div>
-              <div className="flex items-center gap-2 mt-1 text-xs" style={{ color: 'var(--text-faint)' }}>
-                <span className="uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-raised)' }}>
-                  {card.source === 'es' ? 'ES' : `Milvus:${card.collection}`}
-                </span>
-              </div>
+              {devMode && (
+                <div className="flex items-center gap-2 mt-1 text-xs" style={{ color: 'var(--text-faint)' }}>
+                  <span className="uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-raised)' }}>
+                    {card.source === 'es' ? 'ES' : `Milvus:${card.collection}`}
+                  </span>
+                </div>
+              )}
               <p className="text-sm mt-2 line-clamp-3" style={{ color: 'var(--text-muted)' }}>{card.snippet}</p>
             </button>
           ))}
