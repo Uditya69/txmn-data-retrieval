@@ -33,6 +33,66 @@ async def test_run_instant_returns_both_branches_on_success(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_instant_applies_elbow_cutoff_to_es_and_milvus_results(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20):
+        # steep drop after the first hit - only the first should survive
+        return [
+            {"doc_id": "d1", "score": 10.0},
+            {"doc_id": "d2", "score": 1.0},
+            {"doc_id": "d3", "score": 0.1},
+        ]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {
+            "ruling": [
+                {"chunk_id": "d1::ruling::0", "doc_id": "d1", "text": "t", "score": 10.0},
+                {"chunk_id": "d2::ruling::0", "doc_id": "d2", "text": "t", "score": 1.0},
+            ],
+        }
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
+
+    assert result["es"] == [{"doc_id": "d1", "score": 10.0}]
+    assert result["milvus"] == {"ruling": [{"chunk_id": "d1::ruling::0", "doc_id": "d1", "text": "t", "score": 10.0}]}
+    assert result["milvus_sparse"] == {
+        "ruling": [{"chunk_id": "d1::ruling::0", "doc_id": "d1", "text": "t", "score": 10.0}],
+    }
+
+
+@pytest.mark.asyncio
+async def test_run_instant_keeps_flat_score_distribution_uncapped(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    flat_scores = [{"doc_id": f"d{i}", "score": 5.0} for i in range(12)]
+
+    async def fake_raw_search(client, query, limit=20):
+        return flat_scores
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": []}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1]
+
+    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
+
+    # AI Mode's rerank caps at 5 regardless of flatness; Instant has no such
+    # ceiling since it's a UI preview list, not an LLM prompt.
+    assert result["es"] == flat_scores
+
+
+@pytest.mark.asyncio
 async def test_run_instant_returns_partial_result_when_es_fails(monkeypatch):
     import retrieval_api.instant.search as search_module
 

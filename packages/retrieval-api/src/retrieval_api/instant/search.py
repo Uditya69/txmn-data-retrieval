@@ -7,14 +7,29 @@ from common.es_client import raw_search
 from common.milvus_client import hybrid_search
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
+from retrieval_api.score_cutoff import elbow_cutoff
 from retrieval_api.trace_utils import collection_trace
+
+
+def _apply_elbow_cutoff(rows: list[dict]) -> list[dict]:
+    """Trims the long decimal-score tail ES/Milvus hand back untouched -
+    Instant has no reranker, so this is the only score-based pruning in
+    that path. No max_keep: unlike AI Mode's reranked chunks (which feed
+    an LLM prompt and need a hard ceiling), this is a UI preview list."""
+    ranked = sorted(rows, key=lambda row: row["score"], reverse=True)
+    cutoff = elbow_cutoff([row["score"] for row in ranked])
+    return ranked[:cutoff]
+
+
+def _apply_elbow_cutoff_per_collection(by_collection: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    return {collection: _apply_elbow_cutoff(rows) for collection, rows in by_collection.items()}
 
 
 async def _run_es(es_client, query: str, on_step: OnStep | None) -> tuple[list[dict] | None, str | None]:
     langfuse = get_client()
     with langfuse.start_as_current_observation(as_type="retriever", name="search-es", input={"query": query}) as span:
         try:
-            results = await raw_search(es_client, query)
+            results = _apply_elbow_cutoff(await raw_search(es_client, query))
             span.update(output={"num_hits": len(results)})
             if on_step is not None:
                 await on_step("es_search", {"hits": results})
@@ -45,6 +60,8 @@ async def _run_milvus(
                     milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None, sparse_query_text=query,
                 ),
             )
+            dense_result = _apply_elbow_cutoff_per_collection(dense_result)
+            sparse_result = _apply_elbow_cutoff_per_collection(sparse_result)
             span.update(output={
                 collection: {"dense": len(dense_result[collection]), "sparse": len(sparse_result[collection])}
                 for collection in dense_result
