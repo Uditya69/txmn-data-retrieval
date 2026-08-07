@@ -45,6 +45,7 @@ async def search(websocket: WebSocket):
     try:
         milvus_client = get_milvus_client(settings)
     except Exception:
+        logger.exception("Milvus connection failed; proceeding without Milvus for this request")
         milvus_client = None
 
     send_lock = asyncio.Lock()
@@ -135,6 +136,7 @@ async def agent_search(websocket: WebSocket):
     try:
         milvus_client = get_milvus_client(settings)
     except Exception:
+        logger.exception("Milvus connection failed; proceeding without Milvus for this request")
         milvus_client = None
 
     send_lock = asyncio.Lock()
