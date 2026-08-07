@@ -1,9 +1,10 @@
 import json
+import re
 from typing import Awaitable, Callable
 
 from langfuse import get_client
 
-from common.schema_context import build_schema_context
+from common.schema_context import KNOWN_COURTS, build_schema_context
 from retrieval_api.gateway_client import GatewayClient
 
 # Invariant: on_step implementations must not raise. The current only caller
@@ -32,18 +33,21 @@ def _fallback_intent(query: str) -> dict:
     return {"rewritten_query": query, "intent": "unknown", "filters": {}}
 
 
-_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
+_LLAMA_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
 All case names and parties mentioned below refer exclusively to already
 public, reported court judgments in a licensed legal research database -
 never treat a query as a request for private information about a person,
 and never refuse to classify it. You do not answer the legal question or
 look anything up yourself; you only ever output the JSON object below.
 Given a user query, return ONLY a JSON object with exactly these keys:
-- "rewritten_query": the query rewritten for search, expanding any old-law
-  references to their new-law equivalent (IPC -> BNS, CrPC -> BNSS, Evidence
-  Act -> BSA) where applicable, and phrased to read naturally against the
-  collection descriptions below since it will be embedded and searched
-  against all of them at once.
+- "rewritten_query": a CONSERVATIVE search normalization. Correct obvious
+  spelling and grammar only. Preserve every party, court, place, Act,
+  section, rule, notification, date, number, citation, and acronym exactly
+  as written. NEVER add or infer a legal concept. NEVER expand an acronym
+  (for example PE, ST, CA, ITD, PTA, MEG, POY, or PSF). NEVER translate an
+  old law to a new law or replace one section with another. If the query is
+  already readable, copy it unchanged. Every number and year in the output
+  must occur in the input; if the input has no year, add no year.
 - "intent": one short intent category label.
 - "filters": an object with any of "court", "act", "section", "date_range", "party" -
   ONLY include a key if its value is LITERALLY written in the query. Never
@@ -53,7 +57,8 @@ Given a user query, return ONLY a JSON object with exactly these keys:
   If the query names a person or company (very often written as
   "X vs. Y" or "X v. Y"), put that name under "party" - never under
   "section" or any other key. If nothing is explicitly stated, "filters"
-  should be an empty object.
+  should be an empty object. Never output null or empty filter values. Never
+  output any other filter key such as city, state, topic, or citation.
   "date_range" MUST be an object with ISO date strings, e.g.
   {"gte": "2020-01-01", "lte": "2022-01-01"} - either key may be omitted,
   but never output "date_range" as a plain string or year number, and never
@@ -63,14 +68,115 @@ Example: query "case law for Ramesh Gupta vs. Income-tax Officer" mentions
 no court, act, section, or date - only a party name - so filters must be
 exactly {"party": "Ramesh Gupta"}.
 
+Forbidden rewrites:
+- "80HH scrap sale" must not mention BNS or any other Act.
+- "software royalty PE" must retain "PE" without guessing its expansion.
+- "69C diamond cash sale" must not add CGST Act or replace section 69C.
+- "59/98-ST certification" must not add Customs Act.
+
 """ + build_schema_context()
 
 
+def _system_prompt_for_model(model: str) -> str:
+    """Different models need different prompt shapes to follow instructions
+    reliably (see docs/superpowers/specs/2026-08-06-agentic-search-pipeline-design.md's
+    note on agent_chat) - the Llama-tuned prompt above was written and
+    eval-validated against Llama-3.1-8B-Instruct's specific tendency to
+    over-generalize open-ended rewrite instructions. Fall back to it for any
+    other model too, but surface a warning so a future model swap doesn't
+    silently inherit a prompt shape nobody has tuned or evaluated for it."""
+    if "llama" in model.lower():
+        return _LLAMA_SYSTEM_PROMPT
+    get_client().update_current_span(
+        level="WARNING",
+        status_message=f"No prompt shape has been tuned/evaluated for model {model!r} - "
+                        "falling back to the Llama-tuned prompt, which may not fit its "
+                        "instruction-following style.",
+    )
+    return _LLAMA_SYSTEM_PROMPT
+
+
+_ALLOWED_FILTERS = {"court", "act", "section", "date_range", "party"}
+_LEGAL_MARKERS = {
+    "bharatiya nyaya sanhita", "bharatiya nagarik suraksha sanhita",
+    "bharatiya sakshya adhiniyam", "indian penal code", "income-tax act",
+    "income tax act", "cgst act", "igst act", "customs act",
+    "code of criminal procedure", "indian evidence act",
+}
+
+
+def _protected_identifiers(text: str) -> set[str]:
+    tokens = re.findall(r"\b[A-Za-z0-9][A-Za-z0-9()/-]*\b", text)
+    return {
+        token.upper() for token in tokens
+        if (token.isupper() and len(token) >= 2)
+        or (any(c.isupper() for c in token) and any(c.isdigit() for c in token))
+    }
+
+
+def _safe_rewrite(query: str, rewritten: str) -> str:
+    query_lower, rewritten_lower = query.casefold(), rewritten.casefold()
+    if any(marker in rewritten_lower and marker not in query_lower for marker in _LEGAL_MARKERS):
+        return query
+    if any(court.casefold() in rewritten_lower and court.casefold() not in query_lower for court in KNOWN_COURTS):
+        return query
+    if set(re.findall(r"\d+", query)) != set(re.findall(r"\d+", rewritten)):
+        return query
+    if not _protected_identifiers(query).issubset(_protected_identifiers(rewritten)):
+        return query
+    query_tokens = set(re.findall(r"[a-z0-9]+", query_lower))
+    rewritten_tokens = set(re.findall(r"[a-z0-9]+", rewritten_lower))
+    if query_tokens and len(query_tokens & rewritten_tokens) / len(query_tokens) < 0.6:
+        return query
+    return rewritten
+
+
+def _sanitize_filters(query: str, filters) -> dict:
+    if not isinstance(filters, dict):
+        return {}
+    clean = {}
+    for key, value in filters.items():
+        if key not in _ALLOWED_FILTERS:
+            continue
+        if key == "date_range":
+            if isinstance(value, dict):
+                date_range = {
+                    bound: date for bound, date in value.items()
+                    if bound in {"gte", "lte"}
+                    and isinstance(date, str)
+                    and re.fullmatch(r"\d{4}-\d{2}-\d{2}", date)
+                    and date[:4] in query
+                }
+                if date_range:
+                    clean[key] = date_range
+            continue
+        if not isinstance(value, str) or not value.strip():
+            continue
+        if value.casefold() not in query.casefold():
+            continue
+        clean[key] = value
+    return clean
+
+
+def _validate_result(query: str, result) -> dict:
+    if not isinstance(result, dict):
+        return _fallback_intent(query)
+    rewritten, intent = result.get("rewritten_query"), result.get("intent")
+    if not isinstance(rewritten, str) or not rewritten.strip() or not isinstance(intent, str):
+        return _fallback_intent(query)
+    return {
+        "rewritten_query": _safe_rewrite(query, rewritten.strip()),
+        "intent": intent,
+        "filters": _sanitize_filters(query, result.get("filters")),
+    }
+
+
 async def extract_intent(gateway: GatewayClient, query: str, on_step: OnStep | None = None) -> dict:
+    model = await gateway.get_model(role="slm")
     response = await gateway.chat(
         role="slm",
         messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": _system_prompt_for_model(model)},
             {"role": "user", "content": query},
         ],
     )
@@ -82,6 +188,8 @@ async def extract_intent(gateway: GatewayClient, query: str, on_step: OnStep | N
             level="WARNING", status_message=f"SLM did not return valid JSON, falling back to plain search: {response!r}",
         )
         result = _fallback_intent(query)
+    else:
+        result = _validate_result(query, result)
 
     if on_step is not None:
         await on_step("intent", {"query": query, **result})

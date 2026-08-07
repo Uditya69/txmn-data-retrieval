@@ -56,6 +56,7 @@ describe('useSearch', () => {
       es: [{ doc_id: 'd1', score: 1, snippet: 's' }],
       es_error: null,
       milvus: null,
+      milvus_sparse: null,
       milvus_error: null,
     })
     expect(result.current.loading).toBe(true)

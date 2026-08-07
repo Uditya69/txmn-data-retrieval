@@ -9,7 +9,11 @@ dependencies = [
   "langchain-core>=0.3",
   "langfuse>=4.14",
   "common",
+  "agents",
 ]
+
+[project.scripts]
+retrieval-eval = "retrieval_api.retrieval_eval:main"
 
 [build-system]
 requires = ["hatchling"]

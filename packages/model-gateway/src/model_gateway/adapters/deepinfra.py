@@ -17,20 +17,29 @@ class DeepInfraAdapter:
     def __init__(self, api_key: str):
         self._headers = {"Authorization": f"Bearer {api_key}"}
 
-    async def chat(self, model: str, messages: list[dict]) -> tuple[str, dict[str, int], str | None]:
+    async def chat(
+        self, model: str, messages: list[dict], tools: list[dict] | None = None, tool_choice: str | None = None,
+    ) -> tuple[str | None, dict[str, int], str | None, list[dict] | None]:
+        payload = {"model": model, "messages": messages}
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = tool_choice or "auto"
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{_BASE_URL}/openai/chat/completions",
-                json={"model": model, "messages": messages},
+                json=payload,
                 headers=self._headers,
             )
             response.raise_for_status()
             data = response.json()
             usage = data.get("usage") or {}
             message = data["choices"][0]["message"]
-            # Reasoning models (DeepSeek-R1, QwQ, ...) expose their chain of
-            # thought as a separate field alongside the final content.
-            return message["content"], _openai_usage_details(usage), message.get("reasoning_content")
+            return (
+                message.get("content"),
+                _openai_usage_details(usage),
+                message.get("reasoning_content"),
+                message.get("tool_calls"),
+            )
 
     async def embed(self, model: str, text: str) -> tuple[list[float], dict[str, int]]:
         async with httpx.AsyncClient(timeout=60.0) as client:

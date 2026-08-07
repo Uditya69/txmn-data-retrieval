@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from common.config import get_settings
-from common.es_client import get_es_client, fetch_fullcontent
+from common.es_client import get_es_client, fetch_fullcontent, fetch_document_metadata
 from common.document_parser import parse_fullcontent, strip_tags_fallback
 
 router = APIRouter()
@@ -21,6 +21,13 @@ async def get_document(doc_id: str):
             # Some indexed documents have genuinely malformed fullcontent
             # XML at the source - degrade to plain text rather than 500.
             blocks = strip_tags_fallback(fullcontent)
-        return {"doc_id": doc_id, "blocks": blocks}
+        metadata = await fetch_document_metadata(es_client, doc_id) or {}
+        return {
+            "doc_id": doc_id,
+            "heading": metadata.get("heading"),
+            "subheading": metadata.get("subheading"),
+            "year": metadata.get("year"),
+            "blocks": blocks,
+        }
     finally:
         await es_client.close()

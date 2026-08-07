@@ -1,6 +1,13 @@
 import pytest
 from common.config import Settings
-from common.es_client import get_es_client, raw_search, resolve_doc_id_allowlist, fetch_citations, fetch_fullcontent
+from common.es_client import (
+    get_es_client,
+    raw_search,
+    resolve_doc_id_allowlist,
+    fetch_citations,
+    fetch_fullcontent,
+    fetch_document_metadata,
+)
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
 
@@ -225,6 +232,32 @@ async def test_fetch_fullcontent_returns_none_when_doc_not_found():
     client = FakeAsyncES(search_hits=[])
 
     result = await fetch_fullcontent(client, "missing")
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_document_metadata_returns_heading_subheading_and_year_name():
+    client = FakeAsyncES(search_hits=[{"_source": {
+        "heading": "[2021] 130 taxmann.com 199 (AAR - KARNATAKA)[09-07-2021]",
+        "subheading": "B.G. Shirke Constructions Technology (P.) Ltd., In re vs.",
+        "year": {"name": "2021", "id": "2021"},
+    }}])
+
+    result = await fetch_document_metadata(client, "101010000000316021")
+
+    assert result == {
+        "heading": "[2021] 130 taxmann.com 199 (AAR - KARNATAKA)[09-07-2021]",
+        "subheading": "B.G. Shirke Constructions Technology (P.) Ltd., In re vs.",
+        "year": "2021",
+    }
+
+
+@pytest.mark.asyncio
+async def test_fetch_document_metadata_returns_none_when_doc_not_found():
+    client = FakeAsyncES(search_hits=[])
+
+    result = await fetch_document_metadata(client, "missing")
 
     assert result is None
 
