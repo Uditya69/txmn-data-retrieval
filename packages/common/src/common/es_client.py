@@ -97,6 +97,26 @@ async def fetch_fullcontent(client, doc_id: str) -> str | None:
     return hits[0]["_source"]["fullcontent"]
 
 
+async def fetch_document_metadata(client, doc_id: str) -> dict | None:
+    """Header fields for the document reader (case title, citation, year).
+    `masterinfo.info.court` is frequently empty across the corpus - the
+    court/bench abbreviation lives inside `heading` instead (e.g. "...(SC)")
+    - so this doesn't try to surface it as a separate structured field."""
+    response = await client.search(
+        index=client.index, query={"bool": {"must": [{"term": {"id": doc_id}}]}}, size=1,
+    )
+    hits = response["hits"]["hits"]
+    if not hits:
+        return None
+    source = hits[0]["_source"]
+    year = source.get("year")
+    return {
+        "heading": source.get("heading"),
+        "subheading": source.get("subheading"),
+        "year": year.get("name") if isinstance(year, dict) else year,
+    }
+
+
 async def fetch_citations(client, doc_ids: list[str]) -> dict[str, dict]:
     if not doc_ids:
         return {}

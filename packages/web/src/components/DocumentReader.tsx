@@ -1,14 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react'
 
-interface DocumentLink {
-  text: string
-  doc_id: string
-}
+const DOC_FONT = 'Georgia, "Times New Roman", Times, serif'
 
-interface DocumentBlock {
-  type: 'paragraph'
-  text: string
-  links: DocumentLink[]
+type Span = { type: 'text'; text: string; bold: boolean; italic: boolean } | { type: 'link'; text: string; doc_id: string }
+
+type DocumentBlock = { type: 'paragraph' | 'fact_label' | 'headnote' | 'counsel'; spans: Span[] }
+
+type FullDocument = {
+  doc_id: string
+  heading: string | null
+  subheading: string | null
+  year: string | null
+  blocks: DocumentBlock[]
 }
 
 export interface DocumentReaderProps {
@@ -18,44 +21,69 @@ export interface DocumentReaderProps {
   onOpenDocument: (docId: string) => void
 }
 
-function renderBlockText(block: DocumentBlock, onOpenDocument: (docId: string) => void): ReactNode[] {
-  const nodes: ReactNode[] = []
-  let cursor = 0
-  block.links.forEach((link, index) => {
-    const foundAt = block.text.indexOf(link.text, cursor)
-    if (foundAt === -1) return
-    if (foundAt > cursor) nodes.push(block.text.slice(cursor, foundAt))
-    nodes.push(
-      <button
-        key={index}
-        type="button"
-        className="underline cursor-pointer"
-        style={{ color: 'var(--accent)', textDecorationStyle: 'dotted' }}
-        onClick={() => onOpenDocument(link.doc_id)}
-      >
-        {link.text}
-      </button>,
-    )
-    cursor = foundAt + link.text.length
+function renderSpans(spans: Span[], onOpenDocument: (docId: string) => void): ReactNode[] {
+  return spans.map((span, i) => {
+    if (span.type === 'link') {
+      return (
+        <button
+          key={i}
+          type="button"
+          className="underline cursor-pointer"
+          style={{ color: 'var(--accent)', textDecorationStyle: 'dotted' }}
+          onClick={() => onOpenDocument(span.doc_id)}
+        >
+          {span.text}
+        </button>
+      )
+    }
+    let node: ReactNode = span.text
+    if (span.bold) node = <strong key={i}>{node}</strong>
+    if (span.italic) node = <em key={i}>{node}</em>
+    return <span key={i}>{node}</span>
   })
-  if (cursor < block.text.length) nodes.push(block.text.slice(cursor))
-  return nodes
+}
+
+function Block({ block, onOpenDocument }: { block: DocumentBlock; onOpenDocument: (docId: string) => void }) {
+  const content = renderSpans(block.spans, onOpenDocument)
+
+  switch (block.type) {
+    case 'fact_label':
+      return (
+        <h3 className="text-sm font-bold uppercase tracking-wide mt-5 mb-2" style={{ color: 'var(--text)', fontFamily: DOC_FONT }}>
+          {content}
+        </h3>
+      )
+    case 'headnote':
+      return <div className="text-[15px] leading-relaxed whitespace-pre-wrap italic mb-2">{content}</div>
+    case 'counsel':
+      return (
+        <p className="text-sm mb-2" style={{ color: 'var(--text-faint)' }}>
+          {content}
+        </p>
+      )
+    default:
+      return (
+        <p className="mb-4 text-justify text-[15px] leading-relaxed" style={{ textIndent: '1.5em' }}>
+          {content}
+        </p>
+      )
+  }
 }
 
 export default function DocumentReader({ docId, apiBaseUrl, onClose, onOpenDocument }: DocumentReaderProps) {
-  const [blocks, setBlocks] = useState<DocumentBlock[] | null>(null)
+  const [doc, setDoc] = useState<FullDocument | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (docId === null) return
-    setBlocks(null)
+    setDoc(null)
     setError(null)
     fetch(`${apiBaseUrl}/documents/${docId}`)
       .then((response) => {
         if (!response.ok) throw new Error(`status ${response.status}`)
         return response.json()
       })
-      .then((data) => setBlocks(data.blocks))
+      .then((data) => setDoc(data))
       .catch(() => setError('Could not load document.'))
   }, [docId, apiBaseUrl])
 
@@ -92,20 +120,31 @@ export default function DocumentReader({ docId, apiBaseUrl, onClose, onOpenDocum
             </p>
           )}
 
-          {!error && !blocks && (
+          {!error && !doc && (
             <div className="space-y-3 animate-pulse" data-testid="document-reader-loading">
               <div className="h-5 w-3/4 rounded" style={{ background: 'var(--surface-hover)' }} />
+              <div className="h-3 w-1/3 rounded" style={{ background: 'var(--surface-hover)' }} />
               <div className="h-3 w-full rounded mt-6" style={{ background: 'var(--surface-hover)' }} />
               <div className="h-3 w-5/6 rounded" style={{ background: 'var(--surface-hover)' }} />
             </div>
           )}
 
-          {!error &&
-            blocks?.map((block, index) => (
-              <p key={index} className="mb-4 text-[15px] leading-relaxed" style={{ color: 'var(--text)' }}>
-                {renderBlockText(block, onOpenDocument)}
-              </p>
-            ))}
+          {!error && doc && (
+            <div style={{ color: 'var(--text)', fontFamily: DOC_FONT }}>
+              <h2 className="text-xl font-bold text-center leading-snug">{doc.subheading || doc.heading || doc.doc_id}</h2>
+              <div className="flex items-center justify-center gap-2 mt-2 mb-1 text-sm" style={{ color: 'var(--text-faint)' }}>
+                {doc.heading && <span>{doc.heading}</span>}
+                {doc.year && <span>· {doc.year}</span>}
+              </div>
+              <span className="block text-right text-xs mb-4" style={{ color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+                {doc.doc_id}
+              </span>
+
+              {doc.blocks.map((block, index) => (
+                <Block key={index} block={block} onOpenDocument={onOpenDocument} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
