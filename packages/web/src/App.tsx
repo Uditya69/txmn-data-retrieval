@@ -38,6 +38,49 @@ function loadConversations(): Conversation[] {
   }
 }
 
+// Trace steps carry full rerank chunk text and the synthesis prompt (see
+// ai_mode/citations.py, ai_mode/synthesize.py) - they're only ever shown
+// live behind devMode (ChatMessageView's TraceSection), so persisting them
+// serves no purpose and is what blows past localStorage's ~5-10MB quota
+// after a handful of chats.
+export function toPersistable(conversations: Conversation[]): Conversation[] {
+  return conversations.map((c) => ({
+    ...c,
+    messages: c.messages.map((m) =>
+      m.role === 'assistant'
+        ? {
+            ...m,
+            results: Object.fromEntries(
+              Object.entries(m.results).map(([mode, r]) => [mode, r ? { ...r, traceSteps: [] } : r]),
+            ) as Partial<Record<ChatMode, ResultState>>,
+          }
+        : m,
+    ),
+  }))
+}
+
+function isQuotaExceeded(err: unknown): boolean {
+  return err instanceof DOMException && (err.name === 'QuotaExceededError' || err.code === 22)
+}
+
+// Drops the oldest conversations (they're appended at the end - see
+// handleSubmit's `[newConversation, ...prev]`) until the write fits, instead
+// of letting an uncaught QuotaExceededError crash the whole app.
+export function persistConversations(conversations: Conversation[]) {
+  const payload = toPersistable(conversations)
+  for (let keep = payload.length; keep >= 0; keep -= 1) {
+    try {
+      localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(payload.slice(0, keep)))
+      return
+    } catch (err) {
+      if (!isQuotaExceeded(err)) {
+        console.error('Failed to persist conversations', err)
+        return
+      }
+    }
+  }
+}
+
 function titleFromQuestion(question: string) {
   return question.length > 48 ? `${question.slice(0, 48)}…` : question
 }
@@ -71,7 +114,7 @@ export default function App() {
   const messages = activeConversation?.messages ?? []
 
   useEffect(() => {
-    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(conversations))
+    persistConversations(conversations)
   }, [conversations])
 
   useEffect(() => {
