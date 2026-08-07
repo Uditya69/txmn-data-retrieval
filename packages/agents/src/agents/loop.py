@@ -5,6 +5,12 @@ from agents.tools import TOOL_SCHEMAS, dispatch_tool_call
 
 OnStep = Callable[[str, dict], Awaitable[None]]
 
+# Some models don't reliably converge on their own - observed live with
+# deepseek-ai/DeepSeek-V4-Flash-0731 making 33+ tool calls chasing
+# increasingly unrelated case names with no sign of stopping. Force a final
+# tools=[] call after this many rounds so the loop always terminates.
+MAX_TOOL_ROUNDS = 8
+
 SYSTEM_PROMPT = (
     "You are a legal research assistant over Indian case-law. Use the available "
     "search tools to find evidence before answering. Every claim in your final "
@@ -36,15 +42,18 @@ async def run_agent_loop(
 ) -> dict:
     messages = list(messages)
     seen_doc_ids = set(seen_doc_ids)
+    rounds = 0
 
     while True:
-        response = await gateway.chat_with_tools(role="agent_chat", messages=messages, tools=TOOL_SCHEMAS)
+        tools = TOOL_SCHEMAS if rounds < MAX_TOOL_ROUNDS else []
+        response = await gateway.chat_with_tools(role="agent_chat", messages=messages, tools=tools)
         tool_calls = response.get("tool_calls")
         if not tool_calls:
             answer = response.get("content") or ""
             messages.append({"role": "assistant", "content": answer})
             return {"answer": answer, "seen_doc_ids": seen_doc_ids, "messages": messages}
 
+        rounds += 1
         messages.append({"role": "assistant", "content": response.get("content"), "tool_calls": tool_calls})
         for call in tool_calls:
             name = call["function"]["name"]

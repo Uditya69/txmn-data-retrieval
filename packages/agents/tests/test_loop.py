@@ -1,6 +1,6 @@
 import pytest
 
-from agents.loop import build_initial_messages, run_agent_loop
+from agents.loop import MAX_TOOL_ROUNDS, build_initial_messages, run_agent_loop
 
 
 def test_build_initial_messages_has_system_and_user_turns():
@@ -132,3 +132,45 @@ async def test_loop_survives_malformed_json_arguments():
     tool_messages = [m for m in result["messages"] if m["role"] == "tool"]
     assert len(tool_messages) == 1
     assert "JSONDecodeError" in tool_messages[0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_loop_forces_a_final_answer_after_max_tool_rounds(monkeypatch):
+    """A model that never stops calling tools on its own (observed live with
+    deepseek-ai/DeepSeek-V4-Flash-0731 - 33+ rounds chasing increasingly
+    unrelated case names with no sign of converging) must not be able to
+    loop forever. After MAX_TOOL_ROUNDS rounds, force one final tools=[]
+    call so the model must answer from whatever it already retrieved."""
+    import agents.loop as loop_module
+
+    calls = {"n": 0}
+    chat_calls = []
+
+    class FakeGateway:
+        async def chat_with_tools(self, role, messages, tools, tool_choice=None):
+            calls["n"] += 1
+            chat_calls.append(tools)
+            if calls["n"] > MAX_TOOL_ROUNDS:
+                return {"content": "forced final answer from partial evidence", "tool_calls": None, "reasoning": None}
+            return {
+                "content": None,
+                "tool_calls": [{"id": f"call_{calls['n']}", "type": "function", "function": {
+                    "name": "search_es", "arguments": '{"query": "q"}',
+                }}],
+                "reasoning": None,
+            }
+
+    async def fake_dispatch_tool_call(name, arguments, *, gateway, es_client, milvus_client):
+        return {"rows": []}
+
+    monkeypatch.setattr(loop_module, "dispatch_tool_call", fake_dispatch_tool_call)
+
+    result = await run_agent_loop(
+        FakeGateway(), es_client=object(), milvus_client=object(),
+        messages=build_initial_messages("q"), seen_doc_ids=set(),
+    )
+
+    assert result["answer"] == "forced final answer from partial evidence"
+    # exactly MAX_TOOL_ROUNDS rounds of tool use, then one final no-tools call
+    assert calls["n"] == MAX_TOOL_ROUNDS + 1
+    assert chat_calls[-1] == []
