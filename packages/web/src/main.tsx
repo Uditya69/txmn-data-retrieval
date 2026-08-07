@@ -1,9 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App'
-import DebugPage from './DebugPage'
-import AgentPage from './AgentPage'
+import './index.css'
 
 const container = document.getElementById('root')
 if (!container) {
@@ -12,12 +10,6 @@ if (!container) {
 
 createRoot(container).render(
   <StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="/debug" element={<DebugPage />} />
-        <Route path="/agent" element={<AgentPage />} />
-      </Routes>
-    </BrowserRouter>
+    <App />
   </StrictMode>,
 )
