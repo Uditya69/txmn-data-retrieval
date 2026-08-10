@@ -50,22 +50,26 @@ class ChatRequest(BaseModel):
     messages: list[dict]
     tools: list[dict] | None = None
     tool_choice: str | None = None
+    model: str | None = None
 
 
 class EmbedRequest(BaseModel):
     role: str
     text: str
+    model: str | None = None
 
 
 class RerankRequest(BaseModel):
     role: str
     query: str
     documents: list[str]
+    model: str | None = None
 
 
 @router.post("/v1/chat")
 async def chat(req: ChatRequest, request: Request):
-    model, provider = _resolve(req.role)
+    default_model, provider = _resolve(req.role)
+    model = req.model or default_model
     langfuse = get_client()
     with langfuse.start_as_current_observation(
         as_type="generation",
@@ -103,7 +107,8 @@ async def embed(req: EmbedRequest, request: Request):
 
 @router.post("/v1/rerank")
 async def rerank(req: RerankRequest, request: Request):
-    model, provider = _resolve(req.role)
+    default_model, provider = _resolve(req.role)
+    model = req.model or default_model
     langfuse = get_client()
     with langfuse.start_as_current_observation(
         as_type="generation",

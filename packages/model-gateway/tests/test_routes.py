@@ -110,3 +110,49 @@ def test_chat_route_passes_tools_and_returns_tool_calls(monkeypatch):
 
     assert response.json()["tool_calls"] == [{"id": "call_1", "type": "function", "function": {"name": "search_es", "arguments": "{}"}}]
     fake_adapter.chat.assert_awaited_once_with("agent-model", [{"role": "user", "content": "hi"}], tools, "auto")
+
+
+def test_chat_route_uses_override_model_when_provided(monkeypatch):
+    fake_adapter = AsyncMock()
+    fake_adapter.chat.return_value = ("the answer", {}, None, None)
+    monkeypatch.setattr(routes_module, "get_adapter", lambda provider: fake_adapter)
+    monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"slm": "default-model"})
+    monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"slm": "deepinfra"})
+
+    client = TestClient(app)
+    response = client.post(
+        "/v1/chat",
+        json={"role": "slm", "messages": [{"role": "user", "content": "hi"}], "model": "candidate-model"},
+    )
+
+    assert response.status_code == 200
+    fake_adapter.chat.assert_awaited_once_with("candidate-model", [{"role": "user", "content": "hi"}], None, None)
+
+
+def test_chat_route_falls_back_to_role_default_when_model_omitted(monkeypatch):
+    fake_adapter = AsyncMock()
+    fake_adapter.chat.return_value = ("the answer", {}, None, None)
+    monkeypatch.setattr(routes_module, "get_adapter", lambda provider: fake_adapter)
+    monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"slm": "default-model"})
+    monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"slm": "deepinfra"})
+
+    client = TestClient(app)
+    client.post("/v1/chat", json={"role": "slm", "messages": [{"role": "user", "content": "hi"}]})
+
+    fake_adapter.chat.assert_awaited_once_with("default-model", [{"role": "user", "content": "hi"}], None, None)
+
+
+def test_rerank_route_uses_override_model_when_provided(monkeypatch):
+    fake_adapter = AsyncMock()
+    fake_adapter.rerank.return_value = [0.9, 0.1]
+    monkeypatch.setattr(routes_module, "get_adapter", lambda provider: fake_adapter)
+    monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"reranker": "default-reranker"})
+    monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"reranker": "deepinfra"})
+
+    client = TestClient(app)
+    client.post(
+        "/v1/rerank",
+        json={"role": "reranker", "query": "q", "documents": ["a", "b"], "model": "candidate-reranker"},
+    )
+
+    fake_adapter.rerank.assert_awaited_once_with("candidate-reranker", "q", ["a", "b"])
