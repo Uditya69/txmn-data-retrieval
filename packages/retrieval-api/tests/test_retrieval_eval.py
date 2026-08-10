@@ -232,3 +232,44 @@ async def test_evaluate_case_records_citation_validity_against_reranked_chunks(m
     assert result["citation_valid"] is False
     assert result["gold_cited"] is True
     assert result["synthesis_answer"] == "The point is settled [gold1] and also [not-retrieved2]."
+
+
+@pytest.mark.asyncio
+async def test_evaluate_case_skip_agentic_never_calls_run_agentic_search(monkeypatch):
+    import retrieval_api.retrieval_eval as module
+
+    async def fake_raw_search(client, query, limit=50):
+        return []
+
+    async def fake_hybrid(client, collections, dense_vector, sparse_query_text,
+                          doc_id_allowlist=None, limit=50):
+        return {name: [] for name in collections}
+
+    async def fake_intent(gateway, query, model=None):
+        return {"rewritten_query": query, "filters": {}, "intent": "test"}
+
+    async def fake_allowlist(es_client, filters):
+        return None
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("run_agentic_search must not be called when skip_agentic=True")
+
+    monkeypatch.setattr(module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
+    monkeypatch.setattr(module, "extract_intent", fake_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
+    monkeypatch.setattr(module, "run_agentic_search", fail_if_called)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    case = {"id": "Q01", "class": "direct", "query": "q", "gold_doc_ids": ["gold1"],
+            "expected_collections": ["facts"], "pass_at": 5}
+
+    result = await evaluate_case(
+        case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False, skip_agentic=True,
+    )
+
+    assert result["ranks"]["agentic"] is None
+    assert "agentic" not in result["errors"]
+    assert "agentic" not in result["timings_ms"]

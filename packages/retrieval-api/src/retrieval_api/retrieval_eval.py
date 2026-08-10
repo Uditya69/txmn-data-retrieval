@@ -111,7 +111,8 @@ def _agentic_hit_rank(doc_ids: list[str] | None, gold: set[str]) -> int | None:
 
 async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit: int = 50,
                         langfuse_enabled: bool = True, slm_model: str | None = None,
-                        reranker_model: str | None = None, synthesis_model: str | None = None) -> dict:
+                        reranker_model: str | None = None, synthesis_model: str | None = None,
+                        skip_agentic: bool = False) -> dict:
     query = case["query"]
     gold = set(case["gold_doc_ids"])
     langfuse = get_client()
@@ -194,13 +195,14 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                 citation_valid = not citation_invalid_ids
                 gold_cited = bool(gold & cited_ids)
 
-        agentic_result = await measured("agentic", run_agentic_search(gateway, es_client, milvus_client, query))
         agentic_doc_ids = None
-        if agentic_result is not None:
-            if agentic_result.get("ok"):
-                agentic_doc_ids = agentic_result.get("doc_ids")
-            else:
-                errors["agentic"] = f"unverifiable_answer: {agentic_result.get('invalid_doc_ids')}"
+        if not skip_agentic:
+            agentic_result = await measured("agentic", run_agentic_search(gateway, es_client, milvus_client, query))
+            if agentic_result is not None:
+                if agentic_result.get("ok"):
+                    agentic_doc_ids = agentic_result.get("doc_ids")
+                else:
+                    errors["agentic"] = f"unverifiable_answer: {agentic_result.get('invalid_doc_ids')}"
 
         ranks = {
             "es": doc_rank(es_rows, gold),
@@ -299,6 +301,7 @@ async def _run(args) -> int:
                 case, gateway, es_client, milvus_client, limit=args.limit,
                 langfuse_enabled=not args.no_langfuse,
                 slm_model=args.slm_model, reranker_model=args.reranker_model, synthesis_model=args.synthesis_model,
+                skip_agentic=args.skip_agentic,
             )
             results.append(result)
             ranks = result["ranks"]
@@ -354,6 +357,7 @@ def main() -> None:
     parser.add_argument("--reranker-model", help="override the DeepInfra model used for the reranker role")
     parser.add_argument("--synthesis-model", help="override the DeepInfra model used for the synthesis role")
     parser.add_argument("--sample12", action="store_true", help="scope to the fixed 12-query stratified sample")
+    parser.add_argument("--skip-agentic", action="store_true", help="skip the agentic tool-call stage (out of scope for AI Mode model comparisons)")
     parser.add_argument("--run-name", default="retrieval-eval")
     parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")
     parser.add_argument("--langfuse-base-url", help="override LANGFUSE_BASE_URL for host-side runs")
