@@ -122,9 +122,9 @@ async def test_chat_sends_explicit_max_tokens():
     # DeepInfra defaults an unset max_tokens to a value derived from the
     # largest models it serves (observed: 65536), which exceeds smaller
     # models' own context limits (e.g. Qwen3-30B-A3B's 40960) and 400s.
-    # Always send an explicit, small cap - every role here (JSON rewrite,
-    # rerank scoring is a separate endpoint, synthesis prose) is a
-    # short-output task.
+    # Always send an explicit cap sized under the smallest configured
+    # model's context limit (40960) - see _CHAT_MAX_TOKENS's comment for why
+    # this is headroom, not a proven-safe value for every reasoning-heavy role.
     route = respx.post("https://api.deepinfra.com/v1/openai/chat/completions").mock(
         return_value=httpx.Response(200, json={"choices": [{"message": {"content": "hi"}}]})
     )
@@ -133,4 +133,4 @@ async def test_chat_sends_explicit_max_tokens():
     await adapter.chat("some-model", [{"role": "user", "content": "hi"}])
 
     sent = json.loads(route.calls.last.request.content)
-    assert sent["max_tokens"] == 4096
+    assert sent["max_tokens"] == 32768

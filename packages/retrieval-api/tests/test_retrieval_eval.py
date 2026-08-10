@@ -235,6 +235,58 @@ async def test_evaluate_case_records_citation_validity_against_reranked_chunks(m
 
 
 @pytest.mark.asyncio
+async def test_evaluate_case_citation_valid_is_false_for_empty_synthesis_answer(monkeypatch):
+    import retrieval_api.retrieval_eval as module
+
+    async def fake_raw_search(client, query, limit=50):
+        return []
+
+    async def fake_hybrid(client, collections, dense_vector, sparse_query_text,
+                          doc_id_allowlist=None, limit=50):
+        suffix = "dense" if dense_vector is not None else "sparse"
+        return {name: [{"doc_id": "gold1", "chunk_id": f"gold1-{name}-{suffix}",
+                        "text": "gold text", "score": 1.0}] for name in collections}
+
+    async def fake_intent(gateway, query, model=None):
+        return {"rewritten_query": query, "filters": {}, "intent": "test"}
+
+    async def fake_allowlist(es_client, filters):
+        return None
+
+    async def fake_rerank(gateway, query, candidates, top_n=None, model=None):
+        return [{**candidates[0], "rerank_score": 1.0}]
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, model=None):
+        # Empty answer (e.g. synthesis timed out / was truncated) with zero
+        # cited ids - must not be vacuously "valid" just because there are no
+        # invalid citation ids to complain about.
+        return {"answer": "", "citations": {}, "reasoning": None}
+
+    async def fake_agentic(gateway, es_client, milvus_client, query):
+        return {"ok": True, "doc_ids": ["gold1"]}
+
+    monkeypatch.setattr(module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
+    monkeypatch.setattr(module, "extract_intent", fake_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
+    monkeypatch.setattr(module, "rerank_top_chunks", fake_rerank)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+    monkeypatch.setattr(module, "run_agentic_search", fake_agentic)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    case = {"id": "Q01", "class": "direct", "query": "q", "gold_doc_ids": ["gold1"],
+            "expected_collections": ["facts"], "pass_at": 5}
+
+    result = await evaluate_case(case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False)
+
+    assert result["synthesis_answer"] == ""
+    assert result["citation_invalid_ids"] == []
+    assert result["citation_valid"] is False
+
+
+@pytest.mark.asyncio
 async def test_evaluate_case_skip_agentic_never_calls_run_agentic_search(monkeypatch):
     import retrieval_api.retrieval_eval as module
 

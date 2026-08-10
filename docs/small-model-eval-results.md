@@ -31,9 +31,14 @@ done. Final candidates, confirmed present via `https://api.deepinfra.com/models/
 defaults an unset `max_tokens` to a value sized for its largest served model (observed:
 65536), which exceeds this model's own 40960 context limit. Fixed in
 `packages/model-gateway/src/model_gateway/adapters/deepinfra.py` by sending an explicit
-`max_tokens=4096` on every chat call (commit `c947a61`) — safe across all current roles,
-since every one of them is a short-output task (JSON rewrite, tool-call turns, synthesis
-prose).
+`max_tokens=4096` on every chat call (commit `c947a61`). That claim of "safe across all
+current roles" didn't hold up: since all of this round's eval runs used `--skip-agentic`,
+the always-on-reasoning `agent_chat` role (`Qwen/Qwen3-235B-A22B`) was never exercised
+against the cap, and this branch's own synthesis runs (below) show the same
+reasoning-vs-answer-token failure mode on a different reasoning-heavy model. A follow-up
+fix raised the cap to `32768` — still safely under the smallest context limit among
+currently configured models (40960) — as conservative headroom, not a proven-safe value
+for arbitrarily long reasoning traces.
 
 That fix itself exposed a second issue during the synthesis runs — see below.
 
@@ -64,7 +69,7 @@ adversarial ≤20 — see `docs/retrieval-eval-queries.md`):
 | baseline | 7/12 | 11/12 | 10/12 | 11/12 | 10/12 | 12/12 | 11/12 | **12/12** | **11/12** |
 | slm: Qwen3-30B-A3B | 7/12 | 11/12 | 10/12 | 11/12 | 10/12 | 12/12 | 11/12 | 11/12 | 11/12 |
 | reranker: Qwen3-Reranker-0.6B | 6/12 | 11/12 | 10/12 | 10/12 | 9/12 | 11/12 | 11/12 | 10/12 | 10/12 |
-| synthesis: Qwen3.6-35B-A3B | 5/12 | 11/12 | 10/12 | 11/12 | 10/12 | 12/12 | 11/12 | 8/12 | **3/12** ⚠️ |
+| synthesis: Qwen3.6-35B-A3B | 5/12 | 11/12 | 10/12 | 11/12 | 10/12 | 12/12 | 11/12 | 4/12 | **3/12** ⚠️ |
 | synthesis: Qwen3-VL-4B-Thinking | 7/12 | 11/12 | 10/12 | 11/12 | 10/12 | 12/12 | 11/12 | 10/12 | 9/12 |
 
 `es`'s run-to-run variance (7/6/5) is not caused by any model swap — `es` never touches
@@ -88,12 +93,21 @@ Slightly weaker across the board (es 6 vs 7, rewritten_sparse 9 vs 10, rrf 11 vs
 but these are all upstream of the reranker (embedding/search variance), not something
 the reranker itself controls. `reranker` stage pass rate is unchanged (11/12 both). One
 query (Q28) lost its gold hit entirely upstream (`rewritten_dense`/`rrf` both dropped to
-`>50`), which cascaded into a reranker/citation miss the smaller reranker couldn't have
-fixed regardless. **Verdict: reasonable shrink candidate, but the one real miss (Q28)
+`>50`) — but Q28's own `citation_valid` in this run is `True`, so that upstream miss did
+*not* cascade into a citation failure; it's purely an upstream retrieval-stage effect,
+unrelated to the reranker swap. The two actual citation-validity dips in this run
+(10/12 vs baseline's 12/12) are Q15 (invalid id `"2003"`) and Q47 (invalid id `"2010"`) —
+both bare-year false positives from the citation-token regex (the same artifact already
+diagnosed for the slm run's Q16/`"2021"` case above), not genuine hallucinations. The one
+real, reranker-attributable effect in this round is on Q47: `rrf` rank is unchanged at 1
+and the gold doc is still within the reranked/synthesis-cutoff window (reranker rank 4),
+yet `gold_cited` flips from baseline's `True` to `False` here — meaning the smaller
+reranker's *reordering* of otherwise-intact retrieval changed what the synthesis stage
+chose to cite. **Verdict: reasonable shrink candidate, but Q47's gold_cited regression
 should be spot-checked against a second run before trusting the smaller model in
-production** — it's not clear yet whether Q28's drop is reranker-model noise or
-coincidental retrieval-stage variance (the `es` variance pattern above suggests some of
-this round's runs simply had noisier upstream retrieval regardless of model changes).
+production** — it's the strongest real (non-artifact) evidence in this round that the
+reranker swap itself, not just upstream noise, can change synthesis-time citation
+outcomes.
 
 ### synthesis: Qwen3.6-35B-A3B — run compromised, do not trust these numbers
 
@@ -106,7 +120,11 @@ same request, i.e. roughly 4-5x more reasoning tokens than answer tokens. On the
 longer, multi-excerpt legal synthesis prompts, this model plausibly burns most or all of
 the 4096-token cap (added in the bugfix above) on `<think>` reasoning before it ever
 reaches the answer, producing an empty or truncated `synthesis_answer` with no exception
-raised (several queries show `errors: {}` but `synthesis_answer` length 0). **This is
+raised (several queries show `errors: {}` but `synthesis_answer` length 0 — these are
+exactly why `citation_valid` requires a non-empty answer, not just an absence of invalid
+citation ids: under that corrected definition this run's `citation_valid` count drops
+from 8/12 to **4/12**, since 4 of the 8 originally-"valid" queries had empty answers with
+zero invalid ids). **This is
 itself a real finding, not just an eval artifact**: as currently served on DeepInfra,
 this model's reasoning-to-answer token ratio makes it a poor fit for a latency-sensitive,
 short-answer synthesis role under any token budget small enough to be safe for the

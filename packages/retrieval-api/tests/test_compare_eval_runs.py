@@ -4,14 +4,17 @@ from pathlib import Path
 import pytest
 
 from retrieval_api.compare_eval_runs import (
-    build_comparison_table, citation_pass_rate, load_run, stage_pass_rate,
+    _print_table, build_comparison_table, citation_pass_rate, load_run, stage_pass_rate,
 )
 
 
-def _run(name, ranks_list, citation_valids):
+def _run(name, ranks_list, citation_valids, skip_agentic=False):
     return {
         "run_name": name,
-        "parameters": {"slm_model": None, "reranker_model": None, "synthesis_model": None},
+        "parameters": {
+            "slm_model": None, "reranker_model": None, "synthesis_model": None,
+            "skip_agentic": skip_agentic,
+        },
         "results": [
             {"id": f"Q{i}", "pass_at": 5, "ranks": ranks, "citation_valid": valid}
             for i, (ranks, valid) in enumerate(zip(ranks_list, citation_valids))
@@ -53,4 +56,27 @@ def test_build_comparison_table_reports_delta_vs_baseline():
         "run_name": "candidate",
         "stage_deltas": {"es": -1, "raw_dense": 0, "raw_sparse": 0, "rewritten_dense": 0, "rewritten_sparse": 0, "rrf": 0, "reranker": 0, "agentic": 0},
         "citation_pass_delta": -1,
+        "agentic_comparable": True,
     }]
+
+
+def test_build_comparison_table_flags_agentic_as_incomparable_when_skip_agentic_differs():
+    baseline = _run("baseline", [{"es": 1}], [True], skip_agentic=False)
+    candidate = _run("candidate", [{"es": 1}], [True], skip_agentic=True)
+
+    table = build_comparison_table(baseline, [candidate])
+
+    assert table[0]["agentic_comparable"] is False
+
+
+def test_print_table_warns_when_agentic_is_not_comparable(capsys):
+    baseline = _run("baseline", [{"es": 1}], [True], skip_agentic=False)
+    candidate = _run("candidate", [{"es": 1}], [True], skip_agentic=True)
+    table = build_comparison_table(baseline, [candidate])
+
+    _print_table(baseline, table)
+
+    out = capsys.readouterr().out
+    assert "candidate" in out
+    assert "agentic" in out.lower()
+    assert "not comparable" in out.lower() or "skip_agentic" in out.lower()

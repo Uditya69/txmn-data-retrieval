@@ -4,10 +4,20 @@ _BASE_URL = "https://api.deepinfra.com/v1"
 
 # DeepInfra defaults an unset max_tokens to a value derived from the largest
 # model it serves (observed: 65536), which exceeds smaller models' own
-# context limits (e.g. Qwen3-30B-A3B's 40960) and 400s. Every role that
-# calls chat() here is a short-output task - JSON rewrite, agent tool-call
-# turns, or synthesis prose - so a fixed cap is safe across roles/models.
-_CHAT_MAX_TOKENS = 4096
+# context limits (e.g. Qwen3-30B-A3B's 40960) and 400s.
+#
+# 32768 is sized to stay under the smallest context limit among currently
+# configured models (40960, shared by Qwen3-235B-A22B and Qwen3-30B-A3B; the
+# Llama-3.1 8B/70B roles allow 131072). It is NOT a "safe for every role"
+# constant: reasoning-heavy models (e.g. the deployed agent_chat role,
+# Qwen3-235B-A22B, which always emits reasoning_content) count reasoning
+# tokens against this budget, and this branch's own eval runs all used
+# --skip-agentic, so agent_chat was never exercised against this cap. A
+# reasoning turn that burns through the budget yields empty content, which
+# agents/loop.py silently treats as "the model is done" - no error raised.
+# Treat this as a conservative headroom increase over the old 4096, not a
+# proven-safe value for arbitrarily long reasoning traces.
+_CHAT_MAX_TOKENS = 32768
 
 
 def _openai_usage_details(usage: dict) -> dict[str, int]:

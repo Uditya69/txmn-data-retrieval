@@ -192,7 +192,16 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                 cited_ids = extract_cited_doc_ids(synthesis_answer)
                 citation_count = len(cited_ids)
                 citation_invalid_ids = sorted(cited_ids - seen_doc_ids)
-                citation_valid = not citation_invalid_ids
+                # citation_valid requires a non-empty answer, not just an absence of
+                # invalid citation ids - otherwise a timed-out/truncated-to-empty
+                # synthesis call (zero cited ids, zero invalid ids) would be
+                # vacuously "valid". gold_cited is computed independently: it only
+                # checks whether the gold doc_id appears among cited ids, so a
+                # citation drawn from a hallucinated/invalid set can still make
+                # gold_cited True even when citation_valid is False - the two
+                # fields answer different questions ("did it answer faithfully"
+                # vs "did it land on the right doc at all").
+                citation_valid = bool(synthesis_answer) and not citation_invalid_ids
                 gold_cited = bool(gold & cited_ids)
 
         agentic_doc_ids = None
@@ -327,6 +336,7 @@ async def _run(args) -> int:
                 "slm_model": args.slm_model,
                 "reranker_model": args.reranker_model,
                 "synthesis_model": args.synthesis_model,
+                "skip_agentic": args.skip_agentic,
             },
             "results": results,
         }
