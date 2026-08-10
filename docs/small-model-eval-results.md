@@ -214,3 +214,46 @@ model choice for the `slm` role breaks every AI Mode query (gateway 500 →
 `ai_mode_error`). Any future candidate for the `slm` role must be confirmed to support
 DeepInfra's `json_object` response format before being adopted; `Qwen/Qwen3-30B-A3B`
 (the currently adopted `slm` model, above) does support it.
+
+### slm: google/gemma-4-26B-A4B-it adopted, superseding Qwen3-30B-A3B
+
+A sibling Gemma-4 variant (26B total, MoE-style ~4B-active naming, distinct from the
+rejected dense `gemma-4-E4B-it`) was checked against the same rejection criterion first —
+confirmed it echoes its own model name back in DeepInfra's response (not silently
+substituted, see the aliasing warning below) and supports `response_format: json_object`
+(unlike `gemma-4-E4B-it`). Run against `evals/intent_filter_cases.json` (the prompt-only
+gold-filter checker, `retrieval_api.intent_eval`, no ES/Milvus):
+
+| Run | Pass count | Notes |
+|---|---|---|
+| Qwen3-30B-A3B (baseline, run 1) | 8/12 | fails F01, F02, F06, F11 — see Task 5 of the intent-extraction-redesign plan |
+| Qwen3-30B-A3B (baseline, run 2) | 5/12 | fails F01, F03, F04, F06, F08, F11; F02 errored transiently. Same model, same dataset — run-to-run variance is real and non-trivial for this checker. |
+| **google/gemma-4-26B-A4B-it (candidate)** | **9/12** | fails F01, F04, F06 — all over-inclusive values (extra correct-but-unlisted key, or a correct core value with extra trailing text), never a wrong-key or invented-value failure. Notably gets `bench` right on F06 (`{"court": "...", "bench": "Principal Bench"}`), which the baseline never did in either run (baseline mislabeled it under `party` both times). |
+
+**Adopted.** `DEEPINFRA_CHAT_MODEL_SLM` is now `google/gemma-4-26B-A4B-it` in `.env.example`.
+Caveat: only two baseline runs and one candidate run exist, and baseline's own 5-vs-8
+swing shows this checker is noisy at n=12 — treat the 9/12 vs {5,8}/12 gap as suggestive,
+not conclusive, and re-run before making it a hard dependency for anything beyond this
+role's current use.
+
+### DeepInfra silently substitutes deprecated model names — no error, no warning
+
+While checking sibling model candidates, direct calls to
+`https://api.deepinfra.com/v1/openai/chat/completions` with
+`"model": "meta-llama/Llama-3.2-3B-Instruct"` returned a response labeled
+`"model": "google/gemma-4-31B-it"` — a completely different model family and size,
+substituted with **no error and no warning**, reproduced with and without
+`response_format`. The same request pattern against `meta-llama/Meta-Llama-3.1-70B-Instruct`
+(the currently live `DEEPINFRA_CHAT_MODEL_SYNTHESIS`) came back labeled
+`meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo` — a less severe substitution (same base
+model, different serving tier) but still not what was requested.
+
+This casts doubt on the round-2 synthesis eval's `Llama-3.2-3B-Instruct` result above: that
+run scored nearly identically to `gemma-4-E4B-it` (11/12 citation-valid, 10/12 gold-cited
+for both), which is exactly what you'd expect if the "Llama-3.2-3B-Instruct" row was
+silently actually testing a Gemma model. **That result should be re-verified against the
+live model name (confirm the response's `"model"` field echoes the request) before being
+used as the basis for adopting `Llama-3.2-3B-Instruct` for anything.** More generally:
+before trusting any eval run against a DeepInfra model name, confirm the response's
+`"model"` field matches what was requested — DeepInfra does not error on a stale/retired
+name, it silently reroutes.
