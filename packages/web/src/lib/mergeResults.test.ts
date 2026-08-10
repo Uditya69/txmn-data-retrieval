@@ -26,8 +26,8 @@ describe('mergeResults', () => {
       ruling: [{ chunk_id: 'd2::ruling::0', doc_id: 'd2', text: 'ruling chunk', score: 3 }],
     }
     expect(mergeResults([], milvus)).toEqual([
-      { doc_id: 'd1', source: 'milvus', collection: 'held', score: 9, snippet: 'held chunk' },
-      { doc_id: 'd2', source: 'milvus', collection: 'ruling', score: 3, snippet: 'ruling chunk' },
+      { doc_id: 'd1', source: 'milvus_dense', collection: 'held', score: 9, snippet: 'held chunk' },
+      { doc_id: 'd2', source: 'milvus_dense', collection: 'ruling', score: 3, snippet: 'ruling chunk' },
     ])
   })
 
@@ -41,7 +41,32 @@ describe('mergeResults', () => {
     }
     expect(mergeResults(es, milvus)).toEqual([
       { doc_id: 'd1', source: 'es', score: 1, heading: 'Heading 1', snippet: 'es hit' },
-      { doc_id: 'd2', source: 'milvus', collection: 'facts', score: 2, snippet: 'milvus only' },
+      { doc_id: 'd2', source: 'milvus_dense', collection: 'facts', score: 2, snippet: 'milvus only' },
+    ])
+  })
+
+  it('keeps Milvus sparse cards independent of dense cards, even for the same doc_id', () => {
+    const milvusDense = {
+      facts: [{ chunk_id: 'd1::facts::0', doc_id: 'd1', text: 'dense chunk', score: 5 }],
+    }
+    const milvusSparse = {
+      facts: [{ chunk_id: 'd1::facts::0', doc_id: 'd1', text: 'sparse chunk', score: 7 }],
+      held: [{ chunk_id: 'd2::held::0', doc_id: 'd2', text: 'sparse only', score: 4 }],
+    }
+    expect(mergeResults([], milvusDense, milvusSparse)).toEqual([
+      { doc_id: 'd1', source: 'milvus_dense', collection: 'facts', score: 5, snippet: 'dense chunk' },
+      { doc_id: 'd1', source: 'milvus_sparse', collection: 'facts', score: 7, snippet: 'sparse chunk' },
+      { doc_id: 'd2', source: 'milvus_sparse', collection: 'held', score: 4, snippet: 'sparse only' },
+    ])
+  })
+
+  it('suppresses Milvus sparse cards whose doc_id already appeared in ES', () => {
+    const es = [{ doc_id: 'd1', score: 1, heading: 'Heading 1', subheading: 'es hit' }]
+    const milvusSparse = {
+      facts: [{ chunk_id: 'd1::facts::0', doc_id: 'd1', text: 'already in es, ignored', score: 999 }],
+    }
+    expect(mergeResults(es, {}, milvusSparse)).toEqual([
+      { doc_id: 'd1', source: 'es', score: 1, heading: 'Heading 1', snippet: 'es hit' },
     ])
   })
 })
