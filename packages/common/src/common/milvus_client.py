@@ -4,7 +4,7 @@ import json
 from pymilvus import MilvusClient
 
 from common.config import Settings
-from common.schemas import BM25_SOURCE_FIELD
+from common.schemas import BM25_SOURCE_FIELD, SPARSE_VECTOR_COLLECTIONS
 
 # "metadata" is a doc-level collection (one row per document, keyed by doc_id
 # itself) - every other collection is chunked with its own chunk_id primary key.
@@ -60,6 +60,8 @@ async def hybrid_search(
     doc_id_allowlist: list[str] | None = None,
     limit: int = 50,
 ) -> dict[str, list[dict]]:
+    if dense_vector is None:
+        collections = [c for c in collections if c in SPARSE_VECTOR_COLLECTIONS]
     filter_expr = _doc_id_filter(doc_id_allowlist)
     results = await asyncio.gather(*[
         asyncio.to_thread(_search_one, client, collection, dense_vector, sparse_query_text, limit, filter_expr)

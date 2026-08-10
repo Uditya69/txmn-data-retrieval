@@ -63,7 +63,7 @@ async def _run_milvus(
             dense_result = _apply_elbow_cutoff_per_collection(dense_result)
             sparse_result = _apply_elbow_cutoff_per_collection(sparse_result)
             span.update(output={
-                collection: {"dense": len(dense_result[collection]), "sparse": len(sparse_result[collection])}
+                collection: {"dense": len(dense_result[collection]), "sparse": len(sparse_result.get(collection, []))}
                 for collection in dense_result
             })
             if on_step is not None:
