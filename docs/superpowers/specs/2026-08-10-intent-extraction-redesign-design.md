@@ -1,10 +1,16 @@
 # Intent extraction redesign — design
 
 Redesign of AI Mode's `slm` stage (`packages/retrieval-api/src/retrieval_api/ai_mode/intent.py`):
-enforce schema-valid model output instead of prompt-only free text, extract the full set
-of filterable ES fields, and give the currently-dead `intent` label an actual downstream
-effect. Motivated by user report: extraction "feels random" — rewrites/filters aren't
-reliably grounded in the corpus schema.
+enforce schema-valid model output instead of prompt-only free text, and extract the full
+set of filterable ES fields. Motivated by user report: extraction "feels random" —
+rewrites/filters aren't reliably grounded in the corpus schema.
+
+**Phased**: get intent/filter extraction schema-correct and confidence-checked first
+(Phase 1, this plan). Retrieval-side changes — including using the `intent` label for
+anything at all — are explicitly deferred to a later Phase 2, once Phase 1 is trusted and
+the retrieval pipeline itself is more settled ("its not mature atp"). This plan does not
+wire `intent` into RRF weighting or anything else; `intent` remains classified and emitted
+on the trace event, same as today, just via the new schema-enforced mechanism.
 
 ## Problems found (current state)
 
@@ -20,7 +26,9 @@ reliably grounded in the corpus schema.
    filter no matter how well the model classifies.
 3. **`intent` is dead output.** Computed, validated, emitted on the `on_step` trace event —
    and never read by `pipeline.py` or `retrieve.py`. Classifying it costs a share of the
-   model's attention/tokens for no behavioral effect.
+   model's attention/tokens for no behavioral effect. **Out of scope for this plan** — see
+   Phasing above; this plan keeps `intent` classified-but-unused, same as today, and only
+   fixes *how* it (and the filters) get extracted.
 4. **No filter-accuracy eval dataset.** The existing 53-query set
    (`docs/retrieval-eval-queries.md`) has gold `doc_id`s for retrieval-rank scoring only —
    no query has a documented gold filter extraction. Today there is no automated signal
@@ -33,17 +41,20 @@ reliably grounded in the corpus schema.
 
 ## Non-goals / explicit constraints
 
-- **No intent-based Milvus collection routing** (CLAUDE.md hard rule). The 7 Milvus
-  collections are different textual facets of the *same* judgments (summary, digest,
-  headnotes, facts, held, ruling, metadata), not topical categories — skipping one based
-  on a fallible classifier risks silently losing the exact passage that answers the
-  query. Intent's influence is scoped to **ranking only** (RRF weighting), which cannot
-  reduce recall the way collection-skipping would.
-- Not attempting citation-lookup query fast-paths, synthesis prompt-shape changes, or any
-  other intent consumer beyond RRF weighting in this pass — those are separate,
-  independently-scoped future work if desired.
+- **No retrieval-side changes of any kind in this plan** — that includes RRF weighting,
+  any other `intent` consumer, and any change to `retrieve.py`. Deferred to Phase 2 per
+  the Phasing note above, once Phase 1's extraction is trusted and the retrieval pipeline
+  is more settled. `intent`'s eventual Phase-2 use is still constrained by CLAUDE.md's
+  hard rule against intent-based Milvus collection routing — the 7 Milvus collections are
+  different textual facets of the *same* judgments (summary, digest, headnotes, facts,
+  held, ruling, metadata), not topical categories, so any future use of `intent` should
+  stay ranking-only (e.g. RRF weighting), never collection selection.
+- Not attempting citation-lookup query fast-paths or synthesis prompt-shape changes.
 - Not changing `_safe_rewrite`'s or `_sanitize_filters`'s anti-hallucination logic — those
   guard against the model inventing content even inside a valid schema, and stay as-is.
+- No full `retrieval_eval.py` retrieval-rank run in this plan (that exercises the
+  retrieval pipeline, which is out of scope). Model/mechanism confidence comes only from
+  the prompt-only gold-filter check (item 4 below).
 
 ## Design
 
@@ -83,18 +94,19 @@ Add `bench` and `judge`:
 - `court`'s known unreliability (frequently empty across the corpus, per `es_client.py`'s
   existing comment) is left as-is; not fixed by this design, just not made worse.
 
-### 3. Intent taxonomy → RRF weighting
+### 3. Intent taxonomy (classification only — no consumer yet)
 
 Four labels: `citation_lookup` (query anchored on a party/case name or citation),
 `provision_lookup` (anchored on a section/act/rule number), `conceptual` (open legal
 question, no strong lexical anchor), `unknown` (fallback — anything the model can't
 confidently classify, including today's `_fallback_intent` degrade path).
 
-`retrieve.py`'s RRF stage takes an intent-derived weight pair (dense_weight,
-sparse_weight): `citation_lookup`/`provision_lookup` bias sparse higher (lexical/BM25
-signal is more reliable for exact-anchor queries), `conceptual` biases dense higher,
-`unknown` keeps today's neutral 50/50 — meaning any query the model can't classify gets
-exactly today's behavior, not a new failure mode.
+This enum is defined now (it's part of the schema in item 1) so the model has a concrete,
+constrained target to classify into rather than an open-ended "one short label" string —
+that constraint itself is expected to improve classification consistency. But nothing
+consumes the label yet; it's emitted on the `on_step` trace event exactly as today. Phase 2
+(separate plan, later) decides how the label affects retrieval, e.g. RRF dense/sparse
+weighting — and per the Non-goals section above, that consumer must stay ranking-only.
 
 ### 4. Filter-accuracy eval dataset
 
@@ -107,22 +119,22 @@ file TBD at plan time — likely a new `evals/intent_filters.json` mirroring
 query and asserts the extracted filters match the gold dict (allowing the model's exact
 string casing/formatting where the corpus itself doesn't canonicalize).
 
-### 5. Model candidate: gemma-4-E4B-it
+### 5. Model candidate: gemma-4-E4B-it — prompt-only validation
 
-Two-stage validation before adoption, cheapest-first:
-1. **Prompt-only pass**: run `extract_intent` directly (no ES/Milvus) against the new
-   gold-filter set and a handful of rewrite-quality queries; eyeball/assert against gold.
-2. **Full retrieval-rank pass**: one run of the existing 12-query stratified sample via
-   `retrieval_eval.py --slm-model google/gemma-4-E4B-it`. This **cannot** use the
-   `--cache-dir` stage cache the way synthesis-only comparisons did — `slm_model` is part
-   of the cache key precisely because it changes `rewritten_query`, which changes the
-   embedding and everything downstream. One full (~7-9 min) run is unavoidable.
+Per the phasing decision, this plan does **not** run the full `retrieval_eval.py`
+retrieval-rank sample (that exercises retrieval, which is explicitly deferred). Validation
+is the prompt-only gold-filter check from item 4: run `extract_intent` directly (no
+ES/Milvus) with `model="google/gemma-4-E4B-it"` against the gold-filter set and a handful
+of rewrite-quality queries, and compare pass rate against the same check run with the
+current `Qwen/Qwen3-30B-A3B`.
 
-Adopt `gemma-4-E4B-it` for `DEEPINFRA_CHAT_MODEL_SLM` only if step 2 shows no retrieval-rank
-regression vs. the current `Qwen/Qwen3-30B-A3B` baseline (same bar `docs/small-model-eval-
-results.md` used to adopt Qwen3-30B-A3B originally). If it regresses, keep
-`Qwen/Qwen3-30B-A3B` and land steps 1-4 above independently of the model swap — the schema/
-filter/intent-weighting redesign is valuable regardless of which model sits behind it.
+Adopt `gemma-4-E4B-it` for `DEEPINFRA_CHAT_MODEL_SLM` if it matches or beats
+`Qwen/Qwen3-30B-A3B` on this check. If it's worse, keep `Qwen/Qwen3-30B-A3B` and land items
+1-4 above independently of the model swap — the schema/filter-extraction redesign is
+valuable regardless of which model sits behind it. Either way, a full retrieval-rank
+confirmation (the two-stage validation originally proposed) is Phase 2/future work, once
+retrieval-side changes are actually happening and there's a reason to re-run the full
+pipeline eval anyway.
 
 ## Error handling
 
@@ -140,8 +152,6 @@ filter/intent-weighting redesign is valuable regardless of which model sits behi
 - `intent.py`: existing tests updated for the new schema call path (mock `gateway.chat`
   returning schema-mode JSON directly, no more brace-finding fixture inputs needed) plus
   new tests for `bench`/`judge` sanitization and the 4-value intent enum.
-- `retrieve.py`: new tests for RRF weighting per intent label, including the `unknown` →
-  today's-50/50 no-regression case.
 - `es_client.py`: new test for `bench`/`judge` term-filter construction.
 - `GatewayClient`/DeepInfra adapter: new test asserting `response_format` is passed
   through on the chat call when provided.
