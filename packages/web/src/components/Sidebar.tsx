@@ -30,7 +30,7 @@ export default function Sidebar({ conversations, activeId, collapsed, onToggleCo
   if (collapsed) {
     return (
       <div
-        className="shrink-0 flex flex-col items-center gap-3 py-4 px-2"
+        className="shrink-0 h-screen sticky top-0 flex flex-col items-center gap-3 py-4 px-2"
         style={{ width: 56, borderRight: '1px solid var(--border-soft)', background: 'var(--surface)' }}
       >
         <button
@@ -50,7 +50,7 @@ export default function Sidebar({ conversations, activeId, collapsed, onToggleCo
 
   return (
     <div
-      className="shrink-0 flex flex-col py-4 px-3"
+      className="shrink-0 h-screen sticky top-0 flex flex-col py-4 px-3"
       style={{ width: 260, borderRight: '1px solid var(--border-soft)', background: 'var(--surface)' }}
     >
       <div className="flex items-center justify-between px-1 mb-3">
