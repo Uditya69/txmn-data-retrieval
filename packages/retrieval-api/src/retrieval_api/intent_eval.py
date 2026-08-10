@@ -32,7 +32,11 @@ async def run(gateway_url: str, model: str | None, dataset_path: str | Path) -> 
     gateway = GatewayClient(base_url=gateway_url, trace_enabled=False)
     passed = 0
     for case in cases:
-        result = await extract_intent(gateway, case["query"], model=model)
+        try:
+            result = await extract_intent(gateway, case["query"], model=model)
+        except Exception as exception:
+            print(f"ERROR {case['id']}: {exception}")
+            continue
         ok = check_intent_case(case["expected_filters"], result["filters"])
         passed += ok
         status = "PASS" if ok else "FAIL"

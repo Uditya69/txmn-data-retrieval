@@ -197,3 +197,20 @@ this run shows it performing as well as the Gemma candidate here.
   12-query sample. The stage cache (`--cache-dir`, `eval-stage-cache` branch) makes that
   full-set run cheap for synthesis-only re-checks — retrieval only needs to run once at
   full scale, then any number of synthesis candidates can be tried against it.
+
+## Later findings
+
+### slm: gemma-4-E4B-it rejected — DeepInfra returns HTTP 405 for `response_format: json_object`
+
+During the intent-extraction redesign (structured-output rewrite of `ai_mode/intent.py`,
+which sends `response_format: {"type": "json_object"}` unconditionally on every `slm`-role
+call, with no fallback), `google/gemma-4-E4B-it` was evaluated as a candidate for the
+`slm` role and rejected: DeepInfra's chat completions endpoint returns **HTTP 405** for
+this model when `response_format: {"type": "json_object"}` is requested, even though the
+model performed well for the `synthesis` role in the round-2 eval above (which does not
+use `response_format`). Not every model DeepInfra hosts supports JSON-mode structured
+output, and this failure mode has no graceful degradation in `intent.py` — an incompatible
+model choice for the `slm` role breaks every AI Mode query (gateway 500 →
+`ai_mode_error`). Any future candidate for the `slm` role must be confirmed to support
+DeepInfra's `json_object` response format before being adopted; `Qwen/Qwen3-30B-A3B`
+(the currently adopted `slm` model, above) does support it.

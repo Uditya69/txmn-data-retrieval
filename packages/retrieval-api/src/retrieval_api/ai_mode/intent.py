@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Awaitable, Callable
 
 from langfuse import get_client
@@ -109,7 +110,6 @@ _LEGAL_MARKERS = {
 
 
 def _protected_identifiers(text: str) -> set[str]:
-    import re
     tokens = re.findall(r"\b[A-Za-z0-9][A-Za-z0-9()/-]*\b", text)
     return {
         token.upper() for token in tokens
@@ -119,7 +119,6 @@ def _protected_identifiers(text: str) -> set[str]:
 
 
 def _safe_rewrite(query: str, rewritten: str) -> str:
-    import re
     query_lower, rewritten_lower = query.casefold(), rewritten.casefold()
     if any(marker in rewritten_lower and marker not in query_lower for marker in _LEGAL_MARKERS):
         return query
@@ -137,7 +136,6 @@ def _safe_rewrite(query: str, rewritten: str) -> str:
 
 
 def _sanitize_filters(query: str, filters) -> dict:
-    import re
     if not isinstance(filters, dict):
         return {}
     clean = {}
@@ -192,7 +190,7 @@ async def extract_intent(
     )
     try:
         result = json.loads(response)
-    except json.JSONDecodeError:
+    except (TypeError, json.JSONDecodeError):
         get_client().update_current_span(
             level="WARNING", status_message=f"SLM did not return valid JSON, falling back to plain search: {response!r}",
         )

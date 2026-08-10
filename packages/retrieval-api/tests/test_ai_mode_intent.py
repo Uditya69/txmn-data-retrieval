@@ -75,6 +75,20 @@ async def test_extract_intent_falls_back_to_plain_search_on_unparseable_response
 
 
 @pytest.mark.asyncio
+async def test_extract_intent_falls_back_when_response_is_none():
+    """A provider can return a null/empty completion for `content`; json.loads(None)
+    raises TypeError (not JSONDecodeError) and must still degrade to the fallback
+    instead of propagating an unhandled exception."""
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = None
+
+    result = await extract_intent(gateway, "some query")
+
+    assert result == {"rewritten_query": "some query", "intent": "unknown", "filters": {}}
+
+
+@pytest.mark.asyncio
 async def test_extract_intent_system_prompt_includes_schema_context_and_new_fields():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"

@@ -270,7 +270,7 @@ async def test_resolve_doc_id_allowlist_queries_masterinfo_bench_term():
 
     assert result == ["d1"]
     assert client.search_calls[0] == {
-        "bool": {"must": [{"term": {"masterinfo.info.bench.keyword": "Principal Bench"}}]}
+        "bool": {"must": [{"term": {"masterinfo.info.bench.name.keyword": "Principal Bench"}}]}
     }
 
 
@@ -282,7 +282,7 @@ async def test_resolve_doc_id_allowlist_queries_otherinfo_judge_term():
 
     assert result == ["d1"]
     assert client.search_calls[0] == {
-        "bool": {"must": [{"term": {"otherinfo.judge.keyword": "D.Y. Chandrachud"}}]}
+        "bool": {"must": [{"term": {"otherinfo.judge.name.keyword": "D.Y. Chandrachud"}}]}
     }
 
 
