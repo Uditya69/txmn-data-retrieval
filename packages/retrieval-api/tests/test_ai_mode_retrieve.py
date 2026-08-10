@@ -213,6 +213,42 @@ async def test_retrieve_defaults_intent_param_to_unknown_when_omitted(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_retrieve_kill_switch_forces_neutral_weighting_regardless_of_intent(monkeypatch):
+    """When intent_rrf_weighting_enabled is False, even an intent that would
+    normally skew the merge (e.g. citation_lookup -> dense_weight=0.5,
+    sparse_weight=1.5) must resolve to neutral (1.0, 1.0)."""
+    import retrieval_api.ai_mode.retrieve as module
+
+    class FakeSettings:
+        intent_rrf_weighting_enabled = False
+
+    monkeypatch.setattr(module, "get_settings", lambda: FakeSettings())
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        if dense_vector is not None:
+            return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "dense", "score": 0.9}]}
+        return {"ruling": [{"chunk_id": "c", "doc_id": "d2", "text": "sparse", "score": 5.0}]}
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    await module.retrieve(
+        gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=None,
+        intent="citation_lookup", on_step=on_step,
+    )
+
+    rrf_step = next(data for step, data in steps if step == "rrf_merge")
+    assert rrf_step["dense_weight"] == 1.0
+    assert rrf_step["sparse_weight"] == 1.0
+
+
+@pytest.mark.asyncio
 async def test_retrieve_includes_resolved_weights_in_rrf_merge_trace_step(monkeypatch):
     import retrieval_api.ai_mode.retrieve as module
 

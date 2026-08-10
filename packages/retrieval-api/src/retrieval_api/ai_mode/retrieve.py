@@ -1,3 +1,4 @@
+from common.config import get_settings
 from common.milvus_client import hybrid_search
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
@@ -40,7 +41,9 @@ async def retrieve(
     intent: str = "unknown",
     on_step: OnStep | None = None,
 ) -> list[dict]:
-    dense_weight, sparse_weight = _INTENT_RRF_WEIGHTS.get(intent, (1.0, 1.0))
+    dense_weight, sparse_weight = (
+        _INTENT_RRF_WEIGHTS.get(intent, (1.0, 1.0)) if get_settings().intent_rrf_weighting_enabled else (1.0, 1.0)
+    )
 
     dense_vector = await gateway.embed(role="query_embed", text=rewritten_query)
 

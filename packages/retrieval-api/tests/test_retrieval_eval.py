@@ -119,6 +119,85 @@ async def test_evaluate_case_reports_each_retrieval_stage(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_evaluate_case_threads_intent_rrf_weights_into_rrf_merge(monkeypatch):
+    """The eval harness must resolve _INTENT_RRF_WEIGHTS from the classified
+    intent and pass them into rrf_merge - a prior version of this harness
+    called rrf_merge with no weight kwargs at all, which meant the harness
+    could never actually exercise intent-driven weighting regardless of what
+    retrieve.py did."""
+    import retrieval_api.retrieval_eval as module
+    from retrieval_api.ai_mode.retrieve import rrf_merge as real_rrf_merge
+
+    async def fake_raw_search(client, query, limit=50):
+        return []
+
+    async def fake_hybrid(client, collections, dense_vector, sparse_query_text,
+                          doc_id_allowlist=None, limit=50):
+        return {name: [] for name in collections}
+
+    async def fake_allowlist(es_client, filters):
+        return None
+
+    calls = []
+
+    def spy_rrf_merge(*args, **kwargs):
+        calls.append(kwargs)
+        return real_rrf_merge(*args, **kwargs)
+
+    monkeypatch.setattr(module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
+    monkeypatch.setattr(module, "rrf_merge", spy_rrf_merge)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+    case = {"id": "Q1", "class": "direct", "query": "q", "gold_doc_ids": ["gold1"],
+            "expected_collections": ["facts"], "pass_at": 5}
+
+    for label, weights in (
+        ("citation_lookup", (0.5, 1.5)),
+        ("provision_lookup", (0.5, 1.5)),
+        ("conceptual", (1.5, 0.5)),
+    ):
+        async def fake_intent(gateway, query, model=None, _label=label):
+            return {"rewritten_query": query, "filters": {}, "intent": _label}
+        monkeypatch.setattr(module, "extract_intent", fake_intent)
+
+        await evaluate_case(
+            case, gateway, es_client=object(), milvus_client=object(),
+            langfuse_enabled=False, skip_agentic=True,
+        )
+
+        assert calls[-1]["dense_weight"] == weights[0]
+        assert calls[-1]["sparse_weight"] == weights[1]
+
+    # "unknown" intent (a real classification label) must resolve to neutral.
+    async def fake_intent_unknown(gateway, query, model=None):
+        return {"rewritten_query": query, "filters": {}, "intent": "unknown"}
+    monkeypatch.setattr(module, "extract_intent", fake_intent_unknown)
+
+    await evaluate_case(
+        case, gateway, es_client=object(), milvus_client=object(),
+        langfuse_enabled=False, skip_agentic=True,
+    )
+    assert calls[-1]["dense_weight"] == 1.0
+    assert calls[-1]["sparse_weight"] == 1.0
+
+    # A falsy `intent` result (e.g. extract_intent raised and measured()
+    # swallowed it to None) must also resolve to neutral, not raise.
+    async def fake_intent_none(gateway, query, model=None):
+        raise RuntimeError("intent extraction failed")
+    monkeypatch.setattr(module, "extract_intent", fake_intent_none)
+
+    await evaluate_case(
+        case, gateway, es_client=object(), milvus_client=object(),
+        langfuse_enabled=False, skip_agentic=True,
+    )
+    assert calls[-1]["dense_weight"] == 1.0
+    assert calls[-1]["sparse_weight"] == 1.0
+
+
+@pytest.mark.asyncio
 async def test_evaluate_case_records_agentic_hit_when_gold_doc_cited(monkeypatch):
     import retrieval_api.retrieval_eval as eval_module
 

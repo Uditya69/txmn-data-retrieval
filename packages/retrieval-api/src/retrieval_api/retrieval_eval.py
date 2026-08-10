@@ -22,7 +22,7 @@ from retrieval_api.ai_mode.citations import prefetch_citations
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
 from retrieval_api.ai_mode.intent import extract_intent
 from retrieval_api.ai_mode.rerank import rerank_top_chunks
-from retrieval_api.ai_mode.retrieve import _flatten, rrf_merge
+from retrieval_api.ai_mode.retrieve import _flatten, _INTENT_RRF_WEIGHTS, rrf_merge
 from retrieval_api.ai_mode.synthesize import synthesize
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.score_cutoff import elbow_cutoff
@@ -200,7 +200,11 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                 doc_id_allowlist=allowlist, limit=limit,
             )) or {name: [] for name in MILVUS_COLLECTIONS}
 
-            merged = rrf_merge(_flatten(rewritten_dense), _flatten(rewritten_sparse))
+            dense_weight, sparse_weight = _INTENT_RRF_WEIGHTS.get(intent.get("intent"), (1.0, 1.0)) if intent else (1.0, 1.0)
+            merged = rrf_merge(
+                _flatten(rewritten_dense), _flatten(rewritten_sparse),
+                dense_weight=dense_weight, sparse_weight=sparse_weight,
+            )
             reranked = await measured(
                 "reranker", rerank_top_chunks(gateway, query, merged, top_n=len(merged), model=reranker_model),
             ) if merged else []
