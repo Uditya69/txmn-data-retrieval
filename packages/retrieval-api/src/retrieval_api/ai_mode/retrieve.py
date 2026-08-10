@@ -4,14 +4,24 @@ from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.trace_utils import collection_trace
 
+_INTENT_RRF_WEIGHTS: dict[str, tuple[float, float]] = {
+    "citation_lookup": (0.5, 1.5),
+    "provision_lookup": (0.5, 1.5),
+    "conceptual": (1.5, 0.5),
+    "unknown": (1.0, 1.0),
+}
 
-def rrf_merge(dense_ranked: list[dict], sparse_ranked: list[dict], k: int = 60) -> list[dict]:
+
+def rrf_merge(
+    dense_ranked: list[dict], sparse_ranked: list[dict], k: int = 60,
+    dense_weight: float = 1.0, sparse_weight: float = 1.0,
+) -> list[dict]:
     scores: dict[str, float] = {}
     rows: dict[str, dict] = {}
-    for ranked_list in (dense_ranked, sparse_ranked):
+    for ranked_list, weight in ((dense_ranked, dense_weight), (sparse_ranked, sparse_weight)):
         for rank, row in enumerate(ranked_list, start=1):
             chunk_id = row["chunk_id"]
-            scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (k + rank)
+            scores[chunk_id] = scores.get(chunk_id, 0.0) + weight / (k + rank)
             rows.setdefault(chunk_id, row)
     ordered = sorted(scores.items(), key=lambda pair: pair[1], reverse=True)
     return [{**rows[chunk_id], "rrf_score": score} for chunk_id, score in ordered]
@@ -27,8 +37,11 @@ async def retrieve(
     milvus_client,
     rewritten_query: str,
     doc_id_allowlist: list[str] | None,
+    intent: str = "unknown",
     on_step: OnStep | None = None,
 ) -> list[dict]:
+    dense_weight, sparse_weight = _INTENT_RRF_WEIGHTS.get(intent, (1.0, 1.0))
+
     dense_vector = await gateway.embed(role="query_embed", text=rewritten_query)
 
     dense_by_collection = await hybrid_search(
@@ -45,7 +58,10 @@ async def retrieve(
     if on_step is not None:
         await on_step("milvus_sparse", collection_trace(sparse_by_collection))
 
-    merged = rrf_merge(_flatten(dense_by_collection), _flatten(sparse_by_collection))
+    merged = rrf_merge(
+        _flatten(dense_by_collection), _flatten(sparse_by_collection),
+        dense_weight=dense_weight, sparse_weight=sparse_weight,
+    )
 
     if on_step is not None:
         top_candidates = [
@@ -57,6 +73,9 @@ async def retrieve(
             }
             for row in merged[:15]
         ]
-        await on_step("rrf_merge", {"candidate_count": len(merged), "top_candidates": top_candidates})
+        await on_step("rrf_merge", {
+            "candidate_count": len(merged), "top_candidates": top_candidates,
+            "dense_weight": dense_weight, "sparse_weight": sparse_weight,
+        })
 
     return merged
