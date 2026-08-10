@@ -294,3 +294,19 @@ async def test_extract_intent_drops_non_iso_or_invented_date_filters():
     result = await extract_intent(gateway, "income tax cases")
 
     assert result["filters"] == {}
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_forwards_model_override_and_skips_get_model():
+    gateway = AsyncMock()
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "candidate model test",
+        "intent": "test",
+        "filters": {},
+    })
+
+    await extract_intent(gateway, "candidate model test", model="Qwen/Qwen3-4B-Instruct-2507")
+
+    gateway.get_model.assert_not_awaited()
+    call_kwargs = gateway.chat.await_args.kwargs
+    assert call_kwargs["model"] == "Qwen/Qwen3-4B-Instruct-2507"

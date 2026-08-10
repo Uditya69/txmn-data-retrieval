@@ -135,3 +135,18 @@ async def test_rerank_and_prefetch_emits_rerank_step(monkeypatch):
         "considered_count": 1,
         "top_chunks": [{"chunk_id": "a", "doc_id": "d1", "rerank_score": 0.95, "text": "chunk text"}],
     })]
+
+
+@pytest.mark.asyncio
+async def test_rerank_top_chunks_forwards_model_override():
+    gateway = AsyncMock()
+    gateway.rerank.return_value = [0.9, 0.1]
+    candidates = [
+        {"chunk_id": "a", "text": "A", "rrf_score": 0.03},
+        {"chunk_id": "b", "text": "B", "rrf_score": 0.02},
+    ]
+
+    await rerank_top_chunks(gateway, "query", candidates, top_n=2, model="Qwen/Qwen3-Reranker-0.6B")
+
+    call_kwargs = gateway.rerank.await_args.kwargs
+    assert call_kwargs["model"] == "Qwen/Qwen3-Reranker-0.6B"

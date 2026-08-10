@@ -173,7 +173,7 @@ async def test_run_ai_mode_emits_all_seven_trace_steps_in_order_end_to_end(monke
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 
-    async def fake_chat(role, messages):
+    async def fake_chat(role, messages, model=None):
         if role == "slm":
             return '{"rewritten_query": "rewritten query", "intent": "case_lookup", "filters": {}}'
         raise AssertionError(f"unexpected chat role: {role}")

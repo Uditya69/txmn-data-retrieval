@@ -171,14 +171,17 @@ def _validate_result(query: str, result) -> dict:
     }
 
 
-async def extract_intent(gateway: GatewayClient, query: str, on_step: OnStep | None = None) -> dict:
-    model = await gateway.get_model(role="slm")
+async def extract_intent(
+    gateway: GatewayClient, query: str, on_step: OnStep | None = None, model: str | None = None,
+) -> dict:
+    resolved_model = model or await gateway.get_model(role="slm")
     response = await gateway.chat(
         role="slm",
         messages=[
-            {"role": "system", "content": _system_prompt_for_model(model)},
+            {"role": "system", "content": _system_prompt_for_model(resolved_model)},
             {"role": "user", "content": query},
         ],
+        model=model,
     )
     cleaned = _extract_json_object(response.strip())
     try:
