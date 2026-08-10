@@ -325,3 +325,110 @@ async def test_evaluate_case_skip_agentic_never_calls_run_agentic_search(monkeyp
     assert result["ranks"]["agentic"] is None
     assert "agentic" not in result["errors"]
     assert "agentic" not in result["timings_ms"]
+
+
+def _stage_fakes(monkeypatch, module, synthesize_answer="See [gold1]."):
+    calls = {"raw_search": 0, "hybrid_search": 0, "extract_intent": 0, "rerank_top_chunks": 0, "synthesize": 0}
+
+    async def fake_raw_search(client, query, limit=50):
+        calls["raw_search"] += 1
+        return [{"doc_id": "gold1", "score": 1.0}]
+
+    async def fake_hybrid(client, collections, dense_vector, sparse_query_text,
+                          doc_id_allowlist=None, limit=50):
+        calls["hybrid_search"] += 1
+        suffix = "dense" if dense_vector is not None else "sparse"
+        return {name: [{"doc_id": "gold1", "chunk_id": f"gold1-{name}-{suffix}",
+                        "text": "gold text", "score": 1.0}] for name in collections}
+
+    async def fake_intent(gateway, query, model=None):
+        calls["extract_intent"] += 1
+        return {"rewritten_query": "rewritten", "filters": {}, "intent": "test"}
+
+    async def fake_allowlist(es_client, filters):
+        return None
+
+    async def fake_rerank(gateway, query, candidates, top_n=None, model=None):
+        calls["rerank_top_chunks"] += 1
+        return [{**row, "rerank_score": 1.0} for row in candidates]
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, model=None):
+        calls["synthesize"] += 1
+        return {"answer": synthesize_answer, "citations": {}, "reasoning": None}
+
+    async def fake_agentic(gateway, es_client, milvus_client, query):
+        return {"ok": False, "error": "unverifiable_answer", "invalid_doc_ids": []}
+
+    monkeypatch.setattr(module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
+    monkeypatch.setattr(module, "extract_intent", fake_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
+    monkeypatch.setattr(module, "rerank_top_chunks", fake_rerank)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+    monkeypatch.setattr(module, "run_agentic_search", fake_agentic)
+    return calls
+
+
+@pytest.mark.asyncio
+async def test_evaluate_case_writes_stage_cache_on_miss(tmp_path, monkeypatch):
+    import retrieval_api.retrieval_eval as module
+
+    _stage_fakes(monkeypatch, module)
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1]
+    case = {"id": "Q1", "class": "direct", "query": "q", "gold_doc_ids": ["gold1"],
+            "expected_collections": ["facts"], "pass_at": 5}
+
+    await evaluate_case(
+        case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False,
+        skip_agentic=True, cache_dir=tmp_path,
+    )
+
+    from retrieval_api.retrieval_eval import stage_cache_path
+    cache_path = stage_cache_path(tmp_path, "Q1", None, None)
+    assert cache_path.exists()
+    cached = json.loads(cache_path.read_text())
+    assert cached["rewritten_query"] == "rewritten"
+    assert cached["reranked"][0]["doc_id"] == "gold1"
+
+
+@pytest.mark.asyncio
+async def test_evaluate_case_reuses_stage_cache_and_skips_retrieval_calls(tmp_path, monkeypatch):
+    import retrieval_api.retrieval_eval as module
+
+    calls = _stage_fakes(monkeypatch, module, synthesize_answer="first answer [gold1].")
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1]
+    case = {"id": "Q1", "class": "direct", "query": "q", "gold_doc_ids": ["gold1"],
+            "expected_collections": ["facts"], "pass_at": 5}
+
+    first = await evaluate_case(
+        case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False,
+        skip_agentic=True, cache_dir=tmp_path,
+    )
+    assert calls["raw_search"] == 1 and calls["hybrid_search"] == 4 and calls["extract_intent"] == 1
+    assert calls["rerank_top_chunks"] == 1 and calls["synthesize"] == 1
+
+    # Second call with a different synthesis_model but the SAME slm/reranker
+    # models must hit the cache: zero additional retrieval/intent/rerank
+    # calls, but synthesize IS called again (that's the whole point).
+    second = await evaluate_case(
+        case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False,
+        skip_agentic=True, cache_dir=tmp_path, synthesis_model="candidate-model",
+    )
+
+    assert calls["raw_search"] == 1 and calls["hybrid_search"] == 4 and calls["extract_intent"] == 1
+    assert calls["rerank_top_chunks"] == 1  # unchanged - still only the first call
+    assert calls["synthesize"] == 2  # synthesize ran again
+    assert first["ranks"] == second["ranks"]
+    assert second["timings_ms"]["stage_cache"] == 0.0
+    assert "es" not in second["timings_ms"]
+
+
+@pytest.mark.asyncio
+async def test_evaluate_case_cache_key_excludes_synthesis_model_but_includes_slm_and_reranker(tmp_path):
+    from retrieval_api.retrieval_eval import stage_cache_path
+
+    assert stage_cache_path(tmp_path, "Q1", "slm-a", "rr-a") == stage_cache_path(tmp_path, "Q1", "slm-a", "rr-a")
+    assert stage_cache_path(tmp_path, "Q1", "slm-a", "rr-a") != stage_cache_path(tmp_path, "Q1", "slm-b", "rr-a")
+    assert stage_cache_path(tmp_path, "Q1", "slm-a", "rr-a") != stage_cache_path(tmp_path, "Q1", "slm-a", "rr-b")
