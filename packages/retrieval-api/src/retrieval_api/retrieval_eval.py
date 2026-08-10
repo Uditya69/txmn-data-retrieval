@@ -109,10 +109,32 @@ def _agentic_hit_rank(doc_ids: list[str] | None, gold: set[str]) -> int | None:
     return 1 if gold & set(doc_ids) else None
 
 
+def stage_cache_path(cache_dir: Path, case_id: str, slm_model: str | None, reranker_model: str | None) -> Path:
+    # Cache key deliberately excludes synthesis_model: everything through the
+    # reranker stage (ES, both Milvus branches, intent rewrite, RRF, rerank)
+    # is unaffected by which synthesis model is used, so swapping only
+    # synthesis_model should always be a cache hit. slm_model/reranker_model
+    # ARE part of the key since they change the rewritten query and/or the
+    # reranked chunk order, which changes everything downstream of them.
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", f"{slm_model or 'default'}__{reranker_model or 'default'}")
+    return cache_dir / case_id / f"{slug}.json"
+
+
+def _load_stage_cache(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
+
+
+def _save_stage_cache(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+
+
 async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit: int = 50,
                         langfuse_enabled: bool = True, slm_model: str | None = None,
                         reranker_model: str | None = None, synthesis_model: str | None = None,
-                        skip_agentic: bool = False) -> dict:
+                        skip_agentic: bool = False, cache_dir: Path | None = None) -> dict:
     query = case["query"]
     gold = set(case["gold_doc_ids"])
     langfuse = get_client()
@@ -136,41 +158,63 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             finally:
                 timings[name] = round((time.perf_counter() - stage_started) * 1000, 1)
 
-        es_rows = await measured("es", raw_search(es_client, query, limit=limit)) or []
-        raw_vector = await measured("raw_embedding", gateway.embed(role="query_embed", text=query))
-        raw_dense = (
-            await measured("raw_dense", hybrid_search(
-                milvus_client, MILVUS_COLLECTIONS, raw_vector, query, limit=limit,
-            )) if raw_vector is not None else None
-        ) or {name: [] for name in MILVUS_COLLECTIONS}
-        raw_sparse = await measured("raw_sparse", hybrid_search(
-            milvus_client, MILVUS_COLLECTIONS, None, query, limit=limit,
-        )) or {name: [] for name in MILVUS_COLLECTIONS}
+        cache_path = stage_cache_path(cache_dir, case["id"], slm_model, reranker_model) if cache_dir else None
+        cached = _load_stage_cache(cache_path) if cache_path else None
 
-        intent = await measured("intent", extract_intent(gateway, query, model=slm_model))
-        rewritten_query = intent.get("rewritten_query", query) if intent else query
-        allowlist = await measured("filters", resolve_allowlist(es_client, intent.get("filters", {}))) if intent else None
-        rewritten_vector = raw_vector if rewritten_query == query else await measured(
-            "rewritten_embedding", gateway.embed(role="query_embed", text=rewritten_query),
-        )
-        rewritten_dense = (
-            await measured("rewritten_dense", hybrid_search(
-                milvus_client, MILVUS_COLLECTIONS, rewritten_vector, rewritten_query,
+        if cached is not None:
+            es_rows = cached["es_rows"]
+            raw_dense = cached["raw_dense"]
+            raw_sparse = cached["raw_sparse"]
+            rewritten_query = cached["rewritten_query"]
+            rewritten_dense = cached["rewritten_dense"]
+            rewritten_sparse = cached["rewritten_sparse"]
+            merged = cached["merged"]
+            reranked = cached["reranked"]
+            timings["stage_cache"] = 0.0
+        else:
+            es_rows = await measured("es", raw_search(es_client, query, limit=limit)) or []
+            raw_vector = await measured("raw_embedding", gateway.embed(role="query_embed", text=query))
+            raw_dense = (
+                await measured("raw_dense", hybrid_search(
+                    milvus_client, MILVUS_COLLECTIONS, raw_vector, query, limit=limit,
+                )) if raw_vector is not None else None
+            ) or {name: [] for name in MILVUS_COLLECTIONS}
+            raw_sparse = await measured("raw_sparse", hybrid_search(
+                milvus_client, MILVUS_COLLECTIONS, None, query, limit=limit,
+            )) or {name: [] for name in MILVUS_COLLECTIONS}
+
+            intent = await measured("intent", extract_intent(gateway, query, model=slm_model))
+            rewritten_query = intent.get("rewritten_query", query) if intent else query
+            allowlist = await measured("filters", resolve_allowlist(es_client, intent.get("filters", {}))) if intent else None
+            rewritten_vector = raw_vector if rewritten_query == query else await measured(
+                "rewritten_embedding", gateway.embed(role="query_embed", text=rewritten_query),
+            )
+            rewritten_dense = (
+                await measured("rewritten_dense", hybrid_search(
+                    milvus_client, MILVUS_COLLECTIONS, rewritten_vector, rewritten_query,
+                    doc_id_allowlist=allowlist, limit=limit,
+                )) if rewritten_vector is not None else None
+            ) or {name: [] for name in MILVUS_COLLECTIONS}
+            rewritten_sparse = await measured("rewritten_sparse", hybrid_search(
+                milvus_client, MILVUS_COLLECTIONS, None, rewritten_query,
                 doc_id_allowlist=allowlist, limit=limit,
-            )) if rewritten_vector is not None else None
-        ) or {name: [] for name in MILVUS_COLLECTIONS}
-        rewritten_sparse = await measured("rewritten_sparse", hybrid_search(
-            milvus_client, MILVUS_COLLECTIONS, None, rewritten_query,
-            doc_id_allowlist=allowlist, limit=limit,
-        )) or {name: [] for name in MILVUS_COLLECTIONS}
+            )) or {name: [] for name in MILVUS_COLLECTIONS}
+
+            merged = rrf_merge(_flatten(rewritten_dense), _flatten(rewritten_sparse))
+            reranked = await measured(
+                "reranker", rerank_top_chunks(gateway, query, merged, top_n=len(merged), model=reranker_model),
+            ) if merged else []
+            reranked = reranked or []
+
+            if cache_path is not None:
+                _save_stage_cache(cache_path, {
+                    "es_rows": es_rows, "raw_dense": raw_dense, "raw_sparse": raw_sparse,
+                    "rewritten_query": rewritten_query, "rewritten_dense": rewritten_dense,
+                    "rewritten_sparse": rewritten_sparse, "merged": merged, "reranked": reranked,
+                })
 
         dense_flat = _flatten(rewritten_dense)
         sparse_flat = _flatten(rewritten_sparse)
-        merged = rrf_merge(dense_flat, sparse_flat)
-        reranked = await measured(
-            "reranker", rerank_top_chunks(gateway, query, merged, top_n=len(merged), model=reranker_model),
-        ) if merged else []
-        reranked = reranked or []
 
         synthesis_answer = None
         citation_count = 0
@@ -310,7 +354,7 @@ async def _run(args) -> int:
                 case, gateway, es_client, milvus_client, limit=args.limit,
                 langfuse_enabled=not args.no_langfuse,
                 slm_model=args.slm_model, reranker_model=args.reranker_model, synthesis_model=args.synthesis_model,
-                skip_agentic=args.skip_agentic,
+                skip_agentic=args.skip_agentic, cache_dir=args.cache_dir,
             )
             results.append(result)
             ranks = result["ranks"]
@@ -368,6 +412,7 @@ def main() -> None:
     parser.add_argument("--synthesis-model", help="override the DeepInfra model used for the synthesis role")
     parser.add_argument("--sample12", action="store_true", help="scope to the fixed 12-query stratified sample")
     parser.add_argument("--skip-agentic", action="store_true", help="skip the agentic tool-call stage (out of scope for AI Mode model comparisons)")
+    parser.add_argument("--cache-dir", type=Path, help="cache ES/Milvus/intent/rerank stage output per (query id, slm_model, reranker_model) here, so runs that only vary synthesis_model skip straight to synthesis")
     parser.add_argument("--run-name", default="retrieval-eval")
     parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")
     parser.add_argument("--langfuse-base-url", help="override LANGFUSE_BASE_URL for host-side runs")

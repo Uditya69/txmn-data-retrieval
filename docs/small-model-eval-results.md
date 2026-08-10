@@ -1,11 +1,14 @@
 # Small-model eval results (AI Mode: slm / reranker / synthesis)
 
-Tracks the first round of A/B testing 3-6B-class (or MoE-cheap) self-hostable model
-candidates against the current DeepInfra defaults for AI Mode's `slm`, `reranker`, and
-`synthesis` roles — motivated by wanting to self-host these roles instead of paying
-per-token API pricing. Design: `docs/superpowers/specs/2026-08-10-small-model-eval-harness-design.md`.
-Plan: `docs/superpowers/plans/2026-08-10-small-model-eval-harness.md`. Harness code lives
-on branch `small-model-eval-harness`.
+Tracks A/B testing of 3-6B-class (or MoE-cheap) self-hostable model candidates against
+the current DeepInfra defaults for AI Mode's `slm`, `reranker`, and `synthesis` roles —
+motivated by wanting to self-host these roles instead of paying per-token API pricing.
+Design: `docs/superpowers/specs/2026-08-10-small-model-eval-harness-design.md`. Plan:
+`docs/superpowers/plans/2026-08-10-small-model-eval-harness.md`. Two rounds: an initial
+5-run round (harness built on branch `small-model-eval-harness`, merged), and a follow-up
+2-run round targeting a strict sub-4B, non-reasoning-heavy synthesis candidate (harness
+extended on branch `eval-stage-cache` with a pre-synthesis stage cache, so the follow-up
+runs reused round 1's ES/Milvus/rerank output and only paid for the synthesize() call).
 
 `agent_chat`/agentic search is out of scope this round (AI Mode is P0) — all runs used
 `retrieval_eval.py --skip-agentic` to avoid paying for the tool-call loop's wall-clock
@@ -21,7 +24,7 @@ done. Final candidates, confirmed present via `https://api.deepinfra.com/models/
 |---|---|---|---|
 | slm | `meta-llama/Meta-Llama-3.1-8B-Instruct` | `Qwen/Qwen3-30B-A3B` | Original `Qwen3-4B-Instruct-2507` pick wasn't on DeepInfra. Chose the MoE `A3B` (30B total, ~3B active) over the also-available `Qwen/Qwen3-VL-4B-Instruct` after research found VL-tagged models show measurable text-only instruction-following degradation (IFEval) from their multimodal training mix — a bad fit for a strict-JSON extraction task. |
 | reranker | `Qwen/Qwen3-Reranker-4B` | `Qwen/Qwen3-Reranker-0.6B` | Same family/training recipe as the 4B baseline, smallest available cross-encoder in that family. `bge-reranker-v2-m3` (the other original candidate) isn't on DeepInfra. |
-| synthesis | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `Qwen/Qwen3.6-35B-A3B` and `Qwen/Qwen3-VL-4B-Thinking` | Original `Qwen3-4B-Thinking-2507` pick wasn't on DeepInfra. Ran both an MoE candidate (35B total/~3B active, cheap despite large total capacity) and a small dense reasoning model, since synthesis is the highest-risk role for faithfulness/citation regressions and one candidate alone wouldn't show whether size or architecture mattered more. |
+| synthesis | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `Qwen/Qwen3.6-35B-A3B` and `Qwen/Qwen3-VL-4B-Thinking` (round 1); `google/gemma-4-E4B-it` and `meta-llama/Llama-3.2-3B-Instruct` (round 2) | Original `Qwen3-4B-Thinking-2507` pick wasn't on DeepInfra. Round 1 tried an MoE candidate (35B total/~3B active) and a small reasoning model. Round 1's finding — reasoning-heavy models risk burning their token budget on `<think>` before ever answering — motivated round 2: two candidates with either no reasoning capability at all (`Llama-3.2-3B-Instruct`) or reasoning that can be explicitly disabled (`gemma-4-E4B-it`, tagged `can-disable-reasoning`), both strictly under 4B per the actual self-host constraint. |
 
 `query_embed` (Voyage-only, hard rule) was untouched.
 
@@ -56,8 +59,15 @@ uv run python -m retrieval_api.retrieval_eval \
 
 Gateway ran locally (not via the Docker stack, to avoid touching the running dev
 containers) on port 8011; ES and Milvus are both external hosts and reachable directly.
-Five runs total: 1 baseline (all role defaults) + 1 slm + 1 reranker + 2 synthesis
-candidates. Each run isolates one role's override so results attribute cleanly.
+Round 1: 5 runs (1 baseline + 1 slm + 1 reranker + 2 synthesis candidates), each
+isolating one role's override. Round 2: added `evaluate_case`'s `cache_dir` param
+(`retrieval_api.retrieval_eval.stage_cache_path`, keyed by `(query_id, slm_model,
+reranker_model)` — deliberately excludes `synthesis_model` since nothing upstream of
+synthesis depends on it) — one populate run with default `slm`/`reranker` (redoes full
+retrieval, writes the cache), then two synthesis-only candidate runs against
+`--cache-dir`, each skipping ES/Milvus/intent/rerank entirely and paying only for the
+`synthesize()` call. Wall-clock dropped from ~7-9 minutes/run to ~90 seconds-3 minutes
+for the cached runs.
 
 ## Results
 
@@ -71,6 +81,14 @@ adversarial ≤20 — see `docs/retrieval-eval-queries.md`):
 | reranker: Qwen3-Reranker-0.6B | 6/12 | 11/12 | 10/12 | 10/12 | 9/12 | 11/12 | 11/12 | 10/12 | 10/12 |
 | synthesis: Qwen3.6-35B-A3B | 5/12 | 11/12 | 10/12 | 11/12 | 10/12 | 12/12 | 11/12 | 4/12 | **3/12** ⚠️ |
 | synthesis: Qwen3-VL-4B-Thinking | 7/12 | 11/12 | 10/12 | 11/12 | 10/12 | 12/12 | 11/12 | 10/12 | 9/12 |
+| synthesis: gemma-4-E4B-it | 7/12 | 11/12 | 10/12 | 11/12 | 10/12 | 12/12 | 11/12 | **11/12** | **10/12** |
+| synthesis: Llama-3.2-3B-Instruct | 7/12 | 11/12 | 10/12 | 11/12 | 10/12 | 12/12 | 11/12 | **11/12** | **10/12** |
+
+Round 2's two rows reused round 1's cached retrieval/rerank output (via `--cache-dir`),
+so their `es`/`raw_dense`/.../`reranker` columns are identical to each other and to the
+values already established for the default `slm`/`reranker` combination — only the
+`synthesis_model` varied, which is exactly what the cache is designed to hold fixed for
+a clean A/B comparison.
 
 `es`'s run-to-run variance (7/6/5) is not caused by any model swap — `es` never touches
 the gateway at all. It reflects real flakiness on the external ES host during these
@@ -145,6 +163,20 @@ baseline behavior than the larger, cheaper-per-token MoE candidate above — a r
 that "more total/active params" doesn't reliably predict "closer to baseline quality" for
 this specific citation-faithfulness metric.
 
+### synthesis: gemma-4-E4B-it and Llama-3.2-3B-Instruct — round 2, best synthesis results so far
+
+Both candidates: 11/12 citation-valid, 10/12 gold-cited, **zero timeouts, zero empty
+answers** — directly confirming round 1's hypothesis. `gemma-4-E4B-it` (`can-disable-
+reasoning`) and `Llama-3.2-3B-Instruct` (no reasoning capability at all) both avoid the
+exact failure mode that hurt `Qwen3.6-35B-A3B` and (to a lesser extent) `Qwen3-VL-4B-
+Thinking` — neither burns its token budget on `<think>` before answering, because
+neither model does that kind of reasoning here. Both are strictly under 4B, matching the
+actual self-host constraint (round 1's candidates were 35B total and a VL-tagged 4B,
+neither a clean fit). Notably, `Llama-3.2-3B-Instruct` was flagged in earlier research as
+weak specifically for *query-rewrite JSON extraction* — that finding does not transfer
+to synthesis (fluent prose + bracket citations is a different, less strict task), and
+this run shows it performing as well as the Gemma candidate here.
+
 ## Conclusion
 
 - **slm → Qwen3-30B-A3B: adopt.** No measurable retrieval-rank regression on this
@@ -152,16 +184,16 @@ this specific citation-faithfulness metric.
 - **reranker → Qwen3-Reranker-0.6B: adopt with a follow-up spot-check** on Q28 (or a
   second run) before fully trusting it — mild regression present but not clearly
   attributable to the reranker itself.
-- **synthesis → neither candidate is a clean recommendation yet.** Qwen3-VL-4B-Thinking
-  is the better of the two, but still shows a real (if modest) faithfulness gap under
-  baseline, plus 2/12 timeouts worth investigating. Qwen3.6-35B-A3B should not be
-  adopted based on this run — its numbers are dominated by a serving/token-budget
-  confound, not genuine model quality; if there's interest in a MoE synthesis candidate,
-  it needs a rerun with a role-specific larger token/timeout budget before it can be
-  fairly judged.
+- **synthesis → gemma-4-E4B-it and Llama-3.2-3B-Instruct are the strongest candidates
+  found, and the only ones that actually fit the strict sub-4B self-host constraint.**
+  Both hit 11/12 citation-valid, 10/12 gold-cited, zero timeouts, zero empty answers —
+  close to baseline's 12/12/11/12 and far ahead of round 1's two candidates. Either is a
+  reasonable pick; nothing in this sample distinguishes them further. Round 1's
+  reasoning-heavy candidates (Qwen3.6-35B-A3B, Qwen3-VL-4B-Thinking) are both superseded
+  by these — not adopted.
 - **Next steps if pursuing self-hosting further:** confirm the reranker Q28 result is
-  reproducible, decide whether to give synthesis a role-specific `max_tokens`/timeout
-  override (a real gateway change, not just an eval-harness one) to fairly test
-  reasoning-heavy synthesis candidates, and re-run the full 53-query set on whichever
-  slm/reranker candidates are adopted before calling this decision final — this round
-  only used the fast 12-query sample.
+  reproducible, and re-run the full 53-query set on the adopted slm/reranker/synthesis
+  combination before calling this decision final — every round here only used the fast
+  12-query sample. The stage cache (`--cache-dir`, `eval-stage-cache` branch) makes that
+  full-set run cheap for synthesis-only re-checks — retrieval only needs to run once at
+  full scale, then any number of synthesis candidates can be tried against it.
