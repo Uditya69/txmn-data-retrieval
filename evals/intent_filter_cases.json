@@ -1,0 +1,62 @@
+[
+  {
+    "id": "F01",
+    "query": "What did the Bombay High Court decide about input tax credit under Rule 6(3)(c)?",
+    "expected_filters": {"court": "Bombay High Court"}
+  },
+  {
+    "id": "F02",
+    "query": "Recent rulings under the CGST Act on provisional attachment of bank accounts",
+    "expected_filters": {"act": "CGST Act"}
+  },
+  {
+    "id": "F03",
+    "query": "Explain the scope of section 80HH deduction for backward area undertakings",
+    "expected_filters": {"section": "80HH"}
+  },
+  {
+    "id": "F04",
+    "query": "case law for Ramesh Gupta vs. Income-tax Officer",
+    "expected_filters": {"party": "Ramesh Gupta"}
+  },
+  {
+    "id": "F05",
+    "query": "Judgments delivered between 2020-01-01 and 2022-01-01 on transfer pricing comparables",
+    "expected_filters": {"date_range": {"gte": "2020-01-01", "lte": "2022-01-01"}}
+  },
+  {
+    "id": "F06",
+    "query": "Ruling of the Principal Bench of the Income Tax Appellate Tribunal on Modvat credit",
+    "expected_filters": {"bench": "Principal Bench"}
+  },
+  {
+    "id": "F07",
+    "query": "Judgment authored by Judge D.Y. Chandrachud on constitutional validity of section 271(1)(c)",
+    "expected_filters": {"judge": "D.Y. Chandrachud", "section": "271(1)(c)"}
+  },
+  {
+    "id": "F08",
+    "query": "Delhi High Court ruling under the Income-tax Act, 1961 on capital gains exemption",
+    "expected_filters": {"court": "Delhi High Court", "act": "Income-tax Act, 1961"}
+  },
+  {
+    "id": "F09",
+    "query": "Gujarat High Court judgment interpreting section 271(1)(c) as unconstitutional",
+    "expected_filters": {"court": "Gujarat High Court", "section": "271(1)(c)"}
+  },
+  {
+    "id": "F10",
+    "query": "Can a court order investigators to trace and seize a company's property when investors were defrauded?",
+    "expected_filters": {}
+  },
+  {
+    "id": "F11",
+    "query": "80HH scrap sale yes useless drum sale no metallic wire factory",
+    "expected_filters": {}
+  },
+  {
+    "id": "F12",
+    "query": "Alka Khandu Avhad case on cheque dishonour liability under section 138",
+    "expected_filters": {"party": "Alka Khandu Avhad", "section": "138"}
+  }
+]
