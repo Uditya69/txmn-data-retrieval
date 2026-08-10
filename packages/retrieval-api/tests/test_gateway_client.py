@@ -200,3 +200,34 @@ async def test_rerank_sends_model_override():
 
     sent = json.loads(route.calls.last.request.content)
     assert sent["model"] == "candidate-reranker"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_chat_sends_response_format_when_provided():
+    route = respx.post("http://gateway/v1/chat").mock(
+        return_value=httpx.Response(200, json={"content": "{}"})
+    )
+    client = GatewayClient(base_url="http://gateway")
+
+    await client.chat(
+        role="slm", messages=[{"role": "user", "content": "hi"}],
+        response_format={"type": "json_object"},
+    )
+
+    sent = json.loads(route.calls.last.request.content)
+    assert sent["response_format"] == {"type": "json_object"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_chat_omits_response_format_key_when_not_provided():
+    route = respx.post("http://gateway/v1/chat").mock(
+        return_value=httpx.Response(200, json={"content": "hi there"})
+    )
+    client = GatewayClient(base_url="http://gateway")
+
+    await client.chat(role="slm", messages=[{"role": "user", "content": "hi"}])
+
+    sent = json.loads(route.calls.last.request.content)
+    assert "response_format" not in sent

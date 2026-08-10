@@ -26,16 +26,22 @@ class GatewayClient:
     def _headers(self) -> dict[str, str]:
         return _trace_headers() if self._trace_enabled else {}
 
-    async def chat(self, role: str, messages: list[dict], model: str | None = None) -> str:
-        content, _reasoning = await self.chat_with_reasoning(role, messages, model=model)
+    async def chat(
+        self, role: str, messages: list[dict], model: str | None = None,
+        response_format: dict | None = None,
+    ) -> str:
+        content, _reasoning = await self.chat_with_reasoning(role, messages, model=model, response_format=response_format)
         return content
 
     async def chat_with_reasoning(
         self, role: str, messages: list[dict], model: str | None = None,
+        response_format: dict | None = None,
     ) -> tuple[str, str | None]:
         body = {"role": role, "messages": messages}
         if model is not None:
             body["model"] = model
+        if response_format is not None:
+            body["response_format"] = response_format
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{self._base_url}/v1/chat", json=body, headers=self._headers(),

@@ -13,7 +13,8 @@ class VoyageAdapter:
         self._headers = {"Authorization": f"Bearer {api_key}"}
 
     async def chat(
-        self, model: str, messages: list[dict], tools: list[dict] | None = None, tool_choice: str | None = None,
+        self, model: str, messages: list[dict], tools: list[dict] | None = None,
+        tool_choice: str | None = None, response_format: dict | None = None,
     ) -> tuple[str | None, dict[str, int], str | None, list[dict] | None]:
         raise NotImplementedError("VoyageAdapter does not support chat")
 

@@ -134,3 +134,34 @@ async def test_chat_sends_explicit_max_tokens():
 
     sent = json.loads(route.calls.last.request.content)
     assert sent["max_tokens"] == 32768
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_chat_passes_response_format_when_given():
+    route = respx.post("https://api.deepinfra.com/v1/openai/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]})
+    )
+    adapter = DeepInfraAdapter(api_key="k")
+
+    await adapter.chat(
+        "some-model", [{"role": "user", "content": "hi"}],
+        response_format={"type": "json_object"},
+    )
+
+    sent = json.loads(route.calls.last.request.content)
+    assert sent["response_format"] == {"type": "json_object"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_chat_omits_response_format_key_when_not_given():
+    route = respx.post("https://api.deepinfra.com/v1/openai/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": "hi"}}]})
+    )
+    adapter = DeepInfraAdapter(api_key="k")
+
+    await adapter.chat("some-model", [{"role": "user", "content": "hi"}])
+
+    sent = json.loads(route.calls.last.request.content)
+    assert "response_format" not in sent
