@@ -48,6 +48,8 @@ _TERM_FILTER_FIELDS = {
     "court": "masterinfo.info.court.name",
     "act": "masterinfo.info.act.name",
     "section": "masterinfo.info.section.name",
+    "bench": "masterinfo.info.bench",
+    "judge": "otherinfo.judge",
 }
 
 

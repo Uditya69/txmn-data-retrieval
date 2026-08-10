@@ -10,7 +10,7 @@ COLLECTION_DESCRIPTIONS = {
     "metadata": "document-level heading and subheading text",
 }
 
-KNOWN_FILTER_FIELDS = ["court", "act", "section", "party", "date_range"]
+KNOWN_FILTER_FIELDS = ["court", "act", "section", "party", "date_range", "bench", "judge"]
 
 KNOWN_COURTS = [
     "Supreme Court", "Delhi High Court", "Bombay High Court", "Madras High Court",

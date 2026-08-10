@@ -263,6 +263,30 @@ async def test_fetch_document_metadata_returns_none_when_doc_not_found():
 
 
 @pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_queries_masterinfo_bench_term():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}])
+
+    result = await resolve_doc_id_allowlist(client, {"bench": "Principal Bench"})
+
+    assert result == ["d1"]
+    assert client.search_calls[0] == {
+        "bool": {"must": [{"term": {"masterinfo.info.bench.keyword": "Principal Bench"}}]}
+    }
+
+
+@pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_queries_otherinfo_judge_term():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}])
+
+    result = await resolve_doc_id_allowlist(client, {"judge": "D.Y. Chandrachud"})
+
+    assert result == ["d1"]
+    assert client.search_calls[0] == {
+        "bool": {"must": [{"term": {"otherinfo.judge.keyword": "D.Y. Chandrachud"}}]}
+    }
+
+
+@pytest.mark.asyncio
 async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
     client = FakeAsyncES(mget_docs={
         "d1": {
