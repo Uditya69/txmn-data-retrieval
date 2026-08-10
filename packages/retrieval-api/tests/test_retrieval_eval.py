@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -74,20 +75,28 @@ async def test_evaluate_case_reports_each_retrieval_stage(monkeypatch):
         return {name: [{"doc_id": "gold", "chunk_id": f"gold-{name}-{suffix}",
                         "text": "gold text", "score": 1.0}] for name in collections}
 
-    async def fake_intent(gateway, query):
+    async def fake_intent(gateway, query, model=None):
         return {"rewritten_query": "rewritten", "filters": {}, "intent": "test"}
 
     async def fake_allowlist(es_client, filters):
         return None
 
-    async def fake_rerank(gateway, query, candidates, top_n=None):
+    async def fake_rerank(gateway, query, candidates, top_n=None, model=None):
         return [{**row, "rerank_score": 1.0} for row in candidates]
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, model=None):
+        return {"answer": "See [gold1].", "citations": {}, "reasoning": None}
+
+    async def fake_agentic(gateway, es_client, milvus_client, query):
+        return {"ok": False, "error": "unverifiable_answer", "invalid_doc_ids": []}
 
     monkeypatch.setattr(module, "raw_search", fake_raw_search)
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
     monkeypatch.setattr(module, "extract_intent", fake_intent)
     monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
     monkeypatch.setattr(module, "rerank_top_chunks", fake_rerank)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+    monkeypatch.setattr(module, "run_agentic_search", fake_agentic)
 
     class Gateway:
         async def embed(self, role, text):
@@ -157,3 +166,69 @@ async def test_evaluate_case_records_agentic_miss_when_unverifiable(monkeypatch)
 
     assert result["ranks"]["agentic"] is None
     assert "unverifiable_answer" in result["errors"]["agentic"]
+
+
+def test_sample_12_query_ids_are_a_subset_of_the_full_dataset():
+    from retrieval_api.retrieval_eval import SAMPLE_12_QUERY_IDS
+
+    root = Path(__file__).parents[3]
+    cases = load_cases(root / "evals" / "retrieval_cases.json")
+    all_ids = {case["id"] for case in cases}
+    assert len(SAMPLE_12_QUERY_IDS) == 12
+    assert len(set(SAMPLE_12_QUERY_IDS)) == 12  # no duplicates
+    assert set(SAMPLE_12_QUERY_IDS).issubset(all_ids)
+    sampled_classes = {case["class"] for case in cases if case["id"] in SAMPLE_12_QUERY_IDS}
+    assert sampled_classes == {"direct", "indirect", "adversarial"}  # every class represented
+
+
+@pytest.mark.asyncio
+async def test_evaluate_case_records_citation_validity_against_reranked_chunks(monkeypatch):
+    import retrieval_api.retrieval_eval as module
+
+    async def fake_raw_search(client, query, limit=50):
+        return []
+
+    async def fake_hybrid(client, collections, dense_vector, sparse_query_text,
+                          doc_id_allowlist=None, limit=50):
+        suffix = "dense" if dense_vector is not None else "sparse"
+        # doc_id "gold1" (not "gold") because agents.citations.extract_cited_doc_ids
+        # only recognizes tokens containing at least one digit as doc_ids.
+        return {name: [{"doc_id": "gold1", "chunk_id": f"gold1-{name}-{suffix}",
+                        "text": "gold text", "score": 1.0}] for name in collections}
+
+    async def fake_intent(gateway, query, model=None):
+        return {"rewritten_query": query, "filters": {}, "intent": "test"}
+
+    async def fake_allowlist(es_client, filters):
+        return None
+
+    async def fake_rerank(gateway, query, candidates, top_n=None, model=None):
+        return [{**candidates[0], "rerank_score": 1.0}]  # only "gold1" survives reranking
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, model=None):
+        return {"answer": "The point is settled [gold1] and also [not-retrieved2].", "citations": {}, "reasoning": None}
+
+    async def fake_agentic(gateway, es_client, milvus_client, query):
+        return {"ok": True, "doc_ids": ["gold1"]}
+
+    monkeypatch.setattr(module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
+    monkeypatch.setattr(module, "extract_intent", fake_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
+    monkeypatch.setattr(module, "rerank_top_chunks", fake_rerank)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+    monkeypatch.setattr(module, "run_agentic_search", fake_agentic)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    case = {"id": "Q01", "class": "direct", "query": "q", "gold_doc_ids": ["gold1"],
+            "expected_collections": ["facts"], "pass_at": 5}
+
+    result = await evaluate_case(case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False)
+
+    assert result["citation_count"] == 2
+    assert result["citation_invalid_ids"] == ["not-retrieved2"]
+    assert result["citation_valid"] is False
+    assert result["gold_cited"] is True
+    assert result["synthesis_answer"] == "The point is settled [gold1] and also [not-retrieved2]."

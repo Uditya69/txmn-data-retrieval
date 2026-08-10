@@ -12,16 +12,29 @@ from pathlib import Path
 
 from langfuse import get_client
 
+from agents.citations import extract_cited_doc_ids
 from agents.pipeline import run_agentic_search
 from common.config import get_settings
 from common.es_client import get_es_client, raw_search
 from common.milvus_client import get_milvus_client, hybrid_search
 from common.schemas import MILVUS_COLLECTIONS
+from retrieval_api.ai_mode.citations import prefetch_citations
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
 from retrieval_api.ai_mode.intent import extract_intent
 from retrieval_api.ai_mode.rerank import rerank_top_chunks
 from retrieval_api.ai_mode.retrieve import _flatten, rrf_merge
+from retrieval_api.ai_mode.synthesize import synthesize
 from retrieval_api.gateway_client import GatewayClient
+from retrieval_api.score_cutoff import elbow_cutoff
+
+# One query per class from each era band (1927-1965, 1995-2017, 2025-2026),
+# stratified across direct/indirect/adversarial so a fast candidate-model run
+# still exercises every query class and every corpus era.
+SAMPLE_12_QUERY_IDS = [
+    "Q01", "Q15", "Q27", "Q51",  # direct
+    "Q02", "Q16", "Q28", "Q52",  # indirect
+    "Q23", "Q35", "Q47", "Q53",  # adversarial
+]
 
 
 def load_cases(path: str | Path) -> list[dict]:
@@ -97,7 +110,8 @@ def _agentic_hit_rank(doc_ids: list[str] | None, gold: set[str]) -> int | None:
 
 
 async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit: int = 50,
-                        langfuse_enabled: bool = True) -> dict:
+                        langfuse_enabled: bool = True, slm_model: str | None = None,
+                        reranker_model: str | None = None, synthesis_model: str | None = None) -> dict:
     query = case["query"]
     gold = set(case["gold_doc_ids"])
     langfuse = get_client()
@@ -132,7 +146,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             milvus_client, MILVUS_COLLECTIONS, None, query, limit=limit,
         )) or {name: [] for name in MILVUS_COLLECTIONS}
 
-        intent = await measured("intent", extract_intent(gateway, query))
+        intent = await measured("intent", extract_intent(gateway, query, model=slm_model))
         rewritten_query = intent.get("rewritten_query", query) if intent else query
         allowlist = await measured("filters", resolve_allowlist(es_client, intent.get("filters", {}))) if intent else None
         rewritten_vector = raw_vector if rewritten_query == query else await measured(
@@ -153,9 +167,32 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
         sparse_flat = _flatten(rewritten_sparse)
         merged = rrf_merge(dense_flat, sparse_flat)
         reranked = await measured(
-            "reranker", rerank_top_chunks(gateway, query, merged, top_n=len(merged)),
+            "reranker", rerank_top_chunks(gateway, query, merged, top_n=len(merged), model=reranker_model),
         ) if merged else []
         reranked = reranked or []
+
+        synthesis_answer = None
+        citation_count = 0
+        citation_invalid_ids: list[str] = []
+        citation_valid = False
+        gold_cited = False
+        if reranked:
+            synthesis_cutoff = elbow_cutoff([row["rerank_score"] for row in reranked], max_keep=5)
+            synthesis_chunks = reranked[:synthesis_cutoff]
+            citations = await measured("prefetch_citations", prefetch_citations(es_client, merged))
+            synth_result = await measured(
+                "synthesis", synthesize(
+                    gateway, es_client, rewritten_query, synthesis_chunks, citations or {}, model=synthesis_model,
+                ),
+            )
+            if synth_result is not None:
+                synthesis_answer = synth_result["answer"]
+                seen_doc_ids = {c["doc_id"] for c in synthesis_chunks}
+                cited_ids = extract_cited_doc_ids(synthesis_answer)
+                citation_count = len(cited_ids)
+                citation_invalid_ids = sorted(cited_ids - seen_doc_ids)
+                citation_valid = not citation_invalid_ids
+                gold_cited = bool(gold & cited_ids)
 
         agentic_result = await measured("agentic", run_agentic_search(gateway, es_client, milvus_client, query))
         agentic_doc_ids = None
@@ -186,6 +223,11 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                 "rewritten_dense": _collection_ranks(rewritten_dense, gold),
                 "rewritten_sparse": _collection_ranks(rewritten_sparse, gold),
             },
+            "synthesis_answer": synthesis_answer,
+            "citation_count": citation_count,
+            "citation_invalid_ids": citation_invalid_ids,
+            "citation_valid": citation_valid,
+            "gold_cited": gold_cited,
             "errors": errors, "timings_ms": timings,
             "total_ms": round((time.perf_counter() - started) * 1000, 1),
         }
@@ -198,6 +240,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                 )
                 if rank is not None:
                     langfuse.score_current_trace(name=f"{stage}_rank", value=float(rank), data_type="NUMERIC")
+            langfuse.score_current_trace(name="citation_valid", value=citation_valid, data_type="BOOLEAN")
         return result
 
 
@@ -228,6 +271,9 @@ async def _run(args) -> int:
             raise ValueError(f"unknown query id(s): {sorted(missing)}")
     if args.query_class:
         cases = [case for case in cases if case["class"] == args.query_class]
+    if args.sample12:
+        wanted = set(SAMPLE_12_QUERY_IDS)
+        cases = [case for case in cases if case["id"] in wanted]
     if not cases:
         raise ValueError("no eval cases selected")
 
@@ -252,6 +298,7 @@ async def _run(args) -> int:
             result = await evaluate_case(
                 case, gateway, es_client, milvus_client, limit=args.limit,
                 langfuse_enabled=not args.no_langfuse,
+                slm_model=args.slm_model, reranker_model=args.reranker_model, synthesis_model=args.synthesis_model,
             )
             results.append(result)
             ranks = result["ranks"]
@@ -274,6 +321,9 @@ async def _run(args) -> int:
                 "query_ids": args.query,
                 "query_class": args.query_class,
                 "langfuse_enabled": not args.no_langfuse,
+                "slm_model": args.slm_model,
+                "reranker_model": args.reranker_model,
+                "synthesis_model": args.synthesis_model,
             },
             "results": results,
         }
@@ -300,6 +350,10 @@ def main() -> None:
     parser.add_argument("--query", action="append", help="run one query ID; may be repeated")
     parser.add_argument("--class", dest="query_class", choices=["direct", "indirect", "adversarial"])
     parser.add_argument("--limit", type=int, default=50)
+    parser.add_argument("--slm-model", help="override the DeepInfra model used for the slm role")
+    parser.add_argument("--reranker-model", help="override the DeepInfra model used for the reranker role")
+    parser.add_argument("--synthesis-model", help="override the DeepInfra model used for the synthesis role")
+    parser.add_argument("--sample12", action="store_true", help="scope to the fixed 12-query stratified sample")
     parser.add_argument("--run-name", default="retrieval-eval")
     parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")
     parser.add_argument("--langfuse-base-url", help="override LANGFUSE_BASE_URL for host-side runs")
