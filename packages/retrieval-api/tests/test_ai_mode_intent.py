@@ -6,12 +6,12 @@ from retrieval_api.ai_mode.intent import extract_intent
 
 
 @pytest.mark.asyncio
-async def test_extract_intent_parses_json_response():
+async def test_extract_intent_parses_json_object_response():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "BNS section 103 murder punishment",
-        "intent": "section_lookup",
+        "intent": "provision_lookup",
         "filters": {"act": "BNS"},
     })
 
@@ -19,7 +19,7 @@ async def test_extract_intent_parses_json_response():
 
     assert result == {
         "rewritten_query": "IPC 302 punishment",
-        "intent": "section_lookup",
+        "intent": "provision_lookup",
         "filters": {},
     }
     gateway.chat.assert_awaited_once()
@@ -28,39 +28,35 @@ async def test_extract_intent_parses_json_response():
 
 
 @pytest.mark.asyncio
-async def test_extract_intent_strips_markdown_code_fence():
+async def test_extract_intent_requests_json_object_response_format():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({"rewritten_query": "q", "intent": "conceptual", "filters": {}})
+
+    await extract_intent(gateway, "q")
+
+    call_kwargs = gateway.chat.await_args.kwargs
+    assert call_kwargs["response_format"] == {"type": "json_object"}
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_falls_back_when_response_is_wrapped_in_markdown_fence():
+    """json_object response_format should prevent this from a compliant model,
+    but if a model still wraps its output, fall back rather than regex-guessing
+    the JSON out of prose - that guesswork is exactly what schema mode replaces."""
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = "```json\n" + json.dumps({
         "rewritten_query": "capital gains set off against carried forward business losses",
-        "intent": "taxation",
+        "intent": "conceptual",
         "filters": {},
     }) + "\n```"
 
     result = await extract_intent(gateway, "set off capital gains against brought forward business losses")
 
     assert result == {
-        "rewritten_query": "capital gains set off against carried forward business losses",
-        "intent": "taxation",
-        "filters": {},
-    }
-
-
-@pytest.mark.asyncio
-async def test_extract_intent_strips_leading_prose_and_code_fence():
-    gateway = AsyncMock()
-    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-    gateway.chat.return_value = "Here is a JSON object with the requested information:\n\n```\n" + json.dumps({
-        "rewritten_query": "what is cgst",
-        "intent": "taxation",
-        "filters": {},
-    }) + "\n```"
-
-    result = await extract_intent(gateway, "what is cgst")
-
-    assert result == {
-        "rewritten_query": "what is cgst",
-        "intent": "taxation",
+        "rewritten_query": "set off capital gains against brought forward business losses",
+        "intent": "unknown",
         "filters": {},
     }
 
@@ -79,11 +75,11 @@ async def test_extract_intent_falls_back_to_plain_search_on_unparseable_response
 
 
 @pytest.mark.asyncio
-async def test_extract_intent_system_prompt_includes_schema_context():
+async def test_extract_intent_system_prompt_includes_schema_context_and_new_fields():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
-        "rewritten_query": "q", "intent": "x", "filters": {},
+        "rewritten_query": "q", "intent": "conceptual", "filters": {},
     })
 
     await extract_intent(gateway, "some query")
@@ -95,6 +91,10 @@ async def test_extract_intent_system_prompt_includes_schema_context():
     assert '"section"' in system_message["content"]
     assert '"gte"' in system_message["content"]
     assert '"lte"' in system_message["content"]
+    assert '"bench"' in system_message["content"]
+    assert '"judge"' in system_message["content"]
+    assert "citation_lookup" in system_message["content"]
+    assert "provision_lookup" in system_message["content"]
 
 
 @pytest.mark.asyncio
@@ -103,7 +103,7 @@ async def test_extract_intent_emits_intent_step_when_on_step_given():
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "original query normalized",
-        "intent": "taxation",
+        "intent": "conceptual",
         "filters": {"act": "CGST Act"},
     })
     steps = []
@@ -113,11 +113,11 @@ async def test_extract_intent_emits_intent_step_when_on_step_given():
 
     result = await extract_intent(gateway, "original query", on_step=on_step)
 
-    assert result == {"rewritten_query": "original query normalized", "intent": "taxation", "filters": {}}
+    assert result == {"rewritten_query": "original query normalized", "intent": "conceptual", "filters": {}}
     assert steps == [("intent", {
         "query": "original query",
         "rewritten_query": "original query normalized",
-        "intent": "taxation",
+        "intent": "conceptual",
         "filters": {},
     })]
 
@@ -126,11 +126,11 @@ async def test_extract_intent_emits_intent_step_when_on_step_given():
 async def test_extract_intent_skips_on_step_when_none():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-    gateway.chat.return_value = json.dumps({"rewritten_query": "q", "intent": "x", "filters": {}})
+    gateway.chat.return_value = json.dumps({"rewritten_query": "q", "intent": "conceptual", "filters": {}})
 
     result = await extract_intent(gateway, "q")  # no on_step passed
 
-    assert result == {"rewritten_query": "q", "intent": "x", "filters": {}}
+    assert result == {"rewritten_query": "q", "intent": "conceptual", "filters": {}}
 
 
 @pytest.mark.asyncio
@@ -139,7 +139,7 @@ async def test_extract_intent_rejects_invented_act_and_preserves_legal_identifie
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "case law for Bharatiya Nyaya Sanhita about scrap sale",
-        "intent": "taxation",
+        "intent": "conceptual",
         "filters": {},
     })
 
@@ -154,7 +154,7 @@ async def test_extract_intent_rejects_expansion_of_ambiguous_acronym():
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "software royalty Profit and Excess India USA DTAA",
-        "intent": "taxation",
+        "intent": "conceptual",
         "filters": {},
     })
 
@@ -169,13 +169,71 @@ async def test_extract_intent_drops_unknown_null_and_empty_filters():
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "trade training takeover Kolkata",
-        "intent": "taxation",
+        "intent": "conceptual",
         "filters": {"city": "Kolkata", "act": None, "court": "", "section": "37(1)"},
     })
 
     result = await extract_intent(gateway, "trade training takeover Kolkata section 37(1)")
 
     assert result["filters"] == {"section": "37(1)"}
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_extracts_bench_and_judge_filters():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "ruling of the Principal Bench of the Income Tax Appellate Tribunal on Modvat credit authored by Judge D.Y. Chandrachud",
+        "intent": "conceptual",
+        "filters": {"bench": "Principal Bench", "judge": "D.Y. Chandrachud"},
+    })
+
+    result = await extract_intent(
+        gateway,
+        "ruling of the Principal Bench of the Income Tax Appellate Tribunal on Modvat credit authored by Judge D.Y. Chandrachud",
+    )
+
+    assert result["filters"] == {"bench": "Principal Bench", "judge": "D.Y. Chandrachud"}
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_drops_bench_and_judge_when_not_literally_in_query():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "Modvat credit ruling",
+        "intent": "conceptual",
+        "filters": {"bench": "Principal Bench", "judge": "D.Y. Chandrachud"},
+    })
+
+    result = await extract_intent(gateway, "Modvat credit ruling")
+
+    assert result["filters"] == {}
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_coerces_unrecognized_intent_label_to_unknown():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "q", "intent": "section_lookup", "filters": {},
+    })
+
+    result = await extract_intent(gateway, "q")
+
+    assert result["intent"] == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_accepts_each_allowed_intent_label():
+    for label in ["citation_lookup", "provision_lookup", "conceptual", "unknown"]:
+        gateway = AsyncMock()
+        gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+        gateway.chat.return_value = json.dumps({"rewritten_query": "q", "intent": label, "filters": {}})
+
+        result = await extract_intent(gateway, "q")
+
+        assert result["intent"] == label
 
 
 @pytest.mark.asyncio
@@ -199,7 +257,7 @@ async def test_extract_intent_rejects_invented_year_and_court():
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "income tax deduction in 2024 decided by Delhi High Court",
-        "intent": "taxation",
+        "intent": "conceptual",
         "filters": {},
     })
 
@@ -214,7 +272,7 @@ async def test_extract_intent_preserves_user_supplied_year_and_section_numbers()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "income tax section 80HH deduction in 1985",
-        "intent": "taxation",
+        "intent": "provision_lookup",
         "filters": {"section": "80HH"},
     })
 
@@ -230,7 +288,7 @@ async def test_extract_intent_rejects_lossy_rewrite():
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "sale of scrap under 80HH",
-        "intent": "taxation",
+        "intent": "conceptual",
         "filters": {},
     })
 
@@ -244,7 +302,7 @@ async def test_extract_intent_rejects_lossy_rewrite():
 async def test_extract_intent_requests_model_for_slm_role():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-    gateway.chat.return_value = json.dumps({"rewritten_query": "q", "intent": "x", "filters": {}})
+    gateway.chat.return_value = json.dumps({"rewritten_query": "q", "intent": "conceptual", "filters": {}})
 
     await extract_intent(gateway, "q")
 
@@ -255,7 +313,7 @@ async def test_extract_intent_requests_model_for_slm_role():
 async def test_extract_intent_uses_llama_tuned_prompt_for_llama_model():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-    gateway.chat.return_value = json.dumps({"rewritten_query": "q", "intent": "x", "filters": {}})
+    gateway.chat.return_value = json.dumps({"rewritten_query": "q", "intent": "conceptual", "filters": {}})
 
     await extract_intent(gateway, "q")
 
@@ -272,9 +330,8 @@ async def test_extract_intent_warns_when_model_has_no_tuned_prompt(monkeypatch):
         "FakeLangfuseClient", (), {"update_current_span": staticmethod(lambda **kw: captured.update(kw))},
     )())
     gateway = AsyncMock()
-    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.get_model.return_value = "some-brand-new-model"
-    gateway.chat.return_value = json.dumps({"rewritten_query": "q", "intent": "x", "filters": {}})
+    gateway.chat.return_value = json.dumps({"rewritten_query": "q", "intent": "conceptual", "filters": {}})
 
     await extract_intent(gateway, "q")
 
@@ -287,7 +344,7 @@ async def test_extract_intent_drops_non_iso_or_invented_date_filters():
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "income tax cases",
-        "intent": "taxation",
+        "intent": "conceptual",
         "filters": {"date_range": {"gte": "not specified", "lte": "2024-12-31"}},
     })
 
@@ -301,12 +358,12 @@ async def test_extract_intent_forwards_model_override_and_skips_get_model():
     gateway = AsyncMock()
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "candidate model test",
-        "intent": "test",
+        "intent": "conceptual",
         "filters": {},
     })
 
-    await extract_intent(gateway, "candidate model test", model="Qwen/Qwen3-4B-Instruct-2507")
+    await extract_intent(gateway, "candidate model test", model="google/gemma-4-E4B-it")
 
     gateway.get_model.assert_not_awaited()
     call_kwargs = gateway.chat.await_args.kwargs
-    assert call_kwargs["model"] == "Qwen/Qwen3-4B-Instruct-2507"
+    assert call_kwargs["model"] == "google/gemma-4-E4B-it"
