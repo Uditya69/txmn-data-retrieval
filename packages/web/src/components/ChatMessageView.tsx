@@ -1,8 +1,15 @@
+import { useMemo, useState } from 'react'
 import type { ChatMessage, ChatMode, ResultState } from '../types'
-import { mergeResults } from '../lib/mergeResults'
+import { mergeResults, type CardSource } from '../lib/mergeResults'
 import { parseCitations } from '../lib/citations'
 import { groupIntoParagraphs, renderInlineText } from '../lib/richText'
 import TracePanel from './TracePanel'
+
+const SOURCE_FILTERS: { source: CardSource; label: string }[] = [
+  { source: 'es', label: 'ES' },
+  { source: 'milvus_dense', label: 'Milvus dense' },
+  { source: 'milvus_sparse', label: 'Milvus sparse' },
+]
 
 type Props = {
   message: ChatMessage
@@ -42,7 +49,23 @@ function TraceSection({ result, onOpenDocument }: { result: ResultState | undefi
 
 function InstantPane({ result, devMode, onOpenDocument }: { result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void }) {
   const instant = result?.instant
-  const cards = mergeResults(instant?.es, instant?.milvus)
+  const allCards = useMemo(
+    () => mergeResults(instant?.es, instant?.milvus, instant?.milvus_sparse),
+    [instant],
+  )
+  const [activeSources, setActiveSources] = useState<Set<CardSource>>(
+    () => new Set(SOURCE_FILTERS.map((f) => f.source)),
+  )
+  const cards = devMode ? allCards.filter((card) => activeSources.has(card.source)) : allCards
+
+  function toggleSource(source: CardSource) {
+    setActiveSources((prev) => {
+      const next = new Set(prev)
+      if (next.has(source)) next.delete(source)
+      else next.add(source)
+      return next
+    })
+  }
 
   return (
     <div className={`flex-1 min-w-0 rounded-2xl px-4 py-3 ${SCROLL_PANE}`} style={{ background: 'var(--surface-raised)' }}>
@@ -53,15 +76,37 @@ function InstantPane({ result, devMode, onOpenDocument }: { result: ResultState 
         </span>
       </div>
 
+      {devMode && instant && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {SOURCE_FILTERS.map(({ source, label }) => {
+            const active = activeSources.has(source)
+            return (
+              <button
+                key={source}
+                onClick={() => toggleSource(source)}
+                className="text-xs px-2 py-0.5 rounded-full uppercase tracking-wide transition-colors duration-150 cursor-pointer"
+                style={{
+                  background: active ? 'var(--accent-soft)' : 'var(--surface)',
+                  color: active ? 'var(--accent)' : 'var(--text-faint)',
+                  border: '1px solid var(--border-soft)',
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {!instant && <LoadingDots />}
       {instant && cards.length === 0 && (
         <p className="text-sm" style={{ color: 'var(--text-faint)' }}>No matches.</p>
       )}
       {cards.length > 0 && (
         <div className="flex flex-col gap-2">
-          {cards.map((card) => (
+          {cards.map((card, index) => (
             <button
-              key={`${card.source}-${card.doc_id}`}
+              key={`${card.source}-${card.doc_id}-${index}`}
               onClick={() => onOpenDocument(card.doc_id)}
               className="w-full text-left rounded-lg p-3 transition-colors duration-150 cursor-pointer"
               style={{ background: 'var(--surface)', border: '1px solid var(--border-soft)' }}
@@ -79,8 +124,11 @@ function InstantPane({ result, devMode, onOpenDocument }: { result: ResultState 
               {devMode && (
                 <div className="flex items-center gap-2 mt-1 text-xs" style={{ color: 'var(--text-faint)' }}>
                   <span className="uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-raised)' }}>
-                    {card.source === 'es' ? 'ES' : `Milvus:${card.collection}`}
+                    {card.source === 'es'
+                      ? 'ES'
+                      : `Milvus ${card.source === 'milvus_dense' ? 'dense' : 'sparse'}:${card.collection}`}
                   </span>
+                  <span className="font-mono truncate">{card.doc_id}</span>
                 </div>
               )}
               <p className="text-sm mt-2 line-clamp-3" style={{ color: 'var(--text-muted)' }}>{card.snippet}</p>
