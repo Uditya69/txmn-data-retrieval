@@ -260,66 +260,84 @@ name, it silently reroutes.
 
 ### retrieval-rank regression check: intent-driven RRF dense/sparse weighting (Phase 2, Task 1)
 
-Task 1 of the intent-rrf-weighting plan (commit `c7ca8ac`, branch
-`intent-rrf-weighting`) added per-intent RRF dense/sparse weights in
+Task 1 of the intent-rrf-weighting plan added per-intent RRF dense/sparse weights in
 `ai_mode/retrieve.py` (`citation_lookup`/`provision_lookup` → `(0.5, 1.5)`,
 `conceptual` → `(1.5, 0.5)`, `unknown` → `(1.0, 1.0)`), driven by the SLM's
-`extract_intent` classification and wired through `pipeline.py`. Since this changes
-live retrieval ranking, it was checked before trusting it: run the existing
-`retrieval_eval.py` harness both WITH the change (this worktree, HEAD `c7ca8ac`) and
-WITHOUT it (a throwaway worktree at `c7ca8ac~1`, the commit immediately before Task 1),
-same 12-query sample, same running gateway (`google/gemma-4-26B-A4B-it` as `slm`, port
-8011), one after the other, no `--cache-dir` (so both runs hit ES/Milvus/gateway live,
-nothing shared between them).
+`extract_intent` classification and wired through `pipeline.py`.
 
-Commands (identical in both worktrees except `--run-name`):
+**The first version of this check (below, since corrected) was wrong.** It reported
+"identical ranks for every query, before and after" and concluded the change was inert
+because the sample was rank-saturated. That conclusion was an artifact of a bug in the
+*harness*, not a property of the retrieval pipeline: `retrieval_eval.py`'s `rrf` stage
+called `rrf_merge(_flatten(rewritten_dense), _flatten(rewritten_sparse))` with no
+weight arguments at all, so it always fused with neutral `(1.0, 1.0)` weights
+regardless of the query's classified intent — the eval harness was silently measuring
+the pre-Task-1 behavior in both "with" and "without" runs. The live `pipeline.py` path
+*did* thread the intent weights correctly; only the offline eval script didn't. The fix
+(this diff) makes `retrieval_eval.py` call `extract_intent` and look up
+`_INTENT_RRF_WEIGHTS` the same way `retrieve.py` does, so the `rrf`/`reranker` stages in
+the harness now reflect what the live pipeline actually does. A kill switch,
+`INTENT_RRF_WEIGHTING_ENABLED` (default `true`), was also added to `retrieve.py` so the
+weighting can be disabled without a revert if it turns out to hurt in production.
+
+Corrected re-run: `retrieval_eval.py` (post-fix) both WITH the weighting (this
+worktree) and WITHOUT it (a throwaway worktree at commit `9f32824`, `dev` HEAD before
+this branch), same 12-query sample, same running gateway
+(`google/gemma-4-26B-A4B-it` as `slm`, port 8011), one after the other, no
+`--cache-dir` (both runs hit ES/Milvus/gateway live, nothing shared between them):
 
 ```bash
 uv run python -m retrieval_api.retrieval_eval --gateway-url http://localhost:8011 \
-  --sample12 --skip-agentic --no-langfuse --run-name post-rrf-weighting   # this worktree, HEAD=c7ca8ac
+  --sample12 --skip-agentic --no-langfuse --run-name post-rrf-weighting-corrected
 uv run python -m retrieval_api.retrieval_eval --gateway-url http://localhost:8011 \
-  --sample12 --skip-agentic --no-langfuse --run-name pre-rrf-weighting    # throwaway worktree at c7ca8ac~1
+  --sample12 --skip-agentic --no-langfuse --run-name pre-rrf-weighting-corrected
 ```
 
-Per-stage pass counts, WITH the change (post-rrf-weighting):
+Results: `.eval-results/20260810T170347413453Z-post-rrf-weighting-corrected.json` and
+`.eval-results/20260810T171117971867Z-pre-rrf-weighting-corrected.json`.
 
-| Stage | Pass count |
-|---|---|
-| es | 7/12 |
-| raw_dense | 11/12 |
-| raw_sparse | 10/12 |
-| rewritten_dense | 12/12 |
-| rewritten_sparse | 11/12 |
-| rrf | 12/12 |
-| reranker | 12/12 |
+Per-stage pass counts:
 
-Per-stage pass counts, WITHOUT the change (pre-rrf-weighting, `c7ca8ac~1`): **identical
-to the row above, stage for stage** — es 7/12, raw_dense 11/12, raw_sparse 10/12,
-rewritten_dense 12/12, rewritten_sparse 11/12, rrf 12/12, reranker 12/12.
+| Stage | WITH weighting (post) | WITHOUT weighting (pre) |
+|---|---|---|
+| es | 7/12 | 7/12 |
+| raw_dense | 11/12 | 11/12 |
+| raw_sparse | 10/12 | 10/12 |
+| rewritten_dense | 12/12 | 11/12 |
+| rewritten_sparse | 11/12 | 10/12 |
+| rrf | 12/12 | 11/12 |
+| reranker | 12/12 | 11/12 |
 
-Per-query rank comparison (`ranks.{es,raw_dense,raw_sparse,rewritten_dense,
-rewritten_sparse,rrf,reranker}`) was **identical for every one of the 12 queries**,
-including Q01, Q15, Q27, Q51 (the direct/citation-anchored queries in the sample, the
-ones most likely to classify as `citation_lookup`). This was not a caching artifact:
-`--cache-dir` was never passed, per-query `timings_ms` differ between the two runs (real
-independent network calls to ES/Milvus/gateway), and `synthesis_answer` text differs
-slightly (LLM sampling noise) — only the retrieval *ranks* are identical.
+Per-query ranks, the three queries where WITH and WITHOUT differ (all other 9 queries —
+Q01, Q02, Q15, Q27, Q28, Q35, Q51, Q52, Q53 — are identical between the two runs):
 
-To confirm the weighting logic was actually exercised (not silently inert for this
-sample), `extract_intent` was called directly against the same gateway for Q01's query
-text ("Rai Bahadur L Panna Lal 2 ITC 432 Lahore standard rate 10 per cent assessment"):
-it classified as `intent: "citation_lookup"`, which maps to `(dense_weight=0.5,
-sparse_weight=1.5)` — a real, non-1.0 weight change was applied on this query's RRF
-merge, yet the final rank order came out unchanged. Most gold-doc ranks in this sample
-were already 1 (saturated) at every stage before the change, so a moderate re-weighting
-of RRF's score contribution had no headroom to move the outcome either better or worse.
+| Query | class | pass_at | rrf (post/pre) | reranker (post/pre) |
+|---|---|---|---|---|
+| Q16 | indirect | 10 | 2 / 3 | 5 / 5 |
+| Q23 | adversarial | 20 | 1 / 3 | 1 / 1 |
+| Q47 | adversarial | 20 | 1 / >50 | 4 / >50 |
 
-**Verdict: no regression on any stage, for any query, in this sample.** Task 1's change
-is validated to this extent — it did not break anything the harness can see. It also
-shows no *improvement* here, but that's expected: this 12-query sample was already at or
-near ceiling on `rrf`/`reranker` (12/12 both, before and after), so it can't demonstrate
-a lift even if one exists. A larger, less-saturated sample (or one deliberately weighted
-toward citation/provision-anchored queries where dense vs. sparse balance is more
-contested) would be needed to see whether the intent-driven weighting helps in cases
-where the unweighted RRF was previously wrong — this check only confirms it doesn't
-hurt the cases already covered by the 12-query sample.
+Q16 and Q23 are the specific queries a prior review flagged as the risk case for this
+weighting (indirect/adversarial queries where dense vs. sparse balance is contested).
+On both, the WITH-weighting run's `rrf` rank is **better**, not worse (Q16: 2 vs. 3;
+Q23: 1 vs. 3), and `reranker` is unchanged in both cases — so the final post-rerank
+answer for these two queries is unaffected either way. **No regression on Q16/Q23; if
+anything, a small rrf-stage improvement.**
+
+Q47 needs a caveat, not a headline: in the WITHOUT run, `rewritten_dense` and
+`rewritten_sparse` ranks for Q47 are both `None` (gold doc not retrieved by either
+Milvus stage at all) even though `rewritten_query` text is byte-identical between the
+two runs. Since that failure is upstream of RRF fusion entirely — the weighting can't
+explain a difference in the *inputs* to `rrf_merge` — this looks like retrieval-level
+nondeterminism (ANN search / gateway embedding variance) between the two independent
+live runs, not an effect of the code change. Treat Q47's rrf/reranker numbers as noise,
+not evidence either way.
+
+**Verdict: no regression found on this 12-query sample.** The two flagged risk queries
+(Q16, Q23) show a small rrf-stage improvement with the weighting on, unchanged at the
+reranker stage; the one query with a large before/after swing (Q47) is confounded by
+run-to-run retrieval nondeterminism unrelated to the weighting and shouldn't be read as
+a signal. This remains a small, non-adversarially-sampled 12-query check — it does not
+prove the weighting helps broadly, only that it did not break anything visible in this
+sample, and that the harness now actually measures the live weighting behavior instead
+of silently no-op'ing it.
