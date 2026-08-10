@@ -2,6 +2,13 @@ import httpx
 
 _BASE_URL = "https://api.deepinfra.com/v1"
 
+# DeepInfra defaults an unset max_tokens to a value derived from the largest
+# model it serves (observed: 65536), which exceeds smaller models' own
+# context limits (e.g. Qwen3-30B-A3B's 40960) and 400s. Every role that
+# calls chat() here is a short-output task - JSON rewrite, agent tool-call
+# turns, or synthesis prose - so a fixed cap is safe across roles/models.
+_CHAT_MAX_TOKENS = 4096
+
 
 def _openai_usage_details(usage: dict) -> dict[str, int]:
     """Map an OpenAI-shaped usage block to Langfuse's usage_details keys."""
@@ -20,7 +27,7 @@ class DeepInfraAdapter:
     async def chat(
         self, model: str, messages: list[dict], tools: list[dict] | None = None, tool_choice: str | None = None,
     ) -> tuple[str | None, dict[str, int], str | None, list[dict] | None]:
-        payload = {"model": model, "messages": messages}
+        payload = {"model": model, "messages": messages, "max_tokens": _CHAT_MAX_TOKENS}
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = tool_choice or "auto"
