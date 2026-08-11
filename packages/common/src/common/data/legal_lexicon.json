@@ -1,0 +1,6208 @@
+{
+  "courts": [
+    "A A R",
+    "AAR",
+    "AGRA",
+    "AHD",
+    "AHMEDABAD",
+    "AJMER",
+    "ALL",
+    "ALLAHABAD",
+    "AMRITSAR",
+    "ANDHRAPRADESH",
+    "AP",
+    "APPELLATETRIBUNALFORFOREIGNEXCHANGE",
+    "ASR",
+    "ASSAM",
+    "ATFFE",
+    "AUTHORITYADVANCERULING",
+    "AUTHORITYADVANCERULINGS",
+    "BANG",
+    "BANGALORE",
+    "BHUBANESWAR",
+    "BILASPUR",
+    "BOM",
+    "BOMBAY",
+    "BURMA",
+    "CA",
+    "CAL",
+    "CALCUTTA",
+    "CAT",
+    "CCI",
+    "CD",
+    "CENTRALINFORMATIONCOMMISSION",
+    "CESTAT",
+    "CHANCERYDIVISION",
+    "CHANDIGARH",
+    "CHD",
+    "CHENNAI",
+    "CHHATTISGARH",
+    "CIC",
+    "CLB",
+    "COCH",
+    "COCHIN",
+    "COMPANYLAWBOARD",
+    "COMPETITIONAPPELLATETRIBUNAL",
+    "COMPETITIONCOMMISSIONOFINDIA",
+    "CONSUMERFORUM",
+    "COURTOFAPPEAL",
+    "CUSTOMSEXCISESERVICETAXAPPELLATETRIBUNAL",
+    "CUTTACK",
+    "DACCA",
+    "DELHI",
+    "FC",
+    "FEDRALCOURT",
+    "FERAB",
+    "FOREIGNEXCHANGEREGULATIONAPPELLATEBOARD",
+    "FORIEGNCOURT",
+    "GAUHATI",
+    "GOA",
+    "GOADAMANANDDIU",
+    "GUJ",
+    "GUJARAT",
+    "GUNTUR",
+    "GWALIOR",
+    "HC",
+    "HIGHCOURT",
+    "HIMACHALPRADESH",
+    "HL",
+    "HOUSEOFLORDS",
+    "HYD",
+    "HYDERABAD",
+    "INCOMETAXAPPELATETRIBUNAL",
+    "INDORE",
+    "ITAT",
+    "ITSC",
+    "JAB",
+    "JABALPUR",
+    "JAIPUR",
+    "JAMMUANDKASHMIR",
+    "JHAR",
+    "JHARKHAND",
+    "JK",
+    "JODH",
+    "JODHPUR",
+    "JP",
+    "KAR",
+    "KARNATAKA",
+    "KB",
+    "KER",
+    "KERALA",
+    "KINGSBENCHDIVISION",
+    "KOL",
+    "KOLKATA",
+    "LAHORE",
+    "LUCKNOW",
+    "MADHYA-BHARAT",
+    "MADHYAPRADESH",
+    "MADRAS",
+    "MAH",
+    "MAHARASHTRA",
+    "MEERUT",
+    "MP",
+    "MUM",
+    "MUMBAI",
+    "MYS",
+    "MYSORE",
+    "NAG",
+    "NAGALAND",
+    "NAGPUR",
+    "NEWDELHI",
+    "NOIDA",
+    "NOTDISPLAY",
+    "ORISSA",
+    "OUDH",
+    "PANAJI",
+    "PAT",
+    "PATNA",
+    "PC",
+    "PEPSU",
+    "PESHAWAR",
+    "PRIVYCOUNCIL",
+    "PUNE",
+    "PUNJABANDHARYANA",
+    "PUNJHAR",
+    "QB",
+    "QUEENSBENCHDIVISION",
+    "RAJ",
+    "RAJASTHAN",
+    "RAJKOT",
+    "RANCHI",
+    "RANG",
+    "RANGOON",
+    "S C",
+    "SAT",
+    "SC",
+    "SECURITIESAPPELLATETIBUNIAL",
+    "SIKKIM",
+    "SIMLA",
+    "SIND",
+    "SUPREMECOURT",
+    "TRAVANCORECOCHIN",
+    "TRAVCOCHIN",
+    "TRIBUNAL",
+    "TRIPURAJD",
+    "TRIPURAJUDICIALCOMMISSIONERSCOURT",
+    "UTTARAKHAND",
+    "UTTARANCHAL",
+    "VADODARA",
+    "VISAKHA",
+    "VISAKHAPATNAM"
+  ],
+  "journals": [
+    "CENTAX",
+    "CLA",
+    "COMPCASE",
+    "COMPLJ",
+    "CTR",
+    "E L T",
+    "ELT",
+    "G S T L",
+    "GST1",
+    "GSTL",
+    "ITD",
+    "ITR",
+    "ITRT",
+    "S T R",
+    "SCL",
+    "SOT",
+    "STT",
+    "TAXMAN",
+    "TAXMANN COM",
+    "TTJ",
+    "VST"
+  ],
+  "stopwords": [
+    "ABLE",
+    "ABOUT",
+    "ACROSS",
+    "AFTER",
+    "ALMOST",
+    "ALSO",
+    "AM",
+    "AMONG",
+    "AMP",
+    "AN",
+    "ANY",
+    "ARE",
+    "AREN",
+    "AT",
+    "BE",
+    "BECAUSE",
+    "BEEN",
+    "BETWEEN",
+    "BUT",
+    "BY",
+    "CAN",
+    "CANNOT",
+    "COULD",
+    "DEAR",
+    "DID",
+    "DIGEST",
+    "DO",
+    "DOES",
+    "EITHER",
+    "ELSE",
+    "EVER",
+    "EVERY",
+    "FROM",
+    "GET",
+    "GOT",
+    "HAD",
+    "HAS",
+    "HAVE",
+    "HE",
+    "HER",
+    "HERS",
+    "HIM",
+    "HIS",
+    "HOW",
+    "HOWEVER",
+    "IF",
+    "IN",
+    "INTO",
+    "IS",
+    "ISN",
+    "IT",
+    "ITS",
+    "JUST",
+    "LEAST",
+    "LET",
+    "LIKE",
+    "LIKELY",
+    "ME",
+    "MIGHT",
+    "MOST",
+    "MUST",
+    "MY",
+    "NEITHER",
+    "NO",
+    "NOS",
+    "NOT",
+    "OF",
+    "OFF",
+    "OFTEN",
+    "ON",
+    "ONLY",
+    "OR",
+    "OTHER",
+    "OUR",
+    "OWN",
+    "RATHER",
+    "REFER",
+    "SAID",
+    "SAY",
+    "SAYS",
+    "SHE",
+    "SHOULD",
+    "SINCE",
+    "SOME",
+    "SUMMARY",
+    "THAN",
+    "THAT",
+    "THE",
+    "THEIR",
+    "THEM",
+    "THEN",
+    "THERE",
+    "THESE",
+    "THEY",
+    "THIS",
+    "TIS",
+    "TO",
+    "TOO",
+    "TWAS",
+    "US",
+    "VS",
+    "WANTS",
+    "WAS",
+    "WE",
+    "WERE",
+    "WHAT",
+    "WHEN",
+    "WHERE",
+    "WHICH",
+    "WHILE",
+    "WHO",
+    "WHOM",
+    "WHY",
+    "WILL",
+    "WITH",
+    "WOULD",
+    "WOULDN",
+    "WRITTEN",
+    "YET",
+    "YOU",
+    "YOUR"
+  ],
+  "synonyms": {
+    "AA": [
+      "AA",
+      "ADVANCE AUTHORISATION"
+    ],
+    "AAAR": [
+      "Appellate Authority For Advance Ruling",
+      "AAAR"
+    ],
+    "AANF": [
+      "AANF",
+      "APPENDICES AND AAYAAT NIRYAAT FORM"
+    ],
+    "AAR1": [
+      "Authority For Advance Ruling",
+      "AAR"
+    ],
+    "AAYATNIRYAATFORM": [
+      "ANF",
+      "AAYAT NIRYAAT FORM"
+    ],
+    "AB INITIO": [
+      "AB INITIO",
+      "ABINITIO"
+    ],
+    "ABINITIO": [
+      "AB INITIO",
+      "ABINITIO"
+    ],
+    "ACC": [
+      "Air Cooled Condensers",
+      "ACC"
+    ],
+    "ACCREDITEDCLIENTSPROGRAMME": [
+      "ACP",
+      "ACCREDITED CLIENTS PROGRAMME"
+    ],
+    "ACIT": [
+      "ASSISTANT COMMISSIONER INCOME TAX",
+      "ACIT"
+    ],
+    "ACP": [
+      "ACP",
+      "ACCREDITED CLIENTS PROGRAMME"
+    ],
+    "ACQ": [
+      "Annual Contractual Quantity",
+      "ACQ"
+    ],
+    "ACR": [
+      "Annual Confidential Report",
+      "ACR"
+    ],
+    "ACST": [
+      "ASSISTANT COMMISSIONER SERVICE TAX",
+      "ACST"
+    ],
+    "ACTUALUSER": [
+      "AU",
+      "ACTUAL USER"
+    ],
+    "ACU": [
+      "ACU",
+      "ASIAN CLEARING UNION"
+    ],
+    "AD HOC": [
+      "AD HOC",
+      "ADHOC"
+    ],
+    "ADC": [
+      "Advance Development Cost",
+      "ADC"
+    ],
+    "ADD": [
+      "Anti Dumping duty",
+      "ADD"
+    ],
+    "ADHOC": [
+      "AD HOC",
+      "ADHOC"
+    ],
+    "ADP": [
+      "Automatic Data Processing",
+      "ADP"
+    ],
+    "ADPS": [
+      "Automatic Data Processing System",
+      "ADPS"
+    ],
+    "ADR": [
+      "AMERICAN DEPOSITORY RECEIPTS",
+      "ADR"
+    ],
+    "ADVALOREM": [
+      "AD VALOREM",
+      "ADVALOREM"
+    ],
+    "ADVANCEAUTHORISATION": [
+      "AA",
+      "ADVANCE AUTHORISATION"
+    ],
+    "ADVANCEDEVELOPMENTCOST": [
+      "Advance Development Cost",
+      "ADC"
+    ],
+    "ADVANCERELEASEORDER": [
+      "ARO",
+      "ADVANCE RELEASE ORDER"
+    ],
+    "AEO": [
+      "AEO",
+      "AUTHORISED ECONOMIC OPERATOR"
+    ],
+    "AES": [
+      "AES",
+      "APPROVED EXPORTER'S SCHEME"
+    ],
+    "AEZ": [
+      "AEZ",
+      "AGRI EXPORT ZONE"
+    ],
+    "AFC": [
+      "Automatic Fare Collection",
+      "AFC"
+    ],
+    "AGRICULTURALPROCESSEDFOODPRODUCTSEXPORTDEVELOPMENTAUTHORITY": [
+      "APEDA",
+      "AGRICULTURAL & PROCESSED FOOD PRODUCTS EXPORT DEVELOPMENT AUTHORITY"
+    ],
+    "AGRIEXPORTZONE": [
+      "AEZ",
+      "AGRI EXPORT ZONE"
+    ],
+    "AIRCONDITIONER": [
+      "AIR CONDITIONER",
+      "AIRCONDITIONER"
+    ],
+    "AIRCOOLEDCONDENSERS": [
+      "Air Cooled Condensers",
+      "ACC"
+    ],
+    "AIRCRAFTTURBINEFUEL": [
+      "Aircraft Turbine Fuel",
+      "ATF"
+    ],
+    "ALP": [
+      "ARMS LENGTH PRICE",
+      "ALP"
+    ],
+    "AMENDMENTACT": [
+      "AMENDMENT ACT",
+      "ACT PARLIAMENT"
+    ],
+    "AMMONIASLIPCATALYST": [
+      "Ammonia Slip Catalyst",
+      "ASC"
+    ],
+    "AMT": [
+      "ALTERNATE MINIMUM TAX",
+      "AMT"
+    ],
+    "ANF": [
+      "ANF",
+      "AAYAT NIRYAAT FORM"
+    ],
+    "ANNUALCONFIDENTIALREPORT": [
+      "Annual Confidential Report",
+      "ACR"
+    ],
+    "ANNUALCONTRACTUALQUANTITY": [
+      "Annual Contractual Quantity",
+      "ACQ"
+    ],
+    "ANNUALMAINTENANCECONTRACT": [
+      "Annual maintenance contract",
+      "AMC"
+    ],
+    "ANTIDUMPING": [
+      "ANTI DUMPING",
+      "ANTIDUMPING"
+    ],
+    "ANTIDUMPINGDUTY": [
+      "Anti Dumping duty",
+      "ADD"
+    ],
+    "AOA": [
+      "ARTICLES ASSOCIATION",
+      "AOA"
+    ],
+    "AOP": [
+      "ASSOCIATION PERSONS",
+      "AOP"
+    ],
+    "APA": [
+      "ADVANCE PRICING AGREEMENT",
+      "APA"
+    ],
+    "APEDA": [
+      "APEDA",
+      "AGRICULTURAL & PROCESSED FOOD PRODUCTS EXPORT DEVELOPMENT AUTHORITY"
+    ],
+    "APPEALPUBLICSECTORUNDERTAKINGS": [
+      "Appeal by Public Sector Undertakings",
+      "PSU"
+    ],
+    "APPENDICESANDAAYAATNIRYAATFORM": [
+      "AANF",
+      "APPENDICES AND AAYAAT NIRYAAT FORM"
+    ],
+    "APPLICATIONFORREMOVALOFEXCISABLEGOODSFOREXPORTBYAIRSEAPOSTLAND": [
+      "ARE-1",
+      "APPLICATION FOR REMOVAL OF EXCISABLE GOODS FOR EXPORT (BY AIR/SEA/ POST/LAND)"
+    ],
+    "APPLICATIONFORREMOVALOFEXCISABLEGOODSFROMAFACTORYORAWAREHOUSETOANOTHERWAREHOUSE": [
+      "ARE-3",
+      "APPLICATION FOR REMOVAL OF EXCISABLE GOODS FROM A FACTORY OR A WAREHOUSE TO ANOTHER WAREHOUSE"
+    ],
+    "APPROVEDEXPORTERSSCHEME": [
+      "AES",
+      "APPROVED EXPORTER'S SCHEME"
+    ],
+    "AR": [
+      "ACCOUNTS RECEIVABLE",
+      "AR"
+    ],
+    "ARE1": [
+      "ARE-1",
+      "APPLICATION FOR REMOVAL OF EXCISABLE GOODS FOR EXPORT (BY AIR/SEA/ POST/LAND)"
+    ],
+    "ARE3": [
+      "ARE-3",
+      "APPLICATION FOR REMOVAL OF EXCISABLE GOODS FROM A FACTORY OR A WAREHOUSE TO ANOTHER WAREHOUSE"
+    ],
+    "ARN": [
+      "Application Reference Number",
+      "ARN"
+    ],
+    "ARO": [
+      "ARO",
+      "ADVANCE RELEASE ORDER"
+    ],
+    "ASC": [
+      "Ammonia Slip Catalyst",
+      "ASC"
+    ],
+    "ASDISCLOSURES": [
+      "AS DISCLOSURES",
+      "AS CHECKLIST"
+    ],
+    "ASEAN": [
+      "ASEAN",
+      "ASSOCIATION OF SOUTH- EAST ASIAN NATIONS"
+    ],
+    "ASIANCLEARINGUNION": [
+      "ACU",
+      "ASIAN CLEARING UNION"
+    ],
+    "ASIDE": [
+      "ASIDE",
+      "ASSISTANCE TO STATES FOR INFRASTRUCTURE DEVELOPMENT OF EXPORTS"
+    ],
+    "ASSETMANAGEMENTCOMPANY": [
+      "Asset Management Company",
+      "AMC"
+    ],
+    "ASSISTANCETOSTATESFORINFRASTRUCTUREDEVELOPMENTOFEXPORTS": [
+      "ASIDE",
+      "ASSISTANCE TO STATES FOR INFRASTRUCTURE DEVELOPMENT OF EXPORTS"
+    ],
+    "ASSOCIATIONOFSOUTHEASTASIANNATIONS": [
+      "ASEAN",
+      "ASSOCIATION OF SOUTH- EAST ASIAN NATIONS"
+    ],
+    "ATM": [
+      "Automated Teller Machine",
+      "ATM"
+    ],
+    "AU": [
+      "AU",
+      "ACTUAL USER"
+    ],
+    "AUDIOVISUALRECEIVERS": [
+      "Audio Visual Receivers",
+      "AVR"
+    ],
+    "AUDITINGSTANDARD": [
+      "SA",
+      "STANDARD ON AUDITING",
+      "AUDITING STANDARDS"
+    ],
+    "AUDITINGSTANDARDS": [
+      "SA",
+      "STANDARD ON AUDITING",
+      "AUDITING STANDARDS"
+    ],
+    "AUTHORISEDECONOMICOPERATOR": [
+      "AEO",
+      "AUTHORISED ECONOMIC OPERATOR"
+    ],
+    "AUTHORIZEDREPRESENTATIVE": [
+      "Authorized Representative",
+      "AR"
+    ],
+    "AUTOMATEDTELLERMACHINE": [
+      "Automated Teller Machine",
+      "ATM"
+    ],
+    "AUTOMATICDATAPROCESSING": [
+      "Automatic Data Processing",
+      "ADP"
+    ],
+    "AUTOMATICDATAPROCESSINGSYSTEM": [
+      "Automatic Data Processing System",
+      "ADPS"
+    ],
+    "AUTOMATICFARECOLLECTION": [
+      "Automatic Fare Collection",
+      "AFC"
+    ],
+    "AVG": [
+      "AVERAGE",
+      "AVG"
+    ],
+    "AVIATIONTURBINEFUEL": [
+      "Aviation Turbine Fuel",
+      "ATF"
+    ],
+    "AVR": [
+      "Audio Visual Receivers",
+      "AVR"
+    ],
+    "AY": [
+      "ASSESSMENT YEAR",
+      "A Y"
+    ],
+    "B I F R": [
+      "BIFR",
+      "BOARD FOR INDUSTRIAL AND FINANCIAL RECONSTRUCTION",
+      "B I F R"
+    ],
+    "B T N": [
+      "BTN",
+      "BRUSSELS TRADE NOMENCLATURE",
+      "B T N"
+    ],
+    "B2B": [
+      "Business To Business",
+      "B2B"
+    ],
+    "B2C": [
+      "Business To Customer",
+      "B2C"
+    ],
+    "BANKGUARANTEE": [
+      "BG",
+      "BANK GUARANTEE"
+    ],
+    "BANKREALISATIONCERTIFICATE": [
+      "BRC",
+      "BANK REALISATION CERTIFICATE"
+    ],
+    "BANKREALIZATIONCERTIFICATE": [
+      "Bank Realization Certificate",
+      "BRC"
+    ],
+    "BASETRANSMISSIONSTATION": [
+      "Base Transmission Station",
+      "BTS"
+    ],
+    "BASICCUSTOMSDUTY": [
+      "BCD",
+      "BASIC CUSTOMS DUTY"
+    ],
+    "BCD": [
+      "BCD",
+      "BASIC CUSTOMS DUTY"
+    ],
+    "BENZYLMETHYLSALICYLATE": [
+      "Benzyl Methyl Salicylate",
+      "BMS"
+    ],
+    "BG": [
+      "BG",
+      "BANK GUARANTEE"
+    ],
+    "BIFR": [
+      "BIFR",
+      "BOARD FOR INDUSTRIAL AND FINANCIAL RECONSTRUCTION",
+      "B I F R"
+    ],
+    "BIOTECHNOLOGYPARK": [
+      "BTP",
+      "BIOTECHNOLOGY PARK"
+    ],
+    "BIS": [
+      "BIS",
+      "BUREAU OF INDIAN STANDARDS"
+    ],
+    "BMS": [
+      "Benzyl Methyl Salicylate",
+      "BMS"
+    ],
+    "BOA": [
+      "BOA",
+      "BOARD OF APPROVAL"
+    ],
+    "BOARDFORINDUSTRIALANDFINANCIALRECONSTRUCTION": [
+      "BIFR",
+      "BOARD FOR INDUSTRIAL AND FINANCIAL RECONSTRUCTION",
+      "B I F R"
+    ],
+    "BOARDOFAPPROVAL": [
+      "BOA",
+      "BOARD OF APPROVAL"
+    ],
+    "BOARDOFINDUSTRIALANDFINANCIALRECONSTRUCTION": [
+      "BIFR",
+      "BOARD OF INDUSTRIAL AND FINANCIAL RECONSTRUCTION"
+    ],
+    "BOARDOFTRADE": [
+      "BOT",
+      "BOARD OF TRADE"
+    ],
+    "BOD": [
+      "BOARD DIRECTORS",
+      "BOD"
+    ],
+    "BOI": [
+      "BODY INDIVIDUALS",
+      "BOI"
+    ],
+    "BONAFIDE": [
+      "BONA FIDE",
+      "BONAFIDE"
+    ],
+    "BOT": [
+      "BOT",
+      "BOARD OF TRADE"
+    ],
+    "BOUGHTOUT": [
+      "BOUGHT OUT",
+      "BOUGHTOUT"
+    ],
+    "BQS": [
+      "Bus Queue Shelter",
+      "BQS"
+    ],
+    "BRC": [
+      "BRC",
+      "BANK REALISATION CERTIFICATE"
+    ],
+    "BRUSSELSTARIFFNOMENCLATURE": [
+      "Brussels Tariff Nomenclature",
+      "BTN"
+    ],
+    "BRUSSELSTRADENOMENCLATURE": [
+      "BTN",
+      "BRUSSELS TRADE NOMENCLATURE",
+      "B T N"
+    ],
+    "BS": [
+      "BALANCE SHEET",
+      "B S"
+    ],
+    "BTN": [
+      "BTN",
+      "BRUSSELS TRADE NOMENCLATURE",
+      "B T N"
+    ],
+    "BTP": [
+      "BTP",
+      "BIOTECHNOLOGY PARK"
+    ],
+    "BTS": [
+      "Base Transmission Station",
+      "BTS"
+    ],
+    "BUREAUINDIANSTANDARDS": [
+      "Bureau Indian Standards",
+      "BIS"
+    ],
+    "BUREAUOFINDIANSTANDARDS": [
+      "BIS",
+      "BUREAU OF INDIAN STANDARDS"
+    ],
+    "BUSQUEUESHELTER": [
+      "Bus Queue Shelter",
+      "BQS"
+    ],
+    "BYPRODUCT": [
+      "BY PRODUCT",
+      "BYPRODUCT"
+    ],
+    "C B E C": [
+      "CBEC",
+      "CENTRAL BOARD OF EXCISE & CUSTOMS",
+      "C B E C",
+      "CENTRAL BOARD OF EXCISE AND CUSTOMS"
+    ],
+    "C B I": [
+      "CBI",
+      "CENTRAL BUREAU OF INTELIGENCE",
+      "C B I"
+    ],
+    "C C C N": [
+      "CCCN",
+      "CUSTOMS COOPERATIVE COUNCIL NOMENCLATURE",
+      "C C C N"
+    ],
+    "C C I E": [
+      "CCIE",
+      "CHIEF CONTROLLER OF IMPORT & EXPORT",
+      "C C I E"
+    ],
+    "C H A": [
+      "CHA",
+      "CUSTOM HOUSE AGENT",
+      "C H A"
+    ],
+    "C I F": [
+      "CIF",
+      "COST INSURANCE FREIGHT",
+      "C I F"
+    ],
+    "C K D": [
+      "CKD",
+      "COMPLETELY KNOCKED DOWN",
+      "C K D"
+    ],
+    "C O F E P O S A": [
+      "COFEPOSA",
+      "CONSERVATION OF FOREIGN EXCHANGE AND PREVENTION OF SMUGGLING ACTIVITIES",
+      "C O F E P O S A"
+    ],
+    "C V D": [
+      "CVD",
+      "COUNTERVAILING DUTY",
+      "C V D"
+    ],
+    "CABLECLEANINGCOMPOUND": [
+      "Cable Cleaning Compound",
+      "CCC"
+    ],
+    "CABLEFILLINGCOMPOUND": [
+      "Cable Filling Compound",
+      "CFC"
+    ],
+    "CAMC": [
+      "Comprehensive Annual Maintenance Contract",
+      "CAMC"
+    ],
+    "CAPITALGOODS": [
+      "CG",
+      "CAPITAL GOODS"
+    ],
+    "CARGOSERVICEPROVIDER": [
+      "Cargo Service Provider",
+      "CSP"
+    ],
+    "CARO": [
+      "CARO",
+      "COMPANIES AUDITORS REPORT ORDER"
+    ],
+    "CAS": [
+      "CAS",
+      "COST ACCOUNTING STANDARDS"
+    ],
+    "CASHDELIVERY": [
+      "Cash delivery",
+      "COD"
+    ],
+    "CASHONDELIVERY": [
+      "COD",
+      "CASH ON DELIVERY"
+    ],
+    "CASUALTAXABLEPERSON": [
+      "Casual Taxable person",
+      "CPT"
+    ],
+    "CBDT": [
+      "CENTRAL BOARD FOR DIRECT TAXES",
+      "CBDT"
+    ],
+    "CBDT1": [
+      "Central Board of Direct Taxes",
+      "CBDT"
+    ],
+    "CBDTCIRCULAR": [
+      "circular;cbdt circular",
+      "Central Board of Direct Taxes circular",
+      "DIRECT TAX CIRCULAR",
+      "INCOME TAX CIRCULAR",
+      "WEALTH TAX CIRCULAR"
+    ],
+    "CBDTCIRCULARS": [
+      "circular;cbdt circular",
+      "Central Board of Direct Taxes circulars",
+      "DIRECT TAX CIRCULAR",
+      "INCOME TAX CIRCULAR",
+      "WEALTH TAX CIRCULAR"
+    ],
+    "CBDTFINANCEACT": [
+      "CBDT FINANCE ACT",
+      "CBDT SECTION WISE"
+    ],
+    "CBDTINSTRUCTIONS": [
+      "INSTRUCTIONS;cbdt INSTRUCTIONS",
+      "DIRECT TAX INSTRUCTIONS",
+      "INCOME TAX INSTRUCTIONS",
+      "WEALTH TAX INSTRUCTIONS"
+    ],
+    "CBDTNOTIFICATION": [
+      "notification;cbdt notification",
+      "Central Board of Direct Taxes  notification",
+      "DIRECT TAX notification",
+      "INCOME TAX notification",
+      "WEALTH TAX notification"
+    ],
+    "CBDTNOTIFICATIONS": [
+      "notification;cbdt notification",
+      "Central Board of Direct Taxes  notification",
+      "DIRECT TAX notification",
+      "INCOME TAX notification",
+      "WEALTH TAX notification"
+    ],
+    "CBEC": [
+      "CBEC",
+      "CENTRAL BOARD OF EXCISE & CUSTOMS",
+      "C B E C",
+      "CENTRAL BOARD OF EXCISE AND CUSTOMS"
+    ],
+    "CBECCIRCULAR": [
+      "circular;cbec circulars",
+      "excise circular",
+      "service tax circular"
+    ],
+    "CBI": [
+      "CBI",
+      "CENTRAL BUREAU OF INTELIGENCE",
+      "C B I"
+    ],
+    "CBS": [
+      "Core Banking Solution",
+      "CBS"
+    ],
+    "CBT": [
+      "Computer Based Training",
+      "CBT"
+    ],
+    "CBU": [
+      "Contract Bottling Unit",
+      "CBU"
+    ],
+    "CCAS": [
+      "Compact Cassegrain Antenna Sub system",
+      "CCAS"
+    ],
+    "CCC": [
+      "Cable Cleaning Compound",
+      "CCC"
+    ],
+    "CCCN": [
+      "CCCN",
+      "CUSTOMS COOPERATIVE COUNCIL NOMENCLATURE",
+      "C C C N"
+    ],
+    "CCIE": [
+      "CCIE",
+      "CHIEF CONTROLLER OF IMPORT & EXPORT",
+      "C C I E"
+    ],
+    "CCIT": [
+      "CHIEF COMMISSIONER INCOME TAX",
+      "CCIT"
+    ],
+    "CCP": [
+      "CCP",
+      "CUSTOMS CLEARANCE PERMIT"
+    ],
+    "CCR": [
+      "CENVAT CREDIT RULES",
+      "CCR"
+    ],
+    "CCST": [
+      "CHIEF COMMISSIONER SERVICE TAX",
+      "CCST"
+    ],
+    "CCTV": [
+      "Closed Circuit Television",
+      "CCTV"
+    ],
+    "CDR": [
+      "Corporate Debt Restructuring",
+      "CDR"
+    ],
+    "CDRS": [
+      "Compact Disc Recordable",
+      "CDRS"
+    ],
+    "CDT": [
+      "CORPORATE DIVIDEND TAX",
+      "CDT"
+    ],
+    "CEA": [
+      "CEA",
+      "CENTRAL EXCISE AUTHORITY"
+    ],
+    "CEC": [
+      "CEC",
+      "CHARTERED ENGINEER CERTIFICATE"
+    ],
+    "CECA": [
+      "CECA",
+      "COMPREHENSIVE ECONOMIC COOPERATION AGREEMENT"
+    ],
+    "CED": [
+      "CED",
+      "CENTRAL EXCISE DUTY"
+    ],
+    "CENTRALBOARDEXCISECUSTOM": [
+      "Central Board Excise Custom",
+      "CBEC"
+    ],
+    "CENTRALBOARDOFEXCISEANDCUSTOMS": [
+      "CBEC",
+      "CENTRAL BOARD OF EXCISE & CUSTOMS",
+      "C B E C",
+      "CENTRAL BOARD OF EXCISE AND CUSTOMS"
+    ],
+    "CENTRALBOARDOFEXCISECUSTOMS": [
+      "CBEC",
+      "CENTRAL BOARD OF EXCISE & CUSTOMS",
+      "C B E C",
+      "CENTRAL BOARD OF EXCISE AND CUSTOMS"
+    ],
+    "CENTRALBUREAUINVESTIGATION": [
+      "Central Bureau Investigation",
+      "CBI"
+    ],
+    "CENTRALBUREAUOFINTELIGENCE": [
+      "CBI",
+      "CENTRAL BUREAU OF INTELIGENCE",
+      "C B I"
+    ],
+    "CENTRALEXCISEAUTHORITY": [
+      "CEA",
+      "CENTRAL EXCISE AUTHORITY"
+    ],
+    "CENTRALEXCISEDUTY": [
+      "CED",
+      "CENTRAL EXCISE DUTY"
+    ],
+    "CENTRALGOODSANDSERVICESTAX": [
+      "CGST",
+      "CENTRAL GOODS AND SERVICES TAX"
+    ],
+    "CENTRALRESERVATIONSYSTEM": [
+      "Central Reservation System",
+      "CRS"
+    ],
+    "CENTRALSALESTAX": [
+      "CST",
+      "CENTRAL SALES TAX"
+    ],
+    "CENTRALVALUEADDEDTAX": [
+      "CENVAT",
+      "CENTRAL VALUE ADDED TAX"
+    ],
+    "CENVAT": [
+      "CENVAT",
+      "CENTRAL VALUE ADDED TAX"
+    ],
+    "CENVAT1": [
+      "Central Value Added Tax",
+      "CENVAT"
+    ],
+    "CEPA": [
+      "CEPA",
+      "COMPREHENSIVE ECONOMIC PARTNERSHIP AGREEMENT"
+    ],
+    "CERC": [
+      "Certified Emission Reduction certificates",
+      "CERC"
+    ],
+    "CERTIFICATEOFORIGIN": [
+      "COO",
+      "CERTIFICATE OF ORIGIN"
+    ],
+    "CERTIFICATEOFREGISTRATIONASEXPORTEROFSPICES": [
+      "CRES",
+      "CERTIFICATE OF REGISTRATION AS EXPORTER OF SPICES"
+    ],
+    "CERTIFICATIONOFREGISTRATIONASEXPORTEROFSPICES": [
+      "CRES",
+      "CERTIFICATION OF REGISTRATION AS EXPORTER OF SPICES"
+    ],
+    "CERTIFIEDEMISSIONREDUCTIONCERTIFICATES": [
+      "Certified Emission Reduction certificates",
+      "CERC"
+    ],
+    "CETF": [
+      "CETF",
+      "COMMON EFFLUENT TREATMENT FACILITY"
+    ],
+    "CETP": [
+      "Common Effluent Treatment Plant",
+      "CETP"
+    ],
+    "CFCS": [
+      "CFC",
+      "COMMON FACILITY CENTRES"
+    ],
+    "CG": [
+      "CG",
+      "CAPITAL GOODS"
+    ],
+    "CGST": [
+      "CGST",
+      "CENTRAL GOODS AND SERVICES TAX"
+    ],
+    "CHA": [
+      "CHA",
+      "CUSTOM HOUSE AGENT",
+      "C H A"
+    ],
+    "CHARTEREDENGINEERCERTIFICATE": [
+      "CEC",
+      "CHARTERED ENGINEER CERTIFICATE"
+    ],
+    "CHIEFCONTROLLEROFIMPORTEXPORT": [
+      "CCIE",
+      "CHIEF CONTROLLER OF IMPORT & EXPORT",
+      "C C I E"
+    ],
+    "CICS": [
+      "Commercial Industrial Construction Service",
+      "CICS"
+    ],
+    "CIF": [
+      "CIF",
+      "COST INSURANCE FREIGHT",
+      "C I F"
+    ],
+    "CII": [
+      "COST INFLATION INDEX",
+      "CII"
+    ],
+    "CIN": [
+      "CIN",
+      "CORPORATE IDENTIFICATION NUMBER"
+    ],
+    "CIRP": [
+      "Corporate Insolvency Resolution Process",
+      "CIRP"
+    ],
+    "CIS": [
+      "CIS",
+      "COMMONWEALTH OF INDEPENDENT STATES"
+    ],
+    "CIT": [
+      "COMMISSIONER INCOME TAX",
+      "CIT"
+    ],
+    "CITA": [
+      "CHIEF COMMISSIONER INCOME TAX APPEALS",
+      "CIT A"
+    ],
+    "CKD": [
+      "CKD",
+      "COMPLETELY KNOCKED DOWN",
+      "C K D"
+    ],
+    "CL": [
+      "CLAUSE",
+      "CL"
+    ],
+    "CLEANENERGYCESS": [
+      "Clean Energy Cess",
+      "CEC"
+    ],
+    "CLOSEDCIRCUITTELEVISION": [
+      "Closed Circuit Television",
+      "CCTV"
+    ],
+    "CMS": [
+      "Content Management System",
+      "CMS"
+    ],
+    "CNG": [
+      "Compressed Natural Gas",
+      "CNG"
+    ],
+    "COA": [
+      "COST ACQUISITION",
+      "COA"
+    ],
+    "COACCUSED": [
+      "CO ACCUSED",
+      "COACCUSED"
+    ],
+    "COD": [
+      "COD",
+      "CASH ON DELIVERY"
+    ],
+    "COFEPOSA": [
+      "COFEPOSA",
+      "CONSERVATION OF FOREIGN EXCHANGE AND PREVENTION OF SMUGGLING ACTIVITIES",
+      "C O F E P O S A"
+    ],
+    "COGS": [
+      "COST GOODS SOLD",
+      "COGS"
+    ],
+    "COI": [
+      "COST IMPROVEMENT",
+      "COI"
+    ],
+    "COLLECTOR": [
+      "COMMISSIONER",
+      "COLLECTOR"
+    ],
+    "COMMERCIALINDUSTRIALCONSTRUCTIONSERVICE": [
+      "Commercial Industrial Construction Service",
+      "CICS"
+    ],
+    "COMMISSIONER": [
+      "COMMISSIONER",
+      "COLLECTOR"
+    ],
+    "COMMISSIONEROFWEALTHTAX": [
+      "COMMISSIONER OF WEALTH TAX",
+      "CWT"
+    ],
+    "COMMITTEEONQUALITYCOMPLAINTSANDTRADEDISPUTES": [
+      "CQCTD",
+      "COMMITTEE ON QUALITY COMPLAINTS AND TRADE DISPUTES"
+    ],
+    "COMMONEFFLUENTTREATMENTFACILITY": [
+      "CETF",
+      "COMMON EFFLUENT TREATMENT FACILITY"
+    ],
+    "COMMONEFFLUENTTREATMENTPLANT": [
+      "Common Effluent Treatment Plant",
+      "CETP"
+    ],
+    "COMMONFACILITYCENTRES": [
+      "CFCS",
+      "COMMON FACILITY CENTRES"
+    ],
+    "COMMONSERVICEPROVIDER": [
+      "CSP",
+      "COMMON SERVICE PROVIDER"
+    ],
+    "COMMONWEALTHOFINDEPENDENTSTATES": [
+      "CIS",
+      "COMMONWEALTH OF INDEPENDENT STATES"
+    ],
+    "COMPACTCASSEGRAINANTENNASUBSYSTEM": [
+      "Compact Cassegrain Antenna Sub system",
+      "CCAS"
+    ],
+    "COMPACTDISC": [
+      "Compact disc",
+      "CD"
+    ],
+    "COMPACTDISCRECORDABLE": [
+      "Compact Disc Recordable",
+      "CDRs"
+    ],
+    "COMPANIESACT": [
+      "COMPANIES ACT",
+      "COMPANY ACT"
+    ],
+    "COMPANIESAUDITORSREPORTORDER": [
+      "CARO",
+      "COMPANIES AUDITORS REPORT ORDER"
+    ],
+    "COMPANYACT": [
+      "COMPANIES ACT",
+      "COMPANY ACT"
+    ],
+    "COMPANYSECRETARIALAUDITINGSTANDARD": [
+      "COMPANY SECRETARIAL AUDITING STANDARDS",
+      "CSAS"
+    ],
+    "COMPANYSECRETARIALAUDITINGSTANDARDS": [
+      "COMPANY SECRETARIAL AUDITING STANDARDS",
+      "CSAS"
+    ],
+    "COMPETITIONCOMMISSIONOFINDIACOMPETITIONAPPELLATETRIBUNAL": [
+      "COMPETITION COMMISSION OF INDIA/COMPETITION APPELLATE TRIBUNAL",
+      "CCI/CAT"
+    ],
+    "COMPLETELYKNOCKEDDOWN": [
+      "CKD",
+      "COMPLETELY KNOCKED DOWN",
+      "C K D"
+    ],
+    "COMPREHENSIVE ECONOMIC COOPERATION AGREEMENT": [
+      "CECA",
+      "COMPREHENSIVE ECONOMIC COOPERATION AGREEMENT"
+    ],
+    "COMPREHENSIVEANNUALMAINTENANCECONTRACT": [
+      "Comprehensive Annual Maintenance Contract",
+      "CAMC"
+    ],
+    "COMPREHENSIVEECONOMICPARTNERSHIPAGREEMENT": [
+      "CEPA",
+      "COMPREHENSIVE ECONOMIC PARTNERSHIP AGREEMENT"
+    ],
+    "COMPRESSEDNATURALGAS": [
+      "Compressed Natural Gas",
+      "CNG"
+    ],
+    "COMPUTERRESERVATIONSYSTEM": [
+      "Computer Reservation System",
+      "CRS"
+    ],
+    "CONSERVATIONOFFOREIGNEXCHANGEANDPREVENTIONOFSMUGGLINGACTIVITIES": [
+      "COFEPOSA",
+      "CONSERVATION OF FOREIGN EXCHANGE AND PREVENTION OF SMUGGLING ACTIVITIES",
+      "C O F E P O S A"
+    ],
+    "CONSUMERWELFAREFUND": [
+      "Consumer Welfare Fund",
+      "CWF"
+    ],
+    "CONTENTMANAGEMENTSYSTEM": [
+      "Content Management System",
+      "CMS"
+    ],
+    "CONTRACTBOTTLINGUNIT": [
+      "Contract Bottling Unit",
+      "CBU"
+    ],
+    "COO": [
+      "COO",
+      "CERTIFICATE OF ORIGIN"
+    ],
+    "COOPERATIVE": [
+      "CO OPERATIVE",
+      "COOPERATIVE"
+    ],
+    "COPPERANODESLIME": [
+      "Copper Anode Slime",
+      "CAS"
+    ],
+    "CORELATION": [
+      "CO RELATION",
+      "CORELATION"
+    ],
+    "CORONA": [
+      "Covid",
+      "Covid-19",
+      "Corona",
+      "Corona Virus",
+      "Pandemic covid-19"
+    ],
+    "CORONAVIRUS": [
+      "Covid",
+      "Covid-19",
+      "Corona",
+      "Corona Virus",
+      "Pandemic covid-19"
+    ],
+    "CORPORATEIDENTIFICATIONNUMBER": [
+      "CIN",
+      "CORPORATE IDENTIFICATION NUMBER"
+    ],
+    "COSTACCOUNTINGSTANDARD": [
+      "CAS",
+      "COST ACCOUNTING STANDARDS"
+    ],
+    "COSTACCOUNTINGSTANDARDS": [
+      "CAS",
+      "COST ACCOUNTING STANDARDS"
+    ],
+    "COSTINSURANCEFREIGHT": [
+      "CIF",
+      "COST INSURANCE FREIGHT",
+      "C I F"
+    ],
+    "COUNTERVAILINGDUTY": [
+      "CVD",
+      "COUNTERVAILING DUTY",
+      "C V D"
+    ],
+    "COVID": [
+      "Covid",
+      "Covid-19",
+      "Corona",
+      "Corona Virus",
+      "Pandemic covid-19"
+    ],
+    "COVID19": [
+      "Covid",
+      "Covid-19",
+      "Corona",
+      "Corona Virus",
+      "Pandemic covid-19"
+    ],
+    "CPIN": [
+      "Common Portal Identification Number",
+      "CPIN"
+    ],
+    "CPO": [
+      "Crude Palm Oil",
+      "CPO"
+    ],
+    "CPT": [
+      "Casual Taxable person",
+      "CPT"
+    ],
+    "CQCTD": [
+      "CQCTD",
+      "COMMITTEE ON QUALITY COMPLAINTS AND TRADE DISPUTES"
+    ],
+    "CRA": [
+      "Credit Rating Agency",
+      "CRA"
+    ],
+    "CREDITRATINGAGENCY": [
+      "Credit Rating Agency",
+      "CRA"
+    ],
+    "CRES": [
+      "CRES",
+      "CERTIFICATE OF REGISTRATION AS EXPORTER OF SPICES",
+      "CERTIFICATION OF REGISTRATION AS EXPORTER OF SPICES"
+    ],
+    "CROSSEXAMINATION": [
+      "CROSS EXAMINATION",
+      "CROSSEXAMINATION"
+    ],
+    "CROSSOBJECTION": [
+      "CROSS OBJECTION",
+      "CROSSOBJECTION"
+    ],
+    "CRR": [
+      "CRR",
+      "CASH RESERVE RATIO"
+    ],
+    "CRUDEPALMOIL": [
+      "Crude Palm Oil",
+      "CPO"
+    ],
+    "CS": [
+      "COMPANY SECRETARY",
+      "CS"
+    ],
+    "CSAS": [
+      "COMPANY SECRETARIAL AUDITING STANDARDS",
+      "CSAS"
+    ],
+    "CSP": [
+      "CSP",
+      "COMMON SERVICE PROVIDER"
+    ],
+    "CST": [
+      "CST",
+      "CENTRAL SALES TAX"
+    ],
+    "CSTA": [
+      "CHIEF COMMISSIONER SERVICE TAX APPEALS",
+      "CST A"
+    ],
+    "CUMDUTY": [
+      "CUM DUTY",
+      "CUMDUTY"
+    ],
+    "CUS": [
+      "CUSTOMS",
+      "CUS"
+    ],
+    "CUSTOMHOUSEAGENT": [
+      "CHA",
+      "CUSTOM HOUSE AGENT",
+      "C H A"
+    ],
+    "CUSTOMS": [
+      "CUSTOMS",
+      "CUS"
+    ],
+    "CUSTOMSCLEARANCEPERMIT": [
+      "CCP",
+      "CUSTOMS CLEARANCE PERMIT"
+    ],
+    "CUSTOMSCOOPERATIVECOUNCILNOMENCLATURE": [
+      "CCCN",
+      "CUSTOMS COOPERATIVE COUNCIL NOMENCLATURE",
+      "C C C N"
+    ],
+    "CUSTOMSHOUSEAGENT": [
+      "Customs House Agent",
+      "CHA"
+    ],
+    "CVD": [
+      "CVD",
+      "COUNTERVAILING DUTY",
+      "C V D"
+    ],
+    "CWA": [
+      "COST AND WORKS ACCOUNTANT",
+      "CWA"
+    ],
+    "CWF": [
+      "Consumer Welfare Fund",
+      "CWF"
+    ],
+    "CWT": [
+      "COMMISSIONER OF WEALTH TAX",
+      "CWT"
+    ],
+    "D 3": [
+      "D-3",
+      "D-3 INTIMATION",
+      "D 3"
+    ],
+    "D E E C": [
+      "DEEC",
+      "DUTY EXEMPTION ENTITLEMENT CERTIFICATE",
+      "D E E C"
+    ],
+    "D G F T": [
+      "DGFT",
+      "DIRECTOR GENERAL OF FOREIGN TRADE",
+      "D G F T"
+    ],
+    "D G R I": [
+      "DGRI",
+      "DIRECTORATE GENERAL OF REVENUE INTELIGENCE",
+      "D G R I"
+    ],
+    "D G T D": [
+      "DGTD",
+      "DIRECTOR GENERAL OF TECHNICAL DEVELOPMENT",
+      "D G T D"
+    ],
+    "D R I": [
+      "DRI",
+      "DIRECTORATE OF REVENUE INTELIGENCE",
+      "D R I"
+    ],
+    "D3": [
+      "D-3",
+      "D-3 INTIMATION",
+      "D 3"
+    ],
+    "D3INTIMATION": [
+      "D-3",
+      "D-3 INTIMATION",
+      "D 3"
+    ],
+    "DA": [
+      "DA",
+      "DOCUMENT AGAINST ACCEPTANCE"
+    ],
+    "DBK": [
+      "DBK",
+      "DRAWBACK"
+    ],
+    "DC": [
+      "DC",
+      "DEVELOPMENT COMMISSIONER"
+    ],
+    "DCIT": [
+      "DEPUTY COMMISSIONER INCOME TAX",
+      "DCIT"
+    ],
+    "DCST": [
+      "DEPUTY COMMISSIONER SERVICE TAX",
+      "DCST"
+    ],
+    "DDA": [
+      "DDA",
+      "DIAMOND DOLLAR ACCOUNTS"
+    ],
+    "DDT": [
+      "DIVIDEND DISTRIBUTION TAX",
+      "DDT"
+    ],
+    "DEA": [
+      "DEA",
+      "DEPARTMENT OF ECONOMIC AFFAIRS"
+    ],
+    "DEDUCTIONTAXSOURCE": [
+      "Deduction tax source",
+      "TDS"
+    ],
+    "DEEC": [
+      "DEEC",
+      "DUTY EXEMPTION ENTITLEMENT CERTIFICATE",
+      "D E E C"
+    ],
+    "DEFACTO": [
+      "DE FACTO",
+      "DEFACTO"
+    ],
+    "DEITY": [
+      "DEITY",
+      "DEPARTMENT OF ELECTRONICS AND INFORMATION TECHNOLOGY"
+    ],
+    "DEL": [
+      "DEL",
+      "DENIED ENTITY LIST"
+    ],
+    "DENIEDENTITYLIST": [
+      "DEL",
+      "DENIED ENTITY LIST"
+    ],
+    "DENOVO": [
+      "DE NOVO",
+      "DENOVO"
+    ],
+    "DEP": [
+      "DEPRECIATION",
+      "DEP"
+    ],
+    "DEPARTMENTOFBIOTECHNOLOGY": [
+      "DOBT",
+      "DEPARTMENT OF BIO-TECHNOLOGY"
+    ],
+    "DEPARTMENTOFCOMMERCE": [
+      "DOC",
+      "DEPARTMENT OF COMMERCE"
+    ],
+    "DEPARTMENTOFECONOMICAFFAIRS": [
+      "DEA",
+      "DEPARTMENT OF ECONOMIC AFFAIRS"
+    ],
+    "DEPARTMENTOFELECTRONICSANDINFORMATIONTECHNOLOGY": [
+      "DEITY",
+      "DEPARTMENT OF ELECTRONICS AND INFORMATION TECHNOLOGY"
+    ],
+    "DEPARTMENTOFINDUSTRIALPOLICYPROMOTION": [
+      "DIPP",
+      "DEPARTMENT OF INDUSTRIAL POLICY & PROMOTION"
+    ],
+    "DEPARTMENTOFREVENUE": [
+      "DOR",
+      "DEPARTMENT OF REVENUE"
+    ],
+    "DEPARTMENTOFTELECOMMUNICATIONS": [
+      "DOT",
+      "DEPARTMENT OF TELECOMMUNICATIONS"
+    ],
+    "DEPB": [
+      "Duty Entitled Pass Book",
+      "DEPB"
+    ],
+    "DES": [
+      "DES",
+      "DUTY EXEMPTION SCHEMES"
+    ],
+    "DESIGNATEDPARTNERIDENTIFICATIONNUMBER": [
+      "DPIN",
+      "DESIGNATED PARTNER IDENTIFICATION NUMBER"
+    ],
+    "DEVELOPMENTCOMMISSIONER": [
+      "DC",
+      "DEVELOPMENT COMMISSIONER"
+    ],
+    "DFIA": [
+      "DFIA",
+      "DUTY FREE IMPORT AUTHORISATION"
+    ],
+    "DFRC": [
+      "Duty Free Replenishment Certificate",
+      "DFRC"
+    ],
+    "DFS": [
+      "Duty free shop",
+      "DFS"
+    ],
+    "DGCIS": [
+      "DGCI&S",
+      "DIRECTOR GENERAL, COMMERCIAL INTELLIGENCE & STATISTICS."
+    ],
+    "DGFT": [
+      "DGFT",
+      "DIRECTOR GENERAL OF FOREIGN TRADE",
+      "D G F T"
+    ],
+    "DGRI": [
+      "DGRI",
+      "DIRECTORATE GENERAL OF REVENUE INTELIGENCE",
+      "D G R I"
+    ],
+    "DGTD": [
+      "DGTD",
+      "DIRECTOR GENERAL OF TECHNICAL DEVELOPMENT",
+      "D G T D"
+    ],
+    "DIAMONDDOLLARACCOUNTS": [
+      "DDA",
+      "DIAMOND DOLLAR ACCOUNTS"
+    ],
+    "DII": [
+      "DOMESTIC INSTITUTIONAL INVESTORS",
+      "DII"
+    ],
+    "DIN": [
+      "DIN",
+      "DIRECTOR IDENTIFICATION NUMBER"
+    ],
+    "DIPP": [
+      "DIPP",
+      "DEPARTMENT OF INDUSTRIAL POLICY & PROMOTION"
+    ],
+    "DIRECTORATEGENERALOFREVENUEINTELIGENCE": [
+      "DGRI",
+      "DIRECTORATE GENERAL OF REVENUE INTELIGENCE",
+      "D G R I"
+    ],
+    "DIRECTORATEOFREVENUEINTELIGENCE": [
+      "DRI",
+      "DIRECTORATE OF REVENUE INTELIGENCE",
+      "D R I"
+    ],
+    "DIRECTORGENERALCOMMERCIALINTELLIGENCESTATISTICS": [
+      "DGCI&S",
+      "DIRECTOR GENERAL, COMMERCIAL INTELLIGENCE & STATISTICS."
+    ],
+    "DIRECTORGENERALOFFOREIGNTRADE": [
+      "DGFT",
+      "DIRECTOR GENERAL OF FOREIGN TRADE",
+      "D G F T"
+    ],
+    "DIRECTORGENERALOFTECHNICALDEVELOPMENT": [
+      "DGTD",
+      "DIRECTOR GENERAL OF TECHNICAL DEVELOPMENT",
+      "D G T D"
+    ],
+    "DIRECTORIDENTIFICATIONNUMBER": [
+      "DIN",
+      "DIRECTOR IDENTIFICATION NUMBER"
+    ],
+    "DIRECTTAXCODE": [
+      "DIRECT TAX CODE",
+      "DTC",
+      "DIRECT TAX CODE BILL"
+    ],
+    "DIRECTTAXCODEBILL": [
+      "DIRECT TAX CODE",
+      "DIRECT TAX CODE BILL",
+      "DTC"
+    ],
+    "DMF": [
+      "Payment District Mineral Foundation",
+      "DMF"
+    ],
+    "DOBT": [
+      "DOBT",
+      "DEPARTMENT OF BIO-TECHNOLOGY"
+    ],
+    "DOC": [
+      "DOC",
+      "DEPARTMENT OF COMMERCE"
+    ],
+    "DOCUMENTAGAINSTACCEPTANCE": [
+      "DA",
+      "DOCUMENT AGAINST ACCEPTANCE"
+    ],
+    "DOMESTICTARIFFAREA": [
+      "DTA",
+      "DOMESTIC TARIFF AREA"
+    ],
+    "DOR": [
+      "DOR",
+      "DEPARTMENT OF REVENUE"
+    ],
+    "DOT": [
+      "DOT",
+      "DEPARTMENT OF TELECOMMUNICATIONS"
+    ],
+    "DPIN": [
+      "DPIN",
+      "DESIGNATED PARTNER IDENTIFICATION NUMBER"
+    ],
+    "DRAWBACK": [
+      "DBK",
+      "DRAWBACK"
+    ],
+    "DRI": [
+      "DRI",
+      "DIRECTORATE OF REVENUE INTELIGENCE",
+      "D R I"
+    ],
+    "DRS": [
+      "DRS",
+      "DUTY REMISSION SCHEMES"
+    ],
+    "DSC": [
+      "Digital Signature Code",
+      "DSC"
+    ],
+    "DTA": [
+      "DTA",
+      "DOMESTIC TARIFF AREA"
+    ],
+    "DTAA": [
+      "DTA",
+      "DTAA",
+      "DTAC",
+      "TREATY",
+      "DOUBLE TAXATION AVOIDANCE AGREEMENT",
+      "DOUBLE TAX AGREEMENT",
+      "TAX TREATY"
+    ],
+    "DTC": [
+      "DIRECT TAX CODE",
+      "DTC",
+      "DIRECT TAX CODE BILL"
+    ],
+    "DUTYENTITLEDPASSBOOK": [
+      "Duty Entitled Pass Book",
+      "DEPB"
+    ],
+    "DUTYEXEMPTIONENTITLEMENTCERTIFICATE": [
+      "DEEC",
+      "DUTY EXEMPTION ENTITLEMENT CERTIFICATE",
+      "D E E C"
+    ],
+    "DUTYEXEMPTIONSCHEMES": [
+      "DES",
+      "DUTY EXEMPTION SCHEMES"
+    ],
+    "DUTYFREEIMPORTAUTHORISATION": [
+      "DFIA",
+      "DUTY FREE IMPORT AUTHORISATION"
+    ],
+    "DUTYFREEREPLENISHMENTCERTIFICATE": [
+      "Duty Free Replenishment Certificate",
+      "DFRC"
+    ],
+    "DUTYFREESHOP": [
+      "Duty free shop",
+      "DFS"
+    ],
+    "DUTYREMISSIONSCHEMES": [
+      "DRS",
+      "DUTY REMISSION SCHEMES"
+    ],
+    "E C C": [
+      "ECC",
+      "EXCISE CONTROL CODE",
+      "E C C"
+    ],
+    "E O U": [
+      "EOU",
+      "EXPORT ORIENTED UNIT",
+      "E O U"
+    ],
+    "E P C G": [
+      "EPCG",
+      "EXPORT PROMOTION CAPITAL GOODS SCHEME",
+      "E P C G",
+      "EXPORT PROMOTION CAPITAL GOODS"
+    ],
+    "E P Z": [
+      "EPZ",
+      "EXPORT PROCESSING ZONE",
+      "E P Z"
+    ],
+    "EAC": [
+      "EAC",
+      "EXPERT ADVISORY COMMITTEE",
+      "ICAI",
+      "QUERY"
+    ],
+    "EBN": [
+      "E-way Bill Number",
+      "EBN"
+    ],
+    "EBRC": [
+      "E-BRC",
+      "ELECTRONIC BANK REALISATION CERTIFICATE"
+    ],
+    "ECA": [
+      "ECA",
+      "ENFORCEMENT- CUM-ADJUDICATION"
+    ],
+    "ECC": [
+      "ECC",
+      "EXCISE CONTROL CODE",
+      "E C C"
+    ],
+    "ECGC": [
+      "ECGC",
+      "EXPORT CREDIT GUARANTEE CORPORATION"
+    ],
+    "ECONOMICZONE": [
+      "EZ",
+      "ECONOMIC ZONE"
+    ],
+    "EDI": [
+      "EDI",
+      "ELECTRONIC DATA INTERCHANGE"
+    ],
+    "EEFC": [
+      "EEFC",
+      "EXCHANGE EARNERS’ FOREIGN CURRENCY"
+    ],
+    "EFC": [
+      "EFC",
+      "EXIM FACILITATION COMMITTEE"
+    ],
+    "EFPB": [
+      "Electronic Focal Point Branch",
+      "EFPB"
+    ],
+    "EFT": [
+      "EFT",
+      "ELECTRONIC FUND TRANSFER"
+    ],
+    "EGM": [
+      "EGM",
+      "EXPORT GENERAL MANIFEST"
+    ],
+    "EHTP": [
+      "EHTP",
+      "ELECTRONIC HARDWARE TECHNOLOGY PARK"
+    ],
+    "EIC": [
+      "EIC",
+      "EXPORT INSPECTION COUNCIL"
+    ],
+    "EIEC": [
+      "E-IEC",
+      "ELECTRONIC IMPORTER-EXPORTER CODE"
+    ],
+    "ELECTORSPHOTOIDENTITYCARDS": [
+      "Electors Photo Identity Cards",
+      "EPIC"
+    ],
+    "ELECTRONICBANKREALISATIONCERTIFICATE": [
+      "E-BRC",
+      "ELECTRONIC BANK REALISATION CERTIFICATE"
+    ],
+    "ELECTRONICDATAINTERCHANGE": [
+      "EDI",
+      "ELECTRONIC DATA INTERCHANGE"
+    ],
+    "ELECTRONICFUNDTRANSFER": [
+      "EFT",
+      "ELECTRONIC FUND TRANSFER"
+    ],
+    "ELECTRONICHARDWARETECHNOLOGYPARK": [
+      "EHTP",
+      "ELECTRONIC HARDWARE TECHNOLOGY PARK"
+    ],
+    "ELECTRONICIMPORTEREXPORTERCODE": [
+      "E-IEC",
+      "ELECTRONIC IMPORTER-EXPORTER CODE"
+    ],
+    "ELECTRONICWAYBILL": [
+      "E-way Bill",
+      "Electronic Way Bill",
+      "EWB"
+    ],
+    "ELECTROSTATICPRECIPITATOR": [
+      "Electro Static Precipitator",
+      "ESP"
+    ],
+    "ENA": [
+      "Extra Neutral Alcohol",
+      "ENA"
+    ],
+    "ENFORCEMENTCUMADJUDICATION": [
+      "ECA",
+      "ENFORCEMENT- CUM-ADJUDICATION"
+    ],
+    "ENGINEERINGPROCESSOUTSOURCING": [
+      "EPO",
+      "ENGINEERING PROCESS OUTSOURCING"
+    ],
+    "ENGINEERINGPROCUREMENTCONSTRUCTION": [
+      "Engineering Procurement Construction",
+      "EPC"
+    ],
+    "EO": [
+      "EO",
+      "EXPORT OBLIGATION"
+    ],
+    "EODC": [
+      "EODC",
+      "EXPORT OBLIGATION DISCHARGE CERTIFICATE"
+    ],
+    "EOP": [
+      "EOP",
+      "EXPORT OBLIGATION PERIOD"
+    ],
+    "EOU": [
+      "EOU",
+      "EXPORT ORIENTED UNIT",
+      "E O U"
+    ],
+    "EOU1": [
+      "Export oriented units",
+      "EOU"
+    ],
+    "EPC": [
+      "EPC",
+      "EXPORT PROMOTION COUNCIL"
+    ],
+    "EPCG": [
+      "EPCG",
+      "EXPORT PROMOTION CAPITAL GOODS SCHEME",
+      "E P C G",
+      "EXPORT PROMOTION CAPITAL GOODS"
+    ],
+    "EPF": [
+      "EMPLOYEE PROVIDENT FUND",
+      "EPF"
+    ],
+    "EPIC": [
+      "Electors Photo Identity Cards",
+      "EPIC"
+    ],
+    "EPO": [
+      "EPO",
+      "ENGINEERING PROCESS OUTSOURCING"
+    ],
+    "EPZ": [
+      "EPZ",
+      "EXPORT PROCESSING ZONE",
+      "E P Z"
+    ],
+    "EQUALISATION": [
+      "Equalisation",
+      "Equalization"
+    ],
+    "EQUALIZATION": [
+      "Equalisation",
+      "Equalization"
+    ],
+    "ESOP": [
+      "ESOP",
+      "Employee Stock Option Plan"
+    ],
+    "ESOS": [
+      "ESOP",
+      "Employee Stock Option Scheme"
+    ],
+    "ESP": [
+      "Electro Static Precipitator",
+      "ESP"
+    ],
+    "EWAYBILL": [
+      "E-way Bill",
+      "Electronic Way Bill",
+      "EWB"
+    ],
+    "EWB": [
+      "E-way Bill",
+      "Electronic Way Bill",
+      "EWB"
+    ],
+    "EXCHANGEEARNERSFOREIGNCURRENCY": [
+      "EEFC",
+      "EXCHANGE EARNERS’ FOREIGN CURRENCY"
+    ],
+    "EXCISECONTROLCODE": [
+      "ECC",
+      "EXCISE CONTROL CODE",
+      "E C C"
+    ],
+    "EXDEPOT": [
+      "EX DEPOT",
+      "EXDEPOT"
+    ],
+    "EXFACTORY": [
+      "EX FACTORY",
+      "EXFACTORY"
+    ],
+    "EXGRATIA": [
+      "EX GRATIA",
+      "EXGRATIA"
+    ],
+    "EXIM": [
+      "EXIM",
+      "EXPORT IMPORT"
+    ],
+    "EXIMFACILITATIONCOMMITTEE": [
+      "EFC",
+      "EXIM FACILITATION COMMITTEE"
+    ],
+    "EXPARTY": [
+      "EX PARTY",
+      "EXPARTY"
+    ],
+    "EXPERTADVISORYCOMMITTEE": [
+      "EAC",
+      "EXPERT ADVISORY COMMITTEE",
+      "ICAI",
+      "QUERY"
+    ],
+    "EXPL": [
+      "EXPLANATION",
+      "EXPL"
+    ],
+    "EXPLN": [
+      "EXPLANATION",
+      "EXPLN"
+    ],
+    "EXPORTCREDITGUARANTEECORPORATION": [
+      "ECGC",
+      "EXPORT CREDIT GUARANTEE CORPORATION"
+    ],
+    "EXPORTGENERALMANIFEST": [
+      "EGM",
+      "EXPORT GENERAL MANIFEST"
+    ],
+    "EXPORTIMPORT": [
+      "EXIM",
+      "EXPORT IMPORT"
+    ],
+    "EXPORTINSPECTIONCOUNCIL": [
+      "EIC",
+      "EXPORT INSPECTION COUNCIL"
+    ],
+    "EXPORTOBLIGATION": [
+      "EO",
+      "EXPORT OBLIGATION"
+    ],
+    "EXPORTOBLIGATIONDISCHARGECERTIFICATE": [
+      "EODC",
+      "EXPORT OBLIGATION DISCHARGE CERTIFICATE"
+    ],
+    "EXPORTOBLIGATIONPERIOD": [
+      "EOP",
+      "EXPORT OBLIGATION PERIOD"
+    ],
+    "EXPORTORIENTEDUNIT": [
+      "EOU",
+      "EXPORT ORIENTED UNIT",
+      "E O U"
+    ],
+    "EXPORTPROCESSINGZONE": [
+      "EPZ",
+      "EXPORT PROCESSING ZONE",
+      "E P Z"
+    ],
+    "EXPORTPROMOTIONCAPITALGOODS": [
+      "EPCG",
+      "EXPORT PROMOTION CAPITAL GOODS"
+    ],
+    "EXPORTPROMOTIONCAPITALGOODSSCHEME": [
+      "EPCG",
+      "EXPORT PROMOTION CAPITAL GOODS SCHEME",
+      "E P C G"
+    ],
+    "EXPORTPROMOTIONCOUNCIL": [
+      "EPC",
+      "EXPORT PROMOTION COUNCIL"
+    ],
+    "EXTERNALCOMMERCIALBORROWING": [
+      "External commercial borrowing",
+      "ECB"
+    ],
+    "EXTERNALCOMMERCIALBORROWINGS": [
+      "External commercial borrowings",
+      "ECB"
+    ],
+    "EXTRANEUTRALALCOHOL": [
+      "Extra Neutral Alcohol",
+      "ENA"
+    ],
+    "EZ": [
+      "EZ",
+      "ECONOMIC ZONE"
+    ],
+    "F E M A": [
+      "FEMA",
+      "FOREIGN EXCHANGE MANAGEMENT ACT",
+      "F E M A"
+    ],
+    "F E R A": [
+      "FERA",
+      "FOREIGN EXCHANGE REGULATION ACT",
+      "F E R A"
+    ],
+    "F I R": [
+      "FIR",
+      "FIRST INFORMATION REPORT",
+      "F I R"
+    ],
+    "F O B": [
+      "FOB",
+      "FREE ON BOARD",
+      "F O B"
+    ],
+    "F T Z": [
+      "FTZ",
+      "FOREIGN TRADE ZONE",
+      "F T Z"
+    ],
+    "FAIRMARKETVALUE": [
+      "FAIR MARKET VALUE",
+      "FMV"
+    ],
+    "FBT": [
+      "FRINGE BENEFIT TAX",
+      "FBT"
+    ],
+    "FDI": [
+      "FDI",
+      "FOREIGN DIRECT INVESTMENT"
+    ],
+    "FDICIRCULAR": [
+      "circulars;DRT CIRCULAR",
+      "FOREIGN DIRECT INVESTMENT circulars"
+    ],
+    "FDICIRCULARS": [
+      "circulars;DRT CIRCULAR",
+      "FOREIGN DIRECT INVESTMENT circulars"
+    ],
+    "FE": [
+      "FE",
+      "FOREIGN EXCHANGE"
+    ],
+    "FEDERATIONOFINDIANEXPORTORGANISATION": [
+      "FIEO",
+      "FEDERATION OF INDIAN EXPORT ORGANISATION"
+    ],
+    "FEMA": [
+      "FEMA",
+      "FOREIGN EXCHANGE MANAGEMENT ACT",
+      "F E M A"
+    ],
+    "FERA": [
+      "FERA",
+      "FOREIGN EXCHANGE REGULATION ACT",
+      "F E R A"
+    ],
+    "FIBREREINFORCEDPLASTICMATERIAL": [
+      "Fibre reinforced plastic material",
+      "FRP"
+    ],
+    "FIEO": [
+      "FIEO",
+      "FEDERATION OF INDIAN EXPORT ORGANISATION"
+    ],
+    "FIFO": [
+      "FIRST IN FIRST OUT",
+      "FIFO"
+    ],
+    "FII": [
+      "FOREIGN INSTITUTIONAL INVESTORS",
+      "FII"
+    ],
+    "FINANCIALREPORTINGREVIEWBOARD": [
+      "FINANCIAL REPORTING REVIEW BOARD",
+      "FRRB"
+    ],
+    "FIR": [
+      "FIR",
+      "FIRST INFORMATION REPORT",
+      "F I R"
+    ],
+    "FIRC": [
+      "FIRC",
+      "FOREIGN EXCHANGE INWARD REMITTANCE CERTIFICATE"
+    ],
+    "FIRSTINFORMATIONREPORT": [
+      "FIR",
+      "FIRST INFORMATION REPORT",
+      "F I R"
+    ],
+    "FIS": [
+      "FIS",
+      "FEES FOR INCLUDED SERVICES"
+    ],
+    "FMV": [
+      "FAIR MARKET VALUE",
+      "FMV"
+    ],
+    "FOB": [
+      "FOB",
+      "FREE ON BOARD",
+      "F O B"
+    ],
+    "FOREIGNDIRECTINVESTMENT": [
+      "FDI",
+      "FOREIGN DIRECT INVESTMENT"
+    ],
+    "FOREIGNEXCHANGE": [
+      "FE",
+      "FOREIGN EXCHANGE"
+    ],
+    "FOREIGNEXCHANGEINWARDREMITTANCECERTIFICATE": [
+      "FIRC",
+      "FOREIGN EXCHANGE INWARD REMITTANCE CERTIFICATE"
+    ],
+    "FOREIGNEXCHANGEMANAGEMENTACT": [
+      "FEMA",
+      "FOREIGN EXCHANGE MANAGEMENT ACT",
+      "F E M A"
+    ],
+    "FOREIGNEXCHANGEREGULATIONACT": [
+      "FERA",
+      "FOREIGN EXCHANGE REGULATION ACT",
+      "F E R A"
+    ],
+    "FOREIGNTRADEDEVELOPMENTOFFICER": [
+      "FTDO",
+      "FOREIGN TRADE DEVELOPMENT OFFICER"
+    ],
+    "FOREIGNTRADEDEVELOPMENTREGULATIONACT199222OF1992": [
+      "FT (D&R)ACT",
+      "FOREIGN TRADE ( DEVELOPMENT & REGULATION) ACT, 1992 (22 OF 1992)"
+    ],
+    "FOREIGNTRADEPOLICY": [
+      "FTP",
+      "FOREIGN TRADE POLICY"
+    ],
+    "FOREIGNTRADEREGULATIONRULES": [
+      "FT(R) RULES",
+      "FOREIGN TRADE (REGULATION) RULES"
+    ],
+    "FOREIGNTRADEZONE": [
+      "FTZ",
+      "FOREIGN TRADE ZONE",
+      "F T Z"
+    ],
+    "FORMRFD": [
+      "Refund Form",
+      "FORM RFD"
+    ],
+    "FREEONBOARD": [
+      "FOB",
+      "FREE ON BOARD",
+      "F O B"
+    ],
+    "FREETRADEAGREEMENT": [
+      "FTA",
+      "FREE TRADE AGREEMENT"
+    ],
+    "FREETRADEANDWAREHOUSINGZONE": [
+      "FTWZ",
+      "FREE TRADE AND WAREHOUSING ZONE"
+    ],
+    "FREIGHTONROADANDRAILS": [
+      "FOR",
+      "FREIGHT ON ROAD AND RAILS"
+    ],
+    "FRP": [
+      "Fibre reinforced plastic material",
+      "FRP"
+    ],
+    "FRRB": [
+      "FINANCIAL REPORTING REVIEW BOARD",
+      "FRRB"
+    ],
+    "FTA": [
+      "FTA",
+      "FREE TRADE AGREEMENT"
+    ],
+    "FTDO": [
+      "FTDO",
+      "FOREIGN TRADE DEVELOPMENT OFFICER"
+    ],
+    "FTDRACT": [
+      "FT (D&R)ACT",
+      "FOREIGN TRADE ( DEVELOPMENT & REGULATION) ACT, 1992 (22 OF 1992)"
+    ],
+    "FTP": [
+      "FTP",
+      "FOREIGN TRADE POLICY"
+    ],
+    "FTRRULES": [
+      "FT(R) RULES",
+      "FOREIGN TRADE (REGULATION) RULES"
+    ],
+    "FTS": [
+      "FTS",
+      "FEES FOR TECHNICAL SERVICES"
+    ],
+    "FTWZ": [
+      "FTWZ",
+      "FREE TRADE AND WAREHOUSING ZONE"
+    ],
+    "FTZ": [
+      "FTZ",
+      "FOREIGN TRADE ZONE",
+      "F T Z"
+    ],
+    "FUTP": [
+      "FUTP",
+      "FRAUDULENT AND UNFAIR TRADE PRACTICES"
+    ],
+    "G A R 7": [
+      "G.A.R. 7",
+      "G A R 7",
+      "GAR 7"
+    ],
+    "G O I": [
+      "GOI",
+      "GOVERNMENT OF INDIA",
+      "G O I"
+    ],
+    "GAAP": [
+      "GENERALLY ACCEPTED ACCOUNTING PRINCIPLES",
+      "GAAP"
+    ],
+    "GAR 7": [
+      "G.A.R. 7",
+      "G A R 7",
+      "GAR 7"
+    ],
+    "GAR7": [
+      "G.A.R. 7",
+      "G A R 7",
+      "GAR 7"
+    ],
+    "GATS": [
+      "GATS",
+      "GENERAL AGREEMENT ON TRADE IN SERVICES"
+    ],
+    "GAV": [
+      "GROSS ANNUAL VALUE",
+      "GAV"
+    ],
+    "GDR": [
+      "GLOBAL DEPOSITORY RECEIPTS",
+      "GDR"
+    ],
+    "GEMSJEWELLERYEXPORTPROMOTIONCOUNCIL": [
+      "G&J EPC",
+      "GEMS & JEWELLERY EXPORT PROMOTION COUNCIL"
+    ],
+    "GENERALAGREEMENTONTRADEINSERVICES": [
+      "GATS",
+      "GENERAL AGREEMENT ON TRADE IN SERVICES"
+    ],
+    "GJEPC": [
+      "G&J EPC",
+      "GEMS & JEWELLERY EXPORT PROMOTION COUNCIL"
+    ],
+    "GLOBALPOSITIONINGSYSTEM": [
+      "Global Positioning System",
+      "GPS"
+    ],
+    "GOI": [
+      "GOI",
+      "GOVERNMENT OF INDIA",
+      "G O I"
+    ],
+    "GOODFAITH": [
+      "GOOD FAITH",
+      "GOODFAITH"
+    ],
+    "GOODSANDSERVICESTAX": [
+      "GST",
+      "GOODS AND SERVICES TAX"
+    ],
+    "GOODSSERVICESTAXNETWORK": [
+      "Goods Services Tax Network",
+      "GSTN"
+    ],
+    "GOODSTRANSPORTAGENCY": [
+      "GTA",
+      "GOODS TRANSPORT AGENCY"
+    ],
+    "GOV": [
+      "GOVERNMENT",
+      "GOV"
+    ],
+    "GOVERNMENTOFINDIA": [
+      "GOI",
+      "GOVERNMENT OF INDIA",
+      "G O I"
+    ],
+    "GOVT": [
+      "GOVERNMENT",
+      "GOVT"
+    ],
+    "GPS": [
+      "Global Positioning System",
+      "GPS"
+    ],
+    "GR": [
+      "GR",
+      "GUARANTEE OF REALISATION"
+    ],
+    "GSP": [
+      "GST Suvidha Provider",
+      "GSP"
+    ],
+    "GSR": [
+      "GSR",
+      "G S R"
+    ],
+    "GST": [
+      "GST",
+      "GOODS AND SERVICES TAX"
+    ],
+    "GST2": [
+      "Goods and Service Tax",
+      "GST"
+    ],
+    "GSTIN": [
+      "Goods & Services Tax Identification Number",
+      "GSTIN"
+    ],
+    "GSTN": [
+      "Goods and Service Tax Network",
+      "GSTN"
+    ],
+    "GSTREG": [
+      "GST Registration Form",
+      "GST REG"
+    ],
+    "GTA": [
+      "GTA",
+      "GOODS TRANSPORT AGENCY"
+    ],
+    "GUARANTEEOFREALISATION": [
+      "GR",
+      "GUARANTEE OF REALISATION"
+    ],
+    "H S N": [
+      "HSN",
+      "HARMONISED SYSTEM OF NOMENCLATURE",
+      "H S N"
+    ],
+    "H U F": [
+      "HUF",
+      "HINDU UNDIVIDED FAMILY",
+      "H U F"
+    ],
+    "HACCP": [
+      "HACCP",
+      "HAZARD ANALYSIS AND CRITICAL CONTROL PROCESS"
+    ],
+    "HANDBOOKOFPROCEDURE": [
+      "HBP",
+      "HANDBOOK OF PROCEDURE"
+    ],
+    "HANDBOOKOFPROCEDURES": [
+      "HP",
+      "HANDBOOK OF PROCEDURES"
+    ],
+    "HANDICRAFT&HANDLOOMSEXPORTSCORPORATION": [
+      "HHEC",
+      "HANDICRAFT & HANDLOOMS EXPORTS CORPORATION"
+    ],
+    "HARMONISEDSYSTEMOFNOMENCLATURE": [
+      "HSN",
+      "HARMONISED SYSTEM OF NOMENCLATURE",
+      "H S N"
+    ],
+    "HAZARDANALYSISANDCRITICALCONTROLPROCESS": [
+      "HACCP",
+      "HAZARD ANALYSIS AND CRITICAL CONTROL PROCESS"
+    ],
+    "HBP": [
+      "HBP",
+      "HANDBOOK OF PROCEDURE"
+    ],
+    "HEAVYMELTINGSCRAP": [
+      "Heavy Melting Scrap",
+      "HMS"
+    ],
+    "HHEC": [
+      "HHEC",
+      "HANDICRAFT & HANDLOOMS EXPORTS CORPORATION"
+    ],
+    "HINDUUNDIVIDEDFAMILY": [
+      "HUF",
+      "HINDU UNDIVIDED FAMILY",
+      "H U F"
+    ],
+    "HMS": [
+      "Heavy Melting Scrap",
+      "HMS"
+    ],
+    "HOTROLLED": [
+      "HOT ROLLED",
+      "HOTROLLED"
+    ],
+    "HP": [
+      "HP",
+      "HANDBOOK OF PROCEDURES"
+    ],
+    "HSN": [
+      "HSN",
+      "HARMONISED SYSTEM OF NOMENCLATURE",
+      "H S N"
+    ],
+    "HSNCode": [
+      "Harmonised System of Nomenclature Code",
+      "HSN Code"
+    ],
+    "HUF": [
+      "HUF",
+      "HINDU UNDIVIDED FAMILY",
+      "H U F"
+    ],
+    "I S I SPECIFICATION": [
+      "ISI SPECIFICATION",
+      "INDIAN STANDARD INSTITUTE SPECIFICATION",
+      "I S I SPECIFICATION"
+    ],
+    "IAEA": [
+      "IAEA",
+      "INTERNATIONAL ATOMIC ENERGY AGENCY"
+    ],
+    "IBBI": [
+      "Insolvency and Bankruptcy Board of India",
+      "IBBI"
+    ],
+    "IBC": [
+      "Insolvency and Bankruptcy Code",
+      "IBC"
+    ],
+    "ICAI": [
+      "INSTITUTE CHARTERED ACCOUNTANTS INDIA",
+      "ICAI"
+    ],
+    "ICB": [
+      "ICB",
+      "INTERNATIONAL COMPETITIVE BIDDING"
+    ],
+    "ICD": [
+      "ICD",
+      "INLAND CONTAINER DEPOT"
+    ],
+    "ICDS": [
+      "ICDS",
+      "INCOME COMPUTATION AND DISCLOSURE STANDARDS"
+    ],
+    "ICF": [
+      "Integral Coach Factory",
+      "ICF"
+    ],
+    "ICM": [
+      "ICM",
+      "INDIAN COMMERCIAL MISSION"
+    ],
+    "ICSI": [
+      "INSTITUTE COMPANY SECRETARIES INDIA",
+      "ICSI"
+    ],
+    "ICT": [
+      "Information Communication Technology",
+      "ICT"
+    ],
+    "ICWA": [
+      "INSTITUTE COST AND WORKS ACCOUNTANTS INDIA",
+      "ICWA"
+    ],
+    "ICWAI": [
+      "INSTITUTE COST AND WORKS ACCOUNTANTS INDIA",
+      "ICWAI"
+    ],
+    "IDR": [
+      "IDR",
+      "INDIAN DEPOSITORY RECEIPTS"
+    ],
+    "IEC": [
+      "IEC",
+      "IMPORTER EXPORTER CODE"
+    ],
+    "IEM": [
+      "IEM",
+      "INDUSTRIAL ENTREPRENEURIAL MEMORANDUM"
+    ],
+    "IFSC": [
+      "INTERNATIONAL FINANCIAL SERVICES CENTRE",
+      "IFSC"
+    ],
+    "IGAAP": [
+      "INDIAN GENERALLY ACCEPTED ACCOUNTING PRINCIPLES",
+      "IGAAP"
+    ],
+    "IGAS": [
+      "IGAS",
+      "INDIAN GOVERNMENT ACCOUNTING STANDARDS"
+    ],
+    "IGST": [
+      "INTEGRATED GOODS AND SERVICE TAX",
+      "IGST",
+      "Integrated GST"
+    ],
+    "IIT": [
+      "Indian Institutes Technology",
+      "IIT"
+    ],
+    "IL": [
+      "IL",
+      "INDUSTRIAL LICENSING"
+    ],
+    "IMPORTEREXPORTERCODE": [
+      "IEC",
+      "IMPORTER EXPORTER CODE"
+    ],
+    "IMPORTEXPORTCODE": [
+      "Import Export Code",
+      "IEC"
+    ],
+    "IMSC": [
+      "IMSC",
+      "INTER-MINISTERIAL STANDING COMMITTEE"
+    ],
+    "INCOMECOMPUTATIONDISCLOSURESTANDARD": [
+      "ICDS",
+      "INCOME COMPUTATION AND DISCLOSURE STANDARDS"
+    ],
+    "INCOMECOMPUTATIONDISCLOSURESTANDARDS": [
+      "ICDS",
+      "INCOME COMPUTATION AND DISCLOSURE STANDARDS"
+    ],
+    "INCOMETAXSETTLEMENTCOMMISSION": [
+      "INCOME-TAX SETTLEMENT COMMISSION",
+      "ITSC"
+    ],
+    "INDAS": [
+      "IND AS",
+      "INDIAN ACCOUNTING STANDARDS"
+    ],
+    "INDASTRANSITIONFACILITATIONGROUP": [
+      "IND AS TRANSITION FACILITATION GROUP",
+      "ITFG"
+    ],
+    "INDIANACCOUNTINGSTANDARD": [
+      "IND AS",
+      "INDIAN ACCOUNTING STANDARDS"
+    ],
+    "INDIANACCOUNTINGSTANDARDS": [
+      "IND AS",
+      "INDIAN ACCOUNTING STANDARDS"
+    ],
+    "INDIANCOMMERCIALMISSION": [
+      "ICM",
+      "INDIAN COMMERCIAL MISSION"
+    ],
+    "INDIANGOVERNMENTACCOUNTINGSTANDARD": [
+      "IGAS",
+      "INDIAN GOVERNMENT ACCOUNTING STANDARDS"
+    ],
+    "INDIANGOVERNMENTACCOUNTINGSTANDARDS": [
+      "IGAS",
+      "INDIAN GOVERNMENT ACCOUNTING STANDARDS"
+    ],
+    "INDIANINSTITUTESTECHNOLOGY": [
+      "Indian Institutes Technology",
+      "IIT"
+    ],
+    "INDIANSCHOOLBUSINESS": [
+      "Indian School Business",
+      "ISB"
+    ],
+    "INDIANSTANDARDINSTITUTESPECIFICATION": [
+      "ISI SPECIFICATION",
+      "INDIAN STANDARD INSTITUTE SPECIFICATION",
+      "I S I SPECIFICATION"
+    ],
+    "INDIANTRADECLASSIFICATIONHARMONISEDSYSTEMFOREXPORTIMPORTITEMS": [
+      "ITC (HS)",
+      "INDIAN TRADE CLASSIFICATION (HARMONISED SYSTEM) FOR EXPORT & IMPORT ITEMS"
+    ],
+    "INDUSTRIALENTREPRENEURIALMEMORANDUM": [
+      "IEM",
+      "INDUSTRIAL ENTREPRENEURIAL MEMORANDUM"
+    ],
+    "INDUSTRIALLICENSING": [
+      "IL",
+      "INDUSTRIAL LICENSING"
+    ],
+    "INFCIRC": [
+      "INFCIRC",
+      "INTERNATIONAL ATOMIC ENERGY AGENCY INFORMATION CIRCULAR"
+    ],
+    "INFORMATIONCOMMUNICATIONTECHNOLOGY": [
+      "Information Communication Technology",
+      "ICT"
+    ],
+    "INFORMATIONTECHNOLOGYENABLEDSERVICES": [
+      "Information Technology Enabled Services",
+      "ITES"
+    ],
+    "INLANDCONTAINERDEPOT": [
+      "ICD",
+      "INLAND CONTAINER DEPOT"
+    ],
+    "INLIEU": [
+      "IN LIEU",
+      "INLIEU"
+    ],
+    "INPUTSERVICEDISTRIBUTOR": [
+      "Input service distributor",
+      "ISD"
+    ],
+    "INPUTTAXCREDIT": [
+      "ITC",
+      "INPUT TAX CREDIT"
+    ],
+    "INS": [
+      "INSERTED",
+      "INS"
+    ],
+    "INSURANCEREGULATORYDEVELOPMENTAUTHORITYACT": [
+      "IRDA",
+      "INSURANCE REGULATORY DEVELOPMENT AUTHORITY ACT"
+    ],
+    "INT": [
+      "INTEREST",
+      "INT"
+    ],
+    "INTEGRALCOACHFACTORY": [
+      "Integral Coach Factory",
+      "ICF"
+    ],
+    "INTEGRATEDGOODSANDSERVICESTAX": [
+      "ISGT",
+      "INTEGRATED GOODS AND SERVICES TAX"
+    ],
+    "INTERCHANGEABLE": [
+      "INTER CHANGEABLE",
+      "INTERCHANGEABLE"
+    ],
+    "INTERCONNECTED": [
+      "INTER CONNECTED",
+      "INTERCONNECTED"
+    ],
+    "INTERMINISTERIALSTANDINGCOMMITTEE": [
+      "IMSC",
+      "INTER-MINISTERIAL STANDING COMMITTEE"
+    ],
+    "INTERNATIONALATOMICENERGYAGENCY": [
+      "IAEA",
+      "INTERNATIONAL ATOMIC ENERGY AGENCY"
+    ],
+    "INTERNATIONALATOMICENERGYAGENCYINFORMATIONCIRCULAR": [
+      "INFCIRC",
+      "INTERNATIONAL ATOMIC ENERGY AGENCY INFORMATION CIRCULAR"
+    ],
+    "INTERNATIONALCOMPETITIVEBIDDING": [
+      "ICB",
+      "INTERNATIONAL COMPETITIVE BIDDING"
+    ],
+    "INTERNATIONALORGANISATIONFORSTANDARDISATION": [
+      "ISO",
+      "INTERNATIONAL ORGANISATION FOR STANDARDISATION"
+    ],
+    "INTERNATIONALSTANDARDSORGANISATION": [
+      "ISO",
+      "INTERNATIONAL STANDARDS ORGANISATION"
+    ],
+    "INV": [
+      "INVOICE",
+      "INV"
+    ],
+    "IOS": [
+      "INCOME FROM OTHER SOURCES",
+      "IOS"
+    ],
+    "IPC": [
+      "Indian Penal Code",
+      "IPC"
+    ],
+    "IRDA": [
+      "IRDA",
+      "INSURANCE REGULATORY DEVELOPMENT AUTHORITY ACT"
+    ],
+    "IRP": [
+      "Interim Resolution Professional",
+      "IRP"
+    ],
+    "ISB": [
+      "Indian School Business",
+      "ISB"
+    ],
+    "ISD": [
+      "Input Service Distributor",
+      "ISD"
+    ],
+    "ISGT": [
+      "ISGT",
+      "INTEGRATED GOODS AND SERVICES TAX"
+    ],
+    "ISISPECIFICATION": [
+      "ISI SPECIFICATION",
+      "INDIAN STANDARD INSTITUTE SPECIFICATION",
+      "I S I SPECIFICATION"
+    ],
+    "ISO": [
+      "ISO",
+      "INTERNATIONAL STANDARDS ORGANISATION",
+      "INTERNATIONAL ORGANISATION FOR STANDARDISATION"
+    ],
+    "ITA": [
+      "IT APPEAL",
+      "INCOME TAX APPEAL"
+    ],
+    "ITC": [
+      "ITC",
+      "INPUT TAX CREDIT"
+    ],
+    "ITC1": [
+      "Input Tax Credit",
+      "ITC"
+    ],
+    "ITCHS": [
+      "ITC (HS)",
+      "INDIAN TRADE CLASSIFICATION (HARMONISED SYSTEM) FOR EXPORT & IMPORT ITEMS"
+    ],
+    "ITCLedger": [
+      "Input Tax Credit Ledger",
+      "ITC Ledger"
+    ],
+    "ITES": [
+      "Information Technology Enabled Services",
+      "ITES"
+    ],
+    "ITFG": [
+      "IND AS TRANSITION FACILITATION GROUP",
+      "ITFG"
+    ],
+    "JCIT": [
+      "JOINT COMMISSIONER INCOME TAX",
+      "JCIT"
+    ],
+    "JCST": [
+      "JOINT COMMISSIONER SERVICE TAX",
+      "JCST"
+    ],
+    "JLF": [
+      "Joint Lenders Forum",
+      "JLF"
+    ],
+    "JOBWORK": [
+      "JOB WORK",
+      "JOBWORK"
+    ],
+    "K V S S": [
+      "KVSS",
+      "KAR VIVAD SAMADHAN SCHEME",
+      "K V S S"
+    ],
+    "KARVIVADSAMADHANSCHEME": [
+      "KVSS",
+      "KAR VIVAD SAMADHAN SCHEME",
+      "K V S S"
+    ],
+    "KHADIANDVILLAGEINDUSTRIESCOMMISSION": [
+      "KVIC",
+      "KHADI AND VILLAGE INDUSTRIES COMMISSION"
+    ],
+    "KNOWHOW": [
+      "KNOW HOW",
+      "KNOWHOW"
+    ],
+    "KVIC": [
+      "KVIC",
+      "KHADI AND VILLAGE INDUSTRIES COMMISSION"
+    ],
+    "KVSS": [
+      "KVSS",
+      "KAR VIVAD SAMADHAN SCHEME",
+      "K V S S"
+    ],
+    "LANDCUSTOMSSTATION": [
+      "LCS",
+      "LAND CUSTOMS STATION"
+    ],
+    "LARGETAXPAYER": [
+      "LTP",
+      "LARGE TAX PAYER",
+      "LARGE TAXPAYER"
+    ],
+    "LARGETAXPAYERUNIT": [
+      "LTU",
+      "LARGE TAX PAYER UNIT"
+    ],
+    "LCD": [
+      "Liquid crystal device",
+      "LCD"
+    ],
+    "LCS": [
+      "LCS",
+      "LAND CUSTOMS STATION"
+    ],
+    "LED": [
+      "Light Emitting Diode",
+      "LED"
+    ],
+    "LEGALUNDERTAKING": [
+      "LU",
+      "LEGAL UNDERTAKING"
+    ],
+    "LETTEROFCREDIT": [
+      "LC",
+      "LETTER OF CREDIT"
+    ],
+    "LETTEROFINTENT": [
+      "LOI",
+      "LETTER OF INTENT"
+    ],
+    "LETTEROFPERMIT": [
+      "LOP",
+      "LETTER OF PERMIT"
+    ],
+    "LETTEROFUNDERTAKING": [
+      "LUT",
+      "LETTER OF UNDERTAKING"
+    ],
+    "LIBOR": [
+      "LIBOR",
+      "LONDON INTERBANK OFFERED RATE"
+    ],
+    "LIFO": [
+      "LAST IN FIRST OUT",
+      "LIFO"
+    ],
+    "LIGHTEMITTINGDIODE": [
+      "Light Emitting Diode",
+      "LED"
+    ],
+    "LIMITED": [
+      "Ltd.",
+      "Ltd",
+      "Limited"
+    ],
+    "LIMITEDLIABILITYPARTNERSHIPNUMBER": [
+      "LLPIN",
+      "LIMITED LIABILITY PARTNERSHIP NUMBER"
+    ],
+    "LINEOFCREDIT": [
+      "LOC",
+      "LINE OF CREDIT"
+    ],
+    "LIQUEFIEDPETROLEUMGAS": [
+      "LPG",
+      "LIQUEFIED PETROLEUM GAS"
+    ],
+    "LIQUIDCRYSTALDEVICE": [
+      "Liquid crystal device",
+      "LCD"
+    ],
+    "LLP": [
+      "LLP",
+      "LIMITED LIABILITY PARTNERSHIP"
+    ],
+    "LLPIN": [
+      "LLPIN",
+      "LIMITED LIABILITY PARTNERSHIP NUMBER"
+    ],
+    "LOC": [
+      "LOC",
+      "LINE OF CREDIT",
+      "LETTER OF CREDIT"
+    ],
+    "LOI": [
+      "LOI",
+      "LETTER OF INTENT"
+    ],
+    "LOP": [
+      "LOP",
+      "LETTER OF PERMIT"
+    ],
+    "LOWSULPHURFUELOIL": [
+      "Low Sulphur Fuel Oil",
+      "LSFO"
+    ],
+    "LPG": [
+      "LPG",
+      "LIQUEFIED PETROLEUM GAS"
+    ],
+    "LSFO": [
+      "Low Sulphur Fuel Oil",
+      "LSFO"
+    ],
+    "LTP": [
+      "LTP",
+      "LARGE TAX PAYER",
+      "LARGE TAXPAYER"
+    ],
+    "LTU": [
+      "LTU",
+      "LARGE TAX PAYER UNIT"
+    ],
+    "LU": [
+      "LU",
+      "LEGAL UNDERTAKING"
+    ],
+    "LUT": [
+      "LUT",
+      "LETTER OF UNDERTAKING"
+    ],
+    "M O U": [
+      "MOU",
+      "MEMORANDUM OF UNDERSTANDING",
+      "M O U"
+    ],
+    "MACHINE": [
+      "MACHINE",
+      "MACHINERY"
+    ],
+    "MACHINERY": [
+      "MACHINE",
+      "MACHINERY"
+    ],
+    "MAI": [
+      "MAI",
+      "MARKET ACCESS INITIATIVE"
+    ],
+    "MALAFIDE": [
+      "MALA FIDE",
+      "MALAFIDE"
+    ],
+    "MANAGEMENTINFORMATIONSYSTEM": [
+      "MIS",
+      "MANAGEMENT INFORMATION SYSTEM"
+    ],
+    "MANMADE": [
+      "MAN MADE",
+      "MANMADE"
+    ],
+    "MARKET DEVELOPMENT ASSISTANCE": [
+      "MDA",
+      "MARKET DEVELOPMENT ASSISTANCE"
+    ],
+    "MARKETACCESSINITIATIVE": [
+      "MAI",
+      "MARKET ACCESS INITIATIVE"
+    ],
+    "MAT": [
+      "MINIMUM ALTERNATIVE TAX",
+      "MAT"
+    ],
+    "MAXIMUMRETAILPRICE": [
+      "Maximum retail price",
+      "MRP"
+    ],
+    "MCA": [
+      "MINISTRY CORPORATE AFFAIRS",
+      "MCA"
+    ],
+    "MDA": [
+      "MDA",
+      "MARKET DEVELOPMENT ASSISTANCE"
+    ],
+    "MEA": [
+      "MEA",
+      "MINISTRY OF EXTERNAL AFFAIRS"
+    ],
+    "MEIS": [
+      "MEIS",
+      "MERCHANDISE EXPORTS FROM INDIA SCHEME"
+    ],
+    "MEMORANDUMOFUNDERSTANDING": [
+      "MOU",
+      "MEMORANDUM OF UNDERSTANDING",
+      "M O U"
+    ],
+    "MENSREA": [
+      "MENS REA",
+      "MENSREA"
+    ],
+    "MERCHANDISEEXPORTSFROMINDIASCHEME": [
+      "MEIS",
+      "MERCHANDISE EXPORTS FROM INDIA SCHEME"
+    ],
+    "METALSCRAPTRADECORPORATION": [
+      "MSTC",
+      "METAL SCRAP TRADE CORPORATION"
+    ],
+    "MFFA": [
+      "Multi Functional Fuel Additives",
+      "MFFA"
+    ],
+    "MFN": [
+      "MOST FAVOURED NATION",
+      "MFN"
+    ],
+    "MICROSMALLANDMEDIUMENTERPRISESDEVELOPMENT": [
+      "MSMED",
+      "MICRO SMALL AND MEDIUM ENTERPRISES DEVELOPMENT"
+    ],
+    "MINIMUMSUPPORTPRICE": [
+      "Minimum support price",
+      "MSP"
+    ],
+    "MINISTRY OF DEFENCE": [
+      "MOD",
+      "MINISTRY OF DEFENCE"
+    ],
+    "MINISTRYOFEXTERNALAFFAIRS": [
+      "MEA",
+      "MINISTRY OF EXTERNAL AFFAIRS"
+    ],
+    "MINISTRYOFFINANCE": [
+      "MOF",
+      "MINISTRY OF FINANCE"
+    ],
+    "MINISTRYOFMICROSMALLANDMEDIUMENTERPRISES": [
+      "MSME",
+      "MINISTRY OF MICRO SMALL AND MEDIUM ENTERPRISES"
+    ],
+    "MIS": [
+      "MIS",
+      "MANAGEMENT INFORMATION SYSTEM"
+    ],
+    "MISAPPRECIATION": [
+      "MIS APPRECIATION",
+      "MISAPPRECIATION"
+    ],
+    "MISC": [
+      "MISCELLANEOUS",
+      "MISC"
+    ],
+    "MISDECLARATION": [
+      "MIS DECLARATION",
+      "MISDECLARATION"
+    ],
+    "MISDECLARED": [
+      "MIS DECLARED",
+      "MISDECLARED"
+    ],
+    "MISDISCRIPTION": [
+      "MIS DISCRIPTION",
+      "MISDISCRIPTION"
+    ],
+    "MISSTATEMENT": [
+      "MIS STATEMENT",
+      "MISSTATEMENT"
+    ],
+    "MNBC": [
+      "NBFC",
+      "NON BANKING FINANCIAL COMPANY",
+      "RNBC",
+      "MNBC"
+    ],
+    "MOA": [
+      "MEMORADUM ASSOCIATION",
+      "MOA"
+    ],
+    "MOBILETELESCOPICTOWERS": [
+      "Mobile Telescopic Towers",
+      "MTT"
+    ],
+    "MOD": [
+      "MOD",
+      "MINISTRY OF DEFENCE"
+    ],
+    "MOF": [
+      "MOF",
+      "MINISTRY OF FINANCE"
+    ],
+    "MOSTFAVOUREDNATION": [
+      "MOST FAVOURED NATION",
+      "MFN"
+    ],
+    "MOU": [
+      "MOU",
+      "MEMORANDUM OF UNDERSTANDING",
+      "M O U"
+    ],
+    "MRA": [
+      "MRA",
+      "MUTUAL RECOGNITION AGREEMENTS"
+    ],
+    "MRP": [
+      "Maximum retail price",
+      "MRP"
+    ],
+    "MSME": [
+      "MSME",
+      "MINISTRY OF MICRO SMALL AND MEDIUM ENTERPRISES"
+    ],
+    "MSMED": [
+      "MSMED",
+      "MICRO SMALL AND MEDIUM ENTERPRISES DEVELOPMENT"
+    ],
+    "MSO": [
+      "Multi System Operator",
+      "MSO"
+    ],
+    "MSP": [
+      "Minimum support price",
+      "MSP"
+    ],
+    "MSTC": [
+      "MSTC",
+      "METAL SCRAP TRADE CORPORATION"
+    ],
+    "MSW": [
+      "Municipal Solid Waste",
+      "MSW"
+    ],
+    "MTT": [
+      "Mobile Telescopic Towers",
+      "MTT"
+    ],
+    "MULTIFUNCTIONALFUELADDITIVES": [
+      "Multi Functional Fuel Additives",
+      "MFFA"
+    ],
+    "MULTISYSTEMOPERATOR": [
+      "Multi System Operator",
+      "MSO"
+    ],
+    "MUNICIPALSOLIDWASTE": [
+      "Municipal Solid Waste",
+      "MSW"
+    ],
+    "MUTUALRECOGNITIONAGREEMENTS": [
+      "MRA",
+      "MUTUAL RECOGNITION AGREEMENTS"
+    ],
+    "NATIONALCALAMITYCONTINGENTDUTY": [
+      "National Calamity Contingent Duty",
+      "NCCD"
+    ],
+    "NATIONALCENTERBIOLOGICALSCIENCES": [
+      "National Center Biological Sciences",
+      "NCBS"
+    ],
+    "NATIONALCOMPETITIVEBIDDING": [
+      "NCB",
+      "NATIONAL COMPETITIVE BIDDING"
+    ],
+    "NATIONALDAIRYDEVELOPMENTBOARD": [
+      "National Dairy Development Board",
+      "NDDB"
+    ],
+    "NATIONALMINERALEXPLORATIONTRUST": [
+      "National Mineral Exploration Trust",
+      "NMET"
+    ],
+    "NATIONALSKILLDEVELOPMENTCORPORATION": [
+      "National Skill Development Corporation",
+      "NSDC"
+    ],
+    "NAV": [
+      "NET ANNUAL VALUE",
+      "NAV"
+    ],
+    "NBFC": [
+      "NBFC",
+      "NON- BANKING FINANCIAL COMPANY"
+    ],
+    "NBFCFAQS": [
+      "NBFC FAQS",
+      "NON BANKING FINANCIAL COMPANY FAQS"
+    ],
+    "NBFCRNBCMNBC": [
+      "NBFC",
+      "NON BANKING FINANCIAL COMPANY",
+      "RNBC",
+      "MNBC"
+    ],
+    "NC": [
+      "NC",
+      "NORMS COMMITTEE"
+    ],
+    "NCB": [
+      "NCB",
+      "NATIONAL COMPETITIVE BIDDING"
+    ],
+    "NCBS": [
+      "National Center Biological Sciences",
+      "NCBS"
+    ],
+    "NCCD": [
+      "National Calamity Contingent Duty",
+      "NCCD"
+    ],
+    "NCLAT": [
+      "National Company Law Appellate Tribunal",
+      "NCLAT"
+    ],
+    "NCLT": [
+      "National Company Law Tribunal",
+      "NCLT"
+    ],
+    "NDDB": [
+      "National Dairy Development Board",
+      "NDDB"
+    ],
+    "NEFT": [
+      "National Electronic Fund Transfer",
+      "NEFT"
+    ],
+    "NETFOREIGNEXCHANGE": [
+      "NFE",
+      "NET FOREIGN EXCHANGE"
+    ],
+    "NFE": [
+      "NFE",
+      "NET FOREIGN EXCHANGE"
+    ],
+    "NGADU": [
+      "Nuclear Grade Ammonium Di Uranate",
+      "NGADU"
+    ],
+    "NGO": [
+      "Non Governmental Organisation",
+      "NGO"
+    ],
+    "NI": [
+      "NI",
+      "NON-INFRINGING"
+    ],
+    "NIU": [
+      "National Information Utility",
+      "NIU"
+    ],
+    "NMET": [
+      "National Mineral Exploration Trust",
+      "NMET"
+    ],
+    "NONBANKINGFINANCIALCOMPANY": [
+      "NBFC",
+      "NON- BANKING FINANCIAL COMPANY"
+    ],
+    "NONDEPOSIT": [
+      "NON DEPOSIT",
+      "NONDEPOSIT"
+    ],
+    "NONDUTIABLE": [
+      "NON DUTIABLE",
+      "NONDUTIABLE"
+    ],
+    "NONGOVERNMENTALORGANISATION": [
+      "Non Governmental Organisation",
+      "NGO"
+    ],
+    "NONINFRINGING": [
+      "NI",
+      "NON-INFRINGING"
+    ],
+    "NONLEVY": [
+      "NON LEVY",
+      "NONLEVY"
+    ],
+    "NOOBJECTIONCERTIFICATE": [
+      "NOC",
+      "NO OBJECTION CERTIFICATE"
+    ],
+    "NOR": [
+      "NOT ORDINARILY RESIDENT",
+      "NOR"
+    ],
+    "NORMSCOMMITTEE": [
+      "NC",
+      "NORMS COMMITTEE"
+    ],
+    "NRI": [
+      "NON RESIDENT IN INDIA OR NON INDIAN",
+      "NRI"
+    ],
+    "NSDC": [
+      "National Skill Development Corporation",
+      "NSDC"
+    ],
+    "NSS": [
+      "NATIONAL SAVING SCHEME",
+      "NSS"
+    ],
+    "NUCLEARGRADEAMMONIUMDIURANATE": [
+      "Nuclear Grade Ammonium Di Uranate",
+      "NGADU"
+    ],
+    "O G L": [
+      "OGL",
+      "OPEN GENERAL LICENCE",
+      "O G L"
+    ],
+    "OBITORDICTA": [
+      "OBITOR DICTA",
+      "OBITORDICTA"
+    ],
+    "OBJECTIONCERTIFICATE": [
+      "Objection Certificate",
+      "NOC"
+    ],
+    "OCA": [
+      "Overseas Commission Agent",
+      "OCA"
+    ],
+    "OCPB": [
+      "Over the Counter Payment in Branches",
+      "OCPB"
+    ],
+    "OEM": [
+      "Original Equipment Manufacturers",
+      "OEM"
+    ],
+    "OFHC": [
+      "Oxygen free high conductivity",
+      "OFHC"
+    ],
+    "OGL": [
+      "OGL",
+      "OPEN GENERAL LICENCE",
+      "O G L"
+    ],
+    "OIDAR": [
+      "Online Information and Database Access or Retrieval",
+      "OIDAR"
+    ],
+    "OPENGENERALLICENCE": [
+      "OGL",
+      "OPEN GENERAL LICENCE",
+      "O G L"
+    ],
+    "OPEX": [
+      "OPERATING EXPENSES",
+      "OP EX"
+    ],
+    "OPEXP": [
+      "OPERATING EXPENSES",
+      "OP EXP"
+    ],
+    "OPOS": [
+      "Outdoor Point Sales Terminal",
+      "OPOS"
+    ],
+    "ORDINARILYRESIDENT": [
+      "NOT ORDINARILY RESIDENT",
+      "NOR"
+    ],
+    "ORIGINALEQUIPMENTMANUFACTURERS": [
+      "Original Equipment Manufacturers",
+      "OEM"
+    ],
+    "OUTDOORPOINTSALESTERMINAL": [
+      "Outdoor Point Sales Terminal",
+      "OPOS"
+    ],
+    "OVERRIDING": [
+      "OVER RIDING",
+      "OVERRIDING"
+    ],
+    "OVERSEASCOMMISSIONAGENT": [
+      "Overseas Commission Agent",
+      "OCA"
+    ],
+    "OXYGENFREEHIGHCONDUCTIVITY": [
+      "Oxygen free high conductivity",
+      "OFHC"
+    ],
+    "PAC": [
+      "Project Authority Certificate",
+      "PAC"
+    ],
+    "PAN": [
+      "PAN",
+      "PERMANENT ACCOUNT NUMBER"
+    ],
+    "PANDEMICCOVID19": [
+      "Covid",
+      "Covid-19",
+      "Corona",
+      "Corona Virus",
+      "Pandemic covid-19"
+    ],
+    "PASSENGERSERVICEFEE": [
+      "Passenger Service Fee",
+      "PSF"
+    ],
+    "PAYMENTDISTRICTMINERALFOUNDATION": [
+      "Payment District Mineral Foundation",
+      "DMF"
+    ],
+    "PCB": [
+      "Printed Circuit Board",
+      "PCB"
+    ],
+    "PCBS": [
+      "Populated Printed Circuit Boards",
+      "PCBS"
+    ],
+    "PDC": [
+      "Post dated cheque",
+      "PDC"
+    ],
+    "PDI": [
+      "Pre delivery inspection charge",
+      "PDI"
+    ],
+    "PDS": [
+      "PDS",
+      "PUBLIC DISTRIBUTION SYSTEM"
+    ],
+    "PE": [
+      "PE",
+      "PERMANENT ESTABLISHMENT"
+    ],
+    "PEC": [
+      "PEC",
+      "PROJECT AND EQUIPMENT CORPORATION OF INDIA LTD."
+    ],
+    "PERMANENTACCOUNTNUMBER": [
+      "PAN",
+      "PERMANENT ACCOUNT NUMBER"
+    ],
+    "PERSONALHEARING": [
+      "PH",
+      "PERSONAL HEARING"
+    ],
+    "PGBP": [
+      "PRITS AND GAINS FROM BUSINESS AND PRESSION",
+      "PGBP"
+    ],
+    "PH": [
+      "PH",
+      "PERSONAL HEARING"
+    ],
+    "PHARMACEUTICALREFERENCESTANDARDS": [
+      "Pharmaceutical Reference Standards",
+      "PRS"
+    ],
+    "PIC": [
+      "PIC",
+      "POLICY INTERPRETATION COMMITTEE"
+    ],
+    "PIPEDNATURALGAS": [
+      "Piped Natural Gas",
+      "PNG"
+    ],
+    "PL": [
+      "PRIT LOSS ACCOUNT",
+      "P L"
+    ],
+    "PMAY": [
+      "Pradhan Mantri Awas Yojana Schemes",
+      "PMAY"
+    ],
+    "PMC": [
+      "Project Management Consultancy Services",
+      "PMC"
+    ],
+    "PMLA": [
+      "Prevention Money Laundering Act",
+      "PMLA"
+    ],
+    "PNG": [
+      "Piped Natural Gas",
+      "PNG"
+    ],
+    "POLICYINTERPRETATIONCOMMITTEE": [
+      "PIC",
+      "POLICY INTERPRETATION COMMITTEE"
+    ],
+    "POLICYRELAXATIONCOMMITTEE": [
+      "PRC",
+      "POLICY RELAXATION COMMITTEE"
+    ],
+    "POLYESTERSTAPLEFIBRE": [
+      "Polyester staple fibre",
+      "PSF"
+    ],
+    "POLYPROPYLENEMULTIFILAMENTYARN": [
+      "Polypropylene Multi Filament Yarn",
+      "PPMF"
+    ],
+    "POLYTETRAFLUOROETHYLENE": [
+      "Poly Tetra Fluoro Ethylene",
+      "PTFE"
+    ],
+    "POLYVINYLCHLORIDECARDS": [
+      "Polyvinyl Chloride Cards",
+      "PVC"
+    ],
+    "POPULATEDPRINTEDCIRCUITBOARDS": [
+      "Populated Printed Circuit Boards",
+      "PCBs"
+    ],
+    "POS": [
+      "Place of Supply",
+      "POS"
+    ],
+    "POSTDATEDCHEQUE": [
+      "Post dated cheque",
+      "PDC"
+    ],
+    "PPE": [
+      "PROPERTY PLANT EQUIPMENT",
+      "PPE"
+    ],
+    "PPF": [
+      "PUBLIC PROVIDENT FUND",
+      "PPF"
+    ],
+    "PPI": [
+      "Prepaid Payment Instruments",
+      "PPI"
+    ],
+    "PPMF": [
+      "Polypropylene Multi Filament Yarn",
+      "PPMF"
+    ],
+    "PRADHANMANTRIAWASYOJANASCHEMES": [
+      "Pradhan Mantri Awas Yojana Schemes",
+      "PMAY"
+    ],
+    "PRC": [
+      "PRC",
+      "POLICY RELAXATION COMMITTEE"
+    ],
+    "PREAUTHENTICATION": [
+      "PRE AUTHENTICATION",
+      "PREAUTHENTICATION"
+    ],
+    "PREBUDGET": [
+      "PRE BUDGET",
+      "PREBUDGET"
+    ],
+    "PREDELIVERYINSPECTIONCHARGE": [
+      "Pre delivery inspection charge",
+      "PDI"
+    ],
+    "PREDEPOSIT": [
+      "PRE DEPOSIT",
+      "PREDEPOSIT"
+    ],
+    "PREFABRICATED": [
+      "PRE FABRICATED",
+      "PREFABRICATED"
+    ],
+    "PREFERENTIALTRADEAGREEMENT": [
+      "PTA",
+      "PREFERENTIAL TRADE AGREEMENT"
+    ],
+    "PREMATURE": [
+      "PRE MATURE",
+      "PREMATURE"
+    ],
+    "PREOPERATIVE": [
+      "Pre-operative",
+      "Preoperative"
+    ],
+    "PREPAIDPAYMENTINSTRUMENTS": [
+      "Prepaid Payment Instruments",
+      "PPI"
+    ],
+    "PRINTEDCIRCUITBOARD": [
+      "Printed Circuit Board",
+      "PCB"
+    ],
+    "PRIVATE": [
+      "Pvt.",
+      "Private (P.)"
+    ],
+    "PROJECTANDEQUIPMENTCORPORATIONOFINDIALTD": [
+      "PEC",
+      "PROJECT AND EQUIPMENT CORPORATION OF INDIA LTD."
+    ],
+    "PROJECTAUTHORITYCERTIFICATE": [
+      "Project Authority Certificate",
+      "PAC"
+    ],
+    "PROJECTMANAGEMENTCONSULTANCYSERVICES": [
+      "Project Management Consultancy Services",
+      "PMC"
+    ],
+    "PRORATA": [
+      "PRO RATA",
+      "PRORATA"
+    ],
+    "PRS": [
+      "Pharmaceutical Reference Standards",
+      "PRS"
+    ],
+    "PSU": [
+      "PSU",
+      "PUBLIC SECTOR UNDERTAKING"
+    ],
+    "PTA": [
+      "PTA",
+      "PREFERENTIAL TRADE AGREEMENT"
+    ],
+    "PTFE": [
+      "Poly Tetra Fluoro Ethylene",
+      "PTFE"
+    ],
+    "PUBLICDISTRIBUTIONSYSTEM": [
+      "PDS",
+      "PUBLIC DISTRIBUTION SYSTEM"
+    ],
+    "PUBLICSECTORUNDERTAKING": [
+      "PSU",
+      "PUBLIC SECTOR UNDERTAKING"
+    ],
+    "PUBLICWORKSDEPARTMENT": [
+      "Public Works Department",
+      "PWD"
+    ],
+    "PVC": [
+      "Polyvinyl Chloride Cards",
+      "PVC"
+    ],
+    "PVT": [
+      "Pvt.",
+      "Private (P.)"
+    ],
+    "PWD": [
+      "Public Works Department",
+      "PWD"
+    ],
+    "PY": [
+      "PREVIOUS YEAR",
+      "P Y"
+    ],
+    "R E P LICENCE": [
+      "REP LICENCE",
+      "REPLENISHMENT LICENCE",
+      "R E P LICENCE"
+    ],
+    "R O M": [
+      "ROM",
+      "RECTIFICATION OF MISTAKE",
+      "R O M"
+    ],
+    "RA": [
+      "RA",
+      "REGIONAL AUTHORITY"
+    ],
+    "RADAR": [
+      "Radio Detecting Ranging",
+      "RADAR"
+    ],
+    "RADIODETECTINGRANGING": [
+      "Radio Detecting Ranging",
+      "RADAR"
+    ],
+    "RAM": [
+      "Random Access Memory",
+      "RAM"
+    ],
+    "RANDOMACCESSMEMORY": [
+      "Random Access Memory",
+      "RAM"
+    ],
+    "RATE": [
+      "RATES",
+      "RATE"
+    ],
+    "RATES": [
+      "RATES",
+      "RATE"
+    ],
+    "RBI": [
+      "RBI",
+      "RESERVE BANK OF INDIA"
+    ],
+    "RBICIRCULAR": [
+      "circular;rbi circular",
+      "fema circular",
+      "nbfc circular",
+      "banking circular",
+      "sarfesai circular"
+    ],
+    "RBICIRCULARS": [
+      "circular;rbi circular",
+      "fema circular",
+      "nbfc circular",
+      "banking circular",
+      "sarfesai circular"
+    ],
+    "RCM": [
+      "RCM",
+      "REVERSE CHARGE MECHANISM"
+    ],
+    "RCMC": [
+      "RCMC",
+      "REGISTRATION-CUM-MEMBERSHIP CERTIFICATE"
+    ],
+    "RD": [
+      "RD",
+      "RESEARCH AND DEVELOPMENT"
+    ],
+    "RDF": [
+      "Refused Derived Fuel",
+      "RDF"
+    ],
+    "READJUDICATION": [
+      "RE ADJUDICATION",
+      "READJUDICATION"
+    ],
+    "REASSEMBLING": [
+      "RE ASSEMBLING",
+      "REASSEMBLING"
+    ],
+    "REASSESSMENT": [
+      "RE ASSESSMENT",
+      "REASSESSMENT"
+    ],
+    "RECALL": [
+      "RE CALL",
+      "RECALL"
+    ],
+    "RECLASSIFICATION": [
+      "RE CLASSIFICATION",
+      "RECLASSIFICATION"
+    ],
+    "RECTIFICATIONMISTAKE": [
+      "Rectification Mistake",
+      "ROM"
+    ],
+    "RECTIFICATIONOFMISTAKE": [
+      "ROM",
+      "RECTIFICATION OF MISTAKE",
+      "R O M"
+    ],
+    "REDETERMINATION": [
+      "RE DETERMINATION",
+      "REDETERMINATION"
+    ],
+    "REENTRY": [
+      "RE ENTRY",
+      "REENTRY"
+    ],
+    "REEXPORT": [
+      "RE EXPORT",
+      "REEXPORT"
+    ],
+    "REFIXATION": [
+      "RE FIXATION",
+      "REFIXATION"
+    ],
+    "REFUNDTERMINALEXCISEDUTY": [
+      "Refund Terminal Excise Duty",
+      "TED"
+    ],
+    "REFUSEDDERIVEDFUEL": [
+      "Refused Derived Fuel",
+      "RDF"
+    ],
+    "REGIONALAUTHORITY": [
+      "RA",
+      "REGIONAL AUTHORITY"
+    ],
+    "REGISTRATIONCUMMEMBERSHIPCERTIFICATE": [
+      "RCMC",
+      "REGISTRATION-CUM-MEMBERSHIP CERTIFICATE"
+    ],
+    "REHEARING": [
+      "RE HEARING",
+      "REHEARING"
+    ],
+    "REIMPORT": [
+      "RE IMPORT",
+      "REIMPORT"
+    ],
+    "RELABELLING": [
+      "RE LABELLING",
+      "RELABELLING"
+    ],
+    "REMANUFACTURE": [
+      "RE MANUFACTURE",
+      "REMANUFACTURE"
+    ],
+    "REOPENING": [
+      "RE OPENING",
+      "REOPENING"
+    ],
+    "REPACKING": [
+      "RE PACKING",
+      "REPACKING"
+    ],
+    "REPLENISHMENT": [
+      "R",
+      "REPLENISHMENT"
+    ],
+    "REPLENISHMENTLICENCE": [
+      "REP LICENCE",
+      "REPLENISHMENT LICENCE",
+      "R E P LICENCE"
+    ],
+    "REPLICENCE": [
+      "REP LICENCE",
+      "REPLENISHMENT LICENCE",
+      "R E P LICENCE"
+    ],
+    "REPROCESSING": [
+      "RE PROCESSING",
+      "REPROCESSING"
+    ],
+    "REROLLABLE": [
+      "RE ROLLABLE",
+      "REROLLABLE"
+    ],
+    "REROLLED": [
+      "RE ROLLED",
+      "REROLLED"
+    ],
+    "REROLLING": [
+      "RE ROLLING",
+      "REROLLING"
+    ],
+    "RESEARCHANDDEVELOPMENT": [
+      "RD",
+      "RESEARCH AND DEVELOPMENT"
+    ],
+    "RESERVEBANKOFINDIA": [
+      "RBI",
+      "RESERVE BANK OF INDIA"
+    ],
+    "RESIDENTORDINARILYRESIDENT": [
+      "RESIDENT AND ORDINARILY RESIDENT",
+      "ROR",
+      "RESIDENT BUT NOT ORDINARILY RESIDENT",
+      "RNOR"
+    ],
+    "RESIDENTWELFAREASSOCIATION": [
+      "Resident welfare association",
+      "RWA"
+    ],
+    "RESJUDICATA": [
+      "RES JUDICATA",
+      "RESJUDICATA"
+    ],
+    "RETAILSALEPRICE": [
+      "Retail sale price",
+      "RSP"
+    ],
+    "RETEST": [
+      "RE TEST",
+      "RETEST"
+    ],
+    "RETESTING": [
+      "RE TESTING",
+      "RETESTING"
+    ],
+    "REVALIDATION": [
+      "RE VALIDATION",
+      "REVALIDATION"
+    ],
+    "REVERSECHARGEMECHANISM": [
+      "RCM",
+      "REVERSE CHARGE MECHANISM"
+    ],
+    "REVERSEOSMOSIS": [
+      "Reverse Osmosis",
+      "RO"
+    ],
+    "RFID": [
+      "Insolvency and Bankruptcy Board of India",
+      "IBBI"
+    ],
+    "RNBC": [
+      "NBFC",
+      "NON BANKING FINANCIAL COMPANY",
+      "RNBC",
+      "MNBC"
+    ],
+    "RNOR": [
+      "RESIDENT AND ORDINARILY RESIDENT",
+      "ROR",
+      "RESIDENT BUT NOT ORDINARILY RESIDENT",
+      "RNOR"
+    ],
+    "RO": [
+      "Reverse Osmosis",
+      "RO"
+    ],
+    "ROC": [
+      "REGISTRAR COMPANIES",
+      "ROC"
+    ],
+    "ROI": [
+      "RETURN INCOME",
+      "ROI"
+    ],
+    "ROM": [
+      "ROM",
+      "RECTIFICATION OF MISTAKE",
+      "R O M"
+    ],
+    "ROR": [
+      "RESIDENT AND ORDINARILY RESIDENT",
+      "ROR",
+      "RESIDENT BUT NOT ORDINARILY RESIDENT",
+      "RNOR"
+    ],
+    "RPA": [
+      "RPA",
+      "RUPEE PAYMENT AREA"
+    ],
+    "RSP": [
+      "Retail sale price",
+      "RSP"
+    ],
+    "RTGS": [
+      "Real Time Gross Settlement",
+      "RTGS"
+    ],
+    "RUPEEPAYMENTAREA": [
+      "RPA",
+      "RUPEE PAYMENT AREA"
+    ],
+    "RWA": [
+      "Resident welfare association",
+      "RWA"
+    ],
+    "S I L": [
+      "SIL",
+      "SPECIAL IMPORT LICENCE",
+      "S I L"
+    ],
+    "S K D": [
+      "SKD",
+      "SEMI KNOCKED DOWN",
+      "S K D"
+    ],
+    "S S I": [
+      "SSI",
+      "SMALL SCALE INDUSTRY",
+      "S S I"
+    ],
+    "SA": [
+      "SA",
+      "STANDARD ON AUDITING",
+      "AUDITING STANDARDS"
+    ],
+    "SABKAVISHWASLEGACYDISPUTERESOLUTIONSCHEME": [
+      "Sabka Vishwas Legacy Dispute Resolution Scheme",
+      "SVLDRS"
+    ],
+    "SABKAVISHWASLEGALDISPUTERESOLUTIONSCHEME": [
+      "Sabka Vishwas Legal Dispute Resolution Scheme",
+      "SVLDRS"
+    ],
+    "SAC": [
+      "Services Accounting Code",
+      "SAC"
+    ],
+    "SAD": [
+      "SAD",
+      "SPECIAL ADDITIONAL DUTY"
+    ],
+    "SAFETYLIFESEA": [
+      "Safety Life Sea",
+      "SOLAS"
+    ],
+    "SART": [
+      "Search Rescue Transponder",
+      "SART"
+    ],
+    "SB": [
+      "SB",
+      "SHIPPING BILL"
+    ],
+    "SBC": [
+      "Swachh Bharat Cess",
+      "SBC"
+    ],
+    "SCN": [
+      "Show cause notice",
+      "SCN"
+    ],
+    "SCN1": [
+      "Show Cause Notice",
+      "SCN"
+    ],
+    "SCOMET": [
+      "SCOMET",
+      "SPECIAL CHEMICALS, ORGANISMS, MATERIALS, EQUIPMENT AND TECHNOLOGY"
+    ],
+    "SCR": [
+      "Selective Catalytic Reduction",
+      "SCR"
+    ],
+    "SCSS": [
+      "SCSS",
+      "Senior Citizen Saving Scheme"
+    ],
+    "SEARCHRESCUETRANSPONDER": [
+      "Search Rescue Transponder",
+      "SART"
+    ],
+    "SEBI": [
+      "SECURITIES AND EXCHANGE BOARD INDIA",
+      "SEBI"
+    ],
+    "SEBICIRCULAR": [
+      "circulars;SEBI CIRCULAR",
+      "SECURITIES AND EXCHANGE BOARD INDIA circulars"
+    ],
+    "SEBICIRCULARS": [
+      "circulars;SEBI CIRCULAR",
+      "SECURITIES AND EXCHANGE BOARD INDIA circulars"
+    ],
+    "SECONDHAND": [
+      "SECOND HAND",
+      "SECONDHAND"
+    ],
+    "SECRETARIALSTANDARD": [
+      "SECRETARIAL STANDARD",
+      "SS"
+    ],
+    "SECRETARIALSTANDARDS": [
+      "SECRETARIALSTANDARDS",
+      "SS"
+    ],
+    "SECRETARIATFORINDUSTRIALASSISTANCE": [
+      "SIA",
+      "SECRETARIAT FOR INDUSTRIAL ASSISTANCE"
+    ],
+    "SECUREDSTOCKLAYERCERTIFICATION": [
+      "Secured Stock Layer Certification",
+      "SSLC"
+    ],
+    "SEICMM": [
+      "SEI CMM",
+      "SOFTWARE ENGINEERS INSTITUTE CAPABILITY MATURITY MODEL"
+    ],
+    "SEIS": [
+      "SEIS",
+      "SERVICE EXPORTS FROM INDIA SCHEME"
+    ],
+    "SELECTIVECATALYTICREDUCTION": [
+      "Selective Catalytic Reduction",
+      "SCR"
+    ],
+    "SEMICRYOINTEGRATEDENGINETEST": [
+      "Semi Cryo Integrated Engine Test",
+      "SIET"
+    ],
+    "SEMIFINISHED": [
+      "SEMI FINISHED",
+      "SEMIFINISHED"
+    ],
+    "SEMIKNOCKEDDOWN": [
+      "SKD",
+      "SEMI KNOCKED DOWN",
+      "S K D"
+    ],
+    "SERIOUSFRAUDINVESTIGATIONOFFICE": [
+      "Serious Fraud Investigation Office",
+      "SFIO"
+    ],
+    "SERVEDFROMINDIASCHEME": [
+      "Served From India Scheme",
+      "SFIS"
+    ],
+    "SERVICEEXPORTSFROMINDIASCHEME": [
+      "SEIS",
+      "SERVICE EXPORTS FROM INDIA SCHEME"
+    ],
+    "SEZ": [
+      "SEZ",
+      "SPECIAL ECONOMIC ZONE"
+    ],
+    "SEZ1": [
+      "Special Economic Zones",
+      "SEZ"
+    ],
+    "SEZCIRCULARS": [
+      "circulars;SEZ CIRCULAR",
+      "SPECIAL ECONOMIC ZONE circular"
+    ],
+    "SFIO": [
+      "Serious Fraud Investigation Office",
+      "SFIO"
+    ],
+    "SFIS": [
+      "Served From India Scheme",
+      "SFIS"
+    ],
+    "SG": [
+      "STATE GOVERNMENT",
+      "SG"
+    ],
+    "SGST": [
+      "SGST",
+      "STATE GOODS AND SERVICES TAX"
+    ],
+    "SHIPPINGBILL": [
+      "SB",
+      "SHIPPING BILL"
+    ],
+    "SHIS": [
+      "Status Holder Incentive Scheme",
+      "SHIS"
+    ],
+    "SHORTLANDING": [
+      "SHORT LANDING",
+      "SHORTLANDING"
+    ],
+    "SHORTLEVY": [
+      "SHORT LEVY",
+      "SHORTLEVY"
+    ],
+    "SHORTMESSAGESERVICE": [
+      "Short Message Service",
+      "SMS"
+    ],
+    "SHOWCAUSENOTICE": [
+      "Show cause notice",
+      "SCN"
+    ],
+    "SIA": [
+      "SIA",
+      "SECRETARIAT FOR INDUSTRIAL ASSISTANCE"
+    ],
+    "SIET": [
+      "Semi Cryo Integrated Engine Test",
+      "SIET"
+    ],
+    "SIIC": [
+      "SIIC",
+      "STATE INDUSTRIAL INFRASTRUCTURE CORPORATION"
+    ],
+    "SIL": [
+      "SIL",
+      "SPECIAL IMPORT LICENCE",
+      "S I L"
+    ],
+    "SIM": [
+      "Subscriber Identity Modules",
+      "SIM"
+    ],
+    "SION": [
+      "SION",
+      "STANDARD INPUT OUTPUT NORMS"
+    ],
+    "SIT": [
+      "STOCK IN TRADE",
+      "SIT"
+    ],
+    "SKD": [
+      "SKD",
+      "SEMI KNOCKED DOWN",
+      "S K D"
+    ],
+    "SLEPC": [
+      "SLEPC",
+      "STATE LEVEL EXPORT PROMOTION COMMITTEE"
+    ],
+    "SLM": [
+      "STRAIGHT LINE METHOD",
+      "SLM"
+    ],
+    "SLR": [
+      "SLR",
+      "STATUTORY LIQUIDITY RATIO"
+    ],
+    "SMALLSCALEINDUSTRY": [
+      "SSI",
+      "SMALL SCALE INDUSTRY",
+      "S S I"
+    ],
+    "SMS": [
+      "Short Message Service",
+      "SMS"
+    ],
+    "SO": [
+      "S O",
+      "SO"
+    ],
+    "SOFTWAREENGINEERSINSTITUTECAPABILITYMATURITYMODEL": [
+      "SEI CMM",
+      "SOFTWARE ENGINEERS INSTITUTE CAPABILITY MATURITY MODEL"
+    ],
+    "SOFTWARETECHNOLOGYPARKOFINDIA": [
+      "STPI",
+      "SOFTWARE TECHNOLOGY PARK OF INDIA"
+    ],
+    "SOLARPOWERGENERATINGSYSTEM": [
+      "Solar power generating system",
+      "SPGS"
+    ],
+    "SOLAS": [
+      "Safety Life Sea",
+      "SOLAS"
+    ],
+    "SOLDERPLATEDCOPPERCOVEREDSTEELWIRE": [
+      "Solder Plated Copper Covered Steel wire",
+      "SPCS"
+    ],
+    "SONAR": [
+      "Sound Navigation Ranging",
+      "SONAR"
+    ],
+    "SOTG": [
+      "Supply tangible goods",
+      "SOTG"
+    ],
+    "SOUNDNAVIGATIONRANGING": [
+      "Sound Navigation Ranging",
+      "SONAR"
+    ],
+    "SPCS": [
+      "Solder Plated Copper Covered Steel wire",
+      "SPCS"
+    ],
+    "SPECIALADDITIONALDUTY": [
+      "SAD",
+      "SPECIAL ADDITIONAL DUTY"
+    ],
+    "SPECIALCHEMICALSORGANISMSMATERIALSEQUIPMENTANDTECHNOLOGY": [
+      "SCOMET",
+      "SPECIAL CHEMICALS, ORGANISMS, MATERIALS, EQUIPMENT AND TECHNOLOGY"
+    ],
+    "SPECIALECONOMICZONE": [
+      "SEZ",
+      "SPECIAL ECONOMIC ZONE"
+    ],
+    "SPECIALIMPORTLICENCE": [
+      "SIL",
+      "SPECIAL IMPORT LICENCE",
+      "S I L"
+    ],
+    "SPECIALPURPOSEVEHICLE": [
+      "Special Purpose Vehicle",
+      "SPV"
+    ],
+    "SPGS": [
+      "Solar power generating system",
+      "SPGS"
+    ],
+    "SPICESTRADINGCORPORATIONLIMITED": [
+      "STCL",
+      "SPICES TRADING CORPORATION LIMITED"
+    ],
+    "SPORTSUTILITYVEHICLES": [
+      "SUVS",
+      "SPORTS UTILITY VEHICLES"
+    ],
+    "SPORTUTILITYVEHICLE": [
+      "Sport Utility Vehicle",
+      "SUV"
+    ],
+    "SPV": [
+      "Special Purpose Vehicle",
+      "SPV"
+    ],
+    "SRGO": [
+      "Straight Run Gas Oil",
+      "SRGO"
+    ],
+    "SS": [
+      "SECRETARIAL STANDARDS",
+      "SS"
+    ],
+    "SSI": [
+      "SSI",
+      "SMALL SCALE INDUSTRY",
+      "S S I"
+    ],
+    "SSLC": [
+      "Secured Stock Layer Certification",
+      "SSLC"
+    ],
+    "STANDARDINPUTOUTPUTNORMS": [
+      "SION",
+      "STANDARD INPUT OUTPUT NORMS"
+    ],
+    "STANDARDONAUDITING": [
+      "SA",
+      "STANDARD ON AUDITING",
+      "AUDITING STANDARDS"
+    ],
+    "STARTRADINGHOUSE": [
+      "STH",
+      "STAR TRADING HOUSE"
+    ],
+    "STATEGOODSANDSERVICESTAX": [
+      "SGST",
+      "STATE GOODS AND SERVICES TAX"
+    ],
+    "STATEGST": [
+      "State GST",
+      "SGST"
+    ],
+    "STATEINDUSTRIALINFRASTRUCTURECORPORATION": [
+      "SIIC",
+      "STATE INDUSTRIAL INFRASTRUCTURE CORPORATION"
+    ],
+    "STATELEVELEXPORTPROMOTIONCOMMITTEE": [
+      "SLEPC",
+      "STATE LEVEL EXPORT PROMOTION COMMITTEE"
+    ],
+    "STATETRADINGCORPORATION": [
+      "STC",
+      "STATE TRADING CORPORATION"
+    ],
+    "STATETRADINGENTERPRISE": [
+      "STE",
+      "STATE TRADING ENTERPRISE"
+    ],
+    "STATETRADINGREGIME": [
+      "STR",
+      "STATE TRADING REGIME"
+    ],
+    "STATUSHOLDERINCENTIVESCHEME": [
+      "Status Holder Incentive Scheme",
+      "SHIS"
+    ],
+    "STC": [
+      "STC",
+      "STATE TRADING CORPORATION"
+    ],
+    "STCL": [
+      "STCL",
+      "SPICES TRADING CORPORATION LIMITED"
+    ],
+    "STE": [
+      "STE",
+      "STATE TRADING ENTERPRISE"
+    ],
+    "STH": [
+      "STH",
+      "STAR TRADING HOUSE"
+    ],
+    "STPI": [
+      "STPI",
+      "SOFTWARE TECHNOLOGY PARK OF INDIA"
+    ],
+    "STR": [
+      "STR",
+      "STATE TRADING REGIME"
+    ],
+    "STRAIGHTRUNGASOIL": [
+      "Straight Run Gas Oil",
+      "SRGO"
+    ],
+    "SUBHEADING": [
+      "SUBHEADING",
+      "SUB HEADING"
+    ],
+    "SUBS": [
+      "SUBSTITUTED",
+      "SUBS"
+    ],
+    "SUBSCRIBERIDENTITYMODULES": [
+      "Subscriber Identity Modules",
+      "SIM"
+    ],
+    "SUBSTANDARD": [
+      "SUB STANDARD",
+      "SUBSTANDARD"
+    ],
+    "SUPPLYTANGIBLEGOODS": [
+      "Supply tangible goods",
+      "SOTG"
+    ],
+    "SUV": [
+      "Sport Utility Vehicle",
+      "SUV"
+    ],
+    "SUVS": [
+      "SUVS",
+      "SPORTS UTILITY VEHICLES"
+    ],
+    "SVLDRS": [
+      "Sabka Vishwas Legal Dispute Resolution Scheme",
+      "SVLDRS"
+    ],
+    "SWACHHBHARATCESS": [
+      "Swachh Bharat Cess",
+      "SBC"
+    ],
+    "TARGETPLUSSCHEME": [
+      "Target Plus Scheme",
+      "TPS"
+    ],
+    "TARIFFRATEQUOTA": [
+      "TRQ",
+      "TARIFF RATE QUOTA"
+    ],
+    "TAXCOLLECTIONSOURCE": [
+      "Tax Collection Source",
+      "TCS"
+    ],
+    "TAXDEDUCTIONSOURCE": [
+      "Tax Deduction Source",
+      "TDS"
+    ],
+    "TCC": [
+      "TAX CLEARANCE CERTIFICATE",
+      "TCC"
+    ],
+    "TCS": [
+      "TAX COLLECTED AT SOURCE",
+      "TCS"
+    ],
+    "TCS1": [
+      "Tax Collection at Source",
+      "TCS"
+    ],
+    "TDF": [
+      "Transit Declaration Form",
+      "TDF"
+    ],
+    "TDR": [
+      "Transferable Development Right",
+      "TDR"
+    ],
+    "TDS": [
+      "TAX DEDUCTED AT SOURCE",
+      "TDS",
+      "DEDUCTION OF TAX AT SOURCE"
+    ],
+    "TDS1": [
+      "Tax Deduction at Source",
+      "TDS"
+    ],
+    "TECH": [
+      "TECHNOLOGY",
+      "TECH",
+      "TECHNOLOGIES"
+    ],
+    "TECHNOLOGYUPGRADATIONFUNDSCHEME": [
+      "TUFS",
+      "TECHNOLOGY UPGRADATION FUND SCHEME"
+    ],
+    "TED": [
+      "TED",
+      "TERMINAL EXCISE DUTY"
+    ],
+    "TEE": [
+      "TEE",
+      "TOWNS OF EXPORT EXCELLENCE"
+    ],
+    "TELEGRAPHICRELEASEADVICE": [
+      "TRA",
+      "TELEGRAPHIC RELEASE ADVICE"
+    ],
+    "TERMINALEXCISEDUTY": [
+      "TED",
+      "TERMINAL EXCISE DUTY"
+    ],
+    "TH": [
+      "TH",
+      "TRADING HOUSE"
+    ],
+    "TI": [
+      "TOTAL INCOME",
+      "TI"
+    ],
+    "TIMEBARRED": [
+      "TIMEBARRED",
+      "TIME BARRED"
+    ],
+    "TIMELIMIT": [
+      "TIME LIMIT",
+      "TIMELIMIT"
+    ],
+    "TOS": [
+      "Time of Supply",
+      "TOS"
+    ],
+    "TOWNSOFEXPORTEXCELLENCE": [
+      "TEE",
+      "TOWNS OF EXPORT EXCELLENCE"
+    ],
+    "TP": [
+      "TRANSFER PRICE",
+      "TP"
+    ],
+    "TPO": [
+      "TPO",
+      "TRADE PROMOTION ORGANIZATION"
+    ],
+    "TPS": [
+      "Target Plus Scheme",
+      "TPS"
+    ],
+    "TRA": [
+      "TRA",
+      "TELEGRAPHIC RELEASE ADVICE"
+    ],
+    "TRADEPROMOTIONORGANIZATION": [
+      "TPO",
+      "TRADE PROMOTION ORGANIZATION"
+    ],
+    "TRADINGHOUSE": [
+      "TH",
+      "TRADING HOUSE"
+    ],
+    "TRANSFERABLEDEVELOPMENTRIGHT": [
+      "Transferable Development Right",
+      "TDR"
+    ],
+    "TRANSITDECLARATIONFORM": [
+      "Transit Declaration Form",
+      "TDF"
+    ],
+    "TRIB": [
+      "TRIB",
+      "TRIBUNAL"
+    ],
+    "TRO": [
+      "TAX RECOVERY FICER",
+      "TRO"
+    ],
+    "TRP": [
+      "TAX RETURN PREPARER",
+      "TRP"
+    ],
+    "TRP1": [
+      "Tax Return Preparer",
+      "TRP"
+    ],
+    "TRQ": [
+      "TRQ",
+      "TARIFF RATE QUOTA"
+    ],
+    "TUFS": [
+      "TUFS",
+      "TECHNOLOGY UPGRADATION FUND SCHEME"
+    ],
+    "TURNOVER": [
+      "TURN OVER",
+      "TURNOVER"
+    ],
+    "UAC": [
+      "UAC",
+      "UNITS APPROVAL COMMITTEE"
+    ],
+    "UAE": [
+      "united arab emirates",
+      "UAE"
+    ],
+    "UIN": [
+      "Unique Identification Number",
+      "UIN"
+    ],
+    "UN": [
+      "UN",
+      "UNITED NATIONS"
+    ],
+    "UNDERINVOICING": [
+      "UNDER INVOICING",
+      "UNDERINVOICING"
+    ],
+    "UNDERVALUATION": [
+      "UNDER VALUATION",
+      "UNDERVALUATION"
+    ],
+    "UNIONTERRITORYGOODSANDSERVICESTAX": [
+      "Union Territory Goods & Services Act",
+      "UTGST",
+      "Union Territory GST",
+      "Union Territory Goods and Services Act"
+    ],
+    "UNITEDNATIONS": [
+      "UN",
+      "UNITED NATIONS"
+    ],
+    "UNITLINKEDINSURANCEPLANS": [
+      "Unit Linked Insurance Plans",
+      "ULIP"
+    ],
+    "UNITSAPPROVALCOMMITTEE": [
+      "UAC",
+      "UNITS APPROVAL COMMITTEE"
+    ],
+    "UOI": [
+      "UNION INDIA",
+      "UOI"
+    ],
+    "UPAGRICULTURALINCOMETAXACT": [
+      "U P AGRICULTURAL INCOME TAX ACT",
+      "UP AGRICULTURAL INCOME TAX ACT"
+    ],
+    "UPAGRICULTURALINCOMETAXRULES": [
+      "UP AGRICULTURAL INCOME TAX RULES",
+      "U P AGRICULTURAL INCOME TAX RULES"
+    ],
+    "UPEXCISEACT": [
+      "U P EXCISE ACT",
+      "UP EXCISE ACT"
+    ],
+    "UPEXCISERULES": [
+      "U P EXCISE RULES",
+      "UP EXCISE RULES"
+    ],
+    "UPSALESTAXAMENDMENTACT": [
+      "U P SALES TAX AMENDMENT ACT",
+      "UP SALES TAX AMENDMENT ACT"
+    ],
+    "UPZAMINDARIABOLITIONLANDREFORMRULES": [
+      "U P ZAMINDARI ABOLITION LAND REFORM RULES",
+      "UP ZAMINDARI ABOLITION LAND REFORM RULES"
+    ],
+    "UPZAMINDARIABOLITIONLANDREFORMSACT": [
+      "U P ZAMINDARI ABOLITION LAND REFORMS ACT",
+      "UP ZAMINDARI ABOLITION LAND REFORMS ACT"
+    ],
+    "UT": [
+      "Union Territory",
+      "UT"
+    ],
+    "UTGST": [
+      "Union Territory Goods & Services Act",
+      "UTGST",
+      "Union Territory GST"
+    ],
+    "UTI": [
+      "UNITED TRUST INDIA",
+      "UTI"
+    ],
+    "VA": [
+      "VA",
+      "VALUE ADDITION"
+    ],
+    "VALUEADDITION": [
+      "VA",
+      "VALUE ADDITION"
+    ],
+    "VAT": [
+      "VALUE ADDED TAX",
+      "VAT"
+    ],
+    "VAT1": [
+      "Value Added Tax",
+      "VAT"
+    ],
+    "VCES": [
+      "Voluntary Compliance Encouragement Scheme",
+      "VCES"
+    ],
+    "VCF": [
+      "Venture Capital Funds",
+      "VCF"
+    ],
+    "VENTURECAPITALFUNDS": [
+      "Venture Capital Funds",
+      "VCF"
+    ],
+    "VERYSMALLAPERTURETERMINAL": [
+      "Very Small Aperture Terminal",
+      "VSAT"
+    ],
+    "VOICEOVERINTERNETPROTOCOL": [
+      "Voice over Internet Protocol",
+      "VoIP"
+    ],
+    "VOIP": [
+      "Voice over Internet Protocol",
+      "VOIP"
+    ],
+    "VOLUNTARYCOMPLIANCEENCOURAGEMENTSCHEME": [
+      "Voluntary Compliance Encouragement Scheme",
+      "VCES"
+    ],
+    "VSAT": [
+      "Very Small Aperture Terminal",
+      "VSAT"
+    ],
+    "WCO": [
+      "WCO",
+      "WORLD CUSTOMS ORGANISATION"
+    ],
+    "WDV": [
+      "WRITTEN DOWN VALUE METHOD",
+      "WDV"
+    ],
+    "WEF": [
+      "WITH EFFECT FROM",
+      "W E F"
+    ],
+    "WGHTAVG": [
+      "WEIGHTED AVERAGE",
+      "WGHT AVG"
+    ],
+    "WHOGMP": [
+      "WHOGMP",
+      "WORLD HEALTH ORGANISATION GOOD MANUFACTURING PRACTICES"
+    ],
+    "WHOLESALE": [
+      "WHOLE SALE",
+      "WHOLESALE"
+    ],
+    "WIP": [
+      "WORK IN PROGRESS",
+      "WIP"
+    ],
+    "WIRELESSSTANDARDMODULE": [
+      "Wireless Standard Module",
+      "WISMO"
+    ],
+    "WISMO": [
+      "Wireless Standard Module",
+      "WISMO"
+    ],
+    "WORLDCUSTOMSORGANISATION": [
+      "WCO",
+      "WORLD CUSTOMS ORGANISATION"
+    ],
+    "WORLDHEALTHORGANISATION": [
+      "World Health Organisation",
+      "WHO"
+    ],
+    "WORLDHEALTHORGANISATIONGOODMANUFACTURINGPRACTICES": [
+      "WHOGMP",
+      "WORLD HEALTH ORGANISATION GOOD MANUFACTURING PRACTICES"
+    ],
+    "WT": [
+      "WEALTH TAX",
+      "WT"
+    ],
+    "WTDAVG": [
+      "WEIGHTED AVERAGE",
+      "WTD AVG"
+    ],
+    "unitedarabemirates1": [
+      "india uae",
+      "india united arab emirates"
+    ]
+  },
+  "normalizations": {
+    "115I": "115-I",
+    "115O": "115-O",
+    "115VO": "115V-O",
+    "194I": "194-I",
+    "194O": "194-O",
+    "245OA": "245-OA",
+    "271I": "271-I",
+    "80I": "80-I",
+    "80IA": "80-IA",
+    "80IAB": "80-IAB",
+    "80IAC": "80-IAC",
+    "80IB": "80-IB",
+    "80IBA": "80-IBA",
+    "80IC": "80-IC",
+    "80ID": "80-ID",
+    "80IE": "80-IE",
+    "80O": "80-O",
+    "ABCDRULETHUMB": "ABCD RULE THUMB",
+    "ACCOUNTINGSSTANDARD": "ACCOUNTING STANDARD",
+    "ACCOUNTINGSSTANDARDS": "ACCOUNTING STANDARD",
+    "ACCOUNTINGSTANDARD": "ACCOUNTING STANDARD",
+    "ACCOUNTINGSTANDARDS": "ACCOUNTING STANDARD",
+    "ACCOUNTINGSTANDARDSNOTIFIEDSECTION": "ACCOUNTING STANDARDS NOTIFIED UNDER SECTION",
+    "ACTPARLIAMENT": "ACT PARLIAMENT",
+    "ACTUARIESACT": "ACTUARIES ACT",
+    "ACTUARIESELECTIONCOUNCILRULES": "ACTUARIES ELECTION COUNCIL RULES",
+    "ACTUARIESPROCEDUREENQUIRYPROFESSIONALOTHERMISCONDUCTRULES": "ACTUARIES PROCEDURE ENQUIRY PROFESSIONAL OTHER MISCONDUCT RULES",
+    "ADIA": "Abu Dhabi Investment Authority",
+    "ADJUDICATINGAUTHORITYREGULATIONS": "ADJUDICATING AUTHORITY REGULATIONS",
+    "ADMINISTRATIVETRIBUNALSACT": "ADMINISTRATIVE TRIBUNALS ACT",
+    "ADVANCERULING": "ADVANCE RULING",
+    "ADVANCERULINGS": "ADVANCE RULINGS",
+    "ADVOCATESACT": "ADVOCATES ACT",
+    "AGRICULTURALINCOMETAXACT": "AGRICULTURAL INCOME TAX ACT",
+    "AHMEDABADSTOCKEXCHANGERULES": "AHMEDABAD STOCK EXCHANGE RULES",
+    "AIF": "Alternative Investment Fund",
+    "AIRPREVENTIONCONTROLPOLLUTIONACT": "AIR PREVENTION CONTROL POLLUTION ACT",
+    "AIRPREVENTIONCONTROLPOLLUTIONRULES": "AIR PREVENTION CONTROL POLLUTION RULES",
+    "AIRPREVENTIONCONTROLPOLLUTIONUNIONTERRITORIESRULES": "AIR PREVENTION CONTROL POLLUTION UNION TERRITORIES RULES",
+    "ANCIENTMONUMENTSARCHAEOLOGICALSITESREMAINSAMENDMENTVALIDATIONACT": "ANCIENT MONUMENTS ARCHAEOLOGICAL SITES REMAINS AMENDMENT VALIDATION ACT",
+    "ANDHRAPRADESHCOOPERATIVESOCIETIESACT": "ANDHRA PRADESH CO OPERATIVE SOCIETIES ACT",
+    "ANDHRAPRADESHENTERTAINMENTSTAXACT": "ANDHRA PRADESH ENTERTAINMENTS TAX ACT",
+    "ANDHRAPRADESHGENERALSALESTAXACT": "ANDHRA PRADESH GENERAL SALES TAX ACT",
+    "ANDHRAPRADESHNONAGRICULTURALLANDSASSESSMENTACT": "ANDHRA PRADESH NON AGRICULTURAL LANDS ASSESSMENT ACT",
+    "AO": "A O",
+    "APDIR": "A P DIR",
+    "APDIRCIRCULAR": "A P DIR CIRCULAR",
+    "APINDUSTRIALFACILITATIONCOUNCILARBITRATIONRULES": "A P INDUSTRIAL FACILITATION COUNCIL ARBITRATION RULES",
+    "APPEALAAC": "APPEAL AAC",
+    "APPEALNO": "APPEAL",
+    "APPEALNUMBER": "APPEAL",
+    "APPEALS": "APPEAL",
+    "APPEALSNO": "APPEAL",
+    "APPELLATETRIBUNALFORFEITEDPROPERTYFEESRULES": "APPELLATE TRIBUNAL FOREIGN EXCHANGE RECRUITMENT SALARY ALLOWANCES OTHER CONDITIONS SERVICE CHAIRPERSON MEMBERS RULES",
+    "APPELLATETRIBUNALFORFEITEDPROPERTYPROCEDURERULES": "APPELLATE TRIBUNAL FORFEITED PROPERTY FEES RULES",
+    "APPELLATETRIBUNALFORFOREIGNEXCHANGERECRUITMENTSALARYALLOWANCESOTHERCONDITIONSOFSERVICEOFCHAIRPERSONMEMBERSRULES": "APPELLATE TRIBUNAL FORFEITED PROPERTY PROCEDURE RULES",
+    "APPELLATETRIBUNALRULES": "APPELLATE TRIBUNAL RULES",
+    "APPLICATIONSECTIONFOREIGNCOMPANIESRULES": "APPLICATION SECTION FOREIGN COMPANIES RULES",
+    "APPRENTICESACT": "APPRENTICES ACT",
+    "APPROPRIATIONACT": "APPROPRIATION ACT",
+    "APPROPRIATIONNOACT": "APPROPRIATION ACT",
+    "APPROPRIATIONRAILWAYSACT": "APPROPRIATION RAILWAYS ACT",
+    "APPROPRIATIONRAILWAYSNOACT": "APPROPRIATION RAILWAYS ACT",
+    "APPROPRIATIONRAILWAYSVOTEACCOUNTACT": "APPROPRIATION RAILWAYS VOTE ACCOUNT ACT",
+    "APPROPRIATIONVOTEACCOUNTACT": "APPROPRIATION VOTE ACCOUNT ACT",
+    "APPROTECTIONDEPOSITORSFINANCIALESTABLISHMENTSACT": "A P PROTECTION DEPOSITORS FINANCIAL ESTABLISHMENTS ACT",
+    "APY": "ATAL PENSION YOJANA",
+    "ARBITRATIONACT": "ARBITRATION ACT",
+    "ARBITRATIONCONCILIATIONACT": "ARBITRATION CONCILIATION ACT",
+    "ARTICLENO": "ARTICLE",
+    "ARTICLENUMBER": "ARTICLE",
+    "ARTICLES": "ARTICLE",
+    "ARTICLESNO": "ARTICLE",
+    "ASIANCLEARINGUNIONPROCEDURERULES": "ASIAN CLEARING UNION PROCEDURE RULES",
+    "ASSAMAGRICULTURALINCOMETAXACT": "ASSAM AGRICULTURAL INCOME TAX ACT",
+    "ASSAMAGRICULTURALINCOMETAXRULES": "ASSAM AGRICULTURAL INCOME TAX RULES",
+    "ASSAMMONEYLENDERSACT": "ASSAM MONEY LENDERS ACT",
+    "ASSAMSTATEACQUISITIONZAMINDARISACT": "ASSAM STATE ACQUISITION ZAMINDARIS ACT",
+    "ASSESSINGOFFICER": "A O",
+    "ASST": "ASSISTANT",
+    "AUTHORITYADVANCERULINGSCUSTOMSCENTRALEXCISESERVICETAXPROCEDUREREGULATIONS": "AUTHORITY ADVANCE RULINGS CUSTOMS CENTRAL EXCISE SERVICE TAX PROCEDURE REGULATIONS",
+    "AUTHORITYADVANCERULINGSPROCEDURERULES": "AUTHORITY ADVANCE RULINGS PROCEDURE RULES",
+    "BANGALORESTOCKEXCHANGE": "BANGALORE STOCK EXCHANGE",
+    "BANGALPUBLICDEMANDSRECOVERYACT": "BANGAL PUBLIC DEMANDS RECOVERY ACT",
+    "BANKERSBOOKSEVIDENCEACT": "BANKERS BOOKS EVIDENCE ACT",
+    "BANKINGCASHTRANSACTIONTAX": "BANKING CASH TRANSACTION TAX",
+    "BANKINGCASHTRANSACTIONTAXRULES": "BANKING CASH TRANSACTION TAX RULES",
+    "BANKINGCIRCULAR": "CIRCULAR",
+    "BANKINGCIRCULARS": "CIRCULAR",
+    "BANKINGCOMPANIESACQUISITIONTRANSFERUNDERTAKINGSACT": "BANKING COMPANIES ACQUISITION TRANSFER UNDERTAKINGS ACT",
+    "BANKINGCOMPANIESACT": "BANKING COMPANIES ACT",
+    "BANKINGLAW": "BANKING LAW",
+    "BANKINGLAWCIRCULAR": "CIRCULAR",
+    "BANKINGLAWCIRCULARS": "CIRCULAR",
+    "BANKINGLAWFAQS": "BANKING LAW FAQS",
+    "BANKINGLAWS": "BANKING LAWS",
+    "BANKINGLAWSCIRCULAR": "CIRCULAR",
+    "BANKINGLAWSCIRCULARS": "CIRCULAR",
+    "BANKINGOMBUDSMANSCHEME": "BANKING OMBUDSMAN SCHEME",
+    "BANKINGREGULATIONACT": "BANKING REGULATION ACT",
+    "BANKINGSERVICECOMMISSIONACT": "BANKING SERVICE COMMISSION ACT",
+    "BANKSFINANCIALINSTITUTIONSACT": "BANKS FINANCIAL INSTITUTIONS ACT",
+    "BANKTERMDEPOSITSCHEME": "BANK TERM DEPOSIT SCHEME",
+    "BARCOUNCILINDIARULES": "BAR COUNCIL INDIA RULES",
+    "BECHUANALANDPROTECTORATEINCOMETAXPROCLAMATION": "BECHUANALAND PROTECTORATE INCOME TAX PROCLAMATION",
+    "BENAMITRANSACTIONSPROHIBITIONACT": "BENAMI TRANSACTIONS PROHIBITION ACT",
+    "BENGALAGRICULTURALINCOMETAXACT": "BENGAL AGRICULTURAL INCOME TAX ACT",
+    "BENGALCESSACT": "BENGAL CESS ACT",
+    "BENGALPUBLICDEMANDSRECOVERYACT": "BENGAL PUBLIC DEMANDS RECOVERY ACT",
+    "BEPS": "Base Erosion and Profit Shifting",
+    "BIHARAGRICULTURALINCOMETAXACT": "BIHAR AGRICULTURAL INCOME TAX ACT",
+    "BIHARSALESTAXACT": "BIHAR SALES TAX ACT",
+    "BOARDINDIAACT": "BOARD INDIA ACT",
+    "BOARDINDUSTRIALFINANCIALRECONSTRUCTIONREGULATIONS": "BOARD INDUSTRIAL FINANCIAL RECONSTRUCTION REGULATIONS",
+    "BOARDINDUSTRIALFINANCIALRECONSTRUCTIONSICKINDUSTRIALCOMPANIESACT": "BOARD INDUSTRIAL FINANCIAL RECONSTRUCTION SICK INDUSTRIAL COMPANIES ACT",
+    "BOMBAYCOURTFESSACT": "BOMBAY COURT FESS ACT",
+    "BOMBAYFINANCEACT": "BOMBAY FINANCE ACT",
+    "BOMBAYMOTORVEHICLESTAXAMENDMENTREGULATION": "BOMBAY MOTOR VEHICLES TAX AMENDMENT REGULATION",
+    "BOMBAYPUBLICTRUSTACT": "BOMBAY PUBLIC TRUST ACT",
+    "BOMBAYRELIEFUNDERTAKINGSPECIALPROVISIONSACT": "BOMBAY RELIEF UNDERTAKING SPECIAL PROVISIONS ACT",
+    "BOMBAYSALESTAXACT": "BOMBAY SALES TAX ACT",
+    "BOMBAYSTAMPACT": "BOMBAY STAMP ACT",
+    "BOMBAYSTOCKEXCHANGERULESBYELAWSREGULATIONS": "BOMBAY STOCK EXCHANGE RULES BYE LAWS REGULATIONS",
+    "BRITISHINDIAINCOMETAXACT": "BRITISH INDIA INCOME TAX ACT",
+    "BURMAINCOMETAXACT": "BURMA INCOME TAX ACT",
+    "BUSINESSPROFITTAXACT": "BUSINESS PROFIT TAX ACT",
+    "BUSINESSRULES": "BUSINESS RULES",
+    "BYELAWSSTOCKEXCHANGE": "BYE LAWS STOCK EXCHANGE",
+    "CAPITALGAINSACCOUNTSSCHEME": "CAPITAL GAINS ACCOUNTS SCHEME",
+    "CAPITALMARKETTRADING": "CAPITAL MARKET TRADING",
+    "CAPITALMARKETTRADINGREGULATIONS": "CAPITAL MARKET TRADING REGULATIONS",
+    "CASE": "CASELAWS",
+    "CASELAW": "CASELAWS",
+    "CASES": "CASELAWS",
+    "CBDTCONTENTWISE": "CBDT CONTENT WISE",
+    "CBDTONFINANCEACT": "CBDT ON FINANCE ACT",
+    "CBDTSECTIONWISE": "CBDT SECTION WISE",
+    "CBDTSUBJECTWISE": "CBDT SUBJECT WISE",
+    "CCE": "COMMISSIONER CENTRAL EXCISE",
+    "CCPDNO": "CCPD",
+    "CENTRALEXCISEACT": "CENTRAL EXCISE ACT",
+    "CENTRALEXCISEREMOVALDIFFICULTIESRULES": "CENTRAL EXCISE REMOVAL DIFFICULTIES RULES",
+    "CENTRALEXCISERULES": "CENTRAL EXCISE RULES",
+    "CENTRALEXCISESERVICETAXDRAWBACKRULES": "CENTRAL EXCISE SERVICE TAX DRAWBACK RULES",
+    "CENTRALGOVERNMENTACCOUNTRECEIPTSPAYMENTSRULES": "CENTRAL GOVERNMENT ACCOUNT RECEIPTS PAYMENTS RULES",
+    "CENTRALGOVERNMENTRELEVANTACQUISITIONACTS": "CENTRAL GOVERNMENT UNDER RELEVANT ACQUISITION ACTS",
+    "CENTRALINFORMATIONCOMMISSIONAPPEALPROCEDURERULES": "CENTRAL INFORMATION COMMISSION APPEAL PROCEDURE RULES",
+    "CENTRALINFORMATIONCOMMISSIONMANAGEMENTREGULATIONS": "CENTRAL INFORMATION COMMISSION MANAGEMENT REGULATIONS",
+    "CENTRALISEDPROCESSINGRETURNSSCHEME": "CENTRALISED PROCESSING RETURNS SCHEME",
+    "CENTRALSALESTAXACT": "CENTRAL SALES TAX ACT",
+    "CENVATCREDITRULE": "CENVAT CREDIT RULES",
+    "CENVATCREDITRULES": "CENVAT CREDIT RULES",
+    "CESTATPROCEDURERULES": "CESTAT PROCEDURE RULES",
+    "CGAS": "CAPITAL GAIN ACCOUNT SCHEME",
+    "CGHS": "CENTRAL GOVERNMENT HEALTH SCHEME",
+    "CHALLANNO": "CHALLAN",
+    "CHALLANNUMBER": "CHALLAN",
+    "CHALLANS": "CHALLAN",
+    "CHARITABLEENDOWMENTSACT": "CHARITABLE RELIGIOUS TRUSTS ACT",
+    "CHARITABLEENDOWMENTSCENTRALRULES": "CHARITABLE ENDOWMENTS ACT",
+    "CHARITABLERELIGIOUSTRUSTSACT": "CHARITABLE ENDOWMENTS CENTRAL RULES",
+    "CHARTEREDACCOUNTANTSAMENDMENTACT": "CHARTERED ACCOUNTANTS AMENDMENT ACT",
+    "CHARTEREDACCOUNTANTSREGULATIONS": "CHARTERED ACCOUNTANTS REGULATIONS",
+    "CHITFUNDSACT": "CHIT FUNDS ACT",
+    "CIR": "CIRCULAR",
+    "CIRCFD": "CIR CFD",
+    "CIRCFDDIL": "CIR CFD DIL",
+    "CIRCULARIECD": "CIRCULAR IECD",
+    "CIRCULARNODGBACDD": "CIRCULAR NO DGBA CDD",
+    "CIRCULARNODGBAGAD": "CIRCULAR NO DGBA GAD",
+    "CIRCULARNUMBER": "CIRCULAR",
+    "CIRCULARS": "CIRCULAR",
+    "CIRDNPD": "CIR DNPD",
+    "CIRIMDDF": "CIR IMD DF",
+    "CIRIMDFIIC": "CIR IMD FIIC",
+    "CIRISDAML": "CIR ISD AML",
+    "CIRMIRSD": "CIR MIRSD",
+    "CIRMRDDPDA": "CIR MRD DP DA",
+    "CIRMRDDSASE": "CIR MRD DSA SE",
+    "CIRMRDICC": "CIR MRD ICC",
+    "CIRMRDP": "CIR MR DP",
+    "CIROIAE": "CIR OIAE",
+    "CITATION": "CASELAWS",
+    "CIVILDEFENCEAMENDMENTACT": "CIVIL DEFENCE AMENDMENT ACT",
+    "CIVILLIABILITYNUCLEARDAMAGEACT": "CIVIL LIABILITY NUCLEAR DAMAGE ACT",
+    "CIVILPROCEDURECODE": "CIVIL PROCEDURE CODE",
+    "CLINICALESTABLISHMENTSREGISTRATIONREGULATIONACT": "CLINICAL ESTABLISHMENTS REGISTRATION REGULATION ACT",
+    "COALINDUSTRYNATIONALISATIONACT": "COAL INDUSTRY NATIONALISATION ACT",
+    "COALINDUSTRYNOACT": "COAL INDUSTRY ACT",
+    "COASTALREGULATIONZONERULES": "COASTAL REGULATION ZONE RULES",
+    "COCHININCOMETAXACT": "COCHIN INCOME TAX ACT",
+    "CODECIVILPROCEDURE": "CODE CIVIL PROCEDURE",
+    "CODECRIMINALPROCEDURE": "CODE CRIMINAL PROCEDURE",
+    "CODECRIMINALPROCEDUREAMENDMENTACT": "CODE CRIMINAL PROCEDURE AMENDMENT ACT",
+    "COFFEEACT": "COFFEE ACT",
+    "COINAGEACT": "COINAGE ACT",
+    "COMMERCIALDOCUMENTSEVIDENCEACT": "COMMERCIAL DOCUMENTS EVIDENCE ACT",
+    "COMMITTEEREPORTS": "COMMITTEE REPORTS",
+    "COMMODITIESTRANSACTIONTAX": "COMMODITIES TRANSACTION TAX",
+    "COMPANIESACCEPTANCEDEPOSITSRULES": "COMPANIES ACCEPTANCE DEPOSITS RULES",
+    "COMPANIESACCOUNTINGSTANDARDSRULES": "COMPANIES ACCOUNTING STANDARDS RULES",
+    "COMPANIESACTORDERXIVCODECIVILPROCEDURE": "COMPANIES ACT ORDER XIV CODE CIVIL PROCEDURE",
+    "COMPANIESACTREADRULECOMPANIESCOURTRULES": "COMPANIES ACT READ WITH RULE COMPANIES COURT RULES",
+    "COMPANIESACTREADSECTIONCODECRIMINALPROCEDURE": "COMPANIES ACT READ WITH SECTION CODE CRIMINAL PROCEDURE",
+    "COMPANIESACTSECTIONCODECRIMINALPROCEDURE": "COMPANIES ACT SECTION CODE CRIMINAL PROCEDURE",
+    "COMPANIESACTSECTIONPARTNERSHIPACT": "COMPANIES ACT SECTION PARTNERSHIP ACT",
+    "COMPANIESACTSECTIONSEMPLOYEESSTATEINSURANCECORPORATIONACT": "COMPANIES ACT SECTIONS EMPLOYEES STATE INSURANCE CORPORATION ACT",
+    "COMPANIESACTSECTIONSICKINDUSTRIALCOMPANIESSPECIALPROVISIONSACT": "COMPANIES ACT SECTION SICK INDUSTRIAL COMPANIES SPECIAL PROVISIONS ACT",
+    "COMPANIESAMENDMENTACT": "COMPANIES AMENDMENT ACT",
+    "COMPANIESAPPLICATIONEXTENSIONTIMEOREXEMPTIONSUBSECTIONSECTIONRULES": "COMPANIES APPLICATION EXTENSION TIME EXEMPTION UNDER SUB SECTION SECTION RULES",
+    "COMPANIESAPPOINTMENTQUALIFICATIONSSECRETARYRULES": "COMPANIES APPOINTMENT QUALIFICATIONS SECRETARY RULES",
+    "COMPANIESAPPOINTMENTSMALLSHAREHOLDERSDIRECTORRULES": "COMPANIES APPOINTMENT SMALL SHAREHOLDERS DIRECTOR RULES",
+    "COMPANIESAPPOINTMENTSOLEAGENTSRULES": "COMPANIES APPOINTMENT SOLE AGENTS RULES",
+    "COMPANIESBILL": "COMPANY BILLS",
+    "COMPANIESBILLS": "COMPANY BILLS",
+    "COMPANIESBRANCHAUDITEXEMPTIONRULES": "COMPANIES BRANCH AUDIT EXEMPTION RULES",
+    "COMPANIESCENTRALGOVERNMENTSGENERALRULESFORMS": "COMPANIES CENTRAL GOVERNMENT S GENERAL RULES FORMS",
+    "COMPANIESCENTRALGOVTGENERALRULESFORMSSIXTHAMDTRULES": "COMPANIES CENTRAL GOVT GENERAL RULES FORMS SIXTH AMDT RULES",
+    "COMPANIESCENTRALGOVTSGENERALRULESFORMSFIFTHAMDTRULES": "COMPANIES CENTRAL GOVTS GENERAL RULES FORMS FIFTH AMDT RULES",
+    "COMPANIESCENTRALGOVTSGENERALRULESFORMSFIFTHAMENDMENTRULES": "COMPANIES CENTRAL GOVTS GENERAL RULES FORMS FIFTH AMENDMENT RULES",
+    "COMPANIESCOMPLIANCECERTIFICATERULES": "COMPANIES COMPLIANCE CERTIFICATE RULES",
+    "COMPANIESCOSTACCOUNTINGRECORDSRULES": "COMPANIES COST ACCOUNTING RECORDS RULES",
+    "COMPANIESCOSTAUDITREPORTRULES": "COMPANIES COST AUDIT REPORT RULES",
+    "COMPANIESCOURTRULES": "COMPANIES COURT RULES",
+    "COMPANIESDECLARATIONBENEFICIALINTERESTSHARESRULES": "COMPANIES DECLARATION BENEFICIAL INTEREST SHARES RULES",
+    "COMPANIESDECLARATIONDIVIDENDOUTRESERVESRULES": "COMPANIES DECLARATION DIVIDEND OUT RESERVES RULES",
+    "COMPANIESDIRECTORIDENTIFICATIONNUMBERRULES": "COMPANIES DIRECTOR IDENTIFICATION NUMBER RULES",
+    "COMPANIESDISCLOSUREPARTICULARSINREPORTBOARDDIRECTORSRULES": "COMPANIES DISCLOSURE PARTICULARS REPORT BOARD DIRECTORS RULES",
+    "COMPANIESDISQUALIFICATIONDIRECTORSUNDERSECTIONGCOMPANIESACTRULES": "COMPANIES DISQUALIFICATION DIRECTORS UNDER SECTION G COMPANIES ACT RULES",
+    "COMPANIESELECTRONICFILINGAUTHENTICATIONDOCUMENTSRULES": "COMPANIES ELECTRONIC FILING AUTHENTICATION DOCUMENTS RULES",
+    "COMPANIESFEESAPPLICATIONSRULES": "COMPANIES FEES APPLICATIONS RULES",
+    "COMPANIESFILINGDOCUMENTSFORMSEXTENSIBLEBUSINESSREPORTINGLANGUAGERULES": "COMPANIES FILING DOCUMENTS FORMS EXTENSIBLE BUSINESS REPORTING LANGUAGE RULES",
+    "COMPANIESISSUEINDIANDEPOSITORYRECEIPTSRULES": "COMPANIES ISSUE INDIAN DEPOSITORY RECEIPTS RULES",
+    "COMPANIESISSUESHARECAPITALDIFFERENTIALVOTINGRIGHTSRULES": "COMPANIES ISSUE SHARE CAPITAL WITH DIFFERENTIAL VOTING RIGHTS RULES",
+    "COMPANIESISSUESHARECERTIFICATERULES": "COMPANIES ISSUE SHARE CERTIFICATE RULES",
+    "COMPANIESISSUESHARECERTIFICATESRULES": "COMPANIES ISSUE SHARE CERTIFICATES RULES",
+    "COMPANIESLAW": "COMPANIES LAW",
+    "COMPANIESLAWS": "COMPANIES LAW",
+    "COMPANIESNAMEAVAILABILITYRULES": "COMPANIES NAME AVAILABILITY RULES",
+    "COMPANIESOFFICIALLIQUIDATORSACCOUNTRULES": "COMPANIES OFFICIAL LIQUIDATOR S ACCOUNT RULES",
+    "COMPANIESPARTICULARSEMPLOYEESRULES": "COMPANIES PARTICULARS EMPLOYEES RULES",
+    "COMPANIESPASSINGRESOLUTIONPOSTALBALLOTRULES": "COMPANIES PASSING RESOLUTION POSTAL BALLOT RULES",
+    "COMPANIESPRESERVATIONDISPOSALRECORDSRULES": "COMPANIES PRESERVATION DISPOSAL RECORDS RULES",
+    "COMPANIESPROFITSSURTAXACT": "COMPANIES PROFITS SURTAX ACT",
+    "COMPANIESREGULATIONS": "COMPANIES REGULATIONS",
+    "COMPANIESTRANSFERPROFITSRESERVESRULES": "COMPANIES TRANSFER PROFITS RESERVES RULES",
+    "COMPANIESUNPAIDDIVIDENDTRANSFERGENERALREVENUEACCOUNTCENTRALGOVERNMENTRULES": "COMPANIES UNPAID DIVIDEND TRANSFER GENERAL REVENUE ACCOUNT CENTRAL GOVERNMENT RULES",
+    "COMPANYBILL": "COMPANY BILLS",
+    "COMPANYBILLS": "COMPANY BILLS",
+    "COMPANYLAW": "COMPANY LAWS",
+    "COMPANYLAWBOARDFEESAPPLICATIONSPETITIONSRULES": "COMPANY LAW BOARD FEES APPLICATIONS PETITIONS RULES",
+    "COMPANYLAWBOARDREGULATIONS": "COMPANY LAW BOARD REGULATIONS",
+    "COMPANYLAWCIRCULAR": "circulars;COMPANYLAWS CIRCULARS",
+    "COMPANYLAWCIRCULARS": "circulars;COMPANYLAWS CIRCULARS",
+    "COMPANYLAWCOMMENTRY": "COMPANY LAW COMMENTRY",
+    "COMPANYLAWPROCEDURE": "COMPANY LAW PROCEDURE",
+    "COMPANYLAWREADYRECKONER": "COMPANY LAW READY RECKONER",
+    "COMPANYLAWS": "COMPANY LAWS",
+    "COMPANYLAWSCIRCULAR": "circulars;COMPANYLAWS CIRCULARS",
+    "COMPANYLAWSCIRCULARS": "circulars;COMPANYLAWS CIRCULARS",
+    "COMPANYLAWSETTLEMENTJAMMUKASHMIRSCHEME": "COMPANY LAW SETTLEMENT JAMMU KASHMIR SCHEME",
+    "COMPANYLAWSETTLEMENTSCHEME": "COMPANY LAW SETTLEMENT SCHEME",
+    "COMPANYLAWSETTLEMENTSCHEMEJAMMUKASHMIR": "COMPANY LAW SETTLEMENT SCHEME JAMMU KASHMIR",
+    "COMPANYLAWSFAQS": "COMPANY LAWS FAQS",
+    "COMPANYNOTICES": "COMPANY NOTICES",
+    "COMPANYREPORTS": "COMPANY REPORTS",
+    "COMPANYRESOLUTION": "COMPANY RESOLUTION",
+    "COMPANYSCONDUCTDISCIPLINEAPPEALRULES": "COMPANY S CONDUCT DISCIPLINE APPEAL RULES",
+    "COMPANYSECRETARIESACT": "COMPANY SECRETARIES ACT",
+    "COMPANYSECRETARIESAMENDMENTACT": "COMPANY SECRETARIES AMENDMENT ACT",
+    "COMPANYSLIQUIDATIONACCOUNTSRULES": "COMPANY S LIQUIDATION ACCOUNTS RULES",
+    "COMPETITIONACT": "COMPETITION ACT",
+    "COMPETITIONACTCIRCULAR": "circulars;COMPETITIONACT CIRCULAR",
+    "COMPETITIONACTCIRCULARS": "circulars;COMPETITIONACT CIRCULAR",
+    "COMPETITIONACTSCIRCULAR": "circulars;COMPETITIONACT CIRCULAR",
+    "COMPETITIONACTSCIRCULARS": "circulars;COMPETITIONACT CIRCULAR",
+    "COMPETITIONAPPELLATETRIBUNALFORMFEEFILINGANAPPEALFEEFILINGCOMPENSATIONAPPLICATIONSRULES": "COMPETITION APPELLATE TRIBUNAL FORM FEE FILING AN APPEAL FEE FILING COMPENSATION APPLICATIONS RULES",
+    "COMPETITIONAPPELLATETRIBUNALPROCEDUREAPPEALSAPPLICATIONSREGULATIONS": "COMPETITION APPELLATE TRIBUNAL PROCEDURE APPEALS APPLICATIONS REGULATIONS",
+    "COMPETITIONAPPELLATETRIBUNALRECRUITMENTSALARIESOTHERTERMSCONDITIONSSERVICEOFFICERSOTHEREMPLOYEESRULES": "COMPETITION APPELLATE TRIBUNAL RECRUITMENT SALARIES OTHER TERMS CONDITIONS SERVICE OFFICERS OTHER EMPLOYEES RULES",
+    "COMPETITIONAPPELLATETRIBUNALSALARIESALLOWANCESOTHERTERMSCONDITIONSSERVICECHAIRPERSONOTHERMEMBERSRULES": "COMPETITION APPELLATE TRIBUNAL SALARIES ALLOWANCES OTHER TERMS CONDITIONS SERVICE CHAIRPERSON OTHER MEMBERS RULES",
+    "COMPETITIONAPPELLATETRIBUNALTERMSELECTIONCOMMITTEEANDMANNERSELECTIONPANELNAMESRULES": "COMPETITION APPELLATE TRIBUNAL TERM SELECTION COMMITTEE MANNER SELECTION PANEL NAMES RULES",
+    "COMPETITIONCOMMISSIONINDIADETERMINATIONCOSTPRODUCTIONREGULATIONS": "COMPETITION COMMISSION INDIA DETERMINATION COST PRODUCTION REGULATIONS",
+    "COMPETITIONCOMMISSIONINDIADIRECTORGENERALRECRUITMENTRULES": "COMPETITION COMMISSION INDIA DIRECTOR GENERAL RECRUITMENT RULES",
+    "COMPETITIONCOMMISSIONINDIAFORMANNUALSTATEMENTACCOUNTSRULES": "COMPETITION COMMISSION INDIA FORM ANNUAL STATEMENT ACCOUNTS RULES",
+    "COMPETITIONCOMMISSIONINDIAFORMTIMEPREPARATIONANNUALREPORTRULES": "COMPETITION COMMISSION INDIA FORM TIME PREPARATION ANNUAL REPORT RULES",
+    "COMPETITIONCOMMISSIONINDIAGENERALREGULATIONS": "COMPETITION COMMISSION INDIA GENERAL REGULATIONS",
+    "COMPETITIONCOMMISSIONINDIALESSERPENALTYREGULATIONS": "COMPETITION COMMISSION INDIA LESSER PENALTY REGULATIONS",
+    "COMPETITIONCOMMISSIONINDIAMANNERRECOVERYMONETARYPENALTYREGULATIONS": "COMPETITION COMMISSION INDIA MANNER RECOVERY MONETARY PENALTY REGULATIONS",
+    "COMPETITIONCOMMISSIONINDIAMEETINGTRANSACTIONBUSINESSREGULATIONS": "COMPETITION COMMISSION INDIA MEETING TRANSACTION BUSINESS REGULATIONS",
+    "COMPETITIONCOMMISSIONINDIANUMBERADDITIONALJOINTDEPUTYORASSISTANTDIRECTORGENERALOTHEROFFICERSEMPLOYEESTHEIRMANNERAPPOINTMENTQUALIFICATIONSALARYALLOWANCESOTHERTERMSCONDITIONSSERVICERULES": "COMPETITION COMMISSION INDIA NUMBER ADDITIONAL JOINT DEPUTY ASSISTANT DIRECTOR GENERAL OTHER OFFICERS EMPLOYEES THEIR MANNER APPOINTMENT QUALIFICATION SALARY ALLOWANCES OTHER TERMS CONDITIONS SERVICE RULES",
+    "COMPETITIONCOMMISSIONINDIAOATHOFFICEANDSECRECYCHAIRPERSONOTHERMEMBERSRULES": "COMPETITION COMMISSION INDIA OATH OFFICE SECRECY CHAIRPERSON OTHER MEMBERS RULES",
+    "COMPETITIONCOMMISSIONINDIAPROCEDUREENGAGEMENTEXPERTSPROFESSIONALSREGULATIONS": "COMPETITION COMMISSION INDIA PROCEDURE ENGAGEMENT EXPERTS PROFESSIONALS REGULATIONS",
+    "COMPETITIONCOMMISSIONINDIAPROCEDUREREGARDTOTRANSACTIONBUSINESSRELATINGCOMBINATIONSREGULATIONS": "COMPETITION COMMISSION INDIA PROCEDURE REGARD TRANSACTION BUSINESS RELATING COMBINATIONS REGULATIONS",
+    "COMPETITIONCOMMISSIONINDIARETURNMEASURESPROMOTIONCOMPETITIONADVOCACYAWARENESSTRAININGCOMPETITIONISSUESRULES": "COMPETITION COMMISSION INDIA RETURN MEASURES PROMOTION COMPETITION ADVOCACY AWARENESS TRAINING COMPETITION ISSUES RULES",
+    "COMPETITIONCOMMISSIONINDIASALARYALLOWANCESOTHERTERMSCONDITIONSSERVICECHAIRPERSONOTHERMEMBERSRULES": "COMPETITION COMMISSION INDIA SALARY ALLOWANCES OTHER TERMS CONDITIONS SERVICE CHAIRPERSON OTHER MEMBERS RULES",
+    "COMPETITIONCOMMISSIONINDIASALARYALLOWANCESOTHERTERMSCONDITIONSSERVICESECRETARYOFFICERSOTHEREMPLOYEESCOMMISSIONANDNUMBERSUCHOFFICERSOTHEREMPLOYEESRULES": "COMPETITION COMMISSION INDIA SALARY ALLOWANCES OTHER TERMS CONDITIONS SERVICE SECRETARY OFFICERS OTHER EMPLOYEES COMMISSION NUMBER SUCH OFFICERS OTHER EMPLOYEES RULES",
+    "COMPETITIONCOMMISSIONINDIATERMSELECTIONCOMMITTEEANDMANNERSELECTIONPANELNAMESRULES": "COMPETITION COMMISSION INDIA TERM SELECTION COMMITTEE MANNER SELECTION PANEL NAMES RULES",
+    "COMPREHENSIVEAGREEMENTS": "COMPREHENSIVE AGREEMENTS",
+    "COMPULSORYDEPOSITSCHEMEACT": "COMPULSORY DEPOSIT SCHEME ACT",
+    "COMPULSORYDEPOSITSCHEMEINCOMETAXPAYERS": "COMPULSORY DEPOSIT SCHEME INCOME TAX PAYERS",
+    "COMPULSORYDEPOSITSCHEMEINCOMETAXPAYERSACT": "COMPULSORY DEPOSIT SCHEME INCOME TAX PAYERS ACT",
+    "CONCILIATIONACT": "CONCILIATION ACT",
+    "CONSERVATIONFOREIGNEXCHANGEPREVENTIONSMUGGLINGACTIVITIESACT": "CONSERVATION FOREIGN EXCHANGE PREVENTION SMUGGLING ACTIVITIES ACT",
+    "CONSTITUTIONINDIA": "CONSTITUTION INDIA",
+    "CONSTITUTIONJAMMUKASHMIR": "CONSTITUTION JAMMU KASHMIR",
+    "CONSTITUTIONNINETYFIFTHAMENDMENTACT": "CONSTITUTION NINETY FIFTH AMENDMENT ACT",
+    "CONSTITUTIONNINETYSIXTHAMENDMENTACT": "CONSTITUTION NINETY SIXTH AMENDMENT ACT",
+    "CONSTITUTIONSCHEDULEDTRIBESORDERAMENDMENTACT": "CONSTITUTION SCHEDULED TRIBES ORDER AMENDMENT ACT",
+    "CONSUMERDISPUTESACT": "CONSUMER DISPUTES ACT",
+    "CONSUMERPROTECTIONACT": "CONSUMER PROTECTION ACT",
+    "CONSUMERPROTECTIONREGULATIONS": "CONSUMER PROTECTION REGULATIONS",
+    "CONSUMERPROTECTIONRULES": "CONSUMER PROTECTION RULES",
+    "CONSUMERWELFAREFUNDRULES": "CONSUMER WELFARE FUND RULES",
+    "CONTEMPTCOURTACT": "CONTEMPT COURT ACT",
+    "CONTEMPTCOURTSACT": "CONTEMPT COURTS ACT",
+    "CONTRACTLABOURREGULATIONABOLITIONACT": "CONTRACT LABOUR REGULATION ABOLITION ACT",
+    "COOPERATIVESOCIETIESACT": "CO OPERATIVE SOCIETIES ACT",
+    "COORGAGRICULTURALINCOMETAXACT": "COORG AGRICULTURAL INCOME TAX ACT",
+    "COPYRIGHTACT": "COPYRIGHT ACT",
+    "COPYRIGHTRULES": "COPYRIGHT RULES",
+    "COREINVESTMENTCOMPANIESRESERVEBANKDIRECTIONS": "CORE INVESTMENT COMPANIES RESERVE BANK DIRECTIONS",
+    "CORPORATEBANKINGFINANCE": "CORPORATE BANKING FINANCE",
+    "CORPORATELAW": "CORPORATE LAWS",
+    "CORPORATELAWS": "CORPORATE LAWS",
+    "CORPORATIONACT": "CORPORATION ACT",
+    "CORPORATIONFOREIGNBONDHOLDERSACT": "CORPORATION FOREIGN BONDHOLDERS ACT",
+    "CORPORATIONSACT": "CORPORATIONS ACT",
+    "COSTACCOUNTANTSCHAPTERAMENDMENTBYELAWS": "COST ACCOUNTANTS CHAPTER AMENDMENT BYE LAWS",
+    "COSTACCOUNTINGRECORDSELECTRICITYINDUSTRYRULES": "COST ACCOUNTING RECORDS ELECTRICITY INDUSTRY RULES",
+    "COSTACCOUNTINGRECORDSFERTILIZERINDUSTRYRULES": "COST ACCOUNTING RECORDS FERTILIZER INDUSTRY RULES",
+    "COSTACCOUNTINGRECORDSPETROLEUMINDUSTRYRULES": "COST ACCOUNTING RECORDS PETROLEUM INDUSTRY RULES",
+    "COSTACCOUNTINGRECORDSPHARMACEUTICALINDUSTRYRULES": "COST ACCOUNTING RECORDS PHARMACEUTICAL INDUSTRY RULES",
+    "COSTACCOUNTINGRECORDSSUGARINDUSTRYRULES": "COST ACCOUNTING RECORDS SUGAR INDUSTRY RULES",
+    "COSTACCOUNTINGRECORDSTELECOMMUNICATIONINDUSTRYRULES": "COST ACCOUNTING RECORDS TELECOMMUNICATION INDUSTRY RULES",
+    "COSTAUDITORDER": "COST AUDIT ORDER",
+    "COSTAUDITREPORTRULES": "COST AUDIT REPORT RULES",
+    "COSTWORKSACCOUNTANTSACT": "COST WORKS ACCOUNTANTS ACT",
+    "COSTWORKSACCOUNTANTSAMENDMENTACT": "COST WORKS ACCOUNTANTS AMENDMENT ACT",
+    "COTTONDUTIESACT": "COTTON DUTIES ACT",
+    "CPBERARMUNICIPALITIESACT": "C P BERAR MUNICIPALITIES ACT",
+    "CPC": "CENTRALISED PROCESSING CENTRE",
+    "CREDITINFORMATIONCOMPANIESREGULATIONACT": "CREDIT INFORMATION COMPANIES REGULATION ACT",
+    "CRIMINALPROCEDURECODE": "CRIMINAL PROCEDURE CODE",
+    "CURRENCYFUTURESRESERVEBANKDIRECTIONS": "CURRENCY FUTURES RESERVE BANK DIRECTIONS",
+    "CUSTOMSACT": "CUSTOMS ACT",
+    "CUSTOMSAMENDMENTVALIDATIONACT": "CUSTOMS AMENDMENT VALIDATION ACT",
+    "CUSTOMSCENTRALEXCISESERVICETAXDRAWBACKRULES": "CUSTOMS CENTRAL EXCISE SERVICE TAX DRAWBACK RULES",
+    "CUSTOMSEXCISESERVICETAXAPPELLATETRIBUNALPROCEDURERULES": "CUSTOMS EXCISE SERVICE TAX APPELLATE TRIBUNAL PROCEDURE RULES",
+    "DAMANDIUMOTORVEHICLESTAXAMENDMENTREGULATIONS": "DAMAN DIU MOTOR VEHICLES TAX AMENDMENT REGULATIONS",
+    "DAMODARVALLEYCORPORATIONAMENDMENTACT": "DAMODAR VALLEY CORPORATION AMENDMENT ACT",
+    "DBODAML": "DBOD AML",
+    "DBODAMLBC": "DBOD AML BC",
+    "DBODCIRCULAR": "DBOD",
+    "DBODCIRCULARS": "DBOD",
+    "DBODCIRCULARS1": "DBOD",
+    "DBODCOBPBC": "DBOD CO BP BC",
+    "DBODDIRBC": "DBOD DIR BC",
+    "DBODDIREXPBC": "DBOD DIR EXP BC",
+    "DBODNOBLBC": "DBOD NO BL BC",
+    "DBODNOBPBC": "DBOD NO BP BC",
+    "DBODNOCIDBC": "DBOD NO CID BC",
+    "DBODNOFSDBC": "DBOD NO FSD BC",
+    "DBODNOLEGBC": "DBOD NO LEG BC",
+    "DBODNORETBC": "DBOD NO RET BC",
+    "DBODNOTIFICATION": "DBOD",
+    "DBODNOTIFICATIONS": "DBOD",
+    "DBODNOTIFICATIONS1": "DBOD",
+    "DEBTRECOVERYTRIBUNALPROCEDURERULES": "DEBT RECOVERY TRIBUNAL PROCEDURE RULES",
+    "DEBTSRECOVERYAPPELLATETRIBUNALFINANCIALADMINISTRATIVEPOWERRULES": "DEBTS RECOVERY APPELLATE TRIBUNAL FINANCIAL ADMINISTRATIVE POWER RULES",
+    "DEBTSRECOVERYAPPELLATETRIBUNALPROCEDUREAPPOINTMENTASCHAIRPERSONAPPELLATETRIBUNALRULES": "DEBTS RECOVERY APPELLATE TRIBUNAL PROCEDURE APPOINTMENT AS CHAIRPERSON APPELLATE TRIBUNAL RULES",
+    "DEBTSRECOVERYAPPELLATETRIBUNALPROCEDURERULES": "DEBTS RECOVERY APPELLATE TRIBUNAL PROCEDURE RULES",
+    "DEBTSRECOVERYTRIBUNAL": "DEBTS RECOVERY TRIBUNAL",
+    "DEBTSRECOVERYTRIBUNALPROCEDUREAPPOINTMENTASPRESIDINGOFFICERTRIBUNALRULES": "DEBTS RECOVERY TRIBUNAL PROCEDURE APPOINTMENT AS PRESIDING OFFICER TRIBUNAL RULES",
+    "DEBTSRECOVERYTRIBUNALPROCEDUREINVESTIGATIONMISBEHAVIOURORINCAPACITYPRESIDINGOFFICERRULES": "DEBTS RECOVERY TRIBUNAL PROCEDURE INVESTIGATION MISBEHAVIOUR INCAPACITY PRESIDING OFFICER RULES",
+    "DEBTSRECOVERYTRIBUNALPROCEDURERULES": "DEBTS RECOVERY TRIBUNAL PROCEDURE RULES",
+    "DELHIENTERTAINMENTBETTINGTAXACT": "DELHI ENTERTAINMENT BETTING TAX ACT",
+    "DELHIMUNICIPALCORPORATIONACT": "DELHI MUNICIPAL CORPORATION ACT",
+    "DELHIMUNICIPALCOUNCILAMENDMENTACT": "DELHI MUNICIPAL COUNCIL AMENDMENT ACT",
+    "DELHIRENTCONTROLACT": "DELHI RENT CONTROL ACT",
+    "DELHISTOCKEXCHANGERULESREGULATIONS": "DELHI STOCK EXCHANGE RULES REGULATIONS",
+    "DELHIVALUEADDEDTAXACT": "DELHI VALUE ADDED TAX ACT",
+    "DEMAT": "DEMATERIALIZED FORM",
+    "DEPOSITINSURANCECREDITGUARANTEECORPORATIONACT": "DEPOSIT INSURANCE CREDIT GUARANTEE CORPORATION ACT",
+    "DEPOSITORIESACT": "DEPOSITORIES ACT",
+    "DEPOSITORIESAPPEALSECURITIESAPPELLATETRIBUNALRULES": "DEPOSITORIES APPEAL SECURITIES APPELLATE TRIBUNAL RULES",
+    "DEPOSITORIESAPPEALTOCENTRALGOVERNMENTRULES": "DEPOSITORIES APPEAL CENTRAL GOVERNMENT RULES",
+    "DEPOSITORIESPROCEDUREHOLDINGINQUIRYIMPOSINGPENALTIESADJUDICATINGOFFICERRULES": "DEPOSITORIES PROCEDURE HOLDING INQUIRY IMPOSING PENALTIES ADJUDICATING OFFICER RULES",
+    "DEPOSITORIESRULES": "DEPOSITORIES RULES",
+    "DEPOSITSCHEMERETIRINGEMPLOYEESPUBLICSECTORCOMPANIES": "DEPOSIT SCHEME RETIRING EMPLOYEES PUBLIC SECTOR COMPANIES",
+    "DEPOSITSCHEMERETIRINGGOVERNMENTEMPLOYEES": "DEPOSIT SCHEME RETIRING GOVERNMENT EMPLOYEES",
+    "DESIGNSACT": "DESIGNS ACT",
+    "DESIGNSRULES": "DESIGNS RULES",
+    "DGBACDD": "DGBA CDD",
+    "DGBACIRCULAR": "DGBA",
+    "DGBACIRCULARS": "DGBA",
+    "DGBAGAD": "DGBA GAD",
+    "DGBANOTIFICATION": "DGBA",
+    "DGBANOTIFICATIONS": "DGBA",
+    "DIPGUIDELINES": "DIP GUIDELINES",
+    "DIRECTORSRELATIVEOFFICEORPLACEPROFITRULES": "DIRECTORS RELATIVE OFFICE PLACE PROFIT RULES",
+    "DIRECTORSRELATIVESOFFICEORPLACEPROFITRULES": "DIRECTOR S RELATIVES OFFICE PLACE PROFIT RULES",
+    "DIRECTTAXLAW": "DIRECT TAX LAWS",
+    "DIRECTTAXLAWLEXICON": "DIRECT TAX LAW LEXICON",
+    "DIRECTTAXLAWS": "DIRECT TAX LAWS",
+    "DISCLOSURE": "DISCLOSURES",
+    "DISPOSALRECORDSINOFFICESREGISTRARCOMPANIESRULES": "DISPOSAL RECORDS OFFICES REGISTRAR COMPANIES RULES",
+    "DISPUTERESOLUTIONSCHEMERULES": "DISPUTE RESOLUTION SCHEME RULES",
+    "DNBSCCPD": "DNBS CC PD",
+    "DNBSCIRCULAR": "DNBS",
+    "DNBSCIRCULARS": "DNBS",
+    "DNBSINFCC": "DNBS INF CC",
+    "DNBSNOTIFICATION": "DNBS",
+    "DNBSNOTIFICATIONS": "DNBS",
+    "DNBSPD": "DNBS PD",
+    "DNBSPDCC": "DNBS PD CC",
+    "DONo": "DO NO",
+    "DOUBLETAXATIONAVOIDANCEAGREEMENT": "Double Taxation Avoidance Agreement",
+    "DOUBLETAXATIONAVOIDANCEAGREEMENTSECITACT": "DOUBLE TAXATION AVOIDANCE AGREEMENT SEC IT ACT",
+    "DPIIT": "Department for Promotion of Industry and Internal Trade",
+    "DRTCIRCULAR": "circulars;DRT CIRCULAR",
+    "DRTCIRCULARS": "circulars;DRT CIRCULAR",
+    "DRTPROCEDUREAPPOINTMENT": "DRT PROCEDURE APPOINTMENT",
+    "DTAC": "Double Taxation Avoidance Agreement",
+    "EASTAFRICANINCOMETAXMANAGEMENTACT": "EAST AFRICAN INCOME TAX MANAGEMENT ACT",
+    "EASYEXITSCHEME": "EASY EXIT SCHEME",
+    "ECONOMICOFFENCESINAPPLICABILITYLIMITATIONACT": "ECONOMIC OFFENCES INAPPLICABILITY LIMITATION ACT",
+    "ELECTRICITYSUPPLYACT": "ELECTRICITY SUPPLY ACT",
+    "ELECTRICITYSUPPLYCONSUMERSREGULATION": "ELECTRICITY SUPPLY CONSUMERS REGULATION",
+    "ELECTRONICFILINGRETURNSTAXCOLLECTEDSOURCESCHEME": "ELECTRONIC FILING RETURNS TAX COLLECTED AT SOURCE SCHEME",
+    "ELECTRONICFILINGRETURNSTAXDEDUCTEDSOURCESCHEME": "ELECTRONIC FILING RETURNS TAX DEDUCTED AT SOURCE SCHEME",
+    "ELECTRONICFURNISHINGRETURNINCOMESCHEME": "ELECTRONIC FURNISHING RETURN INCOME SCHEME",
+    "ELECTRONICHARDWARETECHNOLOGYPARKEHTPSCHEME": "ELECTRONIC HARDWARE TECHNOLOGY PARK EHTP SCHEME",
+    "EMBLEMSNAMESPREVENTIONIMPROPERUSEACT": "EMBLEMS NAMES PREVENTION IMPROPER USE ACT",
+    "EMPLOYEEMENTACTNEW": "EMPLOYEEMENT ACT NEW",
+    "EMPLOYEESCOMPENSATIONACT": "EMPLOYEES COMPENSATION ACT",
+    "EMPLOYEESPROVIDENTFUNDSFAMILYPENSIONFUNDMISCPROVISIONSACT": "EMPLOYEES PROVIDENT FUNDS MISCELLANEOUS PROVISIONS ACT",
+    "EMPLOYEESPROVIDENTFUNDSMISCELLANEOUSPROVISIONSACT": "EMPLOYEES PROVIDENT FUNDS FAMILY PENSION FUND MISC PROVISIONS ACT",
+    "EMPLOYEESSTATEINSURANCEACT": "EMPLOYEES STATE INSURANCE ACT",
+    "EMPLOYEESSTATEINSURANCEAMENDMENTACT": "EMPLOYEES STATE INSURANCE AMENDMENT ACT",
+    "EMPLOYEESSTATEINSURANCECENTRALRULES": "EMPLOYEES STATE INSURANCE CENTRAL RULES",
+    "EMPLOYEESSTATEINSURANCECORPORATIONGENERALPROVIDENTFUNDRULES": "EMPLOYEES STATE INSURANCE CORPORATION GENERAL PROVIDENT FUND RULES",
+    "EMPLOYEESSTATEINSURANCEGENERALREGULATIONS": "EMPLOYEES STATE INSURANCE GENERAL REGULATIONS",
+    "EMPLOYEESSTOCKOPTIONPLANORSCHEME": "EMPLOYEES STOCK OPTION PLAN SCHEME",
+    "EMPLOYERSLIABILITYACT": "EMPLOYERS LIABILITY ACT",
+    "EMPLOYMENTEXCHANGESCOMPULSORYNOTIFICATIONVACANCIESACT": "EMPLOYMENT EXCHANGES COMPULSORY NOTIFICATION VACANCIES ACT",
+    "EMPLOYMENTPRODUCTIONACT": "EMPLOYMENT PRODUCTION ACT",
+    "EMPLOYMENTSACT": "EMPLOYMENTS ACT",
+    "ENERGYCONSERVATIONAMENDMENTACT": "ENERGY CONSERVATION AMENDMENT ACT",
+    "ENFORCEMENTSECURITYINTERESTACT": "ENFORCEMENT SECURITY INTEREST ACT",
+    "ENGLISHFINANCEACT": "ENGLISH FINANCE ACT",
+    "ENGLISHINCOMETAXACT": "ENGLISH INCOME TAX ACT",
+    "ENTERTAINMENTBETTINGTAXACT": "ENTERTAINMENT BETTING TAX ACT",
+    "ENVIRONMENTPROTECTIONACT": "ENVIRONMENT PROTECTION ACT",
+    "EQUALREMUNERATIONACT": "EQUAL REMUNERATION ACT",
+    "EQUITYLINKEDSAVINGSSCHEME": "EQUITY LINKED SAVINGS SCHEME",
+    "ESSENTIALCOMMODITIESACT": "ESSENTIAL COMMODITIES ACT",
+    "ESSENTIALCOMMODITIESAMENDMENTACT": "ESSENTIAL COMMODITIES AMENDMENT ACT",
+    "ESTATEDUTYACT": "ESTATE DUTY ACT",
+    "ESTATEDUTYAMENDMENTACT": "ESTATE DUTY AMENDMENT ACT",
+    "ESTATEDUTYRULE": "ESTATE DUTY RULE",
+    "EUROISSUE": "EURO ISSUE",
+    "EUROPEANECONOMICCOMMUNITYINTERNATIONALINSTITUTIONALPARTNERSSCHEME": "EUROPEAN ECONOMIC COMMUNITY INTERNATIONAL INSTITUTIONAL PARTNERS SCHEME",
+    "EVIDENCEACT": "EVIDENCE ACT",
+    "EXCESSPROFITSDUTYACT": "EXCESS PROFITS DUTY ACT",
+    "EXCESSPROFITSTAXACT": "EXCESS PROFITS TAX ACT",
+    "EXCHANGEBOARDINDIAACTSECURITIESCONTRACTSREGULATIONACT": "EXCHANGE BOARD INDIA ACT SECURITIES CONTRACTS REGULATION ACT",
+    "EXPAT": "EXPATRIATE",
+    "EXPENDITURETAXACT": "EXPENDITURE TAX ACT",
+    "EXPENDITURETAXRULES": "EXPENDITURE TAX RULES",
+    "EXPERTOPINION": "EXPERTS OPINION",
+    "EXPERTOPINIONS": "EXPERTS OPINION",
+    "EXPERTSOPINION": "EXPERTS OPINION",
+    "EXPERTSOPINIONS": "EXPERTS OPINION",
+    "EXPORTIMPORTBANKINDIAACT": "EXPORT IMPORT BANK INDIA ACT",
+    "EXPORTIMPORTBANKINDIAAMENDMENTACT": "EXPORT IMPORT BANK INDIA AMENDMENT ACT",
+    "EXPORTSERVICESRULES": "EXPORT SERVICES RULES",
+    "FACTORIESACT": "FACTORIES ACT",
+    "FACTORINGREGULATIONACT": "FACTORING REGULATION ACT",
+    "FCNR": "FOREIGN CURRENCY NON RESIDENT ACCOUNT",
+    "FD": "Fixed Deposit",
+    "FEDAIRULES": "FEDAI RULES",
+    "FEMACQUISITIONTRANSFERIMMOVABLEPROPERTYINDIAREGULATIONS": "FEM ACQUISITION TRANSFER IMMOVABLE PROPERTY INDIA REGULATIONS",
+    "FEMACQUISITIONTRANSFERIMMOVABLEPROPERTYOUTSIDEINDIAREGULATIONS": "FEM ACQUISITION TRANSFER IMMOVABLE PROPERTY OUTSIDE INDIA REGULATIONS",
+    "FEMADJUDICATIONPROCEEDINGSAPPEALRULES": "FEM ADJUDICATION PROCEEDINGS APPEAL RULES",
+    "FEMAFAQS": "FEMA FAQS",
+    "FEMBORROWINGLENDINGRUPEESREGULATIONS": "FEM BORROWING LENDING RUPEES REGULATIONS",
+    "FEMBORROWINGORLENDINGFOREIGNEXCHANGEREGULATIONS": "FEM BORROWING LENDING FOREIGN EXCHANGE REGULATIONS",
+    "FEMCURRENTACCOUNTTRANSACTIONSRULES": "FEM CURRENT ACCOUNT TRANSACTIONS RULES",
+    "FEMDEPOSITREGULATIONS": "FEM DEPOSIT REGULATIONS",
+    "FEMENCASHMENTDRAFTCHEQUEINSTRUMENTPAYMENTINTERESTRULES": "FEM ENCASHMENT DRAFT CHEQUE INSTRUMENT PAYMENT INTEREST RULES",
+    "FEMESTABLISHMENTINDIABRANCHOROFFICEOROTHERPLACEBUSINESSREGULATIONS": "FEM ESTABLISHMENT INDIA BRANCH OFFICE OTHER PLACE BUSINESS REGULATIONS",
+    "FEMEXPORTGOODSSERVICESREGULATIONS": "FEM EXPORT GOODS SERVICES REGULATIONS",
+    "FEMEXPORTIMPORTCURRENCYREGULATIONS": "FEM EXPORT IMPORT CURRENCY REGULATIONS",
+    "FEMFOREIGNCURRENCYACCOUNTSBYPERSONRESIDENTINDIAREGULATIONS": "FEM FOREIGN CURRENCY ACCOUNTS PERSON RESIDENT INDIA REGULATIONS",
+    "FEMFOREIGNEXCHANGEDERIVATIVECONTRACTSREGULATIONS": "FEM FOREIGN EXCHANGE DERIVATIVE CONTRACTS REGULATIONS",
+    "FEMGUARANTEESREGULATIONS": "FEM GUARANTEES REGULATIONS",
+    "FEMINSURANCEREGULATIONS": "FEM INSURANCE REGULATIONS",
+    "FEMINVESTMENTFIRMORPROPRIETARYCONCERNINDIAREGULATIONS": "FEM INVESTMENT FIRM PROPRIETARY CONCERN INDIA REGULATIONS",
+    "FEMISSUESECURITYINDIABYBRANCHOFFICEORAGENCYAPERSONRESIDENTOUTSIDEINDIAREGULATIONS": "FEM ISSUE SECURITY INDIA BRANCH OFFICE AGENCY PERSON RESIDENT OUTSIDE INDIA REGULATIONS",
+    "FEMMANNERRECEIPTPAYMENTREGULATIONS": "FEM MANNER RECEIPT PAYMENT REGULATIONS",
+    "FEMOFFSHOREBANKINGUNITREGULATIONS": "FEM OFFSHORE BANKING UNIT REGULATIONS",
+    "FEMPERMISSIBLECAPITALACCOUNTTRANSACTIONSREGULATIONS": "FEM PERMISSIBLE CAPITAL ACCOUNT TRANSACTIONS REGULATIONS",
+    "FEMPOSSESSIONRETENTIONFOREIGNCURRENCYREGULATIONS": "FEM POSSESSION RETENTION FOREIGN CURRENCY REGULATIONS",
+    "FEMREALISATIONREPATRIATIONSURRENDERFOREIGNEXCHANGEREGULATIONS": "FEM REALISATION REPATRIATION SURRENDER FOREIGN EXCHANGE REGULATIONS",
+    "FEMREMITTANCEASSETSREGULATIONS": "FEM REMITTANCE ASSETS REGULATIONS",
+    "FEMTRANSFERORISSUEANYFOREIGNSECURITYREGULATIONS": "FEM TRANSFER ISSUE ANY FOREIGN SECURITY REGULATIONS",
+    "FEMTRANSFERORISSUESECURITYBYPERSONRESIDENTOUTSIDEINDIAREGULATIONS": "FEM TRANSFER ISSUE SECURITY PERSON RESIDENT OUTSIDE INDIA REGULATIONS",
+    "FEMWITHDRAWALGENERALPERMISSIONOVERSEASCORPORATEBODIESOCBSREGULATIONS": "FEM WITHDRAWAL GENERAL PERMISSION OVERSEAS CORPORATE BODIES OCBS REGULATIONS",
+    "FINANCE2ACT": "FINANCE NO 2 ACT 2019",
+    "FINANCEACT": "FINANCE ACT",
+    "FINANCEACT1994": "FINANCE ACT 1994",
+    "FINANCEBILL": "FINANCE BILL",
+    "FINANCEBILLS": "FINANCE BILL",
+    "FINANCENOACT": "FINANCE ACT",
+    "FINANCIAL": "FINANCIALS",
+    "FINANCIALCORPORATIONACT": "FINANCIAL CORPORATION ACT",
+    "FNO": "F NO",
+    "FO": "F O",
+    "FOREIGNCASES": "FOREIGN CASES",
+    "FOREIGNCOMPANIES": "FOREIGN COMPANIES",
+    "FOREIGNCONTRIBUTION": "FOREIGN CONTRIBUTION",
+    "FOREIGNCONTRIBUTIONACCEPTANCEORRETENTIONGIFTSORPRESENTATIONSREGULATIONS": "FOREIGN CONTRIBUTION ACCEPTANCE RETENTION GIFTS PRESENTATIONS REGULATIONS",
+    "FOREIGNCONTRIBUTIONCIRCULAR": "circulars;FOREIGNCONTRIBUTION CIRCULAR",
+    "FOREIGNCONTRIBUTIONCIRCULARS": "circulars;FOREIGNCONTRIBUTION CIRCULAR",
+    "FOREIGNCONTRIBUTIONREGULATIONACT": "FOREIGN CONTRIBUTION REGULATION ACT",
+    "FOREIGNCONTRIBUTIONREGULATIONRULES": "FOREIGN CONTRIBUTION REGULATION RULES",
+    "FOREIGNCONTRIBUTIONS": "FOREIGN CONTRIBUTION",
+    "FOREIGNDIRECTINVESTMENTPOLICY": "FOREIGN DIRECT INVESTMENT POLICY",
+    "FOREIGNEXCHANGEAUTHENTICATIONDOCUMENTSRULES": "FOREIGN EXCHANGE AUTHENTICATION DOCUMENTS RULES",
+    "FOREIGNEXCHANGEBONDSIMMUNITIESEXEMPTIONSACT": "FOREIGN EXCHANGE BONDS IMMUNITIES EXEMPTIONS ACT",
+    "FOREIGNEXCHANGECOMPOUNDINGPROCEEDINGSRULES": "FOREIGN EXCHANGE COMPOUNDING PROCEEDINGS RULES",
+    "FOREIGNEXCHANGEMANAGEMENTADJUDICATIONPROCEEDINGSAPPEALRULE": "FOREIGN EXCHANGE MANAGEMENT ADJUDICATION PROCEEDINGS APPEAL RULE",
+    "FOREIGNEXCHANGEMANAGEMENTENCASHMENTDRAFTCHEQUEINSTRUMENTPAYMENTINTERESTRULES": "FOREIGN EXCHANGE MANAGEMENT ENCASHMENT DRAFT CHEQUE INSTRUMENT PAYMENT INTEREST RULES",
+    "FOREIGNEXCHANGEMANAGEMENTINSURANCEREGULATIONS": "FOREIGN EXCHANGE MANAGEMENT INSURANCE REGULATIONS",
+    "FOREIGNTRADEDEVELOPMENTREGULATIONACT": "FOREIGN TRADE DEVELOPMENT REGULATION ACT",
+    "FOREIGNTRADEDEVELOPMENTREGULATIONAMENDMENTACT": "FOREIGN TRADE DEVELOPMENT REGULATION AMENDMENT ACT",
+    "FOREIGNTRADEEXEMPTIONAPPLICATIONRULESCERTAINCASESORDER": "FOREIGN TRADE EXEMPTION FROM APPLICATION RULES CERTAIN CASES ORDER",
+    "FORMNO": "FORM",
+    "FORMNUMBER": "FORM",
+    "FORMS": "FORM",
+    "FORMSNO": "FORM",
+    "FORWARDCONTRACTSREGULATIONACT": "FORWARD CONTRACTS REGULATION ACT",
+    "FPI": "Foreign Portfolio Investor",
+    "FRINGEACT": "FRINGE ACT",
+    "FRINGEBENEFITTAX": "FRINGE BENEFIT TAX",
+    "FTC": "FOREIGN TAX CREDIT",
+    "FURNISHINGRETURNINCOMEINTERNETSCHEME": "FURNISHING RETURN INCOME INTERNET SCHEME",
+    "GAAR": "GENERAL ANTI AVOIDANCE RULES",
+    "GENERALCIRCULAR": "GENERAL CIRCULAR",
+    "GENERALCLAUSESACT": "GENERAL CLAUSES ACT",
+    "GENERALINCOMETAXPROCEEDINGS": "GENERAL INCOME TAX PROCEEDINGS",
+    "GENERALINSURANCEBUSINESSNATIONALISATIONACT": "GENERAL INSURANCE BUSINESS NATIONALISATION ACT",
+    "GENERALOBLIGATIONSACQUIRER": "GENERAL OBLIGATIONS ACQUIRER",
+    "GEOGRAPHICALINDICATIONSGOODSREGISTRATIONPROTECTIONACT": "GEOGRAPHICAL INDICATIONS GOODS REGISTRATION PROTECTION ACT",
+    "GEOGRAPHICALINDICATIONSGOODSREGISTRATIONPROTECTIONRULES": "GEOGRAPHICAL INDICATIONS GOODS REGISTRATION PROTECTION RULES",
+    "GIFTTAXACT": "GIFT TAX ACT",
+    "GIFTTAXRULES": "GIFT TAX RULES",
+    "GOLDBONDSIMMUNITIESEXEMPTIONSACT": "GOLD BONDS IMMUNITIES EXEMPTIONS ACT",
+    "GOLDCONTROLACT": "GOLD CONTROL ACT",
+    "GOODSCARRIEDPUBLICSERVICEMOTORVEHICLESACT": "GOODS CARRIED PUBLIC SERVICE MOTOR VEHICLES ACT",
+    "GOVERNMENTINDIAACT": "GOVERNMENT INDIA ACT",
+    "GOVERNMENTSAVINGSCERTIFICATEACT": "GOVERNMENT SAVINGS CERTIFICATE ACT",
+    "GOVERNMENTSAVINGSCERTIFICATESACT": "GOVERNMENT SAVINGS CERTIFICATES ACT",
+    "GUIDELINESCHANGEORTAKEOVERMANAGEMENTBUSINESSBORROWERSECURITISATIONCOMPANIESRECONSTRUCTIONCOMPANIESRESERVEBANKGUIDELINES": "GUIDELINES PROVIDING TRAINING SHIPPING COMPANIES TONNAGE TAX SCHEME UNDER CHAPTER XII G INCOME TAX ACT",
+    "GUIDELINESPROVIDINGTRAININGSHIPPINGCOMPANIESTONNAGETAXSCHEMEUNDERCHAPTERXIIGINCOMETAXACT": "GUIDELINES CHANGE TAKEOVER MANAGEMENT BUSINESS BORROWER SECURITISATION COMPANIES RECONSTRUCTION COMPANIES RESERVE BANK GUIDELINES",
+    "HARYANAGENERALSALESTAXACT": "HARYANA GENERAL SALES TAX ACT",
+    "HIGHCOURTORIGINALSIDERULES": "HIGH COURT ORIGINAL SIDE RULES",
+    "HIGHDENOMINATIONBANKNOTESDEMONETISATIONACT": "HIGH DENOMINATION BANK NOTES DEMONETISATION ACT",
+    "HINDUADOPTIONSMAINTENANCEACT": "HINDU ADOPTIONS MAINTENANCE ACT",
+    "HINDUMARRIAGEACT": "HINDU MARRIAGE ACT",
+    "HINDUMARRIAGEMADRASAGREEMENTACT": "HINDU MARRIAGE MADRAS AGREEMENT ACT",
+    "HINDUMINORITYGUARDANSHIPACT": "HINDU MINORITY GUARDANSHIP ACT",
+    "HINDUSUCCESSIONACT": "HINDU SUCCESSION ACT",
+    "HINDUWOMENSRIGHTPROPERTYACT": "HINDU WOMENS RIGHT PROPERTY ACT",
+    "HIREPURCHASEACT": "HIRE PURCHASE ACT",
+    "HOSPITALISATIONDOMICILIARYHOSPITALISATIONBENEFITPOLICY": "HOSPITALISATION DOMICILIARYHOSPITALISATION BENEFIT POLICY",
+    "HOTELRECEIPTSTAXACT": "HOTEL RECEIPTS TAX ACT",
+    "HYDERABADINCOMETAXACT": "HYDERABAD INCOME TAX ACT",
+    "ICDR": "Issue of Capital and Disclosure Requirements",
+    "ICSIGUIDELINE": "ICSI GUIDELINE",
+    "ILTNEWS": "ILT NEWS",
+    "IMDCIRCULAR": "IMD",
+    "INCASESOF": "case",
+    "INCOMEINVESTIGATIONCOMMISSIONACT": "INCOME INVESTIGATION COMMISSION ACT",
+    "INCOMETAXACT": "INCOME TAX ACT",
+    "INCOMETAXAPPELLATETRIBUNALMEMBERSRECRUITMENTCONDITIONSSERVICERULES": "INCOME TAX APPELLATE TRIBUNAL MEMBERS RECRUITMENT CONDITIONS SERVICE RULES",
+    "INCOMETAXAPPELLATETRIBUNALRECRUITMENTCONDITIONSSERVICERULES": "INCOME TAX APPELLATE TRIBUNAL RECRUITMENT CONDITIONS SERVICE RULES",
+    "INCOMETAXAPPELLATETRIBUNALRULES": "INCOME TAX APPELLATE TRIBUNAL RULES",
+    "INCOMETAXCERTIFICATEPROCEEDINGSRULES": "INCOME TAX CERTIFICATE PROCEEDINGS RULES",
+    "INCOMETAXCONSOLIDATIONORDINANCE": "INCOME TAX CONSOLIDATION ORDINANCE",
+    "INCOMETAXDISPUTERESOLUTIONPANELRULES": "INCOME TAX DISPUTE RESOLUTION PANEL RULES",
+    "INCOMETAXNEWRULES": "INCOME TAX NEW RULES",
+    "INCOMETAXOMBUDSMANGUIDELINES": "INCOME TAX OMBUDSMAN GUIDELINES",
+    "INCOMETAXORDINANCE": "INCOME TAX ORDINANCE",
+    "INCOMETAXORDINANCENORTHERMRHODESIA": "INCOME TAX ORDINANCE NORTHERM RHODESIA",
+    "INCOMETAXRULE": "INCOME TAX RULES",
+    "INCOMETAXRULES": "INCOME TAX RULES",
+    "INCOMETAXRULESAMDT": "INCOME TAX RULES AMDT",
+    "INCOMETAXSETTLEMENTCOMMISSIONPROCEDURERULES": "INCOME TAX SETTLEMENT COMMISSION PROCEDURE RULES",
+    "INCOMETAXSOCIALSERVICESCONTRIBUTIONASSESSMENTACT": "INCOME TAX SOCIAL SERVICES CONTRIBUTION ASSESSMENT ACT",
+    "INCOMETAXTWELFTHAMENDMENTRULES": "INCOME TAX TWELFTH AMENDMENT RULES",
+    "INCOMETAXWELFAREFUNDRULES": "INCOME TAX WELFARE FUND RULES",
+    "INCOMEWARTAXACT": "INCOME WAR TAX ACT",
+    "INDIANCONTRACTACT": "INDIAN CONTRACT ACT",
+    "INDIANEASEMENTSACT": "INDIAN EASEMENTS ACT",
+    "INDIANEVIDENCEACT": "INDIAN EVIDENCE ACT",
+    "INDIANFATALACCIDENTSACT": "INDIAN FATAL ACCIDENTS ACT",
+    "INDIANINCOMETAXACT": "INDIAN INCOME TAX ACT",
+    "INDIANINCOMETAXRULE": "INDIAN INCOME TAX RULE",
+    "INDIANLIFEASSURANCECOMPANIESACT": "INDIAN LIFE ASSURANCE COMPANIES ACT",
+    "INDIANLIMITATIONACT": "INDIAN LIMITATION ACT",
+    "INDIANMEDICALCOUNCILAMENDMENTACT": "INDIAN MEDICAL COUNCIL AMENDMENT ACT",
+    "INDIANMEDICINECENTRALCOUNCILAMENDMENTACT": "INDIAN MEDICINE CENTRAL COUNCIL AMENDMENT ACT",
+    "INDIANPARTNERSHIPACT": "INDIAN PARTNERSHIP ACT",
+    "INDIANPENALCODE": "INDIAN PENAL CODE",
+    "INDIANPOSTOFFICEACT": "INDIAN POST OFFICE ACT",
+    "INDIANREGISTRATIONACT": "INDIAN REGISTRATION ACT",
+    "INDIANSTAMPACT": "INDIAN STAMP ACT",
+    "INDIANSTAMPSACT": "INDIAN STAMPS ACT",
+    "INDIANSUCCESSIONACT": "INDIAN SUCCESSION ACT",
+    "INDIANTRUSTSACT": "INDIAN TRUSTS ACT",
+    "INDIRAVIKASPATRARULES": "INDIRA VIKAS PATRA RULES",
+    "INDOREINDUSTRIALTAXRULES": "INDORE INDUSTRIAL TAX RULES",
+    "INDUSTRIALCOMPANIESSPECIALPROVISIONSACT": "INDUSTRIAL COMPANIES SPECIAL PROVISIONS ACT",
+    "INDUSTRIALDEVELOPMENTBANKINDIAACT": "INDUSTRIAL DEVELOPMENT BANK INDIA ACT",
+    "INDUSTRIALDEVELOPMENTBANKTRANSFERUNDERTAKINGREPEALACT": "INDUSTRIAL DEVELOPMENT BANK TRANSFER UNDERTAKING REPEAL ACT",
+    "INDUSTRIALDISPUTESACT": "INDUSTRIAL DISPUTES ACT",
+    "INDUSTRIALDISPUTESAMENDMENTACT": "INDUSTRIAL DISPUTES AMENDMENT ACT",
+    "INDUSTRIALDISPUTESBANKINGINSURANCECOMPANIESACT": "INDUSTRIAL DISPUTES BANKING INSURANCE COMPANIES ACT",
+    "INDUSTRIALDISPUTESCENTRALRULES": "INDUSTRIAL DISPUTES CENTRAL RULES",
+    "INDUSTRIALEMPLOYMENTSTANDINGORDERSACT": "INDUSTRIAL EMPLOYMENT STANDING ORDERS ACT",
+    "INDUSTRIALEMPLOYMENTSTANDINGORDERSCENTRALRULES": "INDUSTRIAL EMPLOYMENT STANDING ORDERS CENTRAL RULES",
+    "INDUSTRIALFINANCECORPORATIONTRANSFERUNDERTAKINGREPEALACT": "INDUSTRIAL FINANCE CORPORATION TRANSFER UNDERTAKING REPEAL ACT",
+    "INDUSTRIALPARKSCHEME": "INDUSTRIAL PARK SCHEME",
+    "INDUSTRIALRECONSTRUCTIONBANKINDIAACT": "INDUSTRIAL RECONSTRUCTION BANK INDIA ACT",
+    "INDUSTRIALRECONSTRUCTIONBANKTRANSFERUNDERTAKINGSREPEALACT": "INDUSTRIAL RECONSTRUCTION BANK TRANSFER UNDERTAKINGS REPEAL ACT",
+    "INDUSTRIALTRIBUNALCENTRALPROCEDURERULES": "INDUSTRIAL TRIBUNAL CENTRAL PROCEDURE RULES",
+    "INDUSTRIESDEVELOPMENTREGULATIONACT": "INDUSTRIES DEVELOPMENT REGULATION ACT",
+    "INFORMALGUIDELINES": "INFORMAL GUIDELINES",
+    "INFORMATIONTECHNOLOGYACT": "INFORMATION TECHNOLOGY ACT",
+    "INFORMATIONTECHNOLOGYELECTRONICSERVICEDELIVERYRULES": "INFORMATION TECHNOLOGY ELECTRONIC SERVICE DELIVERY RULES",
+    "INFORMATIONTECHNOLOGYGUIDELINESCYBERCAFERULES": "INFORMATION TECHNOLOGY GUIDELINES CYBER CAFE RULES",
+    "INFORMATIONTECHNOLOGYINTERMEDIARIESGUIDELINESRULES": "INFORMATION TECHNOLOGY INTERMEDIARIES GUIDELINES RULES",
+    "INFORMATIONTECHNOLOGYREASONABLESECURITYPRACTICESPROCEDURESSENSITIVEPERSONALDATAORINFORMATIONRULES": "INFORMATION TECHNOLOGY REASONABLE SECURITY PRACTICES PROCEDURES SENSITIVE PERSONAL DATA INFORMATION RULES",
+    "INFRASTRUCTUREDEBTFUNDNONBANKINGFINANCIALCOMPANIESRESERVEBANKDIRECTIONS": "INFRASTRUCTURE DEBT FUND NON BANKING FINANCIAL COMPANIES RESERVE BANK DIRECTIONS",
+    "INRESPECTPROPERTYPURCHASEDAUCTION": "IN RESPECT PROPERTY PURCHASED AUCTION",
+    "INSECTICIDESACT": "INSECTICIDES ACT",
+    "INST": "INSTRUCTION",
+    "INSTITUTEACTUARIESINDIAMAINTENANCEREGISTERPUBLICATIONLISTREENTRYNAMESREGISTERMEMBERSREGULATIONS": "INSTITUTE ACTUARIES INDIA MAINTENANCE REGISTER PUBLICATION LIST RE ENTRY NAMES REGISTER MEMBERS REGULATIONS",
+    "INSTITUTEACTUARIESINDIATRANSACTIONBUSINESSMEETINGSCOUNCILREGULATIONS": "INSTITUTE ACTUARIES INDIA TRANSACTION BUSINESS AT MEETINGS COUNCIL REGULATIONS",
+    "INSTITUTECHARTEREDACCOUNTANTSINDIAACT": "INSTITUTE CHARTERED ACCOUNTANTS INDIA ACT",
+    "INSTRUCTIONNO": "INSTRUCTION",
+    "INSTRUCTIONNUMBER": "INSTRUCTION",
+    "INSTRUCTIONS": "INSTRUCTION",
+    "INSTRUCTIONSNO": "INSTRUCTION",
+    "INSTRUCTIONSSUBORDINATEAUTHORITIESAUTHORISATIONREGARDINGCONDONATIONDELAYFILINGREFUNDCLAIM": "INSTRUCTIONS SUBORDINATE AUTHORITIES AUTHORISATION REGARDING CONDONATION DELAY FILING REFUND CLAIM",
+    "INSURANCEACT": "INSURANCE ACT",
+    "INSURANCEADVISORYCOMMITTEEMEETINGSREGULATIONS": "INSURANCE ADVISORY COMMITTEE MEETINGS REGULATIONS",
+    "INSURANCELAW": "INSURANCE LAW",
+    "INSURANCELAWCIRCULAR": "circulars;INSURANCELAWS CIRCULAR",
+    "INSURANCELAWCIRCULARS": "circulars;INSURANCELAWS CIRCULAR",
+    "INSURANCELAWS": "INSURANCE LAW",
+    "INSURANCELAWS1": "INSURANCE LAWS",
+    "INSURANCELAWSCIRCULAR": "circulars;INSURANCELAWS CIRCULAR",
+    "INSURANCELAWSCIRCULARS": "circulars;INSURANCELAWS CIRCULAR",
+    "INSURANCERULES": "INSURANCE RULES",
+    "INSURANCESURVEYORSLOSSASSESSORSLICENSINGPROFESSIONALREQUIREMENTSCODECONDUCTREGULATIONS": "INSURANCE SURVEYORS LOSS ASSESSORS LICENSING PROFESSIONAL REQUIREMENTS CODE CONDUCT REGULATIONS",
+    "INTELLECTUALPROPERTYAPPELLATEBOARDPATENTSPROCEDURERULES": "INTELLECTUAL PROPERTY APPELLATE BOARD PATENTS PROCEDURE RULES",
+    "INTERESTACT": "INTEREST ACT",
+    "INTERESTCEASINGDEATH": "INTEREST CEASING DEATH",
+    "INTERESTDELAYEDPAYMENTSSMALLSCALEANCILLARYINDUSTRIALUNDERTAKINGSACT": "INTEREST DELAYED PAYMENTS SMALL SCALE ANCILLARY INDUSTRIAL UNDERTAKINGS ACT",
+    "INTERESTTAXACT": "INTEREST TAX ACT",
+    "INTERPRETATIONSTATUES": "INTERPRETATION STATUES",
+    "INVESTMENTDEPOSITACCOUNTSCHEME": "INVESTMENT DEPOSIT ACCOUNT SCHEME",
+    "INVESTOREDUCATIONPROTECTIONFUNDAWARENESSPROTECTIONINVESTORSRULES": "INVESTOR EDUCATION PROTECTION FUND AWARENESS PROTECTION INVESTORS RULES",
+    "INVESTOREDUCATIONPROTECTIONFUNDUPLOADINGINFORMATIONREGARDINGUNPAIDUNCLAIMEDAMOUNTSLYINGCOMPANIESRULES": "INVESTOR EDUCATION PROTECTION FUND UPLOADING INFORMATION REGARDING UNPAID UNCLAIMED AMOUNTS LYING WITH COMPANIES RULES",
+    "IRDAACTLCIRALM": "IRDA ACTL CIR ALM",
+    "IRDAACTORDPRD": "IRDA ACT ORD PRD",
+    "IRDAACTUARIALREPORTABSTRACTREGULATIONS": "IRDA ACTUARIAL REPORT ABSTRACT REGULATIONS",
+    "IRDAANNUALREPORTFURNISHINGRETURNSSTATEMENTSOTHERPARTICULARSRULES": "IRDA ANNUAL REPORT FURNISHING RETURNS STATEMENTS OTHER PARTICULARS RULES",
+    "IRDAAPPOINTEDACTUARYREGULATIONS": "IRDA APPOINTED ACTUARY REGULATIONS",
+    "IRDAASSETSLIABILITIESSOLVENCYMARGININSURERSREGULATIONS": "IRDA ASSETS LIABILITIES SOLVENCY MARGIN INSURERS REGULATIONS",
+    "IRDACIRCULAR": "IRDA",
+    "IRDACIRCULARS": "IRDA",
+    "IRDACONDITIONSSERVICEOFFICERSOTHEREMPLOYEESREGULATIONS": "IRDA CONDITIONS SERVICE OFFICERS OTHER EMPLOYEES REGULATIONS",
+    "IRDADISTRIBUTIONSURPLUSREGULATIONS": "IRDA DISTRIBUTION SURPLUS REGULATIONS",
+    "IRDAFACIRACTS": "IRDA F A CIR ACTS",
+    "IRDAFICIRAML": "IRDA F I CIR AML",
+    "IRDAFICIRDATA": "IRDA F I CIR DATA",
+    "IRDAFICIREMT": "IRDA F I CIR EMT",
+    "IRDAFICIRINV": "IRDA FI CIR INV",
+    "IRDAFIMISCCIR": "IRDA F I MISC CIR",
+    "IRDAFINFTNCIR": "IRDA F I NFTN CIR",
+    "IRDAFORMANNUALSTATEMENTACCOUNTSRECORDSRULES": "IRDA FORM ANNUAL STATEMENT ACCOUNTS RECORDS RULES",
+    "IRDAGENERALINSURANCEREINSURANCEREGULATIONS": "IRDA GENERAL INSURANCE REINSURANCE REGULATIONS",
+    "IRDAINSURANCEADVERTISEMENTSDISCLOSUREREGULATIONS": "IRDA INSURANCE ADVERTISEMENTS DISCLOSURE REGULATIONS",
+    "IRDAINSURANCEBROKERSREGULATIONS": "IRDA INSURANCE BROKERS REGULATIONS",
+    "IRDAINVESTMENTREGULATIONS": "IRDA INVESTMENT REGULATIONS",
+    "IRDAISSUANCECAPITALGENERALCOMPANIES": "IRDA ISSUANCE CAPITAL GENERAL COMPANIES",
+    "IRDAISSUANCECAPITALGENERALINSURANCECOMPANIES": "IRDA ISSUANCE CAPITAL GENERAL INSURANCE COMPANIES",
+    "IRDAISSUANCECAPITALLIFEINSURANCECOMPANIESREGULATIONS": "IRDA ISSUANCE CAPITAL LIFE INSURANCE COMPANIES REGULATIONS",
+    "IRDALIFEINSURANCEREINSURANCEREGULATIONS": "IRDA LIFE INSURANCE REINSURANCE REGULATIONS",
+    "IRDALIFEMISCCIR": "IRDA LIFE MISC CIR",
+    "IRDAMANNERRECEIPTPREMIUMREGULATIONS": "IRDA MANNER RECEIPT PREMIUM REGULATIONS",
+    "IRDAMEETINGSREGULATIONS": "IRDA MEETINGS REGULATIONS",
+    "IRDAMICROINSURANCEREGULATIONS": "IRDA MICRO INSURANCE REGULATIONS",
+    "IRDAOBLIGATIONSINSURERSRURALORSOCIALSECTORSREGULATIONS": "IRDA OBLIGATIONS INSURERS RURAL SOCIAL SECTORS REGULATIONS",
+    "IRDAPREPARATIONFINANCIALSTATEMENTSAUDITORSREPORTINSURANCECOMPANIESREGULATIONS": "IRDA PREPARATION FINANCIAL STATEMENTS AUDITOR S REPORT INSURANCE COMPANIES REGULATIONS",
+    "IRDAPROTECTIONPOLICYHOLDERSINTERESTSREGULATIONS": "IRDA PROTECTION POLICYHOLDERS INTERESTS REGULATIONS",
+    "IRDAQUALIFICATIONACTUARYREGULATIONS": "IRDA QUALIFICATION ACTUARY REGULATIONS",
+    "IRDAREGISTRATIONINDIANINSURANCECOMPANIESREGULATIONS": "IRDA REGISTRATION INDIAN INSURANCE COMPANIES REGULATIONS",
+    "IRDAREINSURANCEADVISORYCOMMITTEEREGULATIONS": "IRDA REINSURANCE ADVISORY COMMITTEE REGULATIONS",
+    "IRDASALARYALLOWANCESPAYABLEOTHERTERMSCONDITIONSSERVICECHAIRPERSONOTHERMEMBERSRULES": "IRDA SALARY ALLOWANCES PAYABLE OTHER TERMS CONDITIONS SERVICE CHAIRPERSON OTHER MEMBERS RULES",
+    "IRDASCHEMEAMALGAMATIONTRANSFERGENERALINSURANCEBUSINESSREGULATIONS": "IRDA SCHEME AMALGAMATION TRANSFER GENERAL INSURANCE BUSINESS REGULATIONS",
+    "IRDASHARINGDATABASEDISTRIBUTIONINSURANCEPRODUCTSREGULATIONS": "IRDA SHARING DATABASE DISTRIBUTION INSURANCE PRODUCTS REGULATIONS",
+    "IRDATHIRDPARTYADMINISTRATORSHEALTHSERVICESREGULATIONS": "IRDA THIRD PARTY ADMINISTRATORS HEALTH SERVICES REGULATIONS",
+    "IRDATREATMENTDISCONTINUEDLINKEDINSURANCEPOLICIESREGULATIONS": "IRDA TREATMENT DISCONTINUED LINKED INSURANCE POLICIES REGULATIONS",
+    "ISSUEFOREIGNCURRENCYCONVERTIBLEBONDSORDINARYSHARESTHROUGHDEPOSITARYRECEIPTMECHANISMSCHEME": "ISSUE FOREIGN CURRENCY CONVERTIBLE BONDS ORDINARY SHARES THROUGH DEPOSITARY RECEIPT MECHANISM SCHEME",
+    "ISSUEFOREIGNCURRENCYEXCHANGEABLEBONDSSCHEME": "ISSUE FOREIGN CURRENCY EXCHANGEABLE BONDS SCHEME",
+    "ITAPPEAL": "INCOME TAX APPEAL",
+    "ITATMEMBERSRECRUITMENTCONDITIONSSERVICERULES": "ITAT MEMBERS RECRUITMENT CONDITIONS SERVICE RULES",
+    "ITR1": "ITR 1",
+    "ITR2": "ITR 2",
+    "ITR3": "ITR 3",
+    "ITR4": "ITR 4",
+    "ITR4S": "ITR 4s",
+    "ITR5": "ITR 5",
+    "ITR6": "ITR 6",
+    "ITR7": "ITR 7",
+    "ITREFUND": "REFUND OF INCOME TAX",
+    "InVIT": "Infrastructure Investment Trust",
+    "JAIPUREXCESSPROFITSTAXACT": "JAIPUR EXCESS PROFITS TAX ACT",
+    "JAMMUKASHMIRHOTELSAMENITIESSERVICESTARIFFTAXATIONACT": "JAMMU KASHMIR HOTELS AMENITIES SERVICES TARIFF TAXATION ACT",
+    "JAWAHARLALINSTITUTEPOSTGRADUATEMEDICALEDUCATIONRESEARCHPUDUCHERRYAMENDMENTACT": "JAWAHARLAL INSTITUTE POST GRADUATE MEDICAL EDUCATION RESEARCH PUDUCHERRY AMENDMENT ACT",
+    "JDA": "JOINT DEVELOPMENT AGREEMENT",
+    "JHARKHANDAPPROPRIATIONACT": "JHARKHAND APPROPRIATION ACT",
+    "JHARKHANDPANCHAYATRAJAMENDMENTACT": "JHARKHAND PANCHAYAT RAJ AMENDMENT ACT",
+    "JT": "JOINT",
+    "JUDGEMENT": "CASELAWS",
+    "JUDGEMENTS": "CASELAWS",
+    "JUSTNOW": "JUST NOW",
+    "JUVENILEJUSTICECAREPROTECTIONCHILDRENAMENDMENTACT": "JUVENILE JUSTICE CARE PROTECTION CHILDREN AMENDMENT ACT",
+    "KANOMTENANCYACT": "KANOM TENANCY ACT",
+    "KARNATAKAAGRICULTURALINCOMETAXACT": "KARNATAKA AGRICULTURAL INCOME TAX ACT",
+    "KARNATAKAAGRICULTURALINCOMETAXRULES": "KARNATAKA AGRICULTURAL INCOME TAX RULES",
+    "KARNATAKACOOPERATIVETEXTILESMILLSLTDACQUISITIONTRANSFERAMENDMENTACT": "KARNATAKA CO OPERATIVE TEXTILES MILLS LTD ACQUISITION TRANSFER AMENDMENT ACT",
+    "KARNATAKASALESTAXACT": "KARNATAKA SALES TAX ACT",
+    "KARNATAKASTATEFINANCIALCORPORATIONSTAFFREGULATIONS": "KARNATAKA STATE FINANCIAL CORPORATION STAFF REGULATIONS",
+    "KARNATAKATAXPROFESSIONSTRADESCALLINGSEMPLOYMENTSACT": "KARNATAKA TAX PROFESSIONS TRADES CALLINGS EMPLOYMENTS ACT",
+    "KARNATAKAVALUEADDEDTAXACT": "KARNATAKA VALUE ADDED TAX ACT",
+    "KARVIVADSAMADHANSCHEMEREMOVALDIFFICULTIESORDER": "KAR VIVAD SAMADHAN SCHEME REMOVAL DIFFICULTIES ORDER",
+    "KERALAAGRICULTURALINCOMETAXACT": "KERALA AGRICULTURAL INCOME TAX ACT",
+    "KERALAAGRICULTURALINCOMETAXAPPELLATETRIBUNALREGULATIONS": "KERALA AGRICULTURAL INCOME TAX APPELLATE TRIBUNAL REGULATIONS",
+    "KERALAAGRICULTURALINCOMETAXRULES": "KERALA AGRICULTURAL INCOME TAX RULES",
+    "KERALACHITTIESACT": "KERALA CHITTIES ACT",
+    "KERALAFORESTPRODUCEACT": "KERALA FOREST PRODUCE ACT",
+    "KERALAGENERALSALESTAXACT": "KERALA GENERAL SALES TAX ACT",
+    "KERALAPANCHAYATACT": "KERALA PANCHAYAT ACT",
+    "KERALAPLANTATIONTAXACT": "KERALA PLANTATION TAX ACT",
+    "KERALASURCHARGETAXESACT": "KERALA SURCHARGE TAXES ACT",
+    "KERLAAGRICULTURALINCOMETAXACT": "KERLA AGRICULTURAL INCOME TAX ACT",
+    "KVP": "KISAN VIKAS PATRA",
+    "LABOURLAWSEXEMPTIONFURNISHINGRETURNSMAINTAININGREGISTERSCERTAINESTABLISHMENTSACT": "LABOUR LAWS EXEMPTION FROM FURNISHING RETURNS MAINTAINING REGISTERS CERTAIN ESTABLISHMENTS ACT",
+    "LANDACQUISITIONACT": "LAND ACQUISITION ACT",
+    "LANDACQUISITIONCOMPANIESRULES": "LAND ACQUISITION COMPANIES RULES",
+    "LANDPORTSAUTHORITYINDIAACT": "LAND PORTS AUTHORITY INDIA ACT",
+    "LEGALMAXIM": "LEGAL MAXIM",
+    "LEGALMETROLOGYACT": "LEGAL METROLOGY ACT",
+    "LIC": "LIFE INSURANCE CORPORATION",
+    "LIFEINSURANCECORPORATIONACT": "LIFE INSURANCE CORPORATION ACT",
+    "LIFEINSURANCECORPORATIONAMENDMENTACT": "LIFE INSURANCE CORPORATION AMENDMENT ACT",
+    "LIFEINSURANCECORPORATIONMODIFICATIONSETTLEMENTSACT": "LIFE INSURANCE CORPORATION MODIFICATION SETTLEMENTS ACT",
+    "LIFEINSURANCECORPORATIONRULES": "LIFE INSURANCE CORPORATION RULES",
+    "LIMITATIONACT": "LIMITATION ACT",
+    "LIMITEDAGREEMENTS": "LIMITED AGREEMENTS",
+    "LIMITEDLIABILITYPARTNERSHIP": "LIMITED LIABILITY PARTNERSHIP",
+    "LIMITEDLIABILITYPARTNERSHIPACT": "LIMITED LIABILITY PARTNERSHIP ACT",
+    "LIMITEDLIABILITYPARTNERSHIPRULES": "LIMITED LIABILITY PARTNERSHIP RULES",
+    "LIMITEDLIABILITYPARTNERSHIPWINDINGUPDISSOLUTIONRULES": "LIMITED LIABILITY PARTNERSHIP WINDING UP DISSOLUTION RULES",
+    "LIMITEDMULTILATERALAGREEMENT": "LIMITED MULTILATERAL AGREEMENT",
+    "LISTINGAGREEMENT": "LISTING AGREEMENT",
+    "LISTINGAGREEMENTBSE": "LISTING AGREEMENT BSE",
+    "LISTINGAGREEMENTNSE": "LISTING AGREEMENT NSE",
+    "LISTINGAGREEMENTS": "LISTING AGREEMENT",
+    "LISTINGINFORMALREPORT": "LISTING INFORMAL REPORT",
+    "LLPCIRCULAR": "circulars;LLP CIRCULAR",
+    "LLPCIRCULARS": "circulars;LLP CIRCULAR",
+    "LLPFAQS": "LLP FAQS",
+    "LLPPROCEDURE": "LLP PROCEDURE",
+    "LLPREADYRECKONER": "LLP READY RECKONER",
+    "LLPSECONDAMDTRULES": "LLP SECOND AMDT RULES",
+    "LTCG": "LONG TERM CAPITAL GAIN",
+    "MADDRASPLANTATIONSAGRICULTURALINCOMETAXACT": "MADDRAS PLANTATIONS AGRICULTURAL INCOME TAX ACT",
+    "MADHYAPRADESHGENERALSALESTAXACT": "MADHYA PRADESH GENERAL SALES TAX ACT",
+    "MADRASAGRICULTURALINCOMETAXACT": "MADRAS AGRICULTURAL INCOME TAX ACT",
+    "MADRASAGRICULTURALINCOMETAXACTAMENDINGACT": "MADRAS AGRICULTURAL INCOME TAX ACT AMENDING ACT",
+    "MADRASAGRICULTURALINCOMETAXAMENDMENTACT": "MADRAS AGRICULTURAL INCOME TAX AMENDMENT ACT",
+    "MADRASAGRICULTUREINCOMETAXACT": "MADRAS AGRICULTURE INCOME TAX ACT",
+    "MADRASAGRICULTURISTSRELIEFACT": "MADRAS AGRICULTURISTS RELIEF ACT",
+    "MADRASESTATESABOLITIONACT": "MADRAS ESTATES ABOLITION ACT",
+    "MADRASGENERALSALESTAXACT": "MADRAS GENERAL SALES TAX ACT",
+    "MADRASHIGHCOURTORIGINALSIDERULES": "MADRAS HIGH COURT ORIGINAL SIDE RULES",
+    "MADRASPLANTATIONAGRICULTURALINCOMETAXACT": "MADRAS PLANTATION AGRICULTURAL INCOME TAX ACT",
+    "MADRASPLANTATIONSAGRICULTURALINCOMETAXACT": "MADRAS PLANTATIONS AGRICULTURAL INCOME TAX ACT",
+    "MADRASPLANTATIONSAGRICULTURALINCOMETAXAMENDMENTACT": "MADRAS PLANTATIONS AGRICULTURAL INCOME TAX AMENDMENT ACT",
+    "MADRASREVENUERECOVERYACT": "MADRAS REVENUE RECOVERY ACT",
+    "MADRASSALESMOTORSPIRITTAXATIONACT": "MADRAS SALES MOTOR SPIRIT TAXATION ACT",
+    "MADRASSTOCKEXCHANGE": "MADRAS STOCK EXCHANGE",
+    "MAHARASHTRACOOPERATIVESOCIETIESACT": "MAHARASHTRA CO OPERATIVE SOCIETIES ACT",
+    "MAHARASHTRAVALUEADDEDTAXACT": "MAHARASHTRA VALUE ADDED TAX ACT",
+    "MAJORPORTTRUSTSACT": "MAJOR PORT TRUSTS ACT",
+    "MARINEINSURANCEACT": "MARINE INSURANCE ACT",
+    "MARKETSECONOMY": "MARKETS ECONOMY",
+    "MASTERCIRCULAR": "MASTER CIRCULAR",
+    "MATERNITYBENEFITACT": "MATERNITY BENEFIT ACT",
+    "MIA": "Monthly Income Account",
+    "MICROSMALLMEDIUMENTERPRISESDEVELOPMENTACT": "MICRO SMALL MEDIUM ENTERPRISES DEVELOPMENT ACT",
+    "MINESMINERALSDEVELOPMENTREGULATIONAMENDMENTACT": "MINES MINERALS DEVELOPMENT REGULATION AMENDMENT ACT",
+    "MINIMUMWAGESACT": "MINIMUM WAGES ACT",
+    "MINIMUMWAGESCENTRALRULES": "MINIMUM WAGES CENTRAL RULES",
+    "MISCELLANEOUSNONBANKINGCOMPANIESRESERVEBANKDIRECTIONS": "MISCELLANEOUS NON BANKING COMPANIES RESERVE BANK DIRECTIONS",
+    "MLI": "Multilateral Instrument",
+    "MODELSDRAFTS": "MODELS DRAFTS",
+    "MODVATCREDITRULES": "MODVAT CREDIT RULES",
+    "MONEYLAUNDERING": "MONEY LAUNDERING",
+    "MONEYLAUNDERINGCIRCULAR": "circulars;MONEYLAUNDERING CIRCULAR",
+    "MONEYLAUNDERINGCIRCULARS": "circulars;MONEYLAUNDERING CIRCULAR",
+    "MONEYLAUNDERINGREPORTS": "MONEY LAUNDERING REPORTS",
+    "MONEYLAUNDERINGS": "MONEY LAUNDERING",
+    "MONEYTRANSFERSERVICESCHEME": "MONEY TRANSFER SERVICE SCHEME",
+    "MONOPOLIESRESTRICTIVETRADEPRACTICESACT": "MONOPOLIES RESTRICTIVE TRADE PRACTICES ACT",
+    "MORTGAGEGUARANTEECOMPANIESINVESTMENTRESERVEBANKDIRECTIONS": "MORTGAGE GUARANTEE COMPANIES INVESTMENT RESERVE BANK DIRECTIONS",
+    "MORTGAGEGUARANTEECOMPANIESPRUDENTIALNORMSRESERVEBANKDIRECTIONS": "MORTGAGE GUARANTEE COMPANIES PRUDENTIAL NORMS RESERVE BANK DIRECTIONS",
+    "MORTGAGEGUARANTEECOMPANYRESERVEBANKGUIDELINES": "MORTGAGE GUARANTEE COMPANY RESERVE BANK GUIDELINES",
+    "MOTORVEHICLESACT": "MOTOR VEHICLES ACT",
+    "MPGENERALSALESTAXACT": "M P GENERAL SALES TAX ACT",
+    "MRDCIRCULAR": "MRD",
+    "MRTPACT": "MRTP ACT",
+    "MULTISTATECOOPERATIVESOCIETIESACT": "MULTI STATE CO OPERATIVE SOCIETIES ACT",
+    "MUNICIPALACT": "MUNICIPAL ACT",
+    "MYSOREAGRICULTURALAMENDMENTACT": "MYSORE AGRICULTURAL AMENDMENT ACT",
+    "MYSOREAGRICULTURALINCOMETAXACT": "MYSORE AGRICULTURAL INCOME TAX ACT",
+    "MYSORECOURTFEESSUITSVALUATIONACT": "MYSORE COURT FEES SUITS VALUATION ACT",
+    "NALANDAUNIVERSITYACT": "NALANDA UNIVERSITY ACT",
+    "NAMEAVAILABILITYGUIDELINES": "NAME AVAILABILITY GUIDELINES",
+    "NATIONALBANKAGRICULTURERURALDEVELOPMENTACT": "NATIONAL BANK AGRICULTURE RURAL DEVELOPMENT ACT",
+    "NATIONALBOARDMICROSMALLMEDIUMENTERPRISESRULES": "NATIONAL BOARD MICRO SMALL MEDIUM ENTERPRISES RULES",
+    "NATIONALCAPITALTERRITORYDELHILAWSSPECIALPROVISIONSACT": "NATIONAL CAPITAL TERRITORY DELHI LAWS SPECIAL PROVISIONS ACT",
+    "NATIONALCOMMISSIONMINORITYEDUCATIONALINSTITUTIONSAMENDMENTACT": "NATIONAL COMMISSION MINORITY EDUCATIONAL INSTITUTIONS AMENDMENT ACT",
+    "NATIONALCOUNCILTEACHEREDUCATIONAMENDMENTACT": "NATIONAL COUNCIL TEACHER EDUCATION AMENDMENT ACT",
+    "NATIONALGREENTRIBUNALACT": "NATIONAL GREEN TRIBUNAL ACT",
+    "NATIONALHIGHWAYSACT": "NATIONAL HIGHWAYS ACT",
+    "NATIONALHOUSINGBANKACT": "NATIONAL HOUSING BANK ACT",
+    "NATIONALNEWS": "NATIONAL NEWS",
+    "NATIONALSAVINGSCERTIFICATESIXISSUERULES": "NATIONAL SAVINGS CERTIFICATES IX ISSUE RULES",
+    "NATIONALSAVINGSCERTIFICATESVIIIISSUERULES": "NATIONAL SAVINGS CERTIFICATES VIII ISSUE RULES",
+    "NATIONALSAVINGSCERTIFICATESVIIISSUERULES": "NATIONAL SAVINGS CERTIFICATES VII ISSUE RULES",
+    "NATIONALSAVINGSCERTIFICATESVIISSUERULES": "NATIONAL SAVINGS CERTIFICATES VI ISSUE RULES",
+    "NATIONALSAVINGSCERTIFICATEVIIIISSUERULES": "NATIONAL SAVINGS CERTIFICATE VIII ISSUE RULES",
+    "NATIONALSAVINGSSCHEMERULES": "NATIONAL SAVINGS SCHEME RULES",
+    "NATIONALSTOCKEXCHANGEBYELAWS": "NATIONAL STOCK EXCHANGE BYE LAWS",
+    "NATIONALSTOCKEXCHANGECAPITALMARKETREGULATIONS": "NATIONAL STOCK EXCHANGE CAPITAL MARKET REGULATIONS",
+    "NATIONALSTOCKEXCHANGECAPITALMARKETTRADINGREGULATIONS": "NATIONAL STOCK EXCHANGE CAPITAL MARKET TRADING REGULATIONS",
+    "NATIONALTAXTRIBUNALACT": "NATIONAL TAX TRIBUNAL ACT",
+    "NATIONALTAXTRIBUNALORDINANCE": "NATIONAL TAX TRIBUNAL ORDINANCE",
+    "NBFCCIRCULAR": "CIRCULAR",
+    "NBFCCIRCULARS": "CIRCULAR",
+    "NBFCDEPOSITACCEPTINGAPPROVALACQUISITIONORTRANSFERCONTROLDIRECTIONS": "NBFC DEPOSIT ACCEPTING APPROVAL ACQUISITION TRANSFER CONTROL DIRECTIONS",
+    "NBFCMICROFINANCEINSTITUTIONSRESERVEBANKDIRECTIONS": "NBFC MICRO FINANCE INSTITUTIONS RESERVE BANK DIRECTIONS",
+    "NBFCOPENINGBRANCHSUBSIDIARYJOINTVENTUREREPRESENTATIVEOFFICEORUNDERTAKINGINVESTMENTABROADNBFCSDIRECTIONS": "NON BANKING FINANCIAL DEPOSIT ACCEPTING HOLDING COMPANIES PRUDENTIAL NORMS RESERVE BANK DIRECTIONS",
+    "NEGOTIABLEINSTRUMENTSACT": "NEGOTIABLE INSTRUMENTS ACT",
+    "NHAI": "National Highway Authority of India",
+    "NHBNDHFCDRSDIR": "NHB ND HFC DRS DIR",
+    "NN": "NOTIFICATION",
+    "NOC": "NO OBJECTION CERTIFICATE",
+    "NONBANKINGFINANCIALCOMPANIESACCEPTANCEPUBLICDEPOSITSRESERVEBANKDIRECTIONS": "NON BANKING FINANCIAL COMPANIES ACCEPTANCE PUBLIC DEPOSITS RESERVE BANK DIRECTIONS",
+    "NONBANKINGFINANCIALCOMPANIESAUDITORSREPORTRESERVEBANKDIRECTIONS": "NON BANKING FINANCIAL COMPANIES AUDITOR S REPORT RESERVE BANK DIRECTIONS",
+    "NONBANKINGFINANCIALCOMPANIESMISCELLANEOUSNONBANKINGCOMPANIESADVERTISEMENTRULES": "NON BANKING FINANCIAL COMPANIES MISCELLANEOUS NON BANKING COMPANIES ADVERTISEMENT RULES",
+    "NONBANKINGFINANCIALCOMPANYFACTORRESERVEBANKDIRECTIONS": "NON BANKING FINANCIAL COMPANY FACTOR RESERVE BANK DIRECTIONS",
+    "NONBANKINGFINANCIALCOMPANYMICROFINANCEINSTITUTIONSRESERVEBANKDIRECTIONS": "NON BANKING FINANCIAL COMPANY MICRO FINANCE INSTITUTIONS RESERVE BANK DIRECTIONS",
+    "NONBANKINGFINANCIALDEPOSITACCEPTINGORHOLDINGCOMPANIESPRUDENTIALNORMSRESERVEBANKDIRECTIONS": "NON BANKING FINANCIAL DEPOSIT ACCEPTING HOLDING COMPANIES PRUDENTIAL NORMS RESERVE BANK DIRECTIONS",
+    "NONBANKINGFINANCIALNONDEPOSITACCEPTINGORHOLDINGCOMPANIESPRUDENTIALNORMSRESERVEBANKDIRECTIONS": "NON BANKING FINANCIAL NON DEPOSIT ACCEPTING HOLDING COMPANIES PRUDENTIAL NORMS RESERVE BANK DIRECTIONS",
+    "NONRESIDENT": "NON RESIDENT",
+    "NONVIABILITYSCHEMEINDIA": "NON VIABILITY SCHEME INDIA",
+    "NOTICENOIRDANOTFA": "NOTICE NO IRDA NOT F A",
+    "NOTIF": "NOTIFICATION",
+    "NOTIFCATIONFNOIRDAREG": "NOTIFCATION F NO IRDA REG",
+    "NOTIFCATIONNOSOGSR": "NOTIFCATION NO SO GSR",
+    "NOTIFICATIONDBODDIREXPBC": "NOTIFICATION DBOD DIR EXP BC",
+    "NOTIFICATIONDBODIBD": "NOTIFICATION DBOD IBD",
+    "NOTIFICATIONDBODNORETBC": "NOTIFICATION DBOD NO RET BC",
+    "NOTIFICATIONDBSFID": "NOTIFICATION DBS FID",
+    "NOTIFICATIONF": "NOTIFICATION F",
+    "NOTIFICATIONFNO31AMENDCOMB": "NOTIFICATION F NO 3 1 AMEND COMB",
+    "NOTIFICATIONFNOIRDARI": "NOTIFICATION F NO IRDA RI",
+    "NOTIFICATIONFNOSEBILE": "NOTIFICATION F NO SEBI LE",
+    "NOTIFICATIONNO11COMBINATIONREGULATIONS": "NOTIFICATION NO 1 1 COMBINATION REGULATIONS",
+    "NOTIFICATIONNO1CA": "NOTIFICATION NO 1 CA",
+    "NOTIFICATIONNOCADNROGN": "NOTIFICATION NO CAD NRO GN",
+    "NOTIFICATIONNOCWR": "NOTIFICATION NO CWR",
+    "NOTIFICATIONNODITCO": "NOTIFICATION NO DIT CO",
+    "NOTIFICATIONNOFEMA": "NOTIFICATION NO FEMA",
+    "NOTIFICATIONNOFNOSEBILADDOP": "NOTIFICATION NO F NO SEBI LAD DOP",
+    "NOTIFICATIONNOGSRE": "NOTIFICATION NO G S R E",
+    "NOTIFICATIONNOGSRSO": "NOTIFICATION NO GSR SO",
+    "NOTIFICATIONNOICSI": "NOTIFICATION NO ICSI",
+    "NOTIFICATIONNOIECD": "NOTIFICATION NO IECD",
+    "NOTIFICATIONNOIRDANLNTFNMOTP": "NOTIFICATION NO IRDA NL NTFN MOTP",
+    "NOTIFICATIONNOL32REGLNGENAMDT": "NOTIFICATION NO L 3 2 REGLN GEN  AMDT",
+    "NOTIFICATIONNOL34REGLP200910CCL": "NOTIFICATION NO L 3 4 REG L P 2009 10 CCL",
+    "NOTIFICATIONNOL35REGCOST200910CCI": "NOTIFICATION NO L 3 5 REG COST 2009 10 CCI",
+    "NOTIFICATIONNOLADDOP": "NOTIFICATION NO LAD DOP",
+    "NOTIFICATIONNOLADNROGN": "NOTIFICATION NO LAD NRO GN",
+    "NOTIFICATIONNOMRDDSA": "NOTIFICATION NO MRD DSA",
+    "NOTIFICATIONNOR400076REGEXPERTNOTI04CCI": "NOTIFICATION NO R 40007 6 REG EXPERT NOTI 04 CCI",
+    "NOTIFICATIONNOR400076REGMEETINGNOTI04CCI": "NOTIFICATION NO R 40007 6 REG MEETING NOTI 04 CCI",
+    "NOTIFICATIONNOSOE": "NOTIFICATION NO SO E",
+    "NOTIFICATIONNOSOGSR": "NOTIFICATION NO SO GSR",
+    "NOTIFICATIONNOUBDCOBSDSCB": "NOTIFICATION NO UBD CO BSD SCB",
+    "NOTIFICATIONNO R40007REGRECOVERYNOTI04CCI": "NOTIFICATION NO  R 40007 REG RECOVERY NOTI 04 CCI",
+    "NOTIFICATIONNUMBER": "NOTIFICATION",
+    "NOTIFICATIONS": "NOTIFICATION",
+    "NOTOFICATIONNOSO": "NOTOFICATION NO SO",
+    "NPS": "NATIONAL PENSION SCHEME",
+    "NR": "NON RESIDENT",
+    "NRE": "NON RESIDENT EXTERNAL ACCOUNT",
+    "NRO": "NON RESIDENT ORDINARY ACCOUNT",
+    "OFFICEMEMORANDUM": "OFFICE MEMORANDUM",
+    "OFFICIALSECRETSACT": "OFFICIAL SECRETS ACT",
+    "OFO": "Overseas Financial Organisation",
+    "OPIUMREVENUELAWSEXTENSIONAPPLICATIONACT": "OPIUM REVENUE LAWS EXTENSION APPLICATION ACT",
+    "OPPORTUNITYBEINGHEARD": "OPPORTUNITY BEING HEARD",
+    "ORDERNOSOE": "ORDER NO S O E",
+    "ORISSAAGRICULTURALINCOMETAXACT": "ORISSA AGRICULTURAL INCOME TAX ACT",
+    "ORISSAALTERATIONNAMEACT": "ORISSA ALTERATION NAME ACT",
+    "ORISSASALESTAXACT": "ORISSA SALES TAX ACT",
+    "ORISSASTATEFINANCIALCORPORATIONACT": "ORISSA STATE FINANCIAL CORPORATION ACT",
+    "OTHERACTS": "OTHER ACTS",
+    "OTHERAGREEMENTS": "OTHER AGREEMENTS",
+    "OTHERDIRECTTAXRULES": "OTHER DIRECT TAX RULES",
+    "PARTITIONACT": "PARTITION ACT",
+    "PARTNERSHIPACT": "PARTNERSHIP ACT",
+    "PATENTSACT": "PATENTS ACT",
+    "PATENTSRULES": "PATENTS RULES",
+    "PATIALAINCOMETAXACT": "PATIALA INCOME TAX ACT",
+    "PAYMENTBONUSACT": "PAYMENT BONUS ACT",
+    "PAYMENTBONUSRULES": "PAYMENT BONUS RULES",
+    "PAYMENTGRATUITYACT": "PAYMENT GRATUITY ACT",
+    "PAYMENTGRATUITYAMENDMENTACT": "PAYMENT GRATUITY AMENDMENT ACT",
+    "PAYMENTGRATUITYCENTRALRULES": "PAYMENT GRATUITY CENTRAL RULES",
+    "PAYMENTTAXESTRANSFERPROPERTYACT": "PAYMENT TAXES TRANSFER PROPERTY ACT",
+    "PAYMENTWAGESACT": "PAYMENT WAGES ACT",
+    "PAYMENTWAGESMANNERRECOVERYEXCESSDEDUCTIONSRULES": "PAYMENT WAGES MANNER RECOVERY EXCESS DEDUCTIONS RULES",
+    "PAYMENTWAGESNOMINATIONRULES": "PAYMENT WAGES NOMINATION RULES",
+    "PAYMENTWAGESPROCEDURERULES": "PAYMENT WAGES PROCEDURE RULES",
+    "PERSONALINJURIESCOMPENSATIONINSURANCEACT": "PERSONAL INJURIES COMPENSATION INSURANCE ACT",
+    "PERSONALINJURIESCOMPENSATIONINSURANCERULES": "PERSONAL INJURIES COMPENSATION INSURANCE RULES",
+    "PERSONALINJURIESCOMPENSATIONINSURANCESCHEME": "PERSONAL INJURIES COMPENSATION INSURANCE SCHEME",
+    "PERSONALLAWSAMENDMENTACT": "PERSONAL LAWS AMENDMENT ACT",
+    "PERSONSDISABILITIESEQUALOPPORTUNITIESPROTECTIONRIGHTSFULLPARTICIPATIONACT": "PERSONS WITH DISABILITIES EQUAL OPPORTUNITIES PROTECTION RIGHTS FULL PARTICIPATION ACT",
+    "PETROLEUMMINERALSPIPELINESACQUISITIONRIGHTUSERLANDAMENDMENTACT": "PETROLEUM MINERALS PIPELINES ACQUISITION RIGHT USER LAND AMENDMENT ACT",
+    "PHRASESIDIOMS": "PHRASES IDIOMS",
+    "PLACEPROVISIONSERVICESRULES": "PLACE PROVISION SERVICES RULES",
+    "PLANTATIONSLABOURAMENDMENTACT": "PLANTATIONS LABOUR AMENDMENT ACT",
+    "PO": "Post Office",
+    "POINTTAXATIONRULES": "POINT TAXATION RULES",
+    "PONTYPRIDDKHONDDAWATERACT": "PONTYPRIDD KHONDDA WATER ACT",
+    "POWERSATTORNEYACT": "POWERS ATTORNEY ACT",
+    "PRACTICEPROCEDURE": "PRACTICE PROCEDURE",
+    "PRASARBHARATIBROADCASTINGCORPORATIONINDIAAMENDMENTACT": "PRASAR BHARATI BROADCASTING CORPORATION INDIA AMENDMENT ACT",
+    "PRASOONACT": "PRASOON ACT",
+    "PRESSNOTE": "PRESS NOTE",
+    "PRESSREGISTRATIONBOOKSACT": "PRESS REGISTRATION BOOKS ACT",
+    "PRESSRELEASE": "PRESS RELEASE",
+    "PREVENTIONCORRUPTIONACT": "PREVENTION CORRUPTION ACT",
+    "PREVENTIONMONEYLAUNDERINGACT": "PREVENTION MONEY LAUNDERING ACT",
+    "PREVENTIONMONEYLAUNDERINGAPPEALRULES": "PREVENTION MONEY LAUNDERING APPEAL RULES",
+    "PREVENTIONMONEYLAUNDERINGAPPOINTMENTCONDITIONSSERVICECHAIRPERSONMEMBERSADJUDICATINGAUTHORITIESRULES": "PREVENTION MONEY LAUNDERING APPOINTMENT CONDITIONS SERVICE CHAIRPERSON MEMBERS ADJUDICATING AUTHORITIES RULES",
+    "PREVENTIONMONEYLAUNDERINGAPPOINTMENTCONDITIONSSERVICECHAIRPERSONMEMBERSAPPELLATETRIBUNALRULES": "PREVENTION MONEY LAUNDERING APPOINTMENT CONDITIONS SERVICE CHAIRPERSON MEMBERS APPELLATE TRIBUNAL RULES",
+    "PREVENTIONMONEYLAUNDERINGFORMSANDMANNERFORWARDINGCOPYORDERARRESTAPERSONALONGWITHMATERIALTOADJUDICATINGAUTHORITYITSPERIODRETENTIONRULES": "PREVENTION MONEY LAUNDERING FORMS SEARCH SEIZURE MANNER FORWARDING REASONS MATERIAL ADJUDICATING AUTHORITY IMPOUNDING CUSTODY RECORDS PERIOD RETENTION RULES",
+    "PREVENTIONMONEYLAUNDERINGFORMSSEARCHSEIZUREANDMANNERFORWARDINGREASONSMATERIALTOADJUDICATINGAUTHORITYIMPOUNDINGCUSTODYRECORDSANDPERIODRETENTIONRULES": "PREVENTION MONEY LAUNDERING MANNER FORWARDING COPY ORDER PROVISIONAL ATTACHMENT PROPERTY ALONG WITH MATERIAL COPY REASONS ALONG WITH MATERIAL RESPECT SURVEY ADJUDICATING AUTHORITY ITS PERIOD RETENTION RULES",
+    "PREVENTIONMONEYLAUNDERINGMAINTENANCERECORDSRULES": "PREVENTION MONEY LAUNDERING MAINTENANCE RECORDS RULES",
+    "PREVENTIONMONEYLAUNDERINGMANNERFORWARDINGCOPYORDERPROVISIONALATTACHMENTPROPERTYALONGWITHMATERIALCOPYREASONSALONGWITHMATERIALRESPECTSURVEYTOADJUDICATINGAUTHORITYITSPERIODRETENTIONRULES": "PREVENTION MONEY LAUNDERING MANNER FORWARDING COPY ORDER RETENTION SEIZED PROPERTY ALONG WITH MATERIAL ADJUDICATING AUTHORITY PERIOD ITS RETENTION RULES",
+    "PREVENTIONMONEYLAUNDERINGMANNERFORWARDINGCOPYORDERRETENTIONSEIZEDPROPERTYALONGWITHMATERIALTOADJUDICATINGAUTHORITYANDPERIODITSRETENTIONRULES": "PREVENTION MONEY LAUNDERING FORMS MANNER FORWARDING COPY ORDER ARREST PERSON ALONG WITH MATERIAL ADJUDICATING AUTHORITY ITS PERIOD RETENTION RULES",
+    "PREVENTIONMONEYLAUNDERINGMANNERRECEIVINGRECORDSAUTHENTICATEDOUTSIDEINDIARULES": "PREVENTION MONEY LAUNDERING MANNER RECEIVING RECORDS AUTHENTICATED OUTSIDE INDIA RULES",
+    "PREVENTIONMONEYLAUNDERINGRECEIPTMANAGEMENTCONFISCATEDPROPERTIESRULES": "PREVENTION MONEY LAUNDERING RECEIPT MANAGEMENT CONFISCATED PROPERTIES RULES",
+    "PREVENTIONSMUGGLINGACTIVITIESACT": "PREVENTION SMUGGLING ACTIVITIES ACT",
+    "PRIVATELIMITEDCOMPANYUNLISTEDPUBLICLIMITEDCOMPANYBUYBACKSECURITIESRULES": "PRIVATE LIMITED COMPANY UNLISTED PUBLIC LIMITED COMPANY BUY BACK SECURITIES RULES",
+    "PRIZECHITSMONEYCIRCULATIONSCHEMEBANNINGACT": "PRIZE CHITS MONEY CIRCULATION SCHEME BANNING ACT",
+    "PRODUCECESSACT": "PRODUCE CESS ACT",
+    "PRODUCERCOMPANIESGENERALRESERVESRULES": "PRODUCER COMPANIES GENERAL RESERVES RULES",
+    "PROPERTYACT": "PROPERTY ACT",
+    "PROVINCIALINSOLVENCYACT": "PROVINCIAL INSOLVENCY ACT",
+    "PUBLICCOMPANIESTERMSISSUEDEBENTURESANDRAISINGLOANSOPTIONCONVERTSUCHDEBENTURESORLOANSINTOSHARESRULES": "PUBLIC COMPANIES TERMS ISSUE DEBENTURES RAISING LOANS WITH OPTION CONVERT SUCH DEBENTURES LOANS INTO SHARES RULES",
+    "PUBLICDEBTACT": "PUBLIC DEBT ACT",
+    "PUBLICFINANCIALINSTITUTIONSOBLIGATIONASFIDELITYSECRECYACT": "PUBLIC FINANCIAL INSTITUTIONS OBLIGATION AS FIDELITY SECRECY ACT",
+    "PUBLICLIABILITYINSURANCEACT": "PUBLIC LIABILITY INSURANCE ACT",
+    "PUBLICLIABILITYINSURANCERULES": "PUBLIC LIABILITY INSURANCE RULES",
+    "PUBLICPROVIDENTFUNDACT": "PUBLIC PROVIDENT FUND ACT",
+    "PUBLICPROVIDENTFUNDSCHEME": "PUBLIC PROVIDENT FUND SCHEME",
+    "PUNJABMUNICIPALACT": "PUNJAB MUNICIPAL ACT",
+    "QFI": "Qualified foreign investor",
+    "RAJASTHANINVESTMENTPROMOTIONSCHEME": "RAJASTHAN INVESTMENT PROMOTION SCHEME",
+    "RAJASTHANMINERALCONCESSIONRULES": "RAJASTHAN MINERAL CONCESSION RULES",
+    "RAJASTHANMOTORVEHICLESTAXATIONACT": "RAJASTHAN MOTOR VEHICLES TAXATION ACT",
+    "RAJASTHANSALESTAXACT": "RAJASTHAN SALES TAX ACT",
+    "RDB": "Rupee Denominated Bond",
+    "READYRECKONER": "READY RECKONER",
+    "REC": "Rural Electrification Corporation Limited",
+    "RECOVERYDEBTSDUEBANKSFINANCIALINSTITUTIONSACT": "RECOVERY DEBTS DUE BANKS FINANCIAL INSTITUTIONS ACT",
+    "REDRESSALPUBLICGRIEVANCESRULES": "REDRESSAL PUBLIC GRIEVANCES RULES",
+    "REFNO MPDBC": "REF NO  MPD BC",
+    "REGIONALRURALBANKSACT": "REGIONAL RURAL BANKS ACT",
+    "REGISTRATIONACT": "REGISTRATION ACT",
+    "REGISTRATIONASSIGNMENTRECEIVABLESRULES": "REGISTRATION ASSIGNMENT RECEIVABLES RULES",
+    "REGULATIONS": "REGULATION",
+    "REGULATIONTABLEACOMPANIESACT": "REGULATION TABLE COMPANIES ACT",
+    "REIT": "Real Estate Investment Trust",
+    "REJECTIONAPPLICATION": "REJECTION APPLICATION",
+    "REMITTANCESFOREIGNEXCHANGEINVESTMENTFOREIGNEXCHANGEBONDSIMMUNITIESEXEMPTIONSACT": "REMITTANCES FOREIGN EXCHANGE INVESTMENT FOREIGN EXCHANGE BONDS IMMUNITIES EXEMPTIONS ACT",
+    "REPATRIATIONPRISONERSAMENDMENTACT": "REPATRIATION PRISONERS AMENDMENT ACT",
+    "REPORTSGUIDELINES": "REPORTS GUIDELINES",
+    "REPRESENTATIONPEOPLEACT": "REPRESENTATION PEOPLE ACT",
+    "REPRESENTATIONPEOPLEAMENDMENTACT": "REPRESENTATION PEOPLE AMENDMENT ACT",
+    "RESERVEBANKINDIAACT": "RESERVE BANK INDIA ACT",
+    "RESERVEBANKINDIANONBANKINGFINANCIALCOMPANIESRETURNSSPECIFICATIONS": "RESERVE BANK INDIA NON BANKING FINANCIAL COMPANIES RETURNS SPECIFICATIONS",
+    "RESIDUARYNONBANKINGCOMPANIESRESERVEBANKDIRECTIONS": "RESIDUARY NON BANKING COMPANIES RESERVE BANK DIRECTIONS",
+    "RESTRICTIVETRADEPRACTICESACT": "RESTRICTIVE TRADE PRACTICES ACT",
+    "REVENUERECOVERYACT": "REVENUE RECOVERY ACT",
+    "REVERSEMORTGAGESCHEME": "REVERSE MORTGAGE SCHEME",
+    "REVISIONORDERSPREJUDICIALREVENUE": "REVISION ORDERS PREJUDICIAL REVENUE",
+    "REVISIONPAYSCALE": "REVISION PAY SCALE",
+    "REWARDGUIDELINES": "REWARD GUIDELINES",
+    "RIGHTINFORMATIONACT": "RIGHT INFORMATION ACT",
+    "RIGHTINFORMATIONREGULATIONFEECOSTRULES": "RIGHT INFORMATION REGULATION FEE COST RULES",
+    "RPF": "Recognised Provident Fund",
+    "RTI": "RIGHT INFORMATION",
+    "RUBBERAMENDMENTACT": "RUBBER AMENDMENT ACT",
+    "RULENO": "RULE",
+    "RULENUMBER": "RULE",
+    "RULEREGULATRIES": "RULE REGULATRIES",
+    "RULES": "RULE",
+    "RULESCONDUCT": "RULES CONDUCT",
+    "RULESNO": "RULE",
+    "RULING": "CASELAWS",
+    "RULINGS": "CASELAWS",
+    "SAFEGUARDMEASURESQUANTITATIVERESTRICTIONSRULES": "SAFEGUARD MEASURES QUANTITATIVE RESTRICTIONS RULES",
+    "SALARIESALLOWANCESMINISTERSAMENDMENTACT": "SALARIES ALLOWANCES MINISTERS AMENDMENT ACT",
+    "SALARYALLOWANCESPENSIONMEMBERSPARLIAMENTAMENDMENTACT": "SALARY ALLOWANCES PENSION MEMBERS PARLIAMENT AMENDMENT ACT",
+    "SALEGOODSACT": "SALE GOODS ACT",
+    "SALESGOODSACT": "SALES GOODS ACT",
+    "SALESPROMOTIONEMPLOYEESCONDITIONSSERVICEACT": "SALES PROMOTION EMPLOYEES CONDITIONS SERVICE ACT",
+    "SALESPROMOTIONEMPLOYEESCONDITIONSSERVICERULES": "SALES PROMOTION EMPLOYEES CONDITIONS SERVICE RULES",
+    "SALESTAXACT": "SALES TAX ACT",
+    "SANDYRULES": "SANDY RULES",
+    "SARFAESICIRCULAR": "CIRCULAR",
+    "SARFAESICIRCULARS": "CIRCULAR",
+    "SARFAESINOTIFICATION": "NOTIFICATION",
+    "SARFAESINOTIFICATIONS": "NOTIFICATION",
+    "SCHEMEBULKFILINGRETURNSSALARIEDEMPLOYEES": "SCHEME BULK FILING RETURNS SALARIED EMPLOYEES",
+    "SCHEMEDEVELOPOPERATEMAINTAINSPECIALECONOMICZONESUNDERSECTIONIAINCOMETAXACTREADRULECINCOMETAXRULES": "SCHEME DEVELOP OPERATE MAINTAIN SPECIAL ECONOMIC ZONES UNDER SECTION IA INCOME TAX ACT READ WITH RULE C INCOME TAX RULES",
+    "SCHEMEFILINGRETURNSSALARIEDEMPLOYEESTHROUGHEMPLOYER": "SCHEME FILING RETURNS SALARIED EMPLOYEES THROUGH EMPLOYER",
+    "SCHEMEFILINGSTATUTORYDOCUMENTSOTHERTRANSACTIONSCOMPANIESELECTRONICMODE": "SCHEME FILING STATUTORY DOCUMENTS OTHER TRANSACTIONS COMPANIES ELECTRONIC MODE",
+    "SCHEMEFURNISHINGPAPERRETURNSTAXCOLLECTEDSOURCE": "SCHEME FURNISHING PAPER RETURNS TAX COLLECTED AT SOURCE",
+    "SEBIACT": "SEBI ACT",
+    "SEBIAIDLEGALPROCEEDINGSGUIDELINES": "SEBI AID LEGAL PROCEEDINGS GUIDELINES",
+    "SEBIALTERNATIVEINVESTMENTFUNDSREGULATIONS": "SEBI ALTERNATIVE INVESTMENT FUNDS REGULATIONS",
+    "SEBIANNUALREPORTRULES": "SEBI ANNUAL REPORT RULES",
+    "SEBIAPPEALCENTRALGOVERNMENTRULES": "SEBI APPEAL CENTRAL GOVERNMENT RULES",
+    "SEBIBANKERSANISSUEREGULATIONS": "SEBI BANKERS AN ISSUE REGULATIONS",
+    "SEBIBUYBACKSECURITIESREGULATIONS": "SEBI BUY BACK SECURITIES REGULATIONS",
+    "SEBICENTRALDATABASEMARKETPARTICIPANTSREGULATIONS": "SEBI CENTRAL DATABASE MARKET PARTICIPANTS REGULATIONS",
+    "SEBICENTRALLISTINGAUTHORITYREGULATIONS": "SEBI CENTRAL LISTING AUTHORITY REGULATIONS",
+    "SEBICERTIFICATIONASSOCIATEDPERSONSINSECURITIESMARKETSREGULATIONS": "SEBI CERTIFICATION ASSOCIATED PERSONS SECURITIES MARKETS REGULATIONS",
+    "SEBICOLLECTIVEINVESTMENTSCHEMESREGULATIONS": "SEBI COLLECTIVE INVESTMENT SCHEMES REGULATIONS",
+    "SEBICREDITRATINGAGENCIESREGULATIONS": "SEBI CREDIT RATING AGENCIES REGULATIONS",
+    "SEBICRITERIAFITPROPERPERSONREGULATIONS": "SEBI CRITERIA FIT PROPER PERSON REGULATIONS",
+    "SEBICUSTODIANSECURITIESREGULATIONS": "SEBI CUSTODIAN SECURITIES REGULATIONS",
+    "SEBIDEBENTURETRUSTEESREGULATIONS": "SEBI DEBENTURE TRUSTEES REGULATIONS",
+    "SEBIDELISTINGEQUITYSHARESREGULATIONS": "SEBI DELISTING EQUITY SHARES REGULATIONS",
+    "SEBIDELISTINGSECURITIESGUIDELINES": "SEBI DELISTING SECURITIES GUIDELINES",
+    "SEBIDEPOSITORIESPARTICIPANTSAMENDMENTREGULATIONS": "SEBI DEPOSITORIES PARTICIPANTS AMENDMENT REGULATIONS",
+    "SEBIDEPOSITORIESPARTICIPANTSREGULATIONS": "SEBI DEPOSITORIES PARTICIPANTS REGULATIONS",
+    "SEBIDEPOSITORSPARTICIPANTSREGULATIONS": "SEBI DEPOSITORS PARTICIPANTS REGULATIONS",
+    "SEBIDISCLOSUREINVESTORPROTECTIONGUIDELINES": "SEBI DISCLOSURE INVESTOR PROTECTION GUIDELINES",
+    "SEBIEMPLOYEESTOCKOPTIONSCHEMEEMPLOYEESTOCKPURCHASESCHEMEGUIDELINES": "SEBI EMPLOYEE STOCK OPTION SCHEME EMPLOYEE STOCK PURCHASE SCHEME GUIDELINES",
+    "SEBIFAQS": "SEBI FAQS",
+    "SEBIFOREIGNINSTITUTIONALINVESTORSREGULATIONS": "SEBI FOREIGN INSTITUTIONAL INVESTORS REGULATIONS",
+    "SEBIFOREIGNVENTURECAPITALINVESTORSREGULATIONS": "SEBI FOREIGN VENTURE CAPITAL INVESTORS REGULATIONS",
+    "SEBIFORMANNUALSTATEMENTACCOUNTSRECORDSRULES": "SEBI FORM ANNUAL STATEMENT ACCOUNTS RECORDS RULES",
+    "SEBIICDRREGULATION": "SEBI ICDR REGULATION",
+    "SEBIIMDCIR": "SEBI IMD CIR",
+    "SEBIIMDMC": "SEBI IMD MC",
+    "SEBIINFORMALGUIDANCESCHEME": "SEBI INFORMAL GUIDANCE SCHEME",
+    "SEBIINTERESTLIABILITYREGULARISATIONSCHEME": "SEBI INTEREST LIABILITY REGULARISATION SCHEME",
+    "SEBIINTERMEDIARIESREGULATIONS": "SEBI INTERMEDIARIES REGULATIONS",
+    "SEBIINVESTORPROTECTIONEDUCATIONFUNDREGULATIONS": "SEBI INVESTOR PROTECTION EDUCATION FUND REGULATIONS",
+    "SEBIISSUECAPITALDISCLOSUREREQUIREMENTSREGULATIONS": "SEBI ISSUE CAPITAL DISCLOSURE REQUIREMENTS REGULATIONS",
+    "SEBIISSUELISTINGDEBTSECURITIESREGULATIONS": "SEBI ISSUE LISTING DEBT SECURITIES REGULATIONS",
+    "SEBIISSUESWEATEQUITYREGULATIONS": "SEBI ISSUESWEAT EQUITY REGULATIONS",
+    "SEBIISSUINGOBSERVATIONSDRAFTOFFERDOCUMENTSPENDINGREGULATORYACTIONSORDER": "SEBI ISSUING OBSERVATIONS DRAFT OFFER DOCUMENTS PENDING REGULATORY ACTIONS ORDER",
+    "SEBIKYCKNOWYOURCLIENTREGISTRATIONAGENCYREGULATIONS": "SEBI KYC KNOW YOUR CLIENT REGISTRATION AGENCY REGULATIONS",
+    "SEBIMERCHANTBANKERSREGULATIONS": "SEBI MERCHANT BANKERS REGULATIONS",
+    "SEBIMIRSDMASTERCIR": "SEBI MIRSD MASTER CIR",
+    "SEBIMRDDSA": "SEBI MRD DSA",
+    "SEBIMRDDSACIR": "SEBI MRD DSA CIR",
+    "SEBIMUTUALFUNDSREGULATIONS": "SEBI MUTUAL FUNDS REGULATIONS",
+    "SEBIOMBUDSMANREGULATIONS": "SEBI OMBUDSMAN REGULATIONS",
+    "SEBIPORTFOLIOMANAGERSREGULATIONS": "SEBI PORTFOLIO MANAGERS REGULATIONS",
+    "SEBIPROCEDUREBOARDMEETINGSREGULATIONS": "SEBI PROCEDURE BOARD MEETINGS REGULATIONS",
+    "SEBIPROCEDUREHOLDINGENQUIRYENQUIRYOFFICERIMPOSINGPENALTYREGULATIONS": "SEBI PROCEDURE HOLDING ENQUIRY ENQUIRY OFFICER IMPOSING PENALTY REGULATIONS",
+    "SEBIPROCEDUREHOLDINGINQUIRYIMPOSINGPENALTIESADJUDICATINGOFFICERRULES": "SEBI PROCEDURE HOLDING INQUIRY IMPOSING PENALTIES ADJUDICATING OFFICER RULES",
+    "SEBIPROHIBITIONFRAUDULENTUNFAIRTRADEPRACTICERELATINGSECURITIESMARKETREGULATION": "SEBI PROHIBITION FRAUDULENT UNFAIR TRADE PRACTICE RELATING SECURITIES MARKET REGULATION",
+    "SEBIPROHIBITIONFRAUDULENTUNFAIRTRADEPRACTICESRELATINGSECURITIESMARKETREGULATIONS": "SEBI PROHIBITION FRAUDULENT UNFAIR TRADE PRACTICES RELATING SECURITIES MARKET REGULATIONS",
+    "SEBIPROHIBITIONINSIDERTRADINGREGULATIONS": "SEBI PROHIBITION INSIDER TRADING REGULATIONS",
+    "SEBIPUBLICOFFERLISTINGSECURITISEDDEBTINSTRUMENTSREGULATIONS": "SEBI PUBLIC OFFER LISTING SECURITISED DEBT INSTRUMENTS REGULATIONS",
+    "SEBIREGISTRARANISSUESHARETRANSFERAGENTSRULES": "SEBI REGISTRAR AN ISSUE SHARE TRANSFER AGENTS RULES",
+    "SEBIREGISTRARSANISSUESHARETRANSFERAGENTSREGULATIONS": "SEBI REGISTRARS AN ISSUE SHARE TRANSFER AGENTS REGULATIONS",
+    "SEBIREGULARIZATIONSCHEME": "SEBI REGULARIZATION SCHEME",
+    "SEBIREGULATORYFEESTOCKEXCHANGESREGULATIONS": "SEBI REGULATORY FEE STOCK EXCHANGES REGULATIONS",
+    "SEBIREPORTS": "SEBI REPORTS",
+    "SEBISELFREGULATORYORGANIZATIONSREGULATIONS": "SEBI SELF REGULATORY ORGANIZATIONS REGULATIONS",
+    "SEBISTPCENTRALISEDHUBSTPSERVICEPROVIDERSGUIDELINES": "SEBI STP CENTRALISED HUB STP SERVICE PROVIDERS GUIDELINES",
+    "SEBISUBSTANTIALACQUISITIONSHARESTAKEOVERSREGULATIONS": "SEBI SUBSTANTIAL ACQUISITION SHARES TAKEOVERS REGULATIONS",
+    "SEBIUNDERWRITERSREGULATIONS": "SEBI UNDERWRITERS REGULATIONS",
+    "SEBIUNFAIRTRADEPRACTICESREGULATION": "SEBI UNFAIR TRADE PRACTICES REGULATION",
+    "SEBIVENTURECAPITALFUNDSREGULATIONS": "SEBI VENTURE CAPITAL FUNDS REGULATIONS",
+    "SEC": "SECTION",
+    "SECTION35ACNOTIFICATIONS": "SECTION 35 AC NOTIFICATIONS",
+    "SECTIONNO": "SECTION",
+    "SECTIONNUMBER": "SECTION",
+    "SECTIONS": "SECTION",
+    "SECTIONSNO": "SECTION",
+    "SECURITIESAPPELLATETRIBUNALPROCEDURERULES": "SECURITIES APPELLATE TRIBUNAL PROCEDURE RULES",
+    "SECURITIESAPPELLATETRIBUNALSALARIESALLOWANCESOTHERCONDITIONSSERVICEOFFICERSEMPLOYEESRULES": "SECURITIES APPELLATE TRIBUNAL SALARIES ALLOWANCES OTHER CONDITIONS SERVICE OFFICERS EMPLOYEES RULES",
+    "SECURITIESAPPELLATETRIBUNALSALARIESALLOWANCESOTHERTERMSCONDITIONSPRESIDINGOFFICEROTHERMEMBERSRULES": "SECURITIES APPELLATE TRIBUNAL SALARIES ALLOWANCES OTHER TERMS CONDITIONS PRESIDING OFFICER OTHER MEMBERS RULES",
+    "SECURITIESCONTRACTSREFERENCETOCOMPANYLAWBOARDRULES": "SECURITIES CONTRACTS REFERENCE COMPANY LAW BOARD RULES",
+    "SECURITIESCONTRACTSREGULATIONACT": "SECURITIES CONTRACTS REGULATION ACT",
+    "SECURITIESCONTRACTSREGULATIONAMENDMENTACT": "SECURITIES CONTRACTS REGULATION AMENDMENT ACT",
+    "SECURITIESCONTRACTSREGULATIONAPPEALSECURITIESAPPELLATETRIBUNALRULES": "SECURITIES CONTRACTS REGULATION APPEAL SECURITIES APPELLATE TRIBUNAL RULES",
+    "SECURITIESCONTRACTSREGULATIONMANNERINCREASINGMAINTAININGPUBLICSHAREHOLDINGRECOGNISEDSTOCKEXCHANGESREGULATIONS": "SECURITIES CONTRACTS REGULATION MANNER INCREASING MAINTAINING PUBLIC SHAREHOLDING RECOGNISED STOCK EXCHANGES REGULATIONS",
+    "SECURITIESCONTRACTSREGULATIONPROCEDUREHOLDINGINQUIRYIMPOSINGPENALTIESADJUDICATINGOFFICERRULES": "SECURITIES CONTRACTS REGULATION PROCEDURE HOLDING INQUIRY IMPOSING PENALTIES ADJUDICATING OFFICER RULES",
+    "SECURITIESCONTRACTSREGULATIONRULES": "SECURITIES CONTRACTS REGULATION RULES",
+    "SECURITIESCONTRACTSREGULATIONSTOCKEXCHANGESCLEARINGCORPORATIONSREGULATIONS": "SECURITIES CONTRACTS REGULATION STOCK EXCHANGES CLEARING CORPORATIONS REGULATIONS",
+    "SECURITIESEXCHANGEBOARDINDIAACT": "SECURITIES EXCHANGE BOARD INDIA ACT",
+    "SECURITIESINSURANCELAWSAMENDMENTVALIDATIONACT": "SECURITIES INSURANCE LAWS AMENDMENT VALIDATION ACT",
+    "SECURITIESLENDINGSCHEME": "SECURITIES LENDING SCHEME",
+    "SECURITIESTRANSACTIONTAX": "SECURITIES TRANSACTION TAX",
+    "SECURITIESTRANSACTIONTAXRULES": "SECURITIES TRANSACTION TAX RULES",
+    "SECURITISATIONCOMPANIESRECONSTRUCTIONCOMPANIESRESERVEBANKGUIDELINESDIRECTIONS": "SECURITISATION COMPANIES RECONSTRUCTION COMPANIES RESERVE BANK GUIDELINES DIRECTIONS",
+    "SECURITISATIONRECONSTRUCTIONFINANCIALASSETSENFORCEMENTSECURITYINTERESTACT": "SECURITISATION RECONSTRUCTION FINANCIAL ASSETS ENFORCEMENT SECURITY INTEREST ACT",
+    "SECURITISATIONRECONSTRUCTIONFINANCIALASSETSENFORCEMENTSECURITYINTERESTCENTRALREGISTRYRULES": "SECURITISATION RECONSTRUCTION FINANCIAL ASSETS ENFORCEMENT SECURITY INTEREST CENTRAL REGISTRY RULES",
+    "SECURITYEXCHANGEBOARDOFINDIA": "SECURITY EXCHANGE BOARD OF INDIA",
+    "SECURITYINTERESTACT": "SECURITY INTEREST ACT",
+    "SECURITYINTERESTENFORCEMENTRULES": "SECURITY INTEREST ENFORCEMENT RULES",
+    "SERVICETAX": "SERVICE TAX",
+    "SERVICETAXACT": "SERVICE TAX LAWS",
+    "SERVICETAXACTS": "SERVICE TAX LAWS",
+    "SERVICETAXADVANCERULINGSRULES": "SERVICE TAX ADVANCE RULINGS RULES",
+    "SERVICETAXBILLS": "SERVICETAX BILLS",
+    "SERVICETAXCREDITRULES": "SERVICE TAX CREDIT RULES",
+    "SERVICETAXDETERMINATIONVALUERULES": "SERVICE TAX DETERMINATION VALUE RULES",
+    "SERVICETAXDISPUTERESOLUTIONSCHEME": "SERVICE TAX DISPUTE RESOLUTION SCHEME",
+    "SERVICETAXLAW": "SERVICE TAX LAWS",
+    "SERVICETAXLAWS": "SERVICE TAX LAWS",
+    "SERVICETAXPROVISIONALATTACHMENTPROPERTYRULES": "SERVICE TAX PROVISIONAL ATTACHMENT PROPERTY RULES",
+    "SERVICETAXPUBLICATIONNAMESRULES": "SERVICE TAX PUBLICATION NAMES RULES",
+    "SERVICETAXREGISTRATIONSPECIALCATEGORYPERSONSRULES": "SERVICE TAX REGISTRATION SPECIAL CATEGORY PERSONS RULES",
+    "SERVICETAXREMOVALDIFFICULTYORDER": "SERVICE TAX REMOVAL DIFFICULTY ORDER",
+    "SERVICETAXRETURNPREPARERSCHEME": "SERVICE TAX RETURN PREPARER SCHEME",
+    "SERVICETAXRULES": "SERVICE TAX RULES",
+    "SERVICETAXSECONDAMDTRULES": "SERVICE TAX SECOND AMDT RULES",
+    "SERVICETAXTHIRDAMDTRULES": "SERVICE TAX THIRD AMDT RULES",
+    "SEZCIRCULAR": "circulars;SEZ CIRCULAR",
+    "SFT": "STATEMENT OF FINANCIAL TRANSACTION",
+    "SGB": "Sovereign Gold Bond",
+    "SICKINDUSTRIALCOMPANIESSPECIALPROVISIONSACT": "SICK INDUSTRIAL COMPANIES SPECIAL PROVISIONS ACT",
+    "SIKKIMCOLLECTIONTAXESPREVENTIONEVASIONPAYMENTTAXESACT": "SIKKIM COLLECTION TAXES PREVENTION EVASION PAYMENT TAXES ACT",
+    "SIKKIMSTATEINCOMETAXMANUAL": "SIKKIM STATE INCOME TAX MANUAL",
+    "SIMPLIFIEDEXITSCHEME": "SIMPLIFIED EXIT SCHEME",
+    "SITERESTORATIONFUNDSCHEME": "SITE RESTORATION FUND SCHEME",
+    "SMALLINDUSTRIESDEVELOPMENTBANKINDIAACT": "SMALL INDUSTRIES DEVELOPMENT BANK INDIA ACT",
+    "SME": "Small and Medium Enterprise",
+    "SMUGGLERSFOREIGNEXCHANGEMANIPULATIONFORFEITUREPROPERTYACT": "SMUGGLERS FOREIGN EXCHANGE MANIPULATORS FORFEITURE PROPERTY ACT",
+    "SMUGGLERSFOREIGNEXCHANGEMANIPULATORSAPPELLATETRIBUNALFORFEITEDPROPERTYRULES": "SMUGGLERS FOREIGN EXCHANGE MANIPULATORS APPELLATE TRIBUNAL FORFEITED PROPERTY RULES",
+    "SMUGGLERSFOREIGNEXCHANGEMANIPULATORSFORFEITUREPROPERTYACT": "SMUGGLERS FOREIGN EXCHANGE MANIPULATORS FORFEITURE PROPERTY ACT",
+    "SMUGGLERSFOREIGNEXCHANGEMANIPULATORSRECEIPTMANAGEMENTDISPOSALFORFEITEDPROPERTYRULES": "SMUGGLERS FOREIGN EXCHANGE MANIPULATORS RECEIPT MANAGEMENT DISPOSAL FORFEITED PROPERTY RULES",
+    "SNO": "S NO",
+    "SOCIALSECURITYCERTIFICATESRULES": "SOCIAL SECURITY CERTIFICATES RULES",
+    "SOCIETIESREGISTRATIONACT": "SOCIETIES REGISTRATION ACT",
+    "SOFTWARETECHNOLOGYPARKSSCHEME": "SOFTWARE TECHNOLOGY PARKS SCHEME",
+    "SPECIALBEARERBONDSIMMUNITIESEXEMPTIONSACT": "SPECIAL BEARER BONDS IMMUNITIES EXEMPTIONS ACT",
+    "SPECIALCOURTTRIALOFFENCESRELATINGTRANSACTIONSSECURITIESACT": "SPECIAL COURT TRIAL OFFENCES RELATING TRANSACTIONS SECURITIES ACT",
+    "SPECIALECONOMICZONEACT": "SPECIAL ECONOMIC ZONE ACT",
+    "SPECIALECONOMICZONEAUTHORITYRULES": "SPECIAL ECONOMIC ZONE AUTHORITY RULES",
+    "SPECIALECONOMICZONESACT": "SPECIAL ECONOMIC ZONES ACT",
+    "SPECIALECONOMICZONESRULES": "SPECIAL ECONOMIC ZONES RULES",
+    "SPECIALSUPREMECOURT": "SPECIAL SUPREME COURT",
+    "SPECIFICRELIEFACT": "SPECIFIC RELIEF ACT",
+    "SPECIFIEDASSOCIATIONSAGREEMENT": "SPECIFIED ASSOCIATIONS AGREEMENT",
+    "SPECIFIEDUNDERTAKINGUNITTRUSTINDIAMANAGEMENTSCHEMESASSETSINVESTMENTTERMOFFICEFEESALLOWANCESCONDITIONSAPPOINTMENTADVISERSMISCELLANEOUSPROVISIONSSCHEME": "SPECIFIED UNDERTAKING UNIT TRUST INDIA MANAGEMENT SCHEMES ASSETS INVESTMENT TERM OFFICE FEES ALLOWANCES CONDITIONS APPOINTMENT ADVISERS MISCELLANEOUS PROVISIONS SCHEME",
+    "STANDALONEBREAKINGNEWS": "STANDALONE BREAKING NEWS",
+    "STANDARDSWEIGHTSMEASURESACT": "STANDARDS WEIGHTS MEASURES ACT",
+    "STATEBANKINDIAACT": "STATE BANK INDIA ACT",
+    "STATEBANKINDIAAMENDMENTACT": "STATE BANK INDIA AMENDMENT ACT",
+    "STATEBANKINDIASUBSIDIARIESBANKLAWSAMENDMENTACT": "STATE BANK INDIA SUBSIDIARIES BANK LAWS AMENDMENT ACT",
+    "STATEBANKINDIASUBSIDIARYBANKSACT": "STATE BANK INDIA SUBSIDIARY BANKS ACT",
+    "STATEBANKINDIASUBSIDIARYBANKSAMENDMENTACT": "STATE BANK INDIA SUBSIDIARY BANKS AMENDMENT ACT",
+    "STATEFINANCIALCORPORATIONACT": "STATE FINANCIAL CORPORATION ACT",
+    "STATESTAXATIONCONCESSIONSORDER": "STATES TAXATION CONCESSIONS ORDER",
+    "STCG": "SHORT TERM CAPITAL GAIN",
+    "SUITRECOVERYMONEY": "SUIT RECOVERY MONEY",
+    "SUPERPROFITSTAXACT": "SUPER PROFITS TAX ACT",
+    "SUPERTAXACT": "SUPER TAX ACT",
+    "TAMILNADUAGRICULTURALINCOMETAXACT": "TAMIL NADU AGRICULTURAL INCOME TAX ACT",
+    "TAMILNADUAGRICULTURALINCOMETAXRULES": "TAMIL NADU AGRICULTURAL INCOME TAX RULES",
+    "TAMILNADUGENERALSALESTAXACT": "TAMIL NADU GENERAL SALES TAX ACT",
+    "TAMILNADUGENERALSALESTAXRULES": "TAMIL NADU GENERAL SALES TAX RULES",
+    "TAMILNADULANDREFORMSFIXATIONCEILINGLANDACT": "TAMIL NADU LAND REFORMS FIXATION CEILING LAND ACT",
+    "TAMILNADULEGISLATIVECOUNCILACT": "TAMIL NADU LEGISLATIVE COUNCIL ACT",
+    "TAMILNADUPROTECTIONINTERESTSDEPOSITORSFINANCIALESTABLISHMENTSACT": "TAMIL NADU PROTECTION INTERESTS DEPOSITORS FINANCIAL ESTABLISHMENTS ACT",
+    "TAMILNADUREVENUERECOVERYACT": "TAMIL NADU REVENUE RECOVERY ACT",
+    "TAMILNADUTAXLUXURIESHOTELSLODGINGHOUSESACT": "TAMIL NADU TAX LUXURIES HOTELS LODGING HOUSES ACT",
+    "TARIFF": "GST TARIFF",
+    "TARIFFADVISORYCOMMITTEEELECTIONMEMBERSMEETINGSFUNCTIONSMISCELLANEOUSREGULATIONS": "TARIFF ADVISORY COMMITTEE ELECTION MEMBERS MEETINGS FUNCTIONS MISCELLANEOUS REGULATIONS",
+    "TAXATIONCAPITALGAINS": "TAXATION CAPITAL GAINS",
+    "TAXATIONEMPLOYEES": "TAXATION EMPLOYEES",
+    "TAXATIONINCOMEINVESTIGATIONCOMMISSIONACT": "TAXATION INCOME INVESTIGATION COMMISSION ACT",
+    "TAXATIONLAWSAMENDMENTACT": "TAXATION LAWS AMENDMENT ACT",
+    "TAXATIONLAWSCONTINUATIONVALIDATIONRECOVERYPROCEEDINGSACT": "TAXATION LAWS CONTINUATION VALIDATION RECOVERY PROCEEDINGS ACT",
+    "TAXATIONLAWSEXTENSIONUNIONTERRITORIESREMOVALDIFFICULTIESORDERNO": "TAXATION LAWS EXTENSION UNION TERRITORIES REMOVAL DIFFICULTIES ORDER",
+    "TAXATIONLAWSMERGEDSTATESREMOVALDIFFICULTIESAMENDMENTORDER": "TAXATION LAWS MERGED STATES REMOVAL DIFFICULTIES AMENDMENT ORDER",
+    "TAXATIONLAWSMERGEDSTATESREMOVALDIFFICULTIESORDER": "TAXATION LAWS MERGED STATES REMOVAL DIFFICULTIES ORDER",
+    "TAXATIONLAWSPARTBSTATESREMOVALDIFFICULTIESORDER": "TAXATION LAWS PART B STATES REMOVAL DIFFICULTIES ORDER",
+    "TAXATIONSERVICESPROVIDEDOUTSIDEINDIARECEIVEDINDIARULES": "TAXATION SERVICES PROVIDED FROM OUTSIDE INDIA RECEIVED INDIA RULES",
+    "TAXAUDIT": "TAX AUDIT",
+    "TAXINFORMATIONEXCHANGEAGREEMENTTIEA": "TAX INFORMATION EXCHANGE AGREEMENT TIEA",
+    "TAXMANNACT": "TAXMANN ACT",
+    "TAXMANNRULES": "TAXMANN RULES",
+    "TAXRETURNPREPARERSCHEME": "TAX RETURN PREPARER SCHEME",
+    "TAXTREATIES": "TAX TREATIES",
+    "TAXTREATYCOMMENTARIES": "TAX TREATY COMMENTARIES",
+    "TDSHOWMEETYOUROBLIGATION": "TDS HOW MEET YOUR OBLIGATION",
+    "TERMINATIONSERVICE": "TERMINATION SERVICE",
+    "TEXTILESCOMMITTEEACT": "TEXTILES COMMITTEE ACT",
+    "TEXTILESCOMMITTEERULES": "TEXTILES COMMITTEE RULES",
+    "TRADEMARKSACT": "TRADE MARKS ACT",
+    "TRADEMARKSAMENDMENTACT": "TRADE MARKS AMENDMENT ACT",
+    "TRADEMARKSAPPLICATIONSAPPEALSTOINTELLECTUALPROPERTYAPPELLATEBOARDRULES": "TRADE MARKS APPLICATIONS APPEALS INTELLECTUAL PROPERTY APPELLATE BOARD RULES",
+    "TRADEMARKSREMOVALDIFFICULTIESORDER": "TRADE MARKS REMOVAL DIFFICULTIES ORDER",
+    "TRADEMARKSRULES": "TRADE MARKS RULES",
+    "TRADEMERCHANDISEMARKSACT": "TRADE MERCHANDISE MARKS ACT",
+    "TRADEUNIONACT": "TRADE UNION ACT",
+    "TRADEUNIONACTSS": "TRADE UNION ACTSS",
+    "TRADEUNIONSACT": "TRADE UNIONS ACT",
+    "TRANSFERPRICING": "TRANSFER PRICING",
+    "TRANSFERPROPERTYACT": "TRANSFER PROPERTY ACT",
+    "TRANSPLANTATIONHUMANORGANSAMENDMENTACT": "TRANSPLANTATION HUMAN ORGANS AMENDMENT ACT",
+    "TRAVANCORECOCHINAGRICULTURALINCOMETAXACT": "TRAVANCORE COCHIN AGRICULTURAL INCOME TAX ACT",
+    "TRAVANCORECOCHINGENERALSALESTAXACT": "TRAVANCORE COCHIN GENERAL SALES TAX ACT",
+    "TRAVANCORECOCHINGENERALSALESTAXACTME": "TRAVANCORE COCHIN GENERAL SALES TAX ACT M E",
+    "TRAVANCORECOCHINGENERALSALESTAXRULES": "TRAVANCORE COCHIN GENERAL SALES TAX RULES",
+    "TRAVANCOREINCOMETAXACT": "TRAVANCORE INCOME TAX ACT",
+    "TRC": "TAX RESIDENCY CERTIFICATE",
+    "ULIP": "UNIT LINKED INSURANCE PLAN",
+    "UNITTRUSTINDIAACT": "UNIT TRUST INDIA ACT",
+    "UNITTRUSTINDIATRANSFERUNDERTAKINGREPEALACT": "UNIT TRUST INDIA TRANSFER UNDERTAKING REPEAL ACT",
+    "UNLISTEDCOMPANIESISSUESWEATEQUITYSHARESRULES": "UNLISTED COMPANIES ISSUE SWEAT EQUITY SHARES RULES",
+    "UNLISTEDPUBLICCOMPANIESPREFERENTIALALLOTMENTRULES": "UNLISTED PUBLIC COMPANIES PREFERENTIAL ALLOTMENT RULES",
+    "UPACT": "UP ACT",
+    "URBANLANDCEILINGREGULATIONACT": "URBAN LAND CEILING REGULATION ACT",
+    "URBANLANDCEILINGREGULATIONREPEALACT": "URBAN LAND CEILING REGULATION REPEAL ACT",
+    "URBANLANDCEILINGREGULATIONRULES": "URBAN LAND CEILING REGULATION RULES",
+    "UTITRANSFERUNDERTAKINGREPEALACT": "UTI TRANSFER UNDERTAKING REPEAL ACT",
+    "UTTARPRADESHAGRICULTURALINCOMETAXACT": "UTTAR PRADESH AGRICULTURAL INCOME TAX ACT",
+    "UTTARPRADESHPUBLICMONEYRECOVERIESDUESACT": "UTTAR PRADESH PUBLIC MONEY RECOVERIES DUES ACT",
+    "UTTARPRADESHZAMINDARIABOLITIONLANDREFORMSACT": "UTTAR PRADESH ZAMINDARI ABOLITION LAND REFORMS ACT",
+    "VOLUNTARYDEPOSITSIMMUNITIESEXEMPTIONSACT": "VOLUNTARY DEPOSITS IMMUNITIES EXEMPTIONS ACT",
+    "VOLUNTARYDISCLOSUREINCOMESCHEME": "VOLUNTARY DISCLOSURE INCOME SCHEME",
+    "VOLUNTARYDISCLOSUREINCOMEWEALTHACT": "VOLUNTARY DISCLOSURE INCOME WEALTH ACT",
+    "VOLUNTARYDISCLOSUREINCOMEWEALTHORDINANCE": "VOLUNTARY DISCLOSURE INCOME WEALTH ORDINANCE",
+    "WAIVERORREDUCTIONINTEREST": "WAIVER REDUCTION INTEREST",
+    "WATERPREVENTIONCONTROLPOLLUTIONACT": "WATER PREVENTION CONTROL POLLUTION ACT",
+    "WATERPREVENTIONCONTROLPOLLUTIONCESSACT": "WATER PREVENTION CONTROL POLLUTION CESS ACT",
+    "WEALTHORDINANCE": "WEALTH ORDINANCE",
+    "WEALTHTAXACT": "WEALTH TAX ACT",
+    "WEALTHTAXRULES": "WEALTH TAX RULES",
+    "WEALTHTAXSETTLEMENTCOMMISSIONPROCEDURERULES": "WEALTH TAX SETTLEMENT COMMISSION PROCEDURE RULES",
+    "WEEKLYHOLIDAYSACT": "WEEKLY HOLIDAYS ACT",
+    "WESTBENGALMUNICIPALACT": "WEST BENGAL MUNICIPAL ACT",
+    "WESTBENGALPREMISESTENANCYACT": "WEST BENGAL PREMISES TENANCY ACT",
+    "WESTBENGALRURALEMPLOYMENTPRODUCTIONACT": "WEST BENGAL RURAL EMPLOYMENT PRODUCTION ACT",
+    "WITHOLDINGTAX": "WITHOLDING TAX",
+    "WORKMENSCOMPENSATIONACT": "WORKMENS COMPENSATION ACT",
+    "WORKMENSCOMPENSATIONRULES": "WORKMEN S COMPENSATION RULES",
+    "WORKMENSCOMPENSATIONTRANSFERMONEYRULES": "WORKMEN S COMPENSATION TRANSFER MONEY RULES",
+    "WORKMENSCOMPENSATIONVENUEPROCEEDINGSRULES": "WORKMEN S COMPENSATION VENUE PROCEEDINGS RULES",
+    "WORKSCONTRACTCOMPOSITIONSCHEMEPAYMENTSERVICETAXRULES": "WORKS CONTRACT COMPOSITION SCHEME PAYMENT SERVICE TAX RULES",
+    "WORLDNEWS": "WORLD NEWS"
+  }
+}
