@@ -1,6 +1,7 @@
 from common.query_tokenizer import (
     classify_query_shape, normalize_citation_spacing, merge_keyword_number,
-    merge_court_city, strip_stopwords, extract_quoted_phrases,
+    merge_court_city, strip_stopwords, extract_quoted_phrases, expand_query_synonyms,
+    extract_boost_phrases,
 )
 
 
@@ -61,3 +62,39 @@ def test_strip_stopwords_never_drops_a_known_journal():
 def test_extract_quoted_phrases_keeps_quoted_text_as_one_token():
     assert '"Income India"' not in extract_quoted_phrases('Section 6 of "Income India" in case of Supreme court')
     assert "Income India" in extract_quoted_phrases('Section 6 of "Income India" in case of Supreme court')
+
+
+def test_expand_query_synonyms_appends_known_abbreviation_expansion():
+    expanded = expand_query_synonyms("ACIT order on depreciation")
+    assert "ASSISTANT COMMISSIONER INCOME TAX" in expanded
+    assert expanded.startswith("ACIT order on depreciation")
+
+
+def test_expand_query_synonyms_leaves_query_unchanged_when_no_lexicon_entry():
+    assert expand_query_synonyms("can a company claim depreciation") == "can a company claim depreciation"
+
+
+def test_expand_query_synonyms_does_not_duplicate_expansion_for_repeated_token():
+    expanded = expand_query_synonyms("ACIT order ACIT appeal")
+    assert expanded.count("ASSISTANT COMMISSIONER INCOME TAX") == 1
+
+
+def test_extract_boost_phrases_finds_merged_keyword_number():
+    assert "Section 6" in extract_boost_phrases("Section 6 of Income Tax Act")
+
+
+def test_extract_boost_phrases_finds_merged_court_city():
+    assert "Delhi High Court" in extract_boost_phrases("Delhi High Court ruling on depreciation")
+
+
+def test_extract_boost_phrases_finds_quoted_phrase():
+    assert "Income India" in extract_boost_phrases('Section 6 of "Income India" in case of Supreme court')
+
+
+def test_extract_boost_phrases_excludes_single_word_tokens():
+    assert extract_boost_phrases("can a company claim depreciation on goodwill") == []
+
+
+def test_extract_boost_phrases_excludes_stripped_stopwords():
+    # "in case of" is stopped away; only the merged court phrase survives as multi-word
+    assert extract_boost_phrases("ruling in case of Delhi High Court") == ["Delhi High Court"]

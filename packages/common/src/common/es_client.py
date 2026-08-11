@@ -1,7 +1,7 @@
 from elasticsearch import AsyncElasticsearch
 
 from common.config import Settings
-from common.query_tokenizer import classify_query_shape
+from common.query_tokenizer import classify_query_shape, expand_query_synonyms, extract_boost_phrases
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
 _BOOST_PROFILES = {
@@ -35,21 +35,30 @@ def get_es_client(settings: Settings) -> IndexedESClient:
     return IndexedESClient(client, settings.es_index)
 
 
-def _build_field_query(query: str, shape: str) -> dict:
+_PHRASE_BOOST_FACTOR = 3.0
+
+
+def _build_field_query(query: str, shape: str, boost_phrases: list[str] = ()) -> dict:
     """Query-shape-aware multi-field search (design doc section 1+3): every content field
     is searched (facts_text/held_text/headnotes_text are only 26-58% populated on the real
     index, so heading/subheading/fullcontent - 100% populated - must never be skipped),
-    with boosts picked by the no-LLM query-shape classifier."""
+    with boosts picked by the no-LLM query-shape classifier.
+
+    boost_phrases (queryAnalyzer.js-ported merges like "Section 6"/"Delhi High Court", or a
+    quoted span) get an extra phrase-match should clause layered on top - never replacing
+    the loose per-field terms above, so a query that doesn't fully match the merge pipeline
+    still falls back to plain recall instead of a legacy-style hard AND-of-all-tokens."""
     boosts = _BOOST_PROFILES[shape]
-    return {
-        "bool": {
-            "should": [
-                {"multi_match": {"query": query, "fields": [field], "boost": boost, "fuzziness": "AUTO"}}
-                for field, boost in boosts.items()
-            ],
-            "minimum_should_match": 1,
-        }
-    }
+    fields = list(boosts.keys())
+    should = [
+        {"multi_match": {"query": query, "fields": [field], "boost": boost, "fuzziness": "AUTO"}}
+        for field, boost in boosts.items()
+    ]
+    should += [
+        {"multi_match": {"query": phrase, "fields": fields, "type": "phrase", "boost": _PHRASE_BOOST_FACTOR}}
+        for phrase in boost_phrases
+    ]
+    return {"bool": {"should": should, "minimum_should_match": 1}}
 
 
 def _wrap_function_score(field_query: dict) -> dict:
@@ -78,7 +87,10 @@ def _wrap_function_score(field_query: dict) -> dict:
 
 async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
     shape = classify_query_shape(query)
-    body = _wrap_function_score(_build_field_query(query, shape))
+    field_query = _build_field_query(
+        expand_query_synonyms(query), shape, boost_phrases=extract_boost_phrases(query),
+    )
+    body = _wrap_function_score(field_query)
     response = await client.search(index=client.index, query=body, size=limit)
     results = []
     for hit in response["hits"]["hits"]:

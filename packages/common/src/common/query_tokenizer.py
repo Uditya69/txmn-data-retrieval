@@ -1,7 +1,7 @@
 import re
 
 from common.legal_lexicon import (
-    CITATION_PATTERN, PARTY_PATTERN, SECTION_PATTERN, is_known_journal, is_stopword,
+    CITATION_PATTERN, PARTY_PATTERN, SECTION_PATTERN, expand_synonyms, is_known_journal, is_stopword,
 )
 
 _CITATION_SPACING_PATTERN = re.compile(r"(\d{4})([a-zA-Z])")
@@ -24,6 +24,23 @@ def classify_query_shape(query: str) -> str:
     if SECTION_PATTERN.search(normalized):
         return "provision"
     return "plain"
+
+
+def expand_query_synonyms(query: str) -> str:
+    """Broadens recall by appending lexicon synonyms/abbreviation expansions for each token
+    (e.g. "ACIT" -> also "ASSISTANT COMMISSIONER INCOME TAX") so multi_match's default OR
+    semantics pick up documents phrased with the alternate term. Only appends new terms -
+    never reorders or removes the original query - so classify_query_shape's regexes, which
+    run on the un-expanded text before this, are unaffected."""
+    tokens = query.split()
+    seen = {t.upper() for t in tokens}
+    extra = []
+    for token in tokens:
+        for synonym in expand_synonyms(token):
+            if synonym.upper() not in seen:
+                seen.add(synonym.upper())
+                extra.append(synonym)
+    return f"{query} {' '.join(extra)}" if extra else query
 
 
 def merge_keyword_number(tokens: list[str]) -> list[str]:
@@ -81,3 +98,15 @@ def extract_quoted_phrases(query: str) -> list[str]:
     remainder = _QUOTED_PHRASE_PATTERN.sub(" ", query)
     words = [w for w in remainder.split() if w]
     return phrases + words
+
+
+def extract_boost_phrases(query: str) -> list[str]:
+    """Runs the full queryAnalyzer.js-ported pipeline (quote grouping -> keyword+number merge
+    -> court+city merge -> stopword strip) and returns only the multi-word survivors - a
+    quoted span or a merge like "Section 6"/"Delhi High Court" is a precise concept worth a
+    phrase-match boost layered on top of the loose base query, unlike a lone leftover word."""
+    tokens = extract_quoted_phrases(query)
+    tokens = merge_keyword_number(tokens)
+    tokens = merge_court_city(tokens)
+    tokens = strip_stopwords(tokens)
+    return [t for t in tokens if " " in t]

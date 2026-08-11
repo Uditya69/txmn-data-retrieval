@@ -93,6 +93,41 @@ async def test_raw_search_defaults_missing_heading_subheading_to_empty_string():
 
 
 @pytest.mark.asyncio
+async def test_raw_search_expands_known_abbreviation_into_multi_match_query_text():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "ACIT order on depreciation", limit=20)
+
+    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
+    multi_match_query = sent_query["bool"]["should"][0]["multi_match"]["query"]
+    assert "ACIT order on depreciation" in multi_match_query
+    assert "ASSISTANT COMMISSIONER INCOME TAX" in multi_match_query
+
+
+@pytest.mark.asyncio
+async def test_raw_search_adds_phrase_boost_clause_for_merged_keyword_number():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Section 6 of Income Tax Act", limit=20)
+
+    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
+    should = sent_query["bool"]["should"]
+    phrase_clauses = [c for c in should if c["multi_match"].get("type") == "phrase"]
+    assert any(c["multi_match"]["query"] == "Section 6" for c in phrase_clauses)
+
+
+@pytest.mark.asyncio
+async def test_raw_search_omits_phrase_boost_clauses_when_no_merge_survives():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "can a company claim depreciation on goodwill", limit=20)
+
+    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
+    should = sent_query["bool"]["should"]
+    assert not [c for c in should if c["multi_match"].get("type") == "phrase"]
+
+
+@pytest.mark.asyncio
 async def test_raw_search_queries_heading_subheading_fullcontent_not_just_sparse_fields():
     client = FakeAsyncES(search_hits=[])
 
