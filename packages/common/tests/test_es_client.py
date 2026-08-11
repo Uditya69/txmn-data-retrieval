@@ -92,6 +92,44 @@ async def test_raw_search_defaults_missing_heading_subheading_to_empty_string():
     assert results == [{"doc_id": "d1", "score": 1.0, "heading": "", "subheading": ""}]
 
 
+@pytest.mark.asyncio
+async def test_raw_search_queries_heading_subheading_fullcontent_not_just_sparse_fields():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20)
+
+    query = client.search_calls[0]
+    should_fields = {
+        clause["multi_match"]["fields"][0] if "multi_match" in clause else None
+        for clause in query["function_score"]["query"]["bool"]["must"][0]["bool"]["should"]
+    }
+    for field in ("heading", "subheading", "fullcontent"):
+        assert field in should_fields, f"{field} missing from should clauses: {should_fields}"
+
+
+@pytest.mark.asyncio
+async def test_raw_search_wraps_query_in_function_score_with_boost_fields():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20)
+
+    query = client.search_calls[0]
+    assert "function_score" in query
+    factor_fields = {f["field_value_factor"]["field"] for f in query["function_score"]["functions"]}
+    assert factor_fields == {"documenttypeboost", "court_boost", "landmarkruling"}
+
+
+@pytest.mark.asyncio
+async def test_raw_search_excludes_blacklisted_landmarkruling_docs():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20)
+
+    query = client.search_calls[0]
+    bool_clause = query["function_score"]["query"]["bool"]
+    assert {"term": {"landmarkruling": -10}} in bool_clause.get("must_not", [])
+
+
 def test_get_es_client_reads_index_and_auth_from_settings():
     settings = Settings(
         milvus_uri="http://milvus:19530", milvus_token="root:Milvus",

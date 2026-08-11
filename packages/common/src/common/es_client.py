@@ -1,11 +1,17 @@
 from elasticsearch import AsyncElasticsearch
 
 from common.config import Settings
+from common.query_tokenizer import classify_query_shape
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
-_RAW_SEARCH_FIELDS = [
-    "facts_text", "held_text", "headnotes_text",
-]
+_BOOST_PROFILES = {
+    "citation": {"heading": 5.0, "subheading": 3.0, "fullcontent": 1.0,
+                 "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 1.5},
+    "provision": {"heading": 2.0, "subheading": 3.0, "fullcontent": 1.0,
+                  "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 2.5},
+    "plain": {"heading": 2.0, "subheading": 2.0, "fullcontent": 1.5,
+              "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 1.0},
+}
 
 
 class IndexedESClient:
@@ -29,8 +35,50 @@ def get_es_client(settings: Settings) -> IndexedESClient:
     return IndexedESClient(client, settings.es_index)
 
 
+def _build_field_query(query: str, shape: str) -> dict:
+    """Query-shape-aware multi-field search (design doc section 1+3): every content field
+    is searched (facts_text/held_text/headnotes_text are only 26-58% populated on the real
+    index, so heading/subheading/fullcontent - 100% populated - must never be skipped),
+    with boosts picked by the no-LLM query-shape classifier."""
+    boosts = _BOOST_PROFILES[shape]
+    return {
+        "bool": {
+            "should": [
+                {"multi_match": {"query": query, "fields": [field], "boost": boost, "fuzziness": "AUTO"}}
+                for field, boost in boosts.items()
+            ],
+            "minimum_should_match": 1,
+        }
+    }
+
+
+def _wrap_function_score(field_query: dict) -> dict:
+    """Ranking fix (design doc section 2): court_boost/documenttypeboost/landmarkruling are
+    real, populated, precomputed boost fields the live index already carries but nothing in
+    this codebase used before. documenttypeboost/landmarkruling constants are centax's own
+    already-tuned formula for these exact fields; court_boost's factor is new, sized to that
+    field's own smaller value range (0-294)."""
+    return {
+        "function_score": {
+            "query": {
+                "bool": {
+                    "must": [field_query],
+                    "must_not": [{"term": {"landmarkruling": -10}}],
+                }
+            },
+            "functions": [
+                {"field_value_factor": {"field": "documenttypeboost", "factor": 0.2, "modifier": "sqrt", "missing": 0.0001}},
+                {"field_value_factor": {"field": "court_boost", "factor": 0.01, "modifier": "none", "missing": 0.0001}},
+                {"field_value_factor": {"field": "landmarkruling", "factor": 1.2, "modifier": "log2p", "missing": 0.0001}},
+            ],
+            "boost_mode": "multiply",
+        }
+    }
+
+
 async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
-    body = {"multi_match": {"query": query, "fields": _RAW_SEARCH_FIELDS, "fuzziness": "AUTO"}}
+    shape = classify_query_shape(query)
+    body = _wrap_function_score(_build_field_query(query, shape))
     response = await client.search(index=client.index, query=body, size=limit)
     results = []
     for hit in response["hits"]["hits"]:
