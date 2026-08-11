@@ -15,25 +15,40 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
     setDraft('')
   }
 
+  const canSend = !disabled && draft.trim().length > 0
+
   return (
-    <div className="sticky bottom-0 pt-3 pb-5" style={{ background: 'linear-gradient(to top, var(--ink) 60%, transparent)' }}>
-      <form onSubmit={handleSubmit} className="flex gap-3">
+    // No page-colored panel behind this - the pill floats directly on the app
+    // background (ChatGPT-style), instead of sitting inside a boxed bar.
+    <div className="sticky bottom-0 pb-4 pt-2">
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-center gap-2 rounded-full pl-5 pr-2 py-2"
+        style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)' }}
+      >
         <input
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Ask a legal/tax question..."
           aria-label="Search query"
-          className="w-full rounded-xl px-4 py-3.5 text-[15px] outline-none"
-          style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', color: 'var(--text)' }}
+          className="flex-1 bg-transparent text-[15px] outline-none"
+          style={{ color: 'var(--text)' }}
         />
         <button
           type="submit"
-          disabled={disabled || !draft.trim()}
-          className="rounded-xl px-6 py-3.5 text-[15px] font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: 'var(--accent-strong)', color: 'var(--accent-ink)' }}
+          disabled={!canSend}
+          aria-label="Send"
+          className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center cursor-pointer disabled:cursor-not-allowed transition-colors duration-150"
+          style={{
+            background: canSend ? 'var(--accent-strong)' : 'var(--surface-hover)',
+            color: canSend ? 'var(--accent-ink)' : 'var(--text-faint)',
+          }}
         >
-          Send
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 19V5" />
+            <path d="M5 12l7-7 7 7" />
+          </svg>
         </button>
       </form>
     </div>

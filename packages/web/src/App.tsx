@@ -292,10 +292,7 @@ export default function App() {
             </div>
           )}
 
-          <div
-            className="sticky bottom-0 pb-4 pt-3 backdrop-blur-sm"
-            style={{ background: 'oklch(0.99 0.002 90 / 0.9)' }}
-          >
+          <div className="sticky bottom-0">
             {wsError && (
               <p className="text-sm rounded-lg p-3 mb-3 max-w-3xl mx-auto" style={{ color: 'var(--danger)', background: 'var(--danger-soft)' }}>
                 {wsError}

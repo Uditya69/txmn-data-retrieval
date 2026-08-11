@@ -3,6 +3,7 @@ import type { ChatMessage, ChatMode, ResultState } from '../types'
 import { mergeResults, type CardSource } from '../lib/mergeResults'
 import { parseCitations } from '../lib/citations'
 import { groupIntoParagraphs, renderInlineText } from '../lib/richText'
+import { highlightMatches } from '../lib/highlight'
 import TracePanel from './TracePanel'
 
 const SOURCE_FILTERS: { source: CardSource; label: string }[] = [
@@ -47,7 +48,7 @@ function TraceSection({ result, onOpenDocument }: { result: ResultState | undefi
   )
 }
 
-function InstantPane({ result, devMode, onOpenDocument }: { result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void }) {
+function InstantPane({ result, devMode, onOpenDocument, query }: { result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void; query: string }) {
   const instant = result?.instant
   const allCards = useMemo(
     () => mergeResults(instant?.es, instant?.milvus, instant?.milvus_sparse),
@@ -113,7 +114,7 @@ function InstantPane({ result, devMode, onOpenDocument }: { result: ResultState 
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
-                  {card.heading ?? card.doc_id}
+                  {card.heading ? highlightMatches(card.heading, query) : card.doc_id}
                 </span>
                 {devMode && (
                   <span className="text-xs shrink-0 font-mono" style={{ color: 'var(--text-faint)' }}>
@@ -131,7 +132,7 @@ function InstantPane({ result, devMode, onOpenDocument }: { result: ResultState 
                   <span className="font-mono truncate">{card.doc_id}</span>
                 </div>
               )}
-              <p className="text-sm mt-2 line-clamp-3" style={{ color: 'var(--text-muted)' }}>{card.snippet}</p>
+              <p className="text-sm mt-2 line-clamp-3" style={{ color: 'var(--text-muted)' }}>{highlightMatches(card.snippet, query)}</p>
             </button>
           ))}
         </div>
@@ -297,7 +298,7 @@ export function ChatMessageView({ message, devMode, onOpenDocument }: Props) {
     return (
       <div className="flex justify-start w-full">
         <div className="w-full flex gap-4 min-w-0">
-          <InstantPane result={result} devMode={devMode} onOpenDocument={onOpenDocument} />
+          <InstantPane result={result} devMode={devMode} onOpenDocument={onOpenDocument} query={message.question} />
           <AnswerPane mode="classic" result={result} devMode={devMode} onOpenDocument={onOpenDocument} />
         </div>
       </div>
