@@ -24,7 +24,19 @@ const CITATION_PATTERN = /\[(\w+(?:\s*,\s*\w+)*)\]/g
 // never a real doc_id the backend fetched, so the bracket is left as plain text
 // instead of turning into a dead /documents/1957 link. When knownDocIds is omitted,
 // no filtering happens (used by callers/tests that don't have a DB set to check against).
+// The model sometimes bolds the citation bracket itself instead of the case name
+// before it - "...held **[12345]**" instead of "...**held**  [12345]". Once the
+// bracket is pulled out into its own citation segment, the "**" on each side end
+// up alone in the surrounding text segments (no closing partner within that
+// segment for renderInlineText's **bold** regex to match), so they render as
+// literal asterisks. Strip bold markers that directly wrap a bracket before
+// citation parsing runs, since the design never wants the bracket itself bolded.
+function stripBoldAroundBrackets(answer: string): string {
+  return answer.replace(/\*\*\s*(\[[^\]]+\])\s*\*\*/g, '$1')
+}
+
 export function parseCitations(answer: string, knownDocIds?: Set<string>): ParsedAnswer {
+  answer = stripBoldAroundBrackets(answer)
   const numberByDocId = new Map<string, number>()
   const countByDocId = new Map<string, number>()
   const segments: AnswerSegment[] = []

@@ -33,4 +33,13 @@ describe('parseCitations', () => {
       { doc_id: 'd2', number: 2, count: 1 },
     ])
   })
+
+  it('strips bold markers that wrap the citation bracket itself, instead of leaving orphaned asterisks', () => {
+    const result = parseCitations('This was held **[d1]** to be valid.')
+    expect(result.segments).toEqual([
+      { type: 'text', text: 'This was held ' },
+      { type: 'citation', numbers: [1] },
+      { type: 'text', text: ' to be valid.' },
+    ])
+  })
 })

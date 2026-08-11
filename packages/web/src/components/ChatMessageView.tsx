@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ChatMessage, ChatMode, ResultState } from '../types'
 import { mergeResults, type CardSource } from '../lib/mergeResults'
 import { parseCitations } from '../lib/citations'
@@ -18,7 +18,12 @@ type Props = {
   onOpenDocument: (docId: string) => void
 }
 
-const SCROLL_PANE = 'max-h-[65vh] overflow-y-auto'
+// No inner height cap and no overflow-y-auto here on purpose - a fixed-height
+// box always shows a hard-edge cutoff (plus its own scrollbar) once content
+// exceeds it. Panes grow with their content instead; the page itself is the
+// only scroll container, so scrolling down never hits a visible stop point
+// before the real end of the content.
+const SCROLL_PANE = ''
 
 function LoadingDots() {
   return (
@@ -48,6 +53,12 @@ function TraceSection({ result, onOpenDocument }: { result: ResultState | undefi
   )
 }
 
+// Instant mode pulls up to ~20 ES hits plus deduped best-per-doc hits across 7
+// Milvus collections x2 retrievers - that can be 50+ cards. Paginating instead of
+// dumping them all into one ever-growing column keeps the pane a fixed, predictable
+// size instead of turning the whole page into a multi-thousand-pixel scroll.
+const PAGE_SIZE = 10
+
 function InstantPane({ result, devMode, onOpenDocument, query }: { result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void; query: string }) {
   const instant = result?.instant
   const allCards = useMemo(
@@ -57,7 +68,12 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
   const [activeSources, setActiveSources] = useState<Set<CardSource>>(
     () => new Set(SOURCE_FILTERS.map((f) => f.source)),
   )
+  const [page, setPage] = useState(0)
+  useEffect(() => setPage(0), [instant])
   const cards = devMode ? allCards.filter((card) => activeSources.has(card.source)) : allCards
+  const pageCount = Math.max(1, Math.ceil(cards.length / PAGE_SIZE))
+  const clampedPage = Math.min(page, pageCount - 1)
+  const pageCards = cards.slice(clampedPage * PAGE_SIZE, clampedPage * PAGE_SIZE + PAGE_SIZE)
 
   function toggleSource(source: CardSource) {
     setActiveSources((prev) => {
@@ -66,6 +82,7 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
       else next.add(source)
       return next
     })
+    setPage(0)
   }
 
   return (
@@ -105,7 +122,7 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
       )}
       {cards.length > 0 && (
         <div className="flex flex-col gap-2">
-          {cards.map((card, index) => (
+          {pageCards.map((card, index) => (
             <button
               key={`${card.source}-${card.doc_id}-${index}`}
               onClick={() => onOpenDocument(card.doc_id)}
@@ -137,6 +154,30 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
           ))}
         </div>
       )}
+
+      {cards.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={clampedPage === 0}
+            className="text-xs px-3 py-1.5 rounded-full font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+            style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border-soft)' }}
+          >
+            Prev
+          </button>
+          <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
+            Page {clampedPage + 1} of {pageCount} · {cards.length} matches
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+            disabled={clampedPage >= pageCount - 1}
+            className="text-xs px-3 py-1.5 rounded-full font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+            style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border-soft)' }}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -164,7 +205,16 @@ function CitedDocsStrip({
 }) {
   if (citations.length === 0) return null
   return (
-    <div className="flex gap-2 overflow-x-auto pb-3 mb-3" style={{ borderBottom: '1px solid var(--border-soft)' }}>
+    <div
+      className="flex gap-2 overflow-x-auto pb-3 mb-3"
+      style={{
+        borderBottom: '1px solid var(--border-soft)',
+        // Fades the trailing edge instead of hard-cutting the last card mid-width
+        // when the row overflows - a visual cue that there's more to scroll to.
+        maskImage: 'linear-gradient(to right, black calc(100% - 24px), transparent)',
+        WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 24px), transparent)',
+      }}
+    >
       {citations.map((cite) => {
         const meta = metaByDocId[cite.doc_id]
         const title = meta?.heading || cite.doc_id

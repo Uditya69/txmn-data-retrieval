@@ -121,9 +121,21 @@ export default function App() {
     localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed ? '1' : '0')
   }, [sidebarCollapsed])
 
+  // Auto-scroll only when a message is actually added (new question asked, or
+  // switching conversations) - not on every streaming patch. patchResult
+  // replaces `results` inside the last message on every instant/trace/answer
+  // chunk that arrives, which gives `messages` a new array reference each
+  // time; scrolling on every one of those fights the user's own scroll-up
+  // while results are still streaming in.
+  const scrollTrackRef = useRef<{ activeId: string | null; count: number }>({ activeId: null, count: 0 })
   useEffect(() => {
-    bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
-  }, [messages])
+    const prev = scrollTrackRef.current
+    const shouldScroll = activeId !== prev.activeId || messages.length > prev.count
+    scrollTrackRef.current = { activeId, count: messages.length }
+    if (shouldScroll) {
+      bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
+    }
+  }, [messages, activeId])
 
   function updateConversationMessages(id: string, updater: (msgs: ChatMessage[]) => ChatMessage[]) {
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, messages: updater(c.messages) } : c)))
