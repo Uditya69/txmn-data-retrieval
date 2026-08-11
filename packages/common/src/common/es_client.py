@@ -92,33 +92,83 @@ async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
     return results
 
 
-_TERM_FILTER_FIELDS = {
-    "court": "masterinfo.info.court.name",
-    "act": "masterinfo.info.act.name",
-    "section": "masterinfo.info.section.name",
-    "bench": "masterinfo.info.bench.name",
-    "judge": "otherinfo.judge.name",
+# court/bench/section/act filters used to target masterinfo.info.{court,act,section,bench}
+# .name - confirmed 0% populated across all 410,427 docs in the live index (every content
+# group), so those filters silently matched nothing. Real signal lives elsewhere: see each
+# helper below. judge/party/date_range are untouched - their fields are genuinely populated
+# (otherinfo.judge.name 99.4%, otherinfo.partyname.name 100%, formatteddocumentdate 100%).
+_FUZZY_FALLBACK_KEYS = {"court", "bench", "section", "judge"}
+
+_COURT_HEADING_ALIASES = {
+    "supreme court": "SC",
+    "delhi high court": "Delhi",
+    "bombay high court": "Bombay",
+    "madras high court": "Madras",
+    "calcutta high court": "Calcutta",
+    "karnataka high court": "Karnataka",
+    "gujarat high court": "Gujarat",
+    "income tax appellate tribunal": "Trib.",
+    "customs excise and service tax appellate tribunal": "CESTAT",
 }
+
+
+def _resolve_heading_term(value: str) -> str:
+    """Courts/benches appear inside `heading` as an abbreviation (e.g. "(SC)" for Supreme
+    Court - confirmed correlated with that court's own court_boost=294.8 value; "(Bombay)"
+    for Bombay High Court), not in masterinfo.info.{court,bench}.name. This maps the full
+    name AI Mode extracts to the literal abbreviation that appears in heading; an
+    unrecognized value is passed through unchanged so a filter never silently drops a
+    court/bench this map doesn't know about."""
+    return _COURT_HEADING_ALIASES.get(value.strip().lower(), value)
+
+
+def _section_heading_queries(value: str, phrase: bool) -> list[dict]:
+    """ACT/RULE-group documents' `heading` field is the section/rule identifier itself,
+    verbatim (e.g. "Section - 184", "Rule - 37CA") - the only real signal for a section
+    filter, since masterinfo.info.section.name is confirmed 0% populated."""
+    match_type = "match_phrase" if phrase else "match"
+    num = value.strip()
+    return [
+        {match_type: {"heading": f"Section - {num}"}},
+        {match_type: {"heading": f"Rule - {num}"}},
+    ]
 
 
 def _build_filter_must(filters: dict, fuzzy: bool) -> list[dict]:
     must = []
-    for key, field in _TERM_FILTER_FIELDS.items():
-        if key not in filters:
-            continue
+    match_type = "match" if fuzzy else "match_phrase"
+
+    for key in ("court", "bench"):
+        if key in filters:
+            must.append({match_type: {"heading": _resolve_heading_term(filters[key])}})
+
+    if "section" in filters:
+        must.append({"bool": {"should": _section_heading_queries(filters["section"], phrase=not fuzzy)}})
+
+    if "act" in filters:
+        # No field in this index reliably links a document back to its specific parent Act
+        # (masterinfo.info.act.name, incometaxactinfo, companyactinfo all confirmed 0%
+        # populated; `categories` only gives subject area, not the Act itself) - this is a
+        # best-effort full-text match, not an exact filter, until that data exists.
+        must.append({"match": {"fullcontent": filters["act"]}})
+
+    if "judge" in filters:
         must.append(
-            {"match": {field: filters[key]}} if fuzzy
-            else {"term": {f"{field}.keyword": filters[key]}}
+            {"match": {"otherinfo.judge.name": filters["judge"]}} if fuzzy
+            else {"term": {"otherinfo.judge.name.keyword": filters["judge"]}}
         )
+
     if "party" in filters:
         # operator "and" requires every name token to match - a plain match
         # query ORs analyzed tokens, so "Meenaben Maheshchandra Patel" would
         # match any document naming a party with just "Patel" (a very common
         # surname), effectively returning almost the whole index unfiltered.
         must.append({"match": {"otherinfo.partyname.name": {"query": filters["party"], "operator": "and"}}})
+
     date_range = filters.get("date_range")
     if isinstance(date_range, dict) and ("gte" in date_range or "lte" in date_range):
         must.append({"range": {"formatteddocumentdate": date_range}})
+
     return must
 
 
@@ -130,7 +180,7 @@ async def resolve_doc_id_allowlist(client, filters: dict) -> list[str] | None:
         raise ValueError(f"No recognized filter keys in {filters!r}")
     response = await client.search(index=client.index, query={"bool": {"must": must}}, size=1000)
     hits = response["hits"]["hits"]
-    if not hits and any(key in filters for key in _TERM_FILTER_FIELDS):
+    if not hits and any(key in filters for key in _FUZZY_FALLBACK_KEYS):
         fuzzy_must = _build_filter_must(filters, fuzzy=True)
         response = await client.search(index=client.index, query={"bool": {"must": fuzzy_must}}, size=1000)
         hits = response["hits"]["hits"]
