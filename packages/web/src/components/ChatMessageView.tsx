@@ -140,8 +140,8 @@ function InstantPane({ result, devMode, onOpenDocument }: { result: ResultState 
   )
 }
 
-function renderAnswer(answer: string) {
-  const parsed = parseCitations(answer)
+function renderAnswer(answer: string, knownDocIds: Set<string>) {
+  const parsed = parseCitations(answer, knownDocIds)
   const paragraphs = groupIntoParagraphs(parsed.segments)
   return { paragraphs, citations: parsed.citations }
 }
@@ -161,7 +161,13 @@ function AnswerPane({
   const answerText = mode === 'classic' ? (result?.aiMode?.ok ? result.aiMode.answer : '') : result?.agent?.ok ? result.agent.answer : ''
   const errorText = mode === 'classic' ? (result?.aiMode && !result.aiMode.ok ? result.aiMode.error : null) : result?.agent && !result.agent.ok ? result.agent.error : null
   const docIds = mode === 'agent' && result?.agent?.ok ? result.agent.docIds : []
-  const { paragraphs, citations } = answerText ? renderAnswer(answerText) : { paragraphs: [], citations: [] }
+  // DB-sourced doc_id allowlist for this answer - citations dict (classic) and
+  // docIds (agent) both come from ES/Milvus fetches, never from the LLM's own text.
+  const knownDocIds = useMemo(() => {
+    if (mode === 'agent') return new Set(docIds)
+    return new Set(result?.aiMode?.ok ? Object.keys(result.aiMode.citations) : [])
+  }, [mode, docIds, result])
+  const { paragraphs, citations } = answerText ? renderAnswer(answerText, knownDocIds) : { paragraphs: [], citations: [] }
 
   return (
     <div className={`flex-1 min-w-0 rounded-2xl px-4 py-3 ${SCROLL_PANE}`} style={{ background: 'var(--surface-raised)' }}>
