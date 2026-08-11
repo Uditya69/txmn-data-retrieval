@@ -146,6 +146,51 @@ function renderAnswer(answer: string, knownDocIds: Set<string>) {
   return { paragraphs, citations: parsed.citations }
 }
 
+// heading/subheading come from the citations dict the backend sends (classic mode
+// only - AI Mode's fetch_citations pulls them straight from ES, see schemas.py's
+// MASTERINFO_CITATION_FIELDS). Agent mode has no per-doc metadata, only doc_ids, so
+// cards there fall back to showing the doc_id itself.
+type CitationMeta = { heading?: string; subheading?: string }
+
+function CitedDocsStrip({
+  citations,
+  metaByDocId,
+  onOpenDocument,
+}: {
+  citations: { doc_id: string; number: number }[]
+  metaByDocId: Record<string, CitationMeta>
+  onOpenDocument: (docId: string) => void
+}) {
+  if (citations.length === 0) return null
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-3 mb-3" style={{ borderBottom: '1px solid var(--border-soft)' }}>
+      {citations.map((cite) => {
+        const meta = metaByDocId[cite.doc_id]
+        const title = meta?.heading || cite.doc_id
+        return (
+          <button
+            key={cite.doc_id}
+            onClick={() => onOpenDocument(cite.doc_id)}
+            className="text-left shrink-0 w-48 rounded-lg p-2.5 transition-colors duration-150 cursor-pointer"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border-soft)' }}
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              <span
+                className="h-4 min-w-4 px-1 flex items-center justify-center rounded text-[10px] font-semibold"
+                style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+              >
+                {cite.number}
+              </span>
+              <span className="text-xs font-mono truncate" style={{ color: 'var(--text-faint)' }}>{cite.doc_id}</span>
+            </div>
+            <p className="text-xs leading-snug line-clamp-3" style={{ color: 'var(--text)' }}>{title}</p>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function AnswerPane({
   mode,
   result,
@@ -167,6 +212,16 @@ function AnswerPane({
     if (mode === 'agent') return new Set(docIds)
     return new Set(result?.aiMode?.ok ? Object.keys(result.aiMode.citations) : [])
   }, [mode, docIds, result])
+  const metaByDocId = useMemo(() => {
+    if (mode === 'agent' || !result?.aiMode?.ok) return {}
+    const citations = result.aiMode.citations
+    return Object.fromEntries(
+      Object.keys(citations).map((docId) => {
+        const meta = citations[docId] as CitationMeta
+        return [docId, { heading: meta?.heading, subheading: meta?.subheading }]
+      }),
+    )
+  }, [mode, result])
   const { paragraphs, citations } = answerText ? renderAnswer(answerText, knownDocIds) : { paragraphs: [], citations: [] }
 
   return (
@@ -191,6 +246,7 @@ function AnswerPane({
 
       {answerText && (
         <div>
+          <CitedDocsStrip citations={citations} metaByDocId={metaByDocId} onOpenDocument={onOpenDocument} />
           {paragraphs.map((paragraph, pIndex) => (
             <p key={pIndex} className="text-[15px] leading-relaxed whitespace-pre-wrap mb-3" style={{ color: 'var(--text)' }}>
               {paragraph.map((segment, index) =>
@@ -216,22 +272,6 @@ function AnswerPane({
               )}
             </p>
           ))}
-
-          {docIds.length > 0 && (
-            <div className="mt-3 pt-3 flex flex-wrap gap-2" style={{ borderTop: '1px solid var(--border-soft)' }}>
-              {docIds.map((docId, i) => (
-                <button
-                  key={docId}
-                  onClick={() => onOpenDocument(docId)}
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-mono transition-colors duration-150 cursor-pointer"
-                  style={{ background: 'var(--surface)', color: 'var(--text-muted)' }}
-                >
-                  <span style={{ color: 'var(--accent)' }}>{i + 1}</span>
-                  {docId}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
 

@@ -364,6 +364,8 @@ async def test_resolve_doc_id_allowlist_queries_fullcontent_for_act_as_best_effo
 async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
     client = FakeAsyncES(mget_docs={
         "d1": {
+            "heading": "[2020] 1 SCC 1 (SC)",
+            "subheading": "State v. Doe",
             "masterinfo": {"info": {"court": "Supreme Court"}, "citations": ["2020 SCC 1"]},
             "otherinfo": {"judge": "J. Smith", "partyname": "State v. Doe"},
             "judgment_text": "irrelevant text that should not be returned",
@@ -374,6 +376,8 @@ async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
 
     assert result == {
         "d1": {
+            "heading": "[2020] 1 SCC 1 (SC)",
+            "subheading": "State v. Doe",
             "masterinfo": {"info": {"court": "Supreme Court"}, "citations": ["2020 SCC 1"]},
             "otherinfo": {"judge": "J. Smith", "partyname": "State v. Doe"},
         }

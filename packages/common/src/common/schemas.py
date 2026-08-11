@@ -13,6 +13,8 @@ BM25_SOURCE_FIELD["metadata"] = "heading_subheading_text"
 SPARSE_VECTOR_COLLECTIONS = set(MILVUS_COLLECTIONS) - {"ruling"}
 
 MASTERINFO_CITATION_FIELDS = [
+    "heading",
+    "subheading",
     "masterinfo.citations",
     "masterinfo.info.court",
     "masterinfo.info.bench",
