@@ -140,6 +140,9 @@ async def test_run_instant_returns_partial_result_when_gateway_embed_fails(monke
 
 @pytest.mark.asyncio
 async def test_run_instant_returns_reranked_list_when_rerank_flag_set(monkeypatch):
+    """d1 is an ES-only hit (no corresponding Milvus row) - reranking only ever
+    fuses/reranks Milvus-sourced doc_ids, so d1 is correctly dropped from the
+    reranked view rather than sent to the reranker as a full ES document."""
     import retrieval_api.instant.search as search_module
 
     async def fake_raw_search(client, query, limit=20):
@@ -148,23 +151,19 @@ async def test_run_instant_returns_reranked_list_when_rerank_flag_set(monkeypatc
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
         return {"ruling": [{"chunk_id": "d2::ruling::0", "doc_id": "d2", "text": "t", "score": 0.9}]}
 
-    async def fake_fetch_fulltext_batch(client, doc_ids):
-        return {doc_id: "full text" for doc_id in doc_ids}
-
     monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
     monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
-    monkeypatch.setattr("retrieval_api.instant.rerank.fetch_fulltext_batch", fake_fetch_fulltext_batch)
 
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]
-    gateway.rerank.return_value = [0.9, 0.7]
+    gateway.rerank.return_value = [0.9]
 
     result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q", rerank=True)
 
     assert "es" not in result
     assert "milvus" not in result
     assert result["reranked_error"] is None
-    assert {row["doc_id"] for row in result["reranked"]} == {"d1", "d2"}
+    assert {row["doc_id"] for row in result["reranked"]} == {"d2"}
 
 
 @pytest.mark.asyncio

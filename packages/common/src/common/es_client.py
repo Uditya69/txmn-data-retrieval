@@ -229,20 +229,6 @@ async def fetch_document_metadata(client, doc_id: str) -> dict | None:
     }
 
 
-async def fetch_fulltext_batch(client, doc_ids: list[str]) -> dict[str, str]:
-    """Batched sibling of fetch_fullcontent for the Instant-mode reranker: one mget
-    instead of N sequential searches, restricted to fullcontent (the field actually
-    fed to the reranker)."""
-    if not doc_ids:
-        return {}
-    response = await client.mget(index=client.index, ids=doc_ids, _source=["fullcontent"])
-    return {
-        doc["_id"]: doc["_source"].get("fullcontent", "")
-        for doc in response["docs"]
-        if doc.get("found")
-    }
-
-
 async def fetch_citations(client, doc_ids: list[str]) -> dict[str, dict]:
     if not doc_ids:
         return {}

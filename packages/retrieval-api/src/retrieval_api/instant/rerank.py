@@ -1,12 +1,17 @@
-from common.es_client import fetch_fulltext_batch
 from retrieval_api.gateway_client import GatewayClient
+from retrieval_api.rrf_utils import apply_es_doc_boost
 from retrieval_api.score_cutoff import elbow_cutoff
 
 # Opt-in override of CLAUDE.md hard rule 3 ("no ranking fusion between ES and
-# Milvus"): RRF fuses by *rank position*, not raw score, so it never blends
-# the incomparable ES-lexical-score and Milvus-cosine/BM25-distance scales
-# the original rule guards against. Only reachable behind the `rerank`
-# toggle - default (off) behavior is untouched.
+# Milvus"): RRF fuses Milvus dense+sparse by *rank position*, and ES only ever
+# contributes a rank-based boost to a doc_id Milvus already surfaced (never an
+# ES-only row) - so this never blends the incomparable ES-lexical-score and
+# Milvus-cosine/BM25-distance scales the original rule guards against. Reranking
+# only ever sees Milvus chunk text (already in each row), never a full ES
+# document - the earlier full-fulltext-fetch-and-rerank design was the actual
+# source of Instant rerank's latency (20 full case-law documents per query is
+# far more reranker input than 20 short chunks). Only reachable behind the
+# `rerank` toggle - default (off) behavior is untouched.
 _TOP_N_CANDIDATES = 20
 
 _SHAPE_RRF_WEIGHTS: dict[str, dict[str, float]] = {
@@ -14,6 +19,7 @@ _SHAPE_RRF_WEIGHTS: dict[str, dict[str, float]] = {
     "provision": {"es": 1.5, "milvus_dense": 0.5, "milvus_sparse": 1.5},
     "plain": {"es": 1.0, "milvus_dense": 1.5, "milvus_sparse": 0.5},
 }
+_DEFAULT_WEIGHTS = {"es": 1.0, "milvus_dense": 1.0, "milvus_sparse": 1.0}
 
 
 def _collapse_to_doc_id(rows: list[dict]) -> list[dict]:
@@ -51,32 +57,26 @@ def rrf_merge_by_doc_id(sources: dict[str, list[dict]], weights: dict[str, float
 
 async def rerank_instant_results(
     gateway: GatewayClient,
-    es_client,
     query: str,
     shape: str,
     es_result: list[dict],
     milvus_dense: dict[str, list[dict]],
     milvus_sparse: dict[str, list[dict]],
 ) -> list[dict]:
-    weights = _SHAPE_RRF_WEIGHTS.get(shape, {"es": 1.0, "milvus_dense": 1.0, "milvus_sparse": 1.0})
+    weights = _SHAPE_RRF_WEIGHTS.get(shape, _DEFAULT_WEIGHTS)
     fused = rrf_merge_by_doc_id(
         {
-            "es": es_result,
             "milvus_dense": _flatten_by_score(milvus_dense),
             "milvus_sparse": _flatten_by_score(milvus_sparse),
         },
         weights,
     )
-    top_candidates = fused[:_TOP_N_CANDIDATES]
-
-    fulltext = await fetch_fulltext_batch(es_client, [row["doc_id"] for row in top_candidates])
-    candidates = [row for row in top_candidates if fulltext.get(row["doc_id"])]
+    boosted = apply_es_doc_boost(fused, es_result, weight=weights.get("es", 1.0))
+    candidates = [row for row in boosted[:_TOP_N_CANDIDATES] if row.get("text")]
     if not candidates:
         return []
 
-    scores = await gateway.rerank(
-        role="reranker", query=query, documents=[fulltext[row["doc_id"]] for row in candidates],
-    )
+    scores = await gateway.rerank(role="reranker", query=query, documents=[row["text"] for row in candidates])
     scored = [{**row, "rerank_score": score} for row, score in zip(candidates, scores)]
     scored.sort(key=lambda row: row["rerank_score"], reverse=True)
     cutoff = elbow_cutoff([row["rerank_score"] for row in scored])

@@ -4,6 +4,7 @@ from common.milvus_client import hybrid_search
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.gateway_client import GatewayClient
+from retrieval_api.rrf_utils import apply_es_doc_boost
 from retrieval_api.trace_utils import collection_trace
 
 _INTENT_RRF_WEIGHTS: dict[str, tuple[float, float]] = {
@@ -14,35 +15,6 @@ _INTENT_RRF_WEIGHTS: dict[str, tuple[float, float]] = {
 }
 
 _ES_BOOST_LIMIT = 10
-_ES_BOOST_K = 60
-_ES_BOOST_WEIGHT = 1.0
-
-
-def _apply_es_doc_boost(
-    merged: list[dict], es_hits: list[dict], k: int = _ES_BOOST_K, weight: float = _ES_BOOST_WEIGHT,
-) -> list[dict]:
-    """ES's top-N doc_ids for the same query are a rank-based confirming signal, not a raw
-    score, so this stays inside CLAUDE.md rule 3's rank-position-only fusion rule. Boosted
-    once per doc_id (the single best-scoring chunk already in `merged`), not fanned out to
-    every chunk sharing that doc_id - a document with many surviving chunks shouldn't get
-    the same ES signal counted multiple times."""
-    es_rank_by_doc_id = {row["doc_id"]: rank for rank, row in enumerate(es_hits, start=1)}
-    if not es_rank_by_doc_id:
-        return merged
-
-    best_row_by_doc_id: dict[str, dict] = {}
-    for row in merged:
-        doc_id = row["doc_id"]
-        if doc_id not in es_rank_by_doc_id:
-            continue
-        current_best = best_row_by_doc_id.get(doc_id)
-        if current_best is None or row["rrf_score"] > current_best["rrf_score"]:
-            best_row_by_doc_id[doc_id] = row
-
-    for doc_id, row in best_row_by_doc_id.items():
-        row["rrf_score"] += weight / (k + es_rank_by_doc_id[doc_id])
-
-    return sorted(merged, key=lambda row: row["rrf_score"], reverse=True)
 
 
 def rrf_merge(
@@ -101,7 +73,7 @@ async def retrieve(
 
     if get_settings().ai_mode_es_boost_enabled:
         es_hits = await raw_search(es_client, rewritten_query, limit=_ES_BOOST_LIMIT)
-        merged = _apply_es_doc_boost(merged, es_hits)
+        merged = apply_es_doc_boost(merged, es_hits)
         if on_step is not None:
             await on_step("es_boost", {
                 "es_doc_ids": [row["doc_id"] for row in es_hits],

@@ -297,46 +297,6 @@ async def test_retrieve_includes_resolved_weights_in_rrf_merge_trace_step(monkey
     assert rrf_step["sparse_weight"] == 1.5
 
 
-def test_apply_es_doc_boost_boosts_only_the_best_scoring_chunk_per_doc_id():
-    from retrieval_api.ai_mode.retrieve import _apply_es_doc_boost
-
-    merged = [
-        {"chunk_id": "a", "doc_id": "d1", "rrf_score": 0.02},
-        {"chunk_id": "b", "doc_id": "d1", "rrf_score": 0.01},
-        {"chunk_id": "c", "doc_id": "d2", "rrf_score": 0.015},
-    ]
-    es_hits = [{"doc_id": "d1"}]
-
-    boosted = _apply_es_doc_boost(merged, es_hits, k=60, weight=1.0)
-
-    boosted_by_chunk = {row["chunk_id"]: row["rrf_score"] for row in boosted}
-    assert boosted_by_chunk["a"] == pytest.approx(0.02 + 1.0 / 61)
-    assert boosted_by_chunk["b"] == pytest.approx(0.01)  # not the best chunk for d1 - untouched
-    assert boosted_by_chunk["c"] == pytest.approx(0.015)  # d2 never appeared in es_hits
-
-
-def test_apply_es_doc_boost_reorders_by_boosted_score():
-    from retrieval_api.ai_mode.retrieve import _apply_es_doc_boost
-
-    merged = [
-        {"chunk_id": "a", "doc_id": "d1", "rrf_score": 0.01},
-        {"chunk_id": "b", "doc_id": "d2", "rrf_score": 0.012},
-    ]
-    es_hits = [{"doc_id": "d1"}]  # rank-1 ES hit for d1 should push it above d2
-
-    boosted = _apply_es_doc_boost(merged, es_hits, k=60, weight=1.0)
-
-    assert boosted[0]["chunk_id"] == "a"
-
-
-def test_apply_es_doc_boost_returns_unchanged_when_no_es_hits():
-    from retrieval_api.ai_mode.retrieve import _apply_es_doc_boost
-
-    merged = [{"chunk_id": "a", "doc_id": "d1", "rrf_score": 0.01}]
-
-    boosted = _apply_es_doc_boost(merged, [])
-
-    assert boosted == merged
 
 
 @pytest.mark.asyncio

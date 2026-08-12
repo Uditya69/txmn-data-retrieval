@@ -100,7 +100,7 @@ async def run_instant(
         if reranked_error is None:
             try:
                 reranked = await rerank_instant_results(
-                    gateway, es_client, query, classify_query_shape(query),
+                    gateway, query, classify_query_shape(query),
                     es_result or [], milvus_dense or {}, milvus_sparse or {},
                 )
                 if on_step is not None:
