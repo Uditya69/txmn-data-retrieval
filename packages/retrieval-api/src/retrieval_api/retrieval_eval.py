@@ -22,9 +22,10 @@ from retrieval_api.ai_mode.citations import prefetch_citations
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
 from retrieval_api.ai_mode.intent import extract_intent
 from retrieval_api.ai_mode.rerank import rerank_top_chunks
-from retrieval_api.ai_mode.retrieve import _flatten, _INTENT_RRF_WEIGHTS, rrf_merge
+from retrieval_api.ai_mode.retrieve import _ES_BOOST_LIMIT, _flatten, _INTENT_RRF_WEIGHTS, rrf_merge
 from retrieval_api.ai_mode.synthesize import synthesize
 from retrieval_api.gateway_client import GatewayClient
+from retrieval_api.rrf_utils import apply_es_doc_boost
 from retrieval_api.score_cutoff import elbow_cutoff
 
 # One query per class from each era band (1927-1965, 1995-2017, 2025-2026),
@@ -169,6 +170,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             rewritten_dense = cached["rewritten_dense"]
             rewritten_sparse = cached["rewritten_sparse"]
             merged = cached["merged"]
+            es_boost_hits = cached["es_boost_hits"]
             reranked = cached["reranked"]
             timings["stage_cache"] = 0.0
         else:
@@ -205,6 +207,14 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                 _flatten(rewritten_dense), _flatten(rewritten_sparse),
                 dense_weight=dense_weight, sparse_weight=sparse_weight,
             )
+
+            es_boost_hits: list[dict] = []
+            if merged and get_settings().ai_mode_es_boost_enabled:
+                es_boost_hits = await measured(
+                    "es_boost", raw_search(es_client, rewritten_query, limit=_ES_BOOST_LIMIT),
+                ) or []
+                merged = apply_es_doc_boost(merged, es_boost_hits)
+
             reranked = await measured(
                 "reranker", rerank_top_chunks(gateway, query, merged, top_n=len(merged), model=reranker_model),
             ) if merged else []
@@ -214,7 +224,8 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                 _save_stage_cache(cache_path, {
                     "es_rows": es_rows, "raw_dense": raw_dense, "raw_sparse": raw_sparse,
                     "rewritten_query": rewritten_query, "rewritten_dense": rewritten_dense,
-                    "rewritten_sparse": rewritten_sparse, "merged": merged, "reranked": reranked,
+                    "rewritten_sparse": rewritten_sparse, "merged": merged,
+                    "es_boost_hits": es_boost_hits, "reranked": reranked,
                 })
 
         dense_flat = _flatten(rewritten_dense)
@@ -275,6 +286,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             "id": case["id"], "pair": case.get("pair"), "class": case["class"],
             "query": query, "gold_doc_ids": case["gold_doc_ids"],
             "rewritten_query": rewritten_query, "pass_at": case["pass_at"],
+            "es_boost_doc_ids": [row["doc_id"] for row in es_boost_hits],
             "ranks": ranks,
             "collection_ranks": {
                 "raw_dense": _collection_ranks(raw_dense, gold),
@@ -385,6 +397,7 @@ async def _run(args) -> int:
                 "reranker_model": args.reranker_model,
                 "synthesis_model": args.synthesis_model,
                 "skip_agentic": args.skip_agentic,
+                "ai_mode_es_boost_enabled": get_settings().ai_mode_es_boost_enabled,
             },
             "results": results,
         }

@@ -485,7 +485,9 @@ async def test_evaluate_case_reuses_stage_cache_and_skips_retrieval_calls(tmp_pa
         case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False,
         skip_agentic=True, cache_dir=tmp_path,
     )
-    assert calls["raw_search"] == 1 and calls["hybrid_search"] == 4 and calls["extract_intent"] == 1
+    # raw_search is called twice: once for the "es" stage, once for the
+    # ai_mode_es_boost_enabled (default True) doc-boost signal after rrf_merge.
+    assert calls["raw_search"] == 2 and calls["hybrid_search"] == 4 and calls["extract_intent"] == 1
     assert calls["rerank_top_chunks"] == 1 and calls["synthesize"] == 1
 
     # Second call with a different synthesis_model but the SAME slm/reranker
@@ -496,7 +498,7 @@ async def test_evaluate_case_reuses_stage_cache_and_skips_retrieval_calls(tmp_pa
         skip_agentic=True, cache_dir=tmp_path, synthesis_model="candidate-model",
     )
 
-    assert calls["raw_search"] == 1 and calls["hybrid_search"] == 4 and calls["extract_intent"] == 1
+    assert calls["raw_search"] == 2 and calls["hybrid_search"] == 4 and calls["extract_intent"] == 1
     assert calls["rerank_top_chunks"] == 1  # unchanged - still only the first call
     assert calls["synthesize"] == 2  # synthesize ran again
     assert first["ranks"] == second["ranks"]
