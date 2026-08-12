@@ -43,14 +43,29 @@ def expand_query_synonyms(query: str) -> str:
     return f"{query} {' '.join(extra)}" if extra else query
 
 
+_SECTION_KEYWORDS = {"section", "sec", "sec.", "u/s", "rule", "article"}
+_SECTION_NUMBER_PATTERN = re.compile(r"^\d+[A-Za-z]*(\(\w+\))*$")
+
+
 def merge_keyword_number(tokens: list[str]) -> list[str]:
-    """Ports queryAnalyzer.js's KEYWORD-type merge rule: a keyword followed by a number
-    merges into one token ("Section" + "6" -> "Section 6"); if the next token isn't
-    numeric, backtrack by leaving both tokens as they were."""
+    """Ports queryAnalyzer.js's KEYWORD-type merge rule: a keyword (section/sec/u/s/rule/
+    article - the same set SECTION_PATTERN recognizes) followed by a section-number-shaped
+    token merges into one token ("Section" + "6" -> "Section 6", "Section" + "5(8)" ->
+    "Section 5(8)"); if tokens[i] isn't a recognized keyword or the next token isn't
+    section-number-shaped, backtrack by leaving both tokens as they were. Without the
+    keyword check, this used to merge ANY word followed by a bare number ("Spa" + "175" ->
+    "Spa 175"), producing boost phrases that don't exist verbatim in any document and
+    shredding real citations like "175 taxmann.com 251" into unrelated fragments; without
+    the letter/subsection allowance, genuine refs like "Section 5(8)" or "Section 69C"
+    never merged at all since "5(8)"/"69C" aren't pure digits."""
     result = []
     i = 0
     while i < len(tokens):
-        if i + 1 < len(tokens) and tokens[i + 1].isdigit():
+        if (
+            i + 1 < len(tokens)
+            and tokens[i].lower() in _SECTION_KEYWORDS
+            and _SECTION_NUMBER_PATTERN.match(tokens[i + 1])
+        ):
             result.append(f"{tokens[i]} {tokens[i + 1]}")
             i += 2
         else:
@@ -81,6 +96,34 @@ def merge_court_city(tokens: list[str]) -> list[str]:
     return result
 
 
+def merge_citation_span(tokens: list[str]) -> list[str]:
+    """Merges a <volume-number> <journal-abbreviation> <page-number> run into a single
+    phrase token ("133" + "taxmann.com" + "196" -> "133 taxmann.com 196") - the same
+    general citation shape CITATION_PATTERN recognizes, but driven by the data-backed
+    is_known_journal lexicon rather than a regex, since real query text writes the
+    journal abbreviation with punctuation ("taxmann.com") that a bare letter-run regex
+    wouldn't reliably bound. Without this, a citation's three tokens stayed loose and
+    unboosted - the only phrase boosts available were Section/Rule/Article refs, so a
+    query naming an exact case citation had no way to boost the one span most likely to
+    pin the correct document. Backtracks (leaves tokens separate) unless all three
+    tokens are present and shaped correctly."""
+    result = []
+    i = 0
+    while i < len(tokens):
+        if (
+            i + 2 < len(tokens)
+            and tokens[i].isdigit()
+            and is_known_journal(tokens[i + 1])
+            and tokens[i + 2].isdigit()
+        ):
+            result.append(" ".join(tokens[i:i + 3]))
+            i += 3
+        else:
+            result.append(tokens[i])
+            i += 1
+    return result
+
+
 def strip_stopwords(tokens: list[str]) -> list[str]:
     """Ports queryAnalyzer.js's stopword-skip rule, with the journal-never-discard
     exception: a token recognized as a journal abbreviation is kept even if it would
@@ -101,11 +144,15 @@ def extract_quoted_phrases(query: str) -> list[str]:
 
 
 def extract_boost_phrases(query: str) -> list[str]:
-    """Runs the full queryAnalyzer.js-ported pipeline (quote grouping -> keyword+number merge
-    -> court+city merge -> stopword strip) and returns only the multi-word survivors - a
-    quoted span or a merge like "Section 6"/"Delhi High Court" is a precise concept worth a
-    phrase-match boost layered on top of the loose base query, unlike a lone leftover word."""
+    """Runs the full queryAnalyzer.js-ported pipeline (quote grouping -> citation-span merge
+    -> keyword+number merge -> court+city merge -> stopword strip) and returns only the
+    multi-word survivors - a quoted span or a merge like "133 taxmann.com 196"/"Section 6"/
+    "Delhi High Court" is a precise concept worth a phrase-match boost layered on top of the
+    loose base query, unlike a lone leftover word. Citation-span merge runs first since it's
+    the most specific (three-token) shape - keyword+number merge only looks at two tokens at
+    a time, so running it first could never consume a mid-span token a citation merge needs."""
     tokens = extract_quoted_phrases(query)
+    tokens = merge_citation_span(tokens)
     tokens = merge_keyword_number(tokens)
     tokens = merge_court_city(tokens)
     tokens = strip_stopwords(tokens)
