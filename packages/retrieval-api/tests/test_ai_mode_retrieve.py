@@ -4,6 +4,10 @@ import pytest
 from retrieval_api.ai_mode.retrieve import rrf_merge, retrieve
 
 
+async def _no_es_hits(*args, **kwargs):
+    return []
+
+
 def test_rrf_merge_combines_and_ranks_by_reciprocal_rank():
     dense = [{"chunk_id": "a", "text": "A"}, {"chunk_id": "b", "text": "B"}]
     sparse = [{"chunk_id": "b", "text": "B"}, {"chunk_id": "c", "text": "C"}]
@@ -72,8 +76,11 @@ async def test_retrieve_embeds_rewritten_query_and_merges_dense_sparse(monkeypat
         return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 5.0}]}
 
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "raw_search", _no_es_hits)
 
-    result = await retrieve(gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=["d1"])
+    result = await retrieve(
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q", doc_id_allowlist=["d1"],
+    )
 
     gateway.embed.assert_awaited_once_with(role="query_embed", text="q")
     assert result[0]["chunk_id"] == "a"
@@ -110,14 +117,18 @@ async def test_retrieve_emits_dense_sparse_and_rrf_merge_steps(monkeypatch):
         return {"ruling": [{"chunk_id": "b", "doc_id": "d1", "text": "sparse text", "score": 5.0}]}
 
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "raw_search", _no_es_hits)
     steps = []
 
     async def on_step(step, data):
         steps.append(step)
 
-    result = await module.retrieve(gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=None, on_step=on_step)
+    result = await module.retrieve(
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q",
+        doc_id_allowlist=None, on_step=on_step,
+    )
 
-    assert steps == ["milvus_dense", "milvus_sparse", "rrf_merge"]
+    assert steps == ["milvus_dense", "milvus_sparse", "es_boost", "rrf_merge"]
     assert {row["chunk_id"] for row in result} == {"a", "b"}
 
 
@@ -134,9 +145,11 @@ async def test_retrieve_resolves_conceptual_intent_to_dense_weighted_rrf(monkeyp
         return {"ruling": [{"chunk_id": "c", "doc_id": "d2", "text": "sparse", "score": 5.0}]}
 
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "raw_search", _no_es_hits)
 
     result = await module.retrieve(
-        gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=None, intent="conceptual",
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q",
+        doc_id_allowlist=None, intent="conceptual",
     )
 
     # conceptual -> dense_weight=1.5, sparse_weight=0.5: the dense-only chunk
@@ -157,9 +170,11 @@ async def test_retrieve_resolves_citation_lookup_intent_to_sparse_weighted_rrf(m
         return {"ruling": [{"chunk_id": "c", "doc_id": "d2", "text": "sparse", "score": 5.0}]}
 
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "raw_search", _no_es_hits)
 
     result = await module.retrieve(
-        gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=None, intent="citation_lookup",
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q",
+        doc_id_allowlist=None, intent="citation_lookup",
     )
 
     assert result[0]["chunk_id"] == "c"
@@ -178,15 +193,18 @@ async def test_retrieve_defaults_to_neutral_weighting_for_unrecognized_intent(mo
         return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "sparse", "score": 5.0}]}
 
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "raw_search", _no_es_hits)
 
     # Neither "unknown" (a real intent label) nor a totally unrecognized
     # string should raise or behave differently from each other - both must
     # resolve to neutral (1.0, 1.0) weighting.
     result_unknown = await module.retrieve(
-        gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=None, intent="unknown",
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q",
+        doc_id_allowlist=None, intent="unknown",
     )
     result_unrecognized = await module.retrieve(
-        gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=None, intent="not_a_real_label",
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q",
+        doc_id_allowlist=None, intent="not_a_real_label",
     )
 
     assert result_unknown[0]["rrf_score"] == result_unrecognized[0]["rrf_score"]
@@ -206,8 +224,11 @@ async def test_retrieve_defaults_intent_param_to_unknown_when_omitted(monkeypatc
         return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 0.9}]}
 
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "raw_search", _no_es_hits)
 
-    result = await module.retrieve(gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=None)
+    result = await module.retrieve(
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q", doc_id_allowlist=None,
+    )
 
     assert result[0]["chunk_id"] == "a"
 
@@ -221,6 +242,7 @@ async def test_retrieve_kill_switch_forces_neutral_weighting_regardless_of_inten
 
     class FakeSettings:
         intent_rrf_weighting_enabled = False
+        ai_mode_es_boost_enabled = False
 
     monkeypatch.setattr(module, "get_settings", lambda: FakeSettings())
 
@@ -239,7 +261,7 @@ async def test_retrieve_kill_switch_forces_neutral_weighting_regardless_of_inten
         steps.append((step, data))
 
     await module.retrieve(
-        gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=None,
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q", doc_id_allowlist=None,
         intent="citation_lookup", on_step=on_step,
     )
 
@@ -259,16 +281,122 @@ async def test_retrieve_includes_resolved_weights_in_rrf_merge_trace_step(monkey
         return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 0.9}]}
 
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "raw_search", _no_es_hits)
     steps = []
 
     async def on_step(step, data):
         steps.append((step, data))
 
     await module.retrieve(
-        gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=None,
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q", doc_id_allowlist=None,
         intent="provision_lookup", on_step=on_step,
     )
 
     rrf_step = next(data for step, data in steps if step == "rrf_merge")
     assert rrf_step["dense_weight"] == 0.5
     assert rrf_step["sparse_weight"] == 1.5
+
+
+def test_apply_es_doc_boost_boosts_only_the_best_scoring_chunk_per_doc_id():
+    from retrieval_api.ai_mode.retrieve import _apply_es_doc_boost
+
+    merged = [
+        {"chunk_id": "a", "doc_id": "d1", "rrf_score": 0.02},
+        {"chunk_id": "b", "doc_id": "d1", "rrf_score": 0.01},
+        {"chunk_id": "c", "doc_id": "d2", "rrf_score": 0.015},
+    ]
+    es_hits = [{"doc_id": "d1"}]
+
+    boosted = _apply_es_doc_boost(merged, es_hits, k=60, weight=1.0)
+
+    boosted_by_chunk = {row["chunk_id"]: row["rrf_score"] for row in boosted}
+    assert boosted_by_chunk["a"] == pytest.approx(0.02 + 1.0 / 61)
+    assert boosted_by_chunk["b"] == pytest.approx(0.01)  # not the best chunk for d1 - untouched
+    assert boosted_by_chunk["c"] == pytest.approx(0.015)  # d2 never appeared in es_hits
+
+
+def test_apply_es_doc_boost_reorders_by_boosted_score():
+    from retrieval_api.ai_mode.retrieve import _apply_es_doc_boost
+
+    merged = [
+        {"chunk_id": "a", "doc_id": "d1", "rrf_score": 0.01},
+        {"chunk_id": "b", "doc_id": "d2", "rrf_score": 0.012},
+    ]
+    es_hits = [{"doc_id": "d1"}]  # rank-1 ES hit for d1 should push it above d2
+
+    boosted = _apply_es_doc_boost(merged, es_hits, k=60, weight=1.0)
+
+    assert boosted[0]["chunk_id"] == "a"
+
+
+def test_apply_es_doc_boost_returns_unchanged_when_no_es_hits():
+    from retrieval_api.ai_mode.retrieve import _apply_es_doc_boost
+
+    merged = [{"chunk_id": "a", "doc_id": "d1", "rrf_score": 0.01}]
+
+    boosted = _apply_es_doc_boost(merged, [])
+
+    assert boosted == merged
+
+
+@pytest.mark.asyncio
+async def test_retrieve_boosts_doc_ids_confirmed_by_es_top_hits(monkeypatch):
+    import retrieval_api.ai_mode.retrieve as module
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        if dense_vector is not None:
+            return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "dense", "score": 0.9}]}
+        return {"ruling": [{"chunk_id": "b", "doc_id": "d2", "text": "sparse", "score": 5.0}]}
+
+    async def fake_raw_search(client, query, limit=10):
+        return [{"doc_id": "d1", "score": 9.0}]
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "raw_search", fake_raw_search)
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    result = await module.retrieve(
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q",
+        doc_id_allowlist=None, on_step=on_step,
+    )
+
+    assert result[0]["doc_id"] == "d1"
+    es_boost_step = next(data for step, data in steps if step == "es_boost")
+    assert es_boost_step["es_doc_ids"] == ["d1"]
+    assert es_boost_step["boosted_doc_ids"] == ["d1"]
+
+
+@pytest.mark.asyncio
+async def test_retrieve_skips_es_search_when_kill_switch_disabled(monkeypatch):
+    import retrieval_api.ai_mode.retrieve as module
+
+    class FakeSettings:
+        intent_rrf_weighting_enabled = True
+        ai_mode_es_boost_enabled = False
+
+    monkeypatch.setattr(module, "get_settings", lambda: FakeSettings())
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("raw_search should not be called when the kill switch is off")
+
+    monkeypatch.setattr(module, "raw_search", fail_if_called)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 0.9}]}
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+
+    result = await module.retrieve(
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q", doc_id_allowlist=None,
+    )
+
+    assert result[0]["chunk_id"] == "a"

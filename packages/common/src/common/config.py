@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     es_verify_certs: bool = True
     gateway_url: str
     intent_rrf_weighting_enabled: bool = True
+    ai_mode_es_boost_enabled: bool = True
 
 
 @lru_cache

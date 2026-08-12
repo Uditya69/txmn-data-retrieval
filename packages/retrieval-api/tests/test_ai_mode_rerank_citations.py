@@ -138,6 +138,31 @@ async def test_rerank_and_prefetch_emits_rerank_step(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_rerank_top_chunks_caps_reranker_input_to_top_by_rrf_score_before_calling_gateway(monkeypatch):
+    import retrieval_api.ai_mode.rerank as module
+
+    monkeypatch.setattr(module, "_MAX_RERANK_CANDIDATES", 2)
+    gateway = AsyncMock()
+    gateway.rerank.return_value = [0.9, 0.5]
+    candidates = [
+        {"chunk_id": "keep-1", "text": "high rrf", "rrf_score": 0.9},
+        {"chunk_id": "keep-2", "text": "second highest rrf", "rrf_score": 0.8},
+        {"chunk_id": "dropped", "text": "low rrf, should never reach the reranker", "rrf_score": 0.01},
+    ]
+
+    await module.rerank_top_chunks(gateway, "query", candidates, top_n=2)
+
+    sent_texts = gateway.rerank.await_args.kwargs["documents"]
+    assert sent_texts == ["high rrf", "second highest rrf"]
+
+
+def test_rerank_top_chunks_default_cap_is_fifty():
+    from retrieval_api.ai_mode import rerank as module
+
+    assert module._MAX_RERANK_CANDIDATES == 50
+
+
+@pytest.mark.asyncio
 async def test_rerank_top_chunks_forwards_model_override():
     gateway = AsyncMock()
     gateway.rerank.return_value = [0.9, 0.1]

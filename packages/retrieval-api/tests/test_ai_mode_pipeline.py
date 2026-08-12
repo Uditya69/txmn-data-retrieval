@@ -17,7 +17,7 @@ async def test_run_ai_mode_success_path(monkeypatch):
 
     received_intent = {}
 
-    async def fake_retrieve(gateway, milvus_client, rewritten_query, doc_id_allowlist, intent, on_step=None):
+    async def fake_retrieve(gateway, milvus_client, es_client, rewritten_query, doc_id_allowlist, intent, on_step=None):
         received_intent["value"] = intent
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
@@ -76,7 +76,7 @@ async def test_run_ai_mode_succeeds_with_party_only_filter(monkeypatch):
             "filters": {"party": "Reliance Industries"},
         }
 
-    async def fake_retrieve(gateway, milvus_client, rewritten_query, doc_id_allowlist, intent, on_step=None):
+    async def fake_retrieve(gateway, milvus_client, es_client, rewritten_query, doc_id_allowlist, intent, on_step=None):
         assert doc_id_allowlist == ["d1"]
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
@@ -113,7 +113,7 @@ async def test_run_ai_mode_forwards_on_step_to_every_stage(monkeypatch):
         received_on_steps.append(("resolve_allowlist", on_step))
         return None
 
-    async def fake_retrieve(gateway, milvus_client, rewritten_query, doc_id_allowlist, intent, on_step=None):
+    async def fake_retrieve(gateway, milvus_client, es_client, rewritten_query, doc_id_allowlist, intent, on_step=None):
         received_on_steps.append(("retrieve", on_step))
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
@@ -146,7 +146,7 @@ async def test_run_ai_mode_forwards_on_step_to_every_stage(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_ai_mode_emits_all_seven_trace_steps_in_order_end_to_end(monkeypatch):
+async def test_run_ai_mode_emits_all_eight_trace_steps_in_order_end_to_end(monkeypatch):
     """Genuine integration test: only the true I/O boundaries (gateway calls,
     hybrid_search, resolve_doc_id_allowlist, fetch_citations) are faked. All 5
     real stage functions and the real pipeline orchestration run, so this is
@@ -169,8 +169,12 @@ async def test_run_ai_mode_emits_all_seven_trace_steps_in_order_end_to_end(monke
     async def fake_fetch_citations(client, doc_ids):
         return {doc_id: {"title": doc_id} for doc_id in doc_ids}
 
+    async def fake_raw_search(client, query, limit=10):
+        return []
+
     monkeypatch.setattr(filter_resolve_module, "resolve_doc_id_allowlist", fake_resolve_doc_id_allowlist)
     monkeypatch.setattr(retrieve_module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(retrieve_module, "raw_search", fake_raw_search)
     monkeypatch.setattr(citations_module, "fetch_citations", fake_fetch_citations)
     monkeypatch.setattr(synthesize_module, "fetch_citations", fake_fetch_citations)
 
@@ -202,6 +206,7 @@ async def test_run_ai_mode_emits_all_seven_trace_steps_in_order_end_to_end(monke
         "filters_resolved",
         "milvus_dense",
         "milvus_sparse",
+        "es_boost",
         "rrf_merge",
         "rerank",
         "synthesis_prompt",
