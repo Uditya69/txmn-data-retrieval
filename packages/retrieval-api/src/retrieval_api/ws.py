@@ -38,6 +38,7 @@ async def search(websocket: WebSocket):
     query = message["query"]
     mode = message.get("mode", "both")  # "instant" | "ai_mode" | "both"
     trace = message.get("trace", False)
+    rerank = message.get("rerank", False)
 
     settings = get_settings()
     es_client = get_es_client(settings)
@@ -66,7 +67,7 @@ async def search(websocket: WebSocket):
                 asyncio.create_task(
                     run_instant(
                         gateway, es_client, milvus_client, query,
-                        on_step=emit_trace_step if trace else None,
+                        on_step=emit_trace_step if trace else None, rerank=rerank,
                     )
                 )
                 if mode in ("instant", "both") else None

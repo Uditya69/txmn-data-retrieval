@@ -4,6 +4,7 @@ import ChatInput from './components/ChatInput'
 import { ChatMessageView } from './components/ChatMessageView'
 import DocumentReader from './components/DocumentReader'
 import DevModeToggle from './components/DevModeToggle'
+import RerankToggle from './components/RerankToggle'
 import { useSearch } from './api/useSearch'
 import { useAgentSearch } from './api/useAgentSearch'
 import { resolveWsUrl, resolveAgentWsUrl, resolveApiBaseUrl } from './lib/config'
@@ -104,6 +105,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === '1')
   const [mode, setMode] = useState<ChatMode>('classic')
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
+  const [rerank, setRerank] = useState(false)
   const [openDocId, setOpenDocId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -178,7 +180,7 @@ export default function App() {
   function runQuery(conversationId: string, assistantId: string, question: string, targetMode: ChatMode) {
     if (targetMode === 'classic') {
       pendingClassicRef.current = { conversationId, assistantId }
-      classicSearch.search(question, true, 'both')
+      classicSearch.search(question, true, 'both', rerank)
     } else {
       pendingAgentRef.current = { conversationId, assistantId }
       agentSearch.search(question)
@@ -282,7 +284,8 @@ export default function App() {
               ))}
             </div>
 
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-3">
+              <RerankToggle rerank={rerank} onToggle={setRerank} />
               <DevModeToggle devMode={devMode} onToggle={setDevMode} />
             </div>
           </div>

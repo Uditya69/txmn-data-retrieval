@@ -14,7 +14,7 @@ export interface MilvusHit {
 
 export type MilvusByCollection = Record<string, MilvusHit[]>
 
-export type CardSource = 'es' | 'milvus_dense' | 'milvus_sparse'
+export type CardSource = 'es' | 'milvus_dense' | 'milvus_sparse' | 'reranked'
 
 export interface MergedCard {
   doc_id: string
@@ -23,6 +23,28 @@ export interface MergedCard {
   score: number
   snippet: string
   heading?: string
+}
+
+// Backend rows in the rerank toggle's fused list keep whichever source's row shape
+// won the doc_id (es_client.raw_search's heading/subheading, or milvus_client's
+// chunk_id/text) - see instant/rerank.py::rrf_merge_by_doc_id. Normalized here so
+// the UI doesn't need to care which source contributed a given card.
+export interface RerankedHit {
+  doc_id: string
+  rerank_score: number
+  heading?: string
+  subheading?: string
+  text?: string
+}
+
+export function mapRerankedResults(reranked: RerankedHit[] | null | undefined): MergedCard[] {
+  return (reranked ?? []).map((hit) => ({
+    doc_id: hit.doc_id,
+    source: 'reranked',
+    score: hit.rerank_score,
+    heading: hit.heading,
+    snippet: hit.subheading ?? hit.text ?? '',
+  }))
 }
 
 function bestPerDocId(

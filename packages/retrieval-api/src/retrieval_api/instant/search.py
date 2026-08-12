@@ -5,8 +5,10 @@ from langfuse import get_client
 
 from common.es_client import raw_search
 from common.milvus_client import hybrid_search
+from common.query_tokenizer import classify_query_shape
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
+from retrieval_api.instant.rerank import rerank_instant_results
 from retrieval_api.score_cutoff import elbow_cutoff
 from retrieval_api.trace_utils import collection_trace
 
@@ -75,17 +77,34 @@ async def _run_milvus(
             return None, None, str(exc)
 
 
-async def run_instant(gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None) -> dict:
+async def run_instant(
+    gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None, rerank: bool = False,
+) -> dict:
     langfuse = get_client()
     with langfuse.start_as_current_observation(as_type="span", name="instant-search", input={"query": query}):
         (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(
             _run_es(es_client, query, on_step),
             _run_milvus(gateway, milvus_client, query, on_step),
         )
-    return {
-        "es": es_result,
-        "es_error": es_error,
-        "milvus": milvus_dense,
-        "milvus_sparse": milvus_sparse,
-        "milvus_error": milvus_error,
-    }
+        if not rerank:
+            return {
+                "es": es_result,
+                "es_error": es_error,
+                "milvus": milvus_dense,
+                "milvus_sparse": milvus_sparse,
+                "milvus_error": milvus_error,
+            }
+
+        reranked_error = es_error or milvus_error
+        reranked = []
+        if reranked_error is None:
+            try:
+                reranked = await rerank_instant_results(
+                    gateway, es_client, query, classify_query_shape(query),
+                    es_result or [], milvus_dense or {}, milvus_sparse or {},
+                )
+                if on_step is not None:
+                    await on_step("instant_reranked", {"hits": reranked})
+            except Exception as exc:  # noqa: BLE001 - branch isolation is the point
+                reranked_error = str(exc)
+    return {"reranked": reranked, "reranked_error": reranked_error}

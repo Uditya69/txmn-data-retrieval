@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import type { EsHit, MilvusByCollection } from '../lib/mergeResults'
+import type { EsHit, MilvusByCollection, RerankedHit } from '../lib/mergeResults'
 
 export type AiModeCitation = Record<string, unknown>
 
@@ -9,6 +9,8 @@ export interface InstantResult {
   milvus: MilvusByCollection | null
   milvus_sparse: MilvusByCollection | null
   milvus_error: string | null
+  reranked?: RerankedHit[] | null
+  reranked_error?: string | null
 }
 
 export type AiModeResult =
@@ -35,12 +37,12 @@ export type SearchMode = 'instant' | 'ai_mode' | 'both'
 
 export function useSearch(
   wsUrl: string,
-): SearchState & { search: (query: string, trace: boolean, mode?: SearchMode) => void } {
+): SearchState & { search: (query: string, trace: boolean, mode?: SearchMode, rerank?: boolean) => void } {
   const [state, setState] = useState<SearchState>(INITIAL_STATE)
   const socketRef = useRef<WebSocket | null>(null)
 
   const search = useCallback(
-    (query: string, trace: boolean, mode: SearchMode = 'both') => {
+    (query: string, trace: boolean, mode: SearchMode = 'both', rerank: boolean = false) => {
       socketRef.current?.close()
       setState({ loading: true, instant: null, aiMode: null, traceSteps: [], wsError: null })
 
@@ -54,7 +56,7 @@ export function useSearch(
       socketRef.current = socket
 
       socket.addEventListener('open', () => {
-        socket.send(JSON.stringify({ query, mode, trace }))
+        socket.send(JSON.stringify({ query, mode, trace, rerank }))
       })
 
       socket.addEventListener('message', (event) => {
@@ -68,6 +70,8 @@ export function useSearch(
               milvus: message.milvus ?? null,
               milvus_sparse: message.milvus_sparse ?? null,
               milvus_error: message.milvus_error ?? null,
+              reranked: message.reranked ?? null,
+              reranked_error: message.reranked_error ?? null,
             },
           }))
         } else if (message.type === 'ai_mode_trace') {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ChatMessage, ChatMode, ResultState } from '../types'
-import { mergeResults, type CardSource } from '../lib/mergeResults'
+import { mergeResults, mapRerankedResults, type CardSource } from '../lib/mergeResults'
 import { parseCitations } from '../lib/citations'
 import { groupIntoParagraphs, renderInlineText } from '../lib/richText'
 import { highlightMatches } from '../lib/highlight'
@@ -61,16 +61,17 @@ const PAGE_SIZE = 10
 
 function InstantPane({ result, devMode, onOpenDocument, query }: { result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void; query: string }) {
   const instant = result?.instant
+  const isReranked = Boolean(instant?.reranked)
   const allCards = useMemo(
-    () => mergeResults(instant?.es, instant?.milvus, instant?.milvus_sparse),
-    [instant],
+    () => (isReranked ? mapRerankedResults(instant?.reranked) : mergeResults(instant?.es, instant?.milvus, instant?.milvus_sparse)),
+    [instant, isReranked],
   )
   const [activeSources, setActiveSources] = useState<Set<CardSource>>(
     () => new Set(SOURCE_FILTERS.map((f) => f.source)),
   )
   const [page, setPage] = useState(0)
   useEffect(() => setPage(0), [instant])
-  const cards = devMode ? allCards.filter((card) => activeSources.has(card.source)) : allCards
+  const cards = devMode && !isReranked ? allCards.filter((card) => activeSources.has(card.source)) : allCards
   const pageCount = Math.max(1, Math.ceil(cards.length / PAGE_SIZE))
   const clampedPage = Math.min(page, pageCount - 1)
   const pageCards = cards.slice(clampedPage * PAGE_SIZE, clampedPage * PAGE_SIZE + PAGE_SIZE)
@@ -94,7 +95,7 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
         </span>
       </div>
 
-      {devMode && instant && (
+      {devMode && instant && !isReranked && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {SOURCE_FILTERS.map(({ source, label }) => {
             const active = activeSources.has(source)
@@ -144,7 +145,9 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
                   <span className="uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-raised)' }}>
                     {card.source === 'es'
                       ? 'ES'
-                      : `Milvus ${card.source === 'milvus_dense' ? 'dense' : 'sparse'}:${card.collection}`}
+                      : card.source === 'reranked'
+                        ? 'Reranked'
+                        : `Milvus ${card.source === 'milvus_dense' ? 'dense' : 'sparse'}:${card.collection}`}
                   </span>
                   <span className="font-mono truncate">{card.doc_id}</span>
                 </div>
