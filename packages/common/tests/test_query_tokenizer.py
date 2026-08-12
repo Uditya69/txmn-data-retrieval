@@ -1,7 +1,7 @@
 from common.query_tokenizer import (
     classify_query_shape, normalize_citation_spacing, merge_keyword_number,
-    merge_court_city, strip_stopwords, extract_quoted_phrases, expand_query_synonyms,
-    extract_boost_phrases,
+    merge_court_city, merge_citation_span, strip_stopwords, extract_quoted_phrases,
+    expand_query_synonyms, extract_boost_phrases,
 )
 
 
@@ -40,6 +40,39 @@ def test_merge_keyword_number_merges_section_and_number():
 
 def test_merge_keyword_number_backtracks_when_no_number_follows():
     assert merge_keyword_number(["Section", "Income"]) == ["Section", "Income"]
+
+
+def test_merge_keyword_number_merges_subsection_with_letter_and_parens():
+    assert merge_keyword_number(["Section", "5(8)", "Income"]) == ["Section 5(8)", "Income"]
+    assert merge_keyword_number(["Section", "69C", "cash"]) == ["Section 69C", "cash"]
+
+
+def test_merge_keyword_number_does_not_merge_non_keyword_word_before_number():
+    # a bare word immediately before a number (a party name next to a citation number,
+    # e.g. "Spa 175") is not a keyword+number pair and must not be fused into one token -
+    # doing so used to shred real citations like "175 taxmann.com 251" apart.
+    assert merge_keyword_number(["Spa", "175", "taxmann.com", "251"]) == ["Spa", "175", "taxmann.com", "251"]
+
+
+def test_merge_citation_span_merges_number_journal_number():
+    assert merge_citation_span(["133", "taxmann.com", "196", "article"]) == ["133 taxmann.com 196", "article"]
+    assert merge_citation_span(["97", "ITR", "660", "section"]) == ["97 ITR 660", "section"]
+
+
+def test_merge_citation_span_backtracks_when_middle_token_is_not_a_journal():
+    assert merge_citation_span(["money", "17", "years", "limitation"]) == ["money", "17", "years", "limitation"]
+    assert merge_citation_span(["Hotels", "Spa", "251"]) == ["Hotels", "Spa", "251"]
+
+
+def test_merge_citation_span_finds_the_real_span_even_with_a_leading_bare_number():
+    # "Spa" + "175" is not a citation ("175" isn't followed by a journal token) - the span
+    # one position later ("175 taxmann.com 251") is the real citation and must still merge.
+    assert merge_citation_span(["Spa", "175", "taxmann.com", "251"]) == ["Spa", "175 taxmann.com 251"]
+
+
+def test_extract_boost_phrases_boosts_full_citation_and_section_together():
+    query = "Sunil Chopra v CAPL Hotels Spa 175 taxmann.com 251 section 5(8) time value money 17 years limitation"
+    assert extract_boost_phrases(query) == ["175 taxmann.com 251", "section 5(8)"]
 
 
 def test_merge_court_city_merges_delhi_high_court():

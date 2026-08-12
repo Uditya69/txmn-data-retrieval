@@ -16,6 +16,13 @@ def test_is_known_journal_recognizes_itr():
     assert is_known_journal("RANDOMWORD") is False
 
 
+def test_is_known_journal_normalizes_punctuation_variants():
+    # the lexicon stores space-separated multi-word abbreviations ("TAXMANN COM"); a query
+    # token spells the same abbreviation with punctuation instead of spaces.
+    assert is_known_journal("taxmann.com") is True
+    assert is_known_journal("S.T.R.") is True
+
+
 def test_is_stopword_recognizes_able():
     assert is_stopword("ABLE") is True
     assert is_stopword("SECTION") is False

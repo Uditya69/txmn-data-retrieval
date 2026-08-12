@@ -17,7 +17,12 @@ def is_known_court(token: str) -> bool:
 
 
 def is_known_journal(token: str) -> bool:
-    return token.upper() in _JOURNALS
+    # journals are stored space-separated ("TAXMANN COM"); a query token spells the
+    # same abbreviation with punctuation ("taxmann.com", "S.T.R.") - normalizing
+    # non-alnum characters to spaces before lookup lets one lexicon entry match every
+    # punctuation variant instead of needing a duplicate entry per variant.
+    normalized = re.sub(r"[^A-Z0-9]+", " ", token.upper()).strip()
+    return normalized in _JOURNALS
 
 
 def is_stopword(token: str) -> bool:
