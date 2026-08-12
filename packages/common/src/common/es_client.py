@@ -66,7 +66,18 @@ def _wrap_function_score(field_query: dict) -> dict:
     real, populated, precomputed boost fields the live index already carries but nothing in
     this codebase used before. documenttypeboost/landmarkruling constants are centax's own
     already-tuned formula for these exact fields; court_boost's factor is new, sized to that
-    field's own smaller value range (0-294)."""
+    field's own smaller value range (0-294).
+
+    landmarkruling is populated on only 2.1% of the corpus (verified against the live index -
+    the other two boost fields are 99.9-100% populated, so this asymmetry is specific to this
+    field). A `missing` fallback there is a trap: field_value_factor's log2p(0.0001)*1.2 ~=
+    0.000173, and because boost_mode is "multiply", that's not a small penalty - it multiplies
+    the entire relevance score by ~0.0002 for 98% of the corpus, while a flagged landmark
+    ruling gets ~200x. That reduces ranking to "does this doc have any landmarkruling value at
+    all", drowning out real text relevance for nearly every query. Gating the function behind
+    an `exists` filter is the actual ES-native way to say "bonus when present, neutral
+    (1x, per function_score's own default for a non-matching filter) when absent" - no `missing`
+    tuning needed, and it leaves the other two (100%/99.9%-populated) fields untouched."""
     return {
         "function_score": {
             "query": {
@@ -78,7 +89,10 @@ def _wrap_function_score(field_query: dict) -> dict:
             "functions": [
                 {"field_value_factor": {"field": "documenttypeboost", "factor": 0.2, "modifier": "sqrt", "missing": 0.0001}},
                 {"field_value_factor": {"field": "court_boost", "factor": 0.01, "modifier": "none", "missing": 0.0001}},
-                {"field_value_factor": {"field": "landmarkruling", "factor": 1.2, "modifier": "log2p", "missing": 0.0001}},
+                {
+                    "filter": {"exists": {"field": "landmarkruling"}},
+                    "field_value_factor": {"field": "landmarkruling", "factor": 1.2, "modifier": "log2p"},
+                },
             ],
             "boost_mode": "multiply",
         }
