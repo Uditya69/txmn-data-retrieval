@@ -24,7 +24,7 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
       <form
         onSubmit={handleSubmit}
         className="flex items-center gap-2 rounded-full pl-5 pr-2 py-2"
-        style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)' }}
+        style={{ background: 'var(--surface-raised)', border: '1.5px solid var(--border-strong)' }}
       >
         <input
           type="text"

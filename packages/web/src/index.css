@@ -8,6 +8,7 @@
   --surface-raised: oklch(0.97 0.003 90);
   --surface-hover: oklch(0.94 0.004 90);
   --border: oklch(0.85 0.005 90);
+  --border-strong: oklch(0.25 0.006 90);
   --border-soft: oklch(0.91 0.004 90);
 
   --text: oklch(0.2 0.005 90);
