@@ -62,31 +62,32 @@ def _build_field_query(query: str, shape: str, boost_phrases: list[str] = ()) ->
 
 
 def _wrap_function_score(field_query: dict) -> dict:
-    """Ranking fix (design doc section 2): court_boost/documenttypeboost/landmarkruling are
-    real, precomputed boost fields the live index already carries but nothing in this codebase
-    used before. documenttypeboost/landmarkruling constants are centax's own already-tuned
-    formula for these exact fields; court_boost's factor is new, sized to that field's own
-    smaller value range (0-294).
+    """Formula kept for reference/future re-tuning - NOT called by raw_search (see the comment
+    there). Was ranking fix (design doc section 2): court_boost/documenttypeboost/landmarkruling
+    are real, precomputed boost fields the live index carries; documenttypeboost/landmarkruling
+    constants are centax's own already-tuned formula for these exact fields, court_boost's
+    factor is new, sized to that field's own smaller value range (0-294).
 
-    boost_mode is "multiply", which means every one of these functions is load-bearing: a
-    single function landing on (or defaulting to) 0 zeroes the *entire* relevance score, no
-    matter how well the text matched. That's been hit twice on the real index, not once:
-      - landmarkruling is populated on only 2.1% of the corpus (documenttypeboost 100%,
-        court_boost 99.9% - confirmed against the live index, so this is specific to this
-        field, not a general "boost fields are sparse" problem). A `missing` fallback of
-        0.0001 there is a ~30,000x penalty, not a small one, once log2p+factor+multiply
-        compound - it silently reduces ranking to "was this doc ever flagged a landmark
-        ruling", drowning out real text relevance for nearly every query.
-      - court_boost can be a real, present value of exactly 0 (not missing - seen on a live
-        Supreme Court doc). `missing` fallbacks don't even apply there; 0.01 * 0 = 0 kills the
-        product just the same.
-    Every function below is gated behind `{"range": {field: {"gt": 0}}}` instead of relying on
-    `field_value_factor`'s own `missing`/modifier handling: a range-gt-0 filter is false for a
-    missing field AND for a present-but-zero field, so both collapse to the same outcome -
-    neutral (1x, function_score's own default for a non-matching filter), never a score-killing
-    near-zero. A doc with a genuine positive value in any of these fields still gets its full
-    intended multiplicative boost; a doc without one is scored on text relevance alone instead
-    of being disqualified by an accident of missing/zero data."""
+    boost_mode "multiply" made every one of these functions load-bearing: a single function
+    landing on (or defaulting to) 0 zeroed the *entire* relevance score, no matter how well the
+    text matched. Hit twice on the real index:
+      - landmarkruling is populated on only 2.1% of the corpus. A `missing` fallback of 0.0001
+        compounded through log2p+factor+multiply into a ~30,000x penalty for the other 98%.
+      - court_boost can be a real, present value of exactly 0 (seen on a live Supreme Court
+        doc, and on 45.8% of the whole corpus - confirmed via `term: {court_boost: 0}` count).
+        0.01 * 0 = 0 kills the product just the same, `missing` fallbacks don't even apply.
+    Both were patched below (every function gated behind `{"range": {field: {"gt": 0}}}`,
+    turning missing/zero into a neutral 1x instead of a score-killing near-zero) and verified
+    fixed on the live index. But a full head-to-head Instant-mode eval run (53-query set,
+    `evals/retrieval_cases.json`) with the patched formula still active (21/53 passed) versus
+    the same run with this function_score wrapper skipped entirely (42/53 passed - pure BM25
+    text relevance, no boost) showed boosting is net-negative even fully patched: the
+    multiplicative documenttypeboost x court_boost x landmarkruling stack still routinely
+    outweighs real query-text relevance by 10-50x for docs that have strong boost values but a
+    weaker text match, burying better-matching docs that have modest/absent boost values. That
+    result is why raw_search doesn't call this - not a missing-data bug this time, an
+    architecture one (multiply-mode itself), left as a follow-up rather than further tuning
+    factors/modifiers here."""
     def _boost_function(field: str, factor: float, modifier: str) -> dict:
         return {
             "filter": {"range": {field: {"gt": 0}}},
@@ -111,12 +112,34 @@ def _wrap_function_score(field_query: dict) -> dict:
     }
 
 
+def _exclude_blacklisted(field_query: dict) -> dict:
+    """landmarkruling: -10 marks a hard-excluded/blacklisted doc (centax's own convention,
+    see _wrap_function_score's must_not) - a content filter, not a ranking signal, so it
+    stays even though the ranking boost that used to carry it (function_score) does not."""
+    return {
+        "bool": {
+            "must": [field_query],
+            "must_not": [{"term": {"landmarkruling": -10}}],
+        }
+    }
+
+
 async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
     shape = classify_query_shape(query)
     field_query = _build_field_query(
         expand_query_synonyms(query), shape, boost_phrases=extract_boost_phrases(query),
     )
-    body = _wrap_function_score(field_query)
+    # Deliberately NOT wrapped in _wrap_function_score(). Even after patching that formula's
+    # missing/zero-value bugs (see its docstring), a 53-query eval run showed the patched
+    # boosting still nearly halves pass rate versus plain text relevance (21/53 boosted vs
+    # 42/53 unboosted - evals/retrieval_cases.json). Root cause is architectural
+    # (boost_mode: "multiply" lets documenttypeboost/court_boost/landmarkruling outweigh real
+    # text relevance by 10-50x), not another missing-data instance, so it's left disabled here
+    # rather than patched further. Re-enabling requires redesigning the boost combination
+    # (e.g. bounded/additive instead of multiplicative), not just flipping this back on. The
+    # blacklist exclusion that used to ride along inside function_score's must_not is kept
+    # independently via _exclude_blacklisted, since that's a content filter, not ranking.
+    body = _exclude_blacklisted(field_query)
     response = await client.search(index=client.index, query=body, size=limit)
     results = []
     for hit in response["hits"]["hits"]:

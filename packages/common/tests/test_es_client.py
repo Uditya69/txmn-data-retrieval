@@ -98,7 +98,7 @@ async def test_raw_search_expands_known_abbreviation_into_multi_match_query_text
 
     await raw_search(client, "ACIT order on depreciation", limit=20)
 
-    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
+    sent_query = client.search_calls[0]["bool"]["must"][0]
     multi_match_query = sent_query["bool"]["should"][0]["multi_match"]["query"]
     assert "ACIT order on depreciation" in multi_match_query
     assert "ASSISTANT COMMISSIONER INCOME TAX" in multi_match_query
@@ -110,7 +110,7 @@ async def test_raw_search_adds_phrase_boost_clause_for_merged_keyword_number():
 
     await raw_search(client, "Section 6 of Income Tax Act", limit=20)
 
-    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
+    sent_query = client.search_calls[0]["bool"]["must"][0]
     should = sent_query["bool"]["should"]
     phrase_clauses = [c for c in should if c["multi_match"].get("type") == "phrase"]
     assert any(c["multi_match"]["query"] == "Section 6" for c in phrase_clauses)
@@ -122,7 +122,7 @@ async def test_raw_search_omits_phrase_boost_clauses_when_no_merge_survives():
 
     await raw_search(client, "can a company claim depreciation on goodwill", limit=20)
 
-    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
+    sent_query = client.search_calls[0]["bool"]["must"][0]
     should = sent_query["bool"]["should"]
     assert not [c for c in should if c["multi_match"].get("type") == "phrase"]
 
@@ -136,32 +136,36 @@ async def test_raw_search_queries_heading_subheading_fullcontent_not_just_sparse
     query = client.search_calls[0]
     should_fields = {
         clause["multi_match"]["fields"][0] if "multi_match" in clause else None
-        for clause in query["function_score"]["query"]["bool"]["must"][0]["bool"]["should"]
+        for clause in query["bool"]["must"][0]["bool"]["should"]
     }
     for field in ("heading", "subheading", "fullcontent"):
         assert field in should_fields, f"{field} missing from should clauses: {should_fields}"
 
 
 @pytest.mark.asyncio
-async def test_raw_search_wraps_query_in_function_score_with_boost_fields():
+async def test_raw_search_does_not_wrap_query_in_function_score():
+    """raw_search deliberately skips _wrap_function_score - see its docstring and the
+    comment in raw_search: a 53-query eval run showed the patched boost formula still
+    nearly halves pass rate versus plain BM25 text relevance (21/53 boosted vs 42/53
+    unboosted), an architectural (boost_mode: multiply) issue, not a missing-data one."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "exemption claim", limit=20)
 
     query = client.search_calls[0]
-    assert "function_score" in query
-    factor_fields = {f["field_value_factor"]["field"] for f in query["function_score"]["functions"]}
-    assert factor_fields == {"documenttypeboost", "court_boost", "landmarkruling"}
+    assert "function_score" not in query
+    assert "bool" in query
 
 
 @pytest.mark.asyncio
 async def test_raw_search_excludes_blacklisted_landmarkruling_docs():
+    """landmarkruling: -10 is a content-exclusion filter (centax's blacklist convention),
+    not a ranking signal - it stays even with the ranking boost (function_score) disabled."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "exemption claim", limit=20)
 
-    query = client.search_calls[0]
-    bool_clause = query["function_score"]["query"]["bool"]
+    bool_clause = client.search_calls[0]["bool"]
     assert {"term": {"landmarkruling": -10}} in bool_clause.get("must_not", [])
 
 
