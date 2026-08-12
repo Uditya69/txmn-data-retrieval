@@ -4,6 +4,7 @@ from typing import Awaitable, Callable
 
 from langfuse import get_client
 
+from common.query_tokenizer import classify_query_shape
 from common.schema_context import KNOWN_COURTS, build_schema_context
 from retrieval_api.gateway_client import GatewayClient
 
@@ -162,6 +163,18 @@ def _sanitize_filters(query: str, filters) -> dict:
     return clean
 
 
+_SHAPE_TO_INTENT = {"citation": "citation_lookup", "provision": "provision_lookup"}
+
+
+def _reconcile_intent(query: str, intent: str) -> str:
+    """classify_query_shape's regex patterns (already tuned and relied on for Instant
+    mode's ES boosting) are near-deterministic when they match citation/provision
+    format - trust them over the SLM's guess on those two shapes. Leave the SLM's
+    verdict alone for "plain"-shaped queries, where disambiguating conceptual vs
+    unknown needs actual language understanding regex can't provide."""
+    return _SHAPE_TO_INTENT.get(classify_query_shape(query), intent)
+
+
 def _validate_result(query: str, result) -> dict:
     if not isinstance(result, dict):
         return _fallback_intent(query)
@@ -197,6 +210,8 @@ async def extract_intent(
         result = _fallback_intent(query)
     else:
         result = _validate_result(query, result)
+
+    result["intent"] = _reconcile_intent(query, result["intent"])
 
     if on_step is not None:
         await on_step("intent", {"query": query, **result})

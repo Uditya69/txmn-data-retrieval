@@ -381,3 +381,59 @@ async def test_extract_intent_forwards_model_override_and_skips_get_model():
     gateway.get_model.assert_not_awaited()
     call_kwargs = gateway.chat.await_args.kwargs
     assert call_kwargs["model"] == "google/gemma-4-E4B-it"
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_overrides_to_citation_lookup_when_query_shape_is_citation():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "Ramesh Gupta vs. Income-tax Officer",
+        "intent": "conceptual",
+        "filters": {"party": "Ramesh Gupta"},
+    })
+
+    result = await extract_intent(gateway, "Ramesh Gupta vs. Income-tax Officer")
+
+    assert result["intent"] == "citation_lookup"
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_overrides_to_provision_lookup_when_query_shape_is_provision():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "Section 80C deduction limit",
+        "intent": "unknown",
+        "filters": {},
+    })
+
+    result = await extract_intent(gateway, "Section 80C deduction limit")
+
+    assert result["intent"] == "provision_lookup"
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_keeps_slm_verdict_when_query_shape_is_plain():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "how are capital gains taxed on inherited property",
+        "intent": "conceptual",
+        "filters": {},
+    })
+
+    result = await extract_intent(gateway, "how are capital gains taxed on inherited property")
+
+    assert result["intent"] == "conceptual"
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_overrides_shape_even_on_fallback_path():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = "not valid json"
+
+    result = await extract_intent(gateway, "Section 54F capital gains exemption")
+
+    assert result["intent"] == "provision_lookup"
