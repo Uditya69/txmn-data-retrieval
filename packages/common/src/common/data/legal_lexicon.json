@@ -160,7 +160,6 @@
     "G S T L",
     "GST1",
     "GSTL",
-    "ITC",
     "ITD",
     "ITR",
     "ITRT",
@@ -2893,7 +2892,8 @@
       "INCOME TAX APPEAL"
     ],
     "ITC": [
-      "ITC"
+      "ITC",
+      "INPUT TAX CREDIT"
     ],
     "ITC1": [
       "Input Tax Credit",
