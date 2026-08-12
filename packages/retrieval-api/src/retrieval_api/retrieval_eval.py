@@ -12,16 +12,29 @@ from pathlib import Path
 
 from langfuse import get_client
 
+from agents.citations import extract_cited_doc_ids
 from agents.pipeline import run_agentic_search
 from common.config import get_settings
 from common.es_client import get_es_client, raw_search
 from common.milvus_client import get_milvus_client, hybrid_search
 from common.schemas import MILVUS_COLLECTIONS
+from retrieval_api.ai_mode.citations import prefetch_citations
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
 from retrieval_api.ai_mode.intent import extract_intent
 from retrieval_api.ai_mode.rerank import rerank_top_chunks
-from retrieval_api.ai_mode.retrieve import _flatten, rrf_merge
+from retrieval_api.ai_mode.retrieve import _flatten, _INTENT_RRF_WEIGHTS, rrf_merge
+from retrieval_api.ai_mode.synthesize import synthesize
 from retrieval_api.gateway_client import GatewayClient
+from retrieval_api.score_cutoff import elbow_cutoff
+
+# One query per class from each era band (1927-1965, 1995-2017, 2025-2026),
+# stratified across direct/indirect/adversarial so a fast candidate-model run
+# still exercises every query class and every corpus era.
+SAMPLE_12_QUERY_IDS = [
+    "Q01", "Q15", "Q27", "Q51",  # direct
+    "Q02", "Q16", "Q28", "Q52",  # indirect
+    "Q23", "Q35", "Q47", "Q53",  # adversarial
+]
 
 
 def load_cases(path: str | Path) -> list[dict]:
@@ -96,8 +109,32 @@ def _agentic_hit_rank(doc_ids: list[str] | None, gold: set[str]) -> int | None:
     return 1 if gold & set(doc_ids) else None
 
 
+def stage_cache_path(cache_dir: Path, case_id: str, slm_model: str | None, reranker_model: str | None) -> Path:
+    # Cache key deliberately excludes synthesis_model: everything through the
+    # reranker stage (ES, both Milvus branches, intent rewrite, RRF, rerank)
+    # is unaffected by which synthesis model is used, so swapping only
+    # synthesis_model should always be a cache hit. slm_model/reranker_model
+    # ARE part of the key since they change the rewritten query and/or the
+    # reranked chunk order, which changes everything downstream of them.
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", f"{slm_model or 'default'}__{reranker_model or 'default'}")
+    return cache_dir / case_id / f"{slug}.json"
+
+
+def _load_stage_cache(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
+
+
+def _save_stage_cache(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+
+
 async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit: int = 50,
-                        langfuse_enabled: bool = True) -> dict:
+                        langfuse_enabled: bool = True, slm_model: str | None = None,
+                        reranker_model: str | None = None, synthesis_model: str | None = None,
+                        skip_agentic: bool = False, cache_dir: Path | None = None) -> dict:
     query = case["query"]
     gold = set(case["gold_doc_ids"])
     langfuse = get_client()
@@ -121,49 +158,108 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             finally:
                 timings[name] = round((time.perf_counter() - stage_started) * 1000, 1)
 
-        es_rows = await measured("es", raw_search(es_client, query, limit=limit)) or []
-        raw_vector = await measured("raw_embedding", gateway.embed(role="query_embed", text=query))
-        raw_dense = (
-            await measured("raw_dense", hybrid_search(
-                milvus_client, MILVUS_COLLECTIONS, raw_vector, query, limit=limit,
-            )) if raw_vector is not None else None
-        ) or {name: [] for name in MILVUS_COLLECTIONS}
-        raw_sparse = await measured("raw_sparse", hybrid_search(
-            milvus_client, MILVUS_COLLECTIONS, None, query, limit=limit,
-        )) or {name: [] for name in MILVUS_COLLECTIONS}
+        cache_path = stage_cache_path(cache_dir, case["id"], slm_model, reranker_model) if cache_dir else None
+        cached = _load_stage_cache(cache_path) if cache_path else None
 
-        intent = await measured("intent", extract_intent(gateway, query))
-        rewritten_query = intent.get("rewritten_query", query) if intent else query
-        allowlist = await measured("filters", resolve_allowlist(es_client, intent.get("filters", {}))) if intent else None
-        rewritten_vector = raw_vector if rewritten_query == query else await measured(
-            "rewritten_embedding", gateway.embed(role="query_embed", text=rewritten_query),
-        )
-        rewritten_dense = (
-            await measured("rewritten_dense", hybrid_search(
-                milvus_client, MILVUS_COLLECTIONS, rewritten_vector, rewritten_query,
+        if cached is not None:
+            es_rows = cached["es_rows"]
+            raw_dense = cached["raw_dense"]
+            raw_sparse = cached["raw_sparse"]
+            rewritten_query = cached["rewritten_query"]
+            rewritten_dense = cached["rewritten_dense"]
+            rewritten_sparse = cached["rewritten_sparse"]
+            merged = cached["merged"]
+            reranked = cached["reranked"]
+            timings["stage_cache"] = 0.0
+        else:
+            es_rows = await measured("es", raw_search(es_client, query, limit=limit)) or []
+            raw_vector = await measured("raw_embedding", gateway.embed(role="query_embed", text=query))
+            raw_dense = (
+                await measured("raw_dense", hybrid_search(
+                    milvus_client, MILVUS_COLLECTIONS, raw_vector, query, limit=limit,
+                )) if raw_vector is not None else None
+            ) or {name: [] for name in MILVUS_COLLECTIONS}
+            raw_sparse = await measured("raw_sparse", hybrid_search(
+                milvus_client, MILVUS_COLLECTIONS, None, query, limit=limit,
+            )) or {name: [] for name in MILVUS_COLLECTIONS}
+
+            intent = await measured("intent", extract_intent(gateway, query, model=slm_model))
+            rewritten_query = intent.get("rewritten_query", query) if intent else query
+            allowlist = await measured("filters", resolve_allowlist(es_client, intent.get("filters", {}))) if intent else None
+            rewritten_vector = raw_vector if rewritten_query == query else await measured(
+                "rewritten_embedding", gateway.embed(role="query_embed", text=rewritten_query),
+            )
+            rewritten_dense = (
+                await measured("rewritten_dense", hybrid_search(
+                    milvus_client, MILVUS_COLLECTIONS, rewritten_vector, rewritten_query,
+                    doc_id_allowlist=allowlist, limit=limit,
+                )) if rewritten_vector is not None else None
+            ) or {name: [] for name in MILVUS_COLLECTIONS}
+            rewritten_sparse = await measured("rewritten_sparse", hybrid_search(
+                milvus_client, MILVUS_COLLECTIONS, None, rewritten_query,
                 doc_id_allowlist=allowlist, limit=limit,
-            )) if rewritten_vector is not None else None
-        ) or {name: [] for name in MILVUS_COLLECTIONS}
-        rewritten_sparse = await measured("rewritten_sparse", hybrid_search(
-            milvus_client, MILVUS_COLLECTIONS, None, rewritten_query,
-            doc_id_allowlist=allowlist, limit=limit,
-        )) or {name: [] for name in MILVUS_COLLECTIONS}
+            )) or {name: [] for name in MILVUS_COLLECTIONS}
+
+            dense_weight, sparse_weight = _INTENT_RRF_WEIGHTS.get(intent.get("intent"), (1.0, 1.0)) if intent else (1.0, 1.0)
+            merged = rrf_merge(
+                _flatten(rewritten_dense), _flatten(rewritten_sparse),
+                dense_weight=dense_weight, sparse_weight=sparse_weight,
+            )
+            reranked = await measured(
+                "reranker", rerank_top_chunks(gateway, query, merged, top_n=len(merged), model=reranker_model),
+            ) if merged else []
+            reranked = reranked or []
+
+            if cache_path is not None:
+                _save_stage_cache(cache_path, {
+                    "es_rows": es_rows, "raw_dense": raw_dense, "raw_sparse": raw_sparse,
+                    "rewritten_query": rewritten_query, "rewritten_dense": rewritten_dense,
+                    "rewritten_sparse": rewritten_sparse, "merged": merged, "reranked": reranked,
+                })
 
         dense_flat = _flatten(rewritten_dense)
         sparse_flat = _flatten(rewritten_sparse)
-        merged = rrf_merge(dense_flat, sparse_flat)
-        reranked = await measured(
-            "reranker", rerank_top_chunks(gateway, query, merged, top_n=len(merged)),
-        ) if merged else []
-        reranked = reranked or []
 
-        agentic_result = await measured("agentic", run_agentic_search(gateway, es_client, milvus_client, query))
+        synthesis_answer = None
+        citation_count = 0
+        citation_invalid_ids: list[str] = []
+        citation_valid = False
+        gold_cited = False
+        if reranked:
+            synthesis_cutoff = elbow_cutoff([row["rerank_score"] for row in reranked], max_keep=5)
+            synthesis_chunks = reranked[:synthesis_cutoff]
+            citations = await measured("prefetch_citations", prefetch_citations(es_client, merged))
+            synth_result = await measured(
+                "synthesis", synthesize(
+                    gateway, es_client, rewritten_query, synthesis_chunks, citations or {}, model=synthesis_model,
+                ),
+            )
+            if synth_result is not None:
+                synthesis_answer = synth_result["answer"]
+                seen_doc_ids = {c["doc_id"] for c in synthesis_chunks}
+                cited_ids = extract_cited_doc_ids(synthesis_answer)
+                citation_count = len(cited_ids)
+                citation_invalid_ids = sorted(cited_ids - seen_doc_ids)
+                # citation_valid requires a non-empty answer, not just an absence of
+                # invalid citation ids - otherwise a timed-out/truncated-to-empty
+                # synthesis call (zero cited ids, zero invalid ids) would be
+                # vacuously "valid". gold_cited is computed independently: it only
+                # checks whether the gold doc_id appears among cited ids, so a
+                # citation drawn from a hallucinated/invalid set can still make
+                # gold_cited True even when citation_valid is False - the two
+                # fields answer different questions ("did it answer faithfully"
+                # vs "did it land on the right doc at all").
+                citation_valid = bool(synthesis_answer) and not citation_invalid_ids
+                gold_cited = bool(gold & cited_ids)
+
         agentic_doc_ids = None
-        if agentic_result is not None:
-            if agentic_result.get("ok"):
-                agentic_doc_ids = agentic_result.get("doc_ids")
-            else:
-                errors["agentic"] = f"unverifiable_answer: {agentic_result.get('invalid_doc_ids')}"
+        if not skip_agentic:
+            agentic_result = await measured("agentic", run_agentic_search(gateway, es_client, milvus_client, query))
+            if agentic_result is not None:
+                if agentic_result.get("ok"):
+                    agentic_doc_ids = agentic_result.get("doc_ids")
+                else:
+                    errors["agentic"] = f"unverifiable_answer: {agentic_result.get('invalid_doc_ids')}"
 
         ranks = {
             "es": doc_rank(es_rows, gold),
@@ -186,6 +282,11 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                 "rewritten_dense": _collection_ranks(rewritten_dense, gold),
                 "rewritten_sparse": _collection_ranks(rewritten_sparse, gold),
             },
+            "synthesis_answer": synthesis_answer,
+            "citation_count": citation_count,
+            "citation_invalid_ids": citation_invalid_ids,
+            "citation_valid": citation_valid,
+            "gold_cited": gold_cited,
             "errors": errors, "timings_ms": timings,
             "total_ms": round((time.perf_counter() - started) * 1000, 1),
         }
@@ -198,6 +299,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                 )
                 if rank is not None:
                     langfuse.score_current_trace(name=f"{stage}_rank", value=float(rank), data_type="NUMERIC")
+            langfuse.score_current_trace(name="citation_valid", value=citation_valid, data_type="BOOLEAN")
         return result
 
 
@@ -228,6 +330,9 @@ async def _run(args) -> int:
             raise ValueError(f"unknown query id(s): {sorted(missing)}")
     if args.query_class:
         cases = [case for case in cases if case["class"] == args.query_class]
+    if args.sample12:
+        wanted = set(SAMPLE_12_QUERY_IDS)
+        cases = [case for case in cases if case["id"] in wanted]
     if not cases:
         raise ValueError("no eval cases selected")
 
@@ -252,6 +357,8 @@ async def _run(args) -> int:
             result = await evaluate_case(
                 case, gateway, es_client, milvus_client, limit=args.limit,
                 langfuse_enabled=not args.no_langfuse,
+                slm_model=args.slm_model, reranker_model=args.reranker_model, synthesis_model=args.synthesis_model,
+                skip_agentic=args.skip_agentic, cache_dir=args.cache_dir,
             )
             results.append(result)
             ranks = result["ranks"]
@@ -274,6 +381,10 @@ async def _run(args) -> int:
                 "query_ids": args.query,
                 "query_class": args.query_class,
                 "langfuse_enabled": not args.no_langfuse,
+                "slm_model": args.slm_model,
+                "reranker_model": args.reranker_model,
+                "synthesis_model": args.synthesis_model,
+                "skip_agentic": args.skip_agentic,
             },
             "results": results,
         }
@@ -300,6 +411,12 @@ def main() -> None:
     parser.add_argument("--query", action="append", help="run one query ID; may be repeated")
     parser.add_argument("--class", dest="query_class", choices=["direct", "indirect", "adversarial"])
     parser.add_argument("--limit", type=int, default=50)
+    parser.add_argument("--slm-model", help="override the DeepInfra model used for the slm role")
+    parser.add_argument("--reranker-model", help="override the DeepInfra model used for the reranker role")
+    parser.add_argument("--synthesis-model", help="override the DeepInfra model used for the synthesis role")
+    parser.add_argument("--sample12", action="store_true", help="scope to the fixed 12-query stratified sample")
+    parser.add_argument("--skip-agentic", action="store_true", help="skip the agentic tool-call stage (out of scope for AI Mode model comparisons)")
+    parser.add_argument("--cache-dir", type=Path, help="cache ES/Milvus/intent/rerank stage output per (query id, slm_model, reranker_model) here, so runs that only vary synthesis_model skip straight to synthesis")
     parser.add_argument("--run-name", default="retrieval-eval")
     parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")
     parser.add_argument("--langfuse-base-url", help="override LANGFUSE_BASE_URL for host-side runs")

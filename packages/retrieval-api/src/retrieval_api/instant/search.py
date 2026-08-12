@@ -5,10 +5,14 @@ from langfuse import get_client
 
 from common.es_client import raw_search
 from common.milvus_client import hybrid_search
+from common.query_tokenizer import classify_query_shape
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
+from retrieval_api.instant.rerank import rerank_instant_results
 from retrieval_api.score_cutoff import elbow_cutoff
-from retrieval_api.trace_utils import collection_trace
+from retrieval_api.trace_utils import collection_trace, ranked_trace, collection_ranked_trace
+
+_ES_LIMIT = 20  # kept in a name so the trace input and the raw_search() call can't drift apart
 
 
 def _apply_elbow_cutoff(rows: list[dict]) -> list[dict]:
@@ -27,10 +31,22 @@ def _apply_elbow_cutoff_per_collection(by_collection: dict[str, list[dict]]) -> 
 
 async def _run_es(es_client, query: str, on_step: OnStep | None) -> tuple[list[dict] | None, str | None]:
     langfuse = get_client()
-    with langfuse.start_as_current_observation(as_type="retriever", name="search-es", input={"query": query}) as span:
+    shape = classify_query_shape(query)
+    with langfuse.start_as_current_observation(
+        as_type="retriever", name="search-es",
+        input={"query": query, "query_shape": shape, "limit": _ES_LIMIT},
+    ) as span:
         try:
-            results = _apply_elbow_cutoff(await raw_search(es_client, query))
-            span.update(output={"num_hits": len(results)})
+            raw_results = await raw_search(es_client, query, limit=_ES_LIMIT)
+            results = _apply_elbow_cutoff(raw_results)
+            span.update(output={
+                "hits_before_cutoff": len(raw_results),
+                "hits_after_cutoff": len(results),
+                # full pre-cutoff ranking, not just what survives the elbow -
+                # this is what lets a gold doc_id's rank (or its absence within
+                # the fetched window) be read straight off the trace.
+                "top_hits": ranked_trace(raw_results, top_n=_ES_LIMIT),
+            })
             if on_step is not None:
                 await on_step("es_search", {"hits": results})
             return results, None
@@ -60,11 +76,20 @@ async def _run_milvus(
                     milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None, sparse_query_text=query,
                 ),
             )
+            # snapshot pre-cutoff ranks before the elbow trims them, same reason
+            # as _run_es: this is the only place that can show a gold doc_id's
+            # rank when the elbow cutoff is what dropped it, versus the search
+            # itself never surfacing it at all.
+            dense_pre_cutoff, sparse_pre_cutoff = dense_result, sparse_result
             dense_result = _apply_elbow_cutoff_per_collection(dense_result)
             sparse_result = _apply_elbow_cutoff_per_collection(sparse_result)
             span.update(output={
-                collection: {"dense": len(dense_result[collection]), "sparse": len(sparse_result[collection])}
-                for collection in dense_result
+                "dense": collection_ranked_trace(dense_pre_cutoff),
+                "sparse": collection_ranked_trace(sparse_pre_cutoff),
+                "after_cutoff": {
+                    collection: {"dense": len(dense_result[collection]), "sparse": len(sparse_result.get(collection, []))}
+                    for collection in dense_result
+                },
             })
             if on_step is not None:
                 await on_step("milvus_dense", collection_trace(dense_result))
@@ -75,17 +100,34 @@ async def _run_milvus(
             return None, None, str(exc)
 
 
-async def run_instant(gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None) -> dict:
+async def run_instant(
+    gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None, rerank: bool = False,
+) -> dict:
     langfuse = get_client()
     with langfuse.start_as_current_observation(as_type="span", name="instant-search", input={"query": query}):
         (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(
             _run_es(es_client, query, on_step),
             _run_milvus(gateway, milvus_client, query, on_step),
         )
-    return {
-        "es": es_result,
-        "es_error": es_error,
-        "milvus": milvus_dense,
-        "milvus_sparse": milvus_sparse,
-        "milvus_error": milvus_error,
-    }
+        if not rerank:
+            return {
+                "es": es_result,
+                "es_error": es_error,
+                "milvus": milvus_dense,
+                "milvus_sparse": milvus_sparse,
+                "milvus_error": milvus_error,
+            }
+
+        reranked_error = es_error or milvus_error
+        reranked = []
+        if reranked_error is None:
+            try:
+                reranked = await rerank_instant_results(
+                    gateway, es_client, query, classify_query_shape(query),
+                    es_result or [], milvus_dense or {}, milvus_sparse or {},
+                )
+                if on_step is not None:
+                    await on_step("instant_reranked", {"hits": reranked})
+            except Exception as exc:  # noqa: BLE001 - branch isolation is the point
+                reranked_error = str(exc)
+    return {"reranked": reranked, "reranked_error": reranked_error}

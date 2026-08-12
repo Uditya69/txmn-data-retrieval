@@ -27,8 +27,11 @@ def test_bm25_source_field_metadata_uses_heading_subheading():
 def test_masterinfo_citation_fields():
     # Paths verified against the real production ES index mapping
     # (researchindex_aic_test) - court/bench live under masterinfo.info,
-    # judge/partyname live under otherinfo, not masterinfo.
+    # judge/partyname live under otherinfo, not masterinfo. heading/subheading
+    # are top-level - added so the AI Mode UI can show a case title on cited-doc
+    # cards without a second ES round trip.
     assert MASTERINFO_CITATION_FIELDS == [
+        "heading", "subheading",
         "masterinfo.citations", "masterinfo.info.court", "masterinfo.info.bench",
         "otherinfo.judge", "otherinfo.partyname",
     ]

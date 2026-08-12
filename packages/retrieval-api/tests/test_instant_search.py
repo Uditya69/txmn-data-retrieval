@@ -139,6 +139,57 @@ async def test_run_instant_returns_partial_result_when_gateway_embed_fails(monke
 
 
 @pytest.mark.asyncio
+async def test_run_instant_returns_reranked_list_when_rerank_flag_set(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20):
+        return [{"doc_id": "d1", "score": 4.2, "heading": "h1", "subheading": "s1"}]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": [{"chunk_id": "d2::ruling::0", "doc_id": "d2", "text": "t", "score": 0.9}]}
+
+    async def fake_fetch_fulltext_batch(client, doc_ids):
+        return {doc_id: "full text" for doc_id in doc_ids}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr("retrieval_api.instant.rerank.fetch_fulltext_batch", fake_fetch_fulltext_batch)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+    gateway.rerank.return_value = [0.9, 0.7]
+
+    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q", rerank=True)
+
+    assert "es" not in result
+    assert "milvus" not in result
+    assert result["reranked_error"] is None
+    assert {row["doc_id"] for row in result["reranked"]} == {"d1", "d2"}
+
+
+@pytest.mark.asyncio
+async def test_run_instant_skips_rerank_when_es_branch_failed(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    async def failing_raw_search(client, query, limit=20):
+        raise RuntimeError("ES down")
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": []}
+
+    monkeypatch.setattr(search_module, "raw_search", failing_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1]
+
+    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q", rerank=True)
+
+    assert result["reranked"] == []
+    assert result["reranked_error"] == "ES down"
+
+
+@pytest.mark.asyncio
 async def test_run_instant_emits_es_and_milvus_trace_steps(monkeypatch):
     import retrieval_api.instant.search as search_module
 

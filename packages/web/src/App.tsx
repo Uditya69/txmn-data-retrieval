@@ -4,6 +4,7 @@ import ChatInput from './components/ChatInput'
 import { ChatMessageView } from './components/ChatMessageView'
 import DocumentReader from './components/DocumentReader'
 import DevModeToggle from './components/DevModeToggle'
+import RerankToggle from './components/RerankToggle'
 import { useSearch } from './api/useSearch'
 import { useAgentSearch } from './api/useAgentSearch'
 import { resolveWsUrl, resolveAgentWsUrl, resolveApiBaseUrl } from './lib/config'
@@ -104,6 +105,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === '1')
   const [mode, setMode] = useState<ChatMode>('classic')
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
+  const [rerank, setRerank] = useState(false)
   const [openDocId, setOpenDocId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -121,9 +123,21 @@ export default function App() {
     localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed ? '1' : '0')
   }, [sidebarCollapsed])
 
+  // Auto-scroll only when a message is actually added (new question asked, or
+  // switching conversations) - not on every streaming patch. patchResult
+  // replaces `results` inside the last message on every instant/trace/answer
+  // chunk that arrives, which gives `messages` a new array reference each
+  // time; scrolling on every one of those fights the user's own scroll-up
+  // while results are still streaming in.
+  const scrollTrackRef = useRef<{ activeId: string | null; count: number }>({ activeId: null, count: 0 })
   useEffect(() => {
-    bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
-  }, [messages])
+    const prev = scrollTrackRef.current
+    const shouldScroll = activeId !== prev.activeId || messages.length > prev.count
+    scrollTrackRef.current = { activeId, count: messages.length }
+    if (shouldScroll) {
+      bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
+    }
+  }, [messages, activeId])
 
   function updateConversationMessages(id: string, updater: (msgs: ChatMessage[]) => ChatMessage[]) {
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, messages: updater(c.messages) } : c)))
@@ -166,7 +180,7 @@ export default function App() {
   function runQuery(conversationId: string, assistantId: string, question: string, targetMode: ChatMode) {
     if (targetMode === 'classic') {
       pendingClassicRef.current = { conversationId, assistantId }
-      classicSearch.search(question, true, 'both')
+      classicSearch.search(question, true, 'both', rerank)
     } else {
       pendingAgentRef.current = { conversationId, assistantId }
       agentSearch.search(question)
@@ -270,7 +284,8 @@ export default function App() {
               ))}
             </div>
 
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-3">
+              <RerankToggle rerank={rerank} onToggle={setRerank} />
               <DevModeToggle devMode={devMode} onToggle={setDevMode} />
             </div>
           </div>
@@ -292,14 +307,16 @@ export default function App() {
             </div>
           )}
 
-          {wsError && (
-            <p className="text-sm rounded-lg p-3 mb-3" style={{ color: 'var(--danger)', background: 'var(--danger-soft)' }}>
-              {wsError}
-            </p>
-          )}
+          <div className="sticky bottom-0">
+            {wsError && (
+              <p className="text-sm rounded-lg p-3 mb-3 max-w-3xl mx-auto" style={{ color: 'var(--danger)', background: 'var(--danger-soft)' }}>
+                {wsError}
+              </p>
+            )}
 
-          <div className="max-w-3xl mx-auto w-full">
-            <ChatInput onSubmit={handleSubmit} disabled={pending} />
+            <div className="max-w-3xl mx-auto w-full">
+              <ChatInput onSubmit={handleSubmit} disabled={pending} />
+            </div>
           </div>
         </main>
       </div>

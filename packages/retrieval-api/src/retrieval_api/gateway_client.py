@@ -26,14 +26,25 @@ class GatewayClient:
     def _headers(self) -> dict[str, str]:
         return _trace_headers() if self._trace_enabled else {}
 
-    async def chat(self, role: str, messages: list[dict]) -> str:
-        content, _reasoning = await self.chat_with_reasoning(role, messages)
+    async def chat(
+        self, role: str, messages: list[dict], model: str | None = None,
+        response_format: dict | None = None,
+    ) -> str:
+        content, _reasoning = await self.chat_with_reasoning(role, messages, model=model, response_format=response_format)
         return content
 
-    async def chat_with_reasoning(self, role: str, messages: list[dict]) -> tuple[str, str | None]:
+    async def chat_with_reasoning(
+        self, role: str, messages: list[dict], model: str | None = None,
+        response_format: dict | None = None,
+    ) -> tuple[str, str | None]:
+        body = {"role": role, "messages": messages}
+        if model is not None:
+            body["model"] = model
+        if response_format is not None:
+            body["response_format"] = response_format
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                f"{self._base_url}/v1/chat", json={"role": role, "messages": messages}, headers=self._headers(),
+                f"{self._base_url}/v1/chat", json=body, headers=self._headers(),
             )
             response.raise_for_status()
             data = response.json()
@@ -66,11 +77,16 @@ class GatewayClient:
             response.raise_for_status()
             return response.json()["embedding"]
 
-    async def rerank(self, role: str, query: str, documents: list[str]) -> list[float]:
+    async def rerank(
+        self, role: str, query: str, documents: list[str], model: str | None = None,
+    ) -> list[float]:
+        body = {"role": role, "query": query, "documents": documents}
+        if model is not None:
+            body["model"] = model
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{self._base_url}/v1/rerank",
-                json={"role": role, "query": query, "documents": documents},
+                json=body,
                 headers=self._headers(),
             )
             response.raise_for_status()

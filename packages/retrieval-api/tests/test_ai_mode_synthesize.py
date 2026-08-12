@@ -100,3 +100,26 @@ async def test_synthesize_emits_synthesis_prompt_step(monkeypatch):
     assert step == "synthesis_prompt"
     assert "what is cgst" in data["prompt"]
     assert "[d1] chunk text" in data["prompt"]
+
+
+@pytest.mark.asyncio
+async def test_synthesize_forwards_model_override(monkeypatch):
+    import retrieval_api.ai_mode.synthesize as module
+
+    async def fake_fetch_citations(client, doc_ids):
+        return {}
+
+    monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
+
+    gateway = AsyncMock()
+    gateway.chat_with_reasoning.return_value = ("Answer.", None)
+
+    await synthesize(
+        gateway, es_client=object(), query="q",
+        top_chunks=[{"chunk_id": "a", "doc_id": "d1", "text": "chunk text"}],
+        citations={"d1": {"masterinfo": {"court": "SC"}}},
+        model="Qwen/Qwen3-4B-Thinking-2507",
+    )
+
+    call_kwargs = gateway.chat_with_reasoning.await_args.kwargs
+    assert call_kwargs["model"] == "Qwen/Qwen3-4B-Thinking-2507"

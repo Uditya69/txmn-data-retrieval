@@ -38,7 +38,7 @@ describe('useSearch', () => {
     act(() => {
       socket.emit('open')
     })
-    expect(socket.sent).toEqual([JSON.stringify({ query: 'cgst', mode: 'both', trace: true })])
+    expect(socket.sent).toEqual([JSON.stringify({ query: 'cgst', mode: 'both', trace: true, rerank: false })])
 
     act(() => {
       socket.emit('message', {
@@ -58,6 +58,8 @@ describe('useSearch', () => {
       milvus: null,
       milvus_sparse: null,
       milvus_error: null,
+      reranked: null,
+      reranked_error: null,
     })
     expect(result.current.loading).toBe(true)
   })

@@ -15,14 +15,13 @@ from retrieval_api.gateway_client import GatewayClient
 # into an ai_mode_error.
 OnStep = Callable[[str, dict], Awaitable[None]]
 
-
-def _extract_json_object(text: str) -> str:
-    """SLMs often wrap JSON in prose and/or a markdown code fence despite
-    instructions not to - pull out the outermost {...} object."""
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end == -1 or end < start:
-        return text
-    return text[start:end + 1]
+# DeepInfra's json_object response_format mode guarantees the response is a
+# valid JSON object with no surrounding prose/markdown fence - see
+# https://docs.deepinfra.com/chat/structured-outputs. This replaces a former
+# regex-based brace-extraction fallback: if a model still doesn't comply
+# despite the mode being requested, that's treated as a hard failure
+# (json.loads raises, _fallback_intent kicks in) rather than guessed at.
+_RESPONSE_FORMAT = {"type": "json_object"}
 
 
 def _fallback_intent(query: str) -> dict:
@@ -48,25 +47,29 @@ Given a user query, return ONLY a JSON object with exactly these keys:
   old law to a new law or replace one section with another. If the query is
   already readable, copy it unchanged. Every number and year in the output
   must occur in the input; if the input has no year, add no year.
-- "intent": one short intent category label.
-- "filters": an object with any of "court", "act", "section", "date_range", "party" -
-  ONLY include a key if its value is LITERALLY written in the query. Never
-  guess, infer, or fill in a plausible-sounding court, act, section, or date
-  range that the query does not state - a wrong filter silently excludes the
-  correct document from the search entirely, which is worse than no filter.
-  If the query names a person or company (very often written as
-  "X vs. Y" or "X v. Y"), put that name under "party" - never under
-  "section" or any other key. If nothing is explicitly stated, "filters"
-  should be an empty object. Never output null or empty filter values. Never
-  output any other filter key such as city, state, topic, or citation.
-  "date_range" MUST be an object with ISO date strings, e.g.
-  {"gte": "2020-01-01", "lte": "2022-01-01"} - either key may be omitted,
-  but never output "date_range" as a plain string or year number, and never
-  invent one when no date was mentioned.
+- "intent": exactly one of "citation_lookup" (the query is anchored on a
+  party name or case citation), "provision_lookup" (anchored on a
+  section/act/rule number), "conceptual" (an open legal question with no
+  strong lexical anchor), or "unknown" (none of the above fit confidently).
+  Never output any other value.
+- "filters": an object with any of "court", "act", "section", "date_range",
+  "party", "bench", "judge" - ONLY include a key if its value is LITERALLY
+  written in the query. Never guess, infer, or fill in a plausible-sounding
+  court, act, section, bench, judge, or date range that the query does not
+  state - a wrong filter silently excludes the correct document from the
+  search entirely, which is worse than no filter. If the query names a
+  person or company (very often written as "X vs. Y" or "X v. Y"), put that
+  name under "party" - never under "section" or any other key. If nothing
+  is explicitly stated, "filters" should be an empty object. Never output
+  null or empty filter values. Never output any other filter key such as
+  city, state, topic, or citation. "date_range" MUST be an object with ISO
+  date strings, e.g. {"gte": "2020-01-01", "lte": "2022-01-01"} - either key
+  may be omitted, but never output "date_range" as a plain string or year
+  number, and never invent one when no date was mentioned.
 
 Example: query "case law for Ramesh Gupta vs. Income-tax Officer" mentions
 no court, act, section, or date - only a party name - so filters must be
-exactly {"party": "Ramesh Gupta"}.
+exactly {"party": "Ramesh Gupta"} and intent is "citation_lookup".
 
 Forbidden rewrites:
 - "80HH scrap sale" must not mention BNS or any other Act.
@@ -96,7 +99,8 @@ def _system_prompt_for_model(model: str) -> str:
     return _LLAMA_SYSTEM_PROMPT
 
 
-_ALLOWED_FILTERS = {"court", "act", "section", "date_range", "party"}
+_ALLOWED_FILTERS = {"court", "act", "section", "date_range", "party", "bench", "judge"}
+_ALLOWED_INTENTS = {"citation_lookup", "provision_lookup", "conceptual", "unknown"}
 _LEGAL_MARKERS = {
     "bharatiya nyaya sanhita", "bharatiya nagarik suraksha sanhita",
     "bharatiya sakshya adhiniyam", "indian penal code", "income-tax act",
@@ -166,24 +170,27 @@ def _validate_result(query: str, result) -> dict:
         return _fallback_intent(query)
     return {
         "rewritten_query": _safe_rewrite(query, rewritten.strip()),
-        "intent": intent,
+        "intent": intent if intent in _ALLOWED_INTENTS else "unknown",
         "filters": _sanitize_filters(query, result.get("filters")),
     }
 
 
-async def extract_intent(gateway: GatewayClient, query: str, on_step: OnStep | None = None) -> dict:
-    model = await gateway.get_model(role="slm")
+async def extract_intent(
+    gateway: GatewayClient, query: str, on_step: OnStep | None = None, model: str | None = None,
+) -> dict:
+    resolved_model = model or await gateway.get_model(role="slm")
     response = await gateway.chat(
         role="slm",
         messages=[
-            {"role": "system", "content": _system_prompt_for_model(model)},
+            {"role": "system", "content": _system_prompt_for_model(resolved_model)},
             {"role": "user", "content": query},
         ],
+        model=model,
+        response_format=_RESPONSE_FORMAT,
     )
-    cleaned = _extract_json_object(response.strip())
     try:
-        result = json.loads(cleaned)
-    except json.JSONDecodeError:
+        result = json.loads(response)
+    except (TypeError, json.JSONDecodeError):
         get_client().update_current_span(
             level="WARNING", status_message=f"SLM did not return valid JSON, falling back to plain search: {response!r}",
         )

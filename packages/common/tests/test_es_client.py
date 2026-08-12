@@ -92,6 +92,79 @@ async def test_raw_search_defaults_missing_heading_subheading_to_empty_string():
     assert results == [{"doc_id": "d1", "score": 1.0, "heading": "", "subheading": ""}]
 
 
+@pytest.mark.asyncio
+async def test_raw_search_expands_known_abbreviation_into_multi_match_query_text():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "ACIT order on depreciation", limit=20)
+
+    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
+    multi_match_query = sent_query["bool"]["should"][0]["multi_match"]["query"]
+    assert "ACIT order on depreciation" in multi_match_query
+    assert "ASSISTANT COMMISSIONER INCOME TAX" in multi_match_query
+
+
+@pytest.mark.asyncio
+async def test_raw_search_adds_phrase_boost_clause_for_merged_keyword_number():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Section 6 of Income Tax Act", limit=20)
+
+    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
+    should = sent_query["bool"]["should"]
+    phrase_clauses = [c for c in should if c["multi_match"].get("type") == "phrase"]
+    assert any(c["multi_match"]["query"] == "Section 6" for c in phrase_clauses)
+
+
+@pytest.mark.asyncio
+async def test_raw_search_omits_phrase_boost_clauses_when_no_merge_survives():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "can a company claim depreciation on goodwill", limit=20)
+
+    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
+    should = sent_query["bool"]["should"]
+    assert not [c for c in should if c["multi_match"].get("type") == "phrase"]
+
+
+@pytest.mark.asyncio
+async def test_raw_search_queries_heading_subheading_fullcontent_not_just_sparse_fields():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20)
+
+    query = client.search_calls[0]
+    should_fields = {
+        clause["multi_match"]["fields"][0] if "multi_match" in clause else None
+        for clause in query["function_score"]["query"]["bool"]["must"][0]["bool"]["should"]
+    }
+    for field in ("heading", "subheading", "fullcontent"):
+        assert field in should_fields, f"{field} missing from should clauses: {should_fields}"
+
+
+@pytest.mark.asyncio
+async def test_raw_search_wraps_query_in_function_score_with_boost_fields():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20)
+
+    query = client.search_calls[0]
+    assert "function_score" in query
+    factor_fields = {f["field_value_factor"]["field"] for f in query["function_score"]["functions"]}
+    assert factor_fields == {"documenttypeboost", "court_boost", "landmarkruling"}
+
+
+@pytest.mark.asyncio
+async def test_raw_search_excludes_blacklisted_landmarkruling_docs():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20)
+
+    query = client.search_calls[0]
+    bool_clause = query["function_score"]["query"]["bool"]
+    assert {"term": {"landmarkruling": -10}} in bool_clause.get("must_not", [])
+
+
 def test_get_es_client_reads_index_and_auth_from_settings():
     settings = Settings(
         milvus_uri="http://milvus:19530", milvus_token="root:Milvus",
@@ -112,14 +185,28 @@ async def test_resolve_doc_id_allowlist_returns_none_when_no_filters():
 
 
 @pytest.mark.asyncio
-async def test_resolve_doc_id_allowlist_queries_masterinfo_and_returns_doc_ids():
+async def test_resolve_doc_id_allowlist_queries_heading_for_court_and_returns_doc_ids():
     client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}, {"_source": {"id": "d2"}}])
 
     result = await resolve_doc_id_allowlist(client, {"court": "Supreme Court"})
 
     assert result == ["d1", "d2"]
+    # "Supreme Court" resolves to "SC" - the abbreviation that actually appears in
+    # heading (masterinfo.info.court.name is confirmed 0% populated on the live index).
     assert client.search_calls[0] == {
-        "bool": {"must": [{"term": {"masterinfo.info.court.name.keyword": "Supreme Court"}}]}
+        "bool": {"must": [{"match_phrase": {"heading": "SC"}}]}
+    }
+
+
+@pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_passes_through_unmapped_court_names():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}])
+
+    result = await resolve_doc_id_allowlist(client, {"court": "Patna High Court"})
+
+    assert result == ["d1"]
+    assert client.search_calls[0] == {
+        "bool": {"must": [{"match_phrase": {"heading": "Patna High Court"}}]}
     }
 
 
@@ -132,14 +219,19 @@ async def test_resolve_doc_id_allowlist_raises_on_unrecognized_filter_keys():
 
 
 @pytest.mark.asyncio
-async def test_resolve_doc_id_allowlist_queries_masterinfo_section_term():
+async def test_resolve_doc_id_allowlist_queries_heading_for_section_or_rule():
     client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}])
 
     result = await resolve_doc_id_allowlist(client, {"section": "80C"})
 
     assert result == ["d1"]
+    # ACT/RULE-group docs' heading is the section/rule identifier itself, verbatim
+    # (masterinfo.info.section.name is confirmed 0% populated on the live index).
     assert client.search_calls[0] == {
-        "bool": {"must": [{"term": {"masterinfo.info.section.name.keyword": "80C"}}]}
+        "bool": {"must": [{"bool": {"should": [
+            {"match_phrase": {"heading": "Section - 80C"}},
+            {"match_phrase": {"heading": "Rule - 80C"}},
+        ]}}]}
     }
 
 
@@ -156,22 +248,22 @@ async def test_resolve_doc_id_allowlist_queries_otherinfo_partyname_match():
 
 
 @pytest.mark.asyncio
-async def test_resolve_doc_id_allowlist_falls_back_to_fuzzy_match_when_exact_term_misses():
-    class ExactMissFuzzyHitES(FakeAsyncES):
+async def test_resolve_doc_id_allowlist_falls_back_to_fuzzy_match_when_phrase_misses():
+    class PhraseMissFuzzyHitES(FakeAsyncES):
         async def search(self, index, query, size):
             self.search_calls.append(query)
-            if {"term": {"masterinfo.info.court.name.keyword": "Bombay High Court"}} in query["bool"]["must"]:
+            if {"match_phrase": {"heading": "Bombay"}} in query["bool"]["must"]:
                 return {"hits": {"hits": []}}
             return {"hits": {"hits": [{"_source": {"id": "d1"}}]}}
 
-    client = ExactMissFuzzyHitES()
+    client = PhraseMissFuzzyHitES()
 
     result = await resolve_doc_id_allowlist(client, {"court": "Bombay High Court"})
 
     assert result == ["d1"]
     assert len(client.search_calls) == 2
     assert client.search_calls[1] == {
-        "bool": {"must": [{"match": {"masterinfo.info.court.name": "Bombay High Court"}}]}
+        "bool": {"must": [{"match": {"heading": "Bombay"}}]}
     }
 
 
@@ -183,7 +275,7 @@ async def test_resolve_doc_id_allowlist_drops_malformed_date_range_instead_of_qu
 
     assert result == ["d1"]
     assert client.search_calls[0] == {
-        "bool": {"must": [{"term": {"masterinfo.info.court.name.keyword": "Supreme Court"}}]}
+        "bool": {"must": [{"match_phrase": {"heading": "SC"}}]}
     }
 
 
@@ -263,9 +355,52 @@ async def test_fetch_document_metadata_returns_none_when_doc_not_found():
 
 
 @pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_queries_heading_for_bench():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}])
+
+    result = await resolve_doc_id_allowlist(client, {"bench": "Principal Bench"})
+
+    assert result == ["d1"]
+    # "Principal Bench" has no alias entry, passed through unchanged
+    # (masterinfo.info.bench.name is confirmed 0% populated on the live index).
+    assert client.search_calls[0] == {
+        "bool": {"must": [{"match_phrase": {"heading": "Principal Bench"}}]}
+    }
+
+
+@pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_queries_otherinfo_judge_term():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}])
+
+    result = await resolve_doc_id_allowlist(client, {"judge": "D.Y. Chandrachud"})
+
+    assert result == ["d1"]
+    assert client.search_calls[0] == {
+        "bool": {"must": [{"term": {"otherinfo.judge.name.keyword": "D.Y. Chandrachud"}}]}
+    }
+
+
+@pytest.mark.asyncio
+async def test_resolve_doc_id_allowlist_queries_fullcontent_for_act_as_best_effort():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}}])
+
+    result = await resolve_doc_id_allowlist(client, {"act": "CGST Act"})
+
+    assert result == ["d1"]
+    # No field in the index reliably links a doc to its specific parent Act (confirmed
+    # 0% populated: masterinfo.info.act.name, incometaxactinfo, companyactinfo) - this is
+    # a best-effort full-text match, not an exact filter, until that data exists.
+    assert client.search_calls[0] == {
+        "bool": {"must": [{"match": {"fullcontent": "CGST Act"}}]}
+    }
+
+
+@pytest.mark.asyncio
 async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
     client = FakeAsyncES(mget_docs={
         "d1": {
+            "heading": "[2020] 1 SCC 1 (SC)",
+            "subheading": "State v. Doe",
             "masterinfo": {"info": {"court": "Supreme Court"}, "citations": ["2020 SCC 1"]},
             "otherinfo": {"judge": "J. Smith", "partyname": "State v. Doe"},
             "judgment_text": "irrelevant text that should not be returned",
@@ -276,6 +411,8 @@ async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
 
     assert result == {
         "d1": {
+            "heading": "[2020] 1 SCC 1 (SC)",
+            "subheading": "State v. Doe",
             "masterinfo": {"info": {"court": "Supreme Court"}, "citations": ["2020 SCC 1"]},
             "otherinfo": {"judge": "J. Smith", "partyname": "State v. Doe"},
         }

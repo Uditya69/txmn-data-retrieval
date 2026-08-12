@@ -23,7 +23,8 @@ Formatting:
 
 
 async def synthesize(
-    gateway, es_client, query: str, top_chunks: list[dict], citations: dict, on_step: OnStep | None = None
+    gateway, es_client, query: str, top_chunks: list[dict], citations: dict,
+    on_step: OnStep | None = None, model: str | None = None,
 ) -> dict:
     missing_doc_ids = [c["doc_id"] for c in top_chunks if c["doc_id"] not in citations]
     if missing_doc_ids:
@@ -41,6 +42,7 @@ async def synthesize(
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ],
+        model=model,
     )
 
     return {"answer": answer, "citations": citations, "reasoning": reasoning}

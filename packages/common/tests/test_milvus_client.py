@@ -52,16 +52,43 @@ async def test_hybrid_search_applies_doc_id_allowlist_filter():
 
 @pytest.mark.asyncio
 async def test_hybrid_search_uses_sparse_bm25_search_when_dense_vector_is_none():
-    client = FakeMilvusClient({"ruling": []})
+    client = FakeMilvusClient({"facts": []})
 
     await hybrid_search(
-        client, collections=["ruling"],
+        client, collections=["facts"],
         dense_vector=None, sparse_query_text="income tax",
     )
 
     _, anns_field, _, data = client.calls[0]
     assert anns_field == "sparse_vector"
     assert data == ["income tax"]
+
+
+@pytest.mark.asyncio
+async def test_hybrid_search_skips_sparse_search_for_ruling_collection():
+    client = FakeMilvusClient({"ruling": [], "facts": []})
+
+    result = await hybrid_search(
+        client, collections=["ruling", "facts"],
+        dense_vector=None, sparse_query_text="income tax",
+    )
+
+    assert client.calls == [("facts", "sparse_vector", None, ["income tax"])]
+    assert "ruling" not in result
+    assert result["facts"] == []
+
+
+@pytest.mark.asyncio
+async def test_hybrid_search_still_runs_dense_search_for_ruling_collection():
+    client = FakeMilvusClient({"ruling": [_hit("d1::ruling::0", "d1", "ruling text", 0.9)]})
+
+    result = await hybrid_search(
+        client, collections=["ruling"],
+        dense_vector=[0.1, 0.2], sparse_query_text="income tax",
+    )
+
+    assert "ruling" in result
+    assert {c for c, _, _, _ in client.calls} == {"ruling"}
 
 
 @pytest.mark.asyncio
