@@ -63,10 +63,36 @@ def _build_field_query(query: str, shape: str, boost_phrases: list[str] = ()) ->
 
 def _wrap_function_score(field_query: dict) -> dict:
     """Ranking fix (design doc section 2): court_boost/documenttypeboost/landmarkruling are
-    real, populated, precomputed boost fields the live index already carries but nothing in
-    this codebase used before. documenttypeboost/landmarkruling constants are centax's own
-    already-tuned formula for these exact fields; court_boost's factor is new, sized to that
-    field's own smaller value range (0-294)."""
+    real, precomputed boost fields the live index already carries but nothing in this codebase
+    used before. documenttypeboost/landmarkruling constants are centax's own already-tuned
+    formula for these exact fields; court_boost's factor is new, sized to that field's own
+    smaller value range (0-294).
+
+    boost_mode is "multiply", which means every one of these functions is load-bearing: a
+    single function landing on (or defaulting to) 0 zeroes the *entire* relevance score, no
+    matter how well the text matched. That's been hit twice on the real index, not once:
+      - landmarkruling is populated on only 2.1% of the corpus (documenttypeboost 100%,
+        court_boost 99.9% - confirmed against the live index, so this is specific to this
+        field, not a general "boost fields are sparse" problem). A `missing` fallback of
+        0.0001 there is a ~30,000x penalty, not a small one, once log2p+factor+multiply
+        compound - it silently reduces ranking to "was this doc ever flagged a landmark
+        ruling", drowning out real text relevance for nearly every query.
+      - court_boost can be a real, present value of exactly 0 (not missing - seen on a live
+        Supreme Court doc). `missing` fallbacks don't even apply there; 0.01 * 0 = 0 kills the
+        product just the same.
+    Every function below is gated behind `{"range": {field: {"gt": 0}}}` instead of relying on
+    `field_value_factor`'s own `missing`/modifier handling: a range-gt-0 filter is false for a
+    missing field AND for a present-but-zero field, so both collapse to the same outcome -
+    neutral (1x, function_score's own default for a non-matching filter), never a score-killing
+    near-zero. A doc with a genuine positive value in any of these fields still gets its full
+    intended multiplicative boost; a doc without one is scored on text relevance alone instead
+    of being disqualified by an accident of missing/zero data."""
+    def _boost_function(field: str, factor: float, modifier: str) -> dict:
+        return {
+            "filter": {"range": {field: {"gt": 0}}},
+            "field_value_factor": {"field": field, "factor": factor, "modifier": modifier},
+        }
+
     return {
         "function_score": {
             "query": {
@@ -76,9 +102,9 @@ def _wrap_function_score(field_query: dict) -> dict:
                 }
             },
             "functions": [
-                {"field_value_factor": {"field": "documenttypeboost", "factor": 0.2, "modifier": "sqrt", "missing": 0.0001}},
-                {"field_value_factor": {"field": "court_boost", "factor": 0.01, "modifier": "none", "missing": 0.0001}},
-                {"field_value_factor": {"field": "landmarkruling", "factor": 1.2, "modifier": "log2p", "missing": 0.0001}},
+                _boost_function("documenttypeboost", 0.2, "sqrt"),
+                _boost_function("court_boost", 0.01, "none"),
+                _boost_function("landmarkruling", 1.2, "log2p"),
             ],
             "boost_mode": "multiply",
         }
