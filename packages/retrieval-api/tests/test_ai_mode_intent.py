@@ -309,7 +309,13 @@ async def test_extract_intent_drops_section_filter_for_conceptual_queries():
     allowlist to statute-text documents that share no doc_ids with the case-law Milvus
     collections the search runs against, zeroing out results despite the corpus having
     a good match. Confirmed live: a conceptual query with a bare "section 92C" filter
-    went from 70 unfiltered Milvus hits (including the gold doc) to 0 filtered hits."""
+    went from 70 unfiltered Milvus hits (including the gold doc) to 0 filtered hits.
+
+    Note: _reconcile_intent (feat/intent-shape-reconciliation) trusts the regex shape
+    classifier's "provision" verdict over the SLM whenever a section number appears
+    anywhere in the query, so the final reported intent here is "provision_lookup" even
+    though the SLM itself said "conceptual". The filter-drop guard below still runs on
+    the SLM's pre-reconciliation intent, so the section filter is dropped regardless."""
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
@@ -320,7 +326,7 @@ async def test_extract_intent_drops_section_filter_for_conceptual_queries():
 
     result = await extract_intent(gateway, "Dimension Data India section 92C ITES comparables")
 
-    assert result["intent"] == "conceptual"
+    assert result["intent"] == "provision_lookup"
     assert result["filters"] == {}
 
 

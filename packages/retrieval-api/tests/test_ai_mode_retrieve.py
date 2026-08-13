@@ -227,18 +227,19 @@ async def test_retrieve_falls_back_to_unfiltered_when_allowlist_zeroes_everythin
         return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 0.9}]}
 
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "raw_search", _no_es_hits)
     steps = []
 
     async def on_step(step, data):
         steps.append((step, data))
 
     result = await module.retrieve(
-        gateway, milvus_client=object(), rewritten_query="q",
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q",
         doc_id_allowlist=["wrong-doc-id"], on_step=on_step,
     )
 
     assert result[0]["chunk_id"] == "a"
-    assert [step for step, _ in steps] == ["filter_fallback", "milvus_dense", "milvus_sparse", "rrf_merge"]
+    assert [step for step, _ in steps] == ["filter_fallback", "milvus_dense", "milvus_sparse", "es_boost", "rrf_merge"]
     fallback_data = next(data for step, data in steps if step == "filter_fallback")
     assert fallback_data["doc_id_allowlist_count"] == 1
     gateway.embed.assert_awaited_once()  # retry reuses the already-computed embedding
@@ -259,8 +260,11 @@ async def test_retrieve_does_not_fall_back_when_no_allowlist_was_applied(monkeyp
         return {"ruling": []}
 
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "raw_search", _no_es_hits)
 
-    result = await module.retrieve(gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=None)
+    result = await module.retrieve(
+        gateway, milvus_client=object(), es_client=object(), rewritten_query="q", doc_id_allowlist=None,
+    )
 
     assert result == []
     assert len(calls) == 2  # dense + sparse, no retry
