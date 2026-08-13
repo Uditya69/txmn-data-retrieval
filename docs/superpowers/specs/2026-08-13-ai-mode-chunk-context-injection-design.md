@@ -46,11 +46,18 @@ In `extract_intent`, call `chunk_query(query)` and fold a trimmed projection of 
 into the SLM call as additional per-query context, alongside the existing raw query and
 schema context.
 
-**Projection:** drop `proximity` and `alt_text` (ES-only, not intent signal). Keep only
-`text` and `type` per chunk, and drop any chunk with `type == "text"` (a bare word run
-carries no structural signal beyond what the model already sees in the raw query — passing
-it back adds tokens without adding information). Net effect: only citation/section/
-court_city/quoted spans are surfaced, e.g.:
+**Projection:** drop `proximity` and `alt_text`. `proximity` is ES-only, not intent signal.
+`alt_text` (a normalized form, e.g. `"057A"` for `"Rule 57A"`) is deliberately dropped too —
+verified against `_sanitize_filters` (intent.py:171-174): a filter value survives only if
+`value.casefold()` is a literal substring of the raw query. If the SLM took `alt_text` as a
+filter value, it would never match the raw query text and `_sanitize_filters` would silently
+drop it — worse than not sending it, since it'd read as signal that produces nothing. Keep
+only `text` and `type` per chunk, using `chunk_query`'s own type strings verbatim (`citation`,
+`section`, `court_city`, `quoted` — no relabeling, no mapping table to keep in sync with
+`query_tokenizer.py`). Drop any chunk with `type == "text"` (a bare word run carries no
+structural signal beyond what the model already sees in the raw query — passing it back adds
+tokens without adding information). Net effect: only citation/section/court_city/quoted spans
+are surfaced, e.g.:
 
 ```json
 [{"text": "1995 taxmann.com 569", "type": "citation"},
@@ -61,14 +68,28 @@ If `chunk_query` returns no non-`text` chunks (a purely conceptual query with no
 recognizable entities), omit the block entirely rather than sending an empty list — an
 empty structural-context block is a wasted ~15-20 tokens per call at scale.
 
-**Placement:** append as a labeled block after the raw query in the user message (not the
-system prompt) — this is per-query data, and `_LLAMA_SYSTEM_PROMPT` is a module-level
-constant shared across all calls. Exact wording/labeling is an implementation-time detail;
-the labeling must make clear this is a structural hint about the query, not something the
-model is supposed to add to `rewritten_query` verbatim (the existing rewrite rules in
-intent.py:41-49 already forbid inventing content — the new block must not read as an
-instruction to include this text if it doesn't already appear in the query, which it always
-will since it's extracted from that same query).
+**Placement and exact wording:** append as a labeled block after the raw query in the user
+message (not the system prompt) — this is per-query data, and `_LLAMA_SYSTEM_PROMPT` is a
+module-level constant shared across all calls. User message becomes:
+
+```
+{query}
+
+Structural spans already present in the query above (for reference only — do not add anything not already in the query text):
+{json_block}
+```
+
+When there are no non-`text` chunks, the message is just `{query}`, unchanged from today.
+The wording is deliberately explicit that these spans are *already inside* the query text
+above — the risk being guarded against is the model treating this block as new content to
+splice into `rewritten_query` (the existing rewrite rules in intent.py:41-49 already forbid
+inventing content generally; this wording reinforces it for this specific block, since without
+it a naive model could read "here's a citation" as an instruction to ensure the rewrite
+contains one, even correctly-extracted text, in a redundant or garbled way).
+
+**New helper:** `_build_chunk_context(query: str) -> str | None` in intent.py — calls
+`chunk_query(query)`, filters/projects as above, returns `None` if empty else a JSON string.
+`extract_intent` calls it once and appends to the user message content only when non-`None`.
 
 **Cost:** for a typical multi-clause query with 1-3 recognized entity spans, this adds
 roughly 30-80 tokens per call — small relative to the existing ~900-1050 token system prompt,
@@ -81,6 +102,19 @@ proportionate to the stated "meaningful signal, not context bloat" goal.
 - `_sanitize_filters`, `_safe_rewrite`, `_validate_result`, or any other post-SLM validation
   logic in intent.py — the SLM's output is still independently sanitized against the raw
   query exactly as today. The new context only changes what the model sees going in.
+
+**Error handling:** `chunk_query` is deterministic, in-process, no I/O — no new failure mode
+introduced. If it raises on some malformed query, that surfaces as a pre-existing bug in
+`chunk_query` itself (already called elsewhere on the same input shape via Instant mode);
+`extract_intent` does not need to catch/suppress it specially.
+
+**Testing:**
+- Unit tests for `_build_chunk_context`: returns `None` on a text-only query; correct
+  `{text, type}` projection on a query with mixed chunk types; `proximity`/`alt_text` absent
+  from output.
+- `extract_intent` integration test: asserts the structural-spans block appears in the
+  message passed to `gateway.chat` for a query containing a citation span, and is absent
+  (message is exactly the raw query) for a query with none.
 
 ## Non-goals
 
