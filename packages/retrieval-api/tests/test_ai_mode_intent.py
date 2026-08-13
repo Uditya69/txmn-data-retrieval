@@ -2,7 +2,7 @@ import json
 from unittest.mock import AsyncMock
 import pytest
 
-from retrieval_api.ai_mode.intent import extract_intent
+from retrieval_api.ai_mode.intent import _build_chunk_context, extract_intent
 
 
 @pytest.mark.asyncio
@@ -441,9 +441,6 @@ async def test_extract_intent_forwards_model_override_and_skips_get_model():
     assert call_kwargs["model"] == "google/gemma-4-E4B-it"
 
 
-from retrieval_api.ai_mode.intent import _build_chunk_context
-
-
 def test_build_chunk_context_returns_none_for_text_only_query():
     assert _build_chunk_context("capital gains set off business losses") is None
 
@@ -460,6 +457,41 @@ def test_build_chunk_context_projects_and_filters_chunks():
     types = {span["type"] for span in spans}
     assert "citation" in types
     assert "court_city" in types
+
+
+def test_build_chunk_context_drops_stopword_led_court_city_spans():
+    """merge_court_city merges any token immediately before court/high/tribunal,
+    including stopwords ("the court", "the tribunal") - injecting these as
+    authoritative structural spans nudges the SLM toward a bogus court filter
+    that _sanitize_filters can't catch (its substring check trivially passes
+    a stopword phrase that IS literally in the query)."""
+    result = _build_chunk_context("assessee approached the court after the tribunal order")
+
+    spans = json.loads(result) if result is not None else []
+    texts = [span["text"] for span in spans]
+    assert "the court" not in texts
+    assert "the tribunal" not in texts
+
+
+def test_build_chunk_context_does_not_escape_non_ascii_text():
+    """json.dumps defaults to ensure_ascii=True, which would \\uXXXX-escape a
+    non-ASCII span - undercutting the "already present in the query above"
+    framing since the injected block would then visually diverge from the
+    query text shown right above it."""
+    result = _build_chunk_context('"café royalty" ruling')
+
+    assert result is not None
+    assert "café royalty" in result
+    assert "\\u" not in result
+
+
+def test_build_chunk_context_keeps_real_court_name_spans():
+    result = _build_chunk_context("Delhi High Court ruling on capital gains")
+
+    assert result is not None
+    spans = json.loads(result)
+    texts = [span["text"] for span in spans]
+    assert "Delhi High Court" in texts
 
 
 def test_build_chunk_context_drops_alt_text_and_proximity():

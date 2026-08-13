@@ -4,6 +4,7 @@ from typing import Awaitable, Callable
 
 from langfuse import get_client
 
+from common.legal_lexicon import is_stopword
 from common.query_tokenizer import chunk_query
 from common.schema_context import KNOWN_COURTS, build_schema_context
 from retrieval_api.gateway_client import GatewayClient
@@ -39,16 +40,30 @@ def _build_chunk_context(query: str) -> str | None:
     and alt_text's normalized form would never literal-match _sanitize_filters'
     substring check against the raw query - see design spec) and any
     type=="text" chunk (a bare word run adds no signal beyond the raw query
-    the model already sees). Returns None when nothing structural is found,
-    so callers can omit the block entirely rather than send an empty list."""
+    the model already sees). Also drops any court_city chunk whose leading
+    token is a stopword (e.g. "the court", "the tribunal") - merge_court_city
+    merges any token immediately before court/high/tribunal regardless of
+    whether it's a real place name, and injecting a stopword-led span as an
+    authoritative structural span nudges the SLM toward a bogus court filter
+    that _sanitize_filters cannot catch (its check only requires the value be
+    a literal substring of the query, which a stopword phrase trivially is).
+    Returns None when nothing structural is found, so callers can omit the
+    block entirely rather than send an empty list.
+
+    Note: chunk_query's upstream extract_quoted_phrases reorders tokens
+    (quoted phrases first, then the rest), so in rare cases a later chunk's
+    text is drawn from the query but is not a contiguous substring of the
+    original query in its original order - the content still comes from the
+    query text, just not guaranteed to appear at one exact span position."""
     spans = [
         {"text": chunk["text"], "type": chunk["type"]}
         for chunk in chunk_query(query)
         if chunk["type"] != "text"
+        and not (chunk["type"] == "court_city" and is_stopword(chunk["text"].split()[0]))
     ]
     if not spans:
         return None
-    return json.dumps(spans)
+    return json.dumps(spans, ensure_ascii=False)
 
 
 _LLAMA_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
