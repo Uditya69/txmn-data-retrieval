@@ -439,3 +439,71 @@ async def test_extract_intent_forwards_model_override_and_skips_get_model():
     gateway.get_model.assert_not_awaited()
     call_kwargs = gateway.chat.await_args.kwargs
     assert call_kwargs["model"] == "google/gemma-4-E4B-it"
+
+
+from retrieval_api.ai_mode.intent import _build_chunk_context
+
+
+def test_build_chunk_context_returns_none_for_text_only_query():
+    assert _build_chunk_context("capital gains set off business losses") is None
+
+
+def test_build_chunk_context_projects_and_filters_chunks():
+    result = _build_chunk_context('1995 taxmann.com 569 Delhi High Court "capital gains"')
+
+    assert result is not None
+    spans = json.loads(result)
+    assert isinstance(spans, list)
+    for span in spans:
+        assert set(span.keys()) == {"text", "type"}
+        assert span["type"] != "text"
+    types = {span["type"] for span in spans}
+    assert "citation" in types
+    assert "court_city" in types
+
+
+def test_build_chunk_context_drops_alt_text_and_proximity():
+    result = _build_chunk_context("Rule 57A applicability")
+
+    assert result is not None
+    spans = json.loads(result)
+    for span in spans:
+        assert "alt_text" not in span
+        assert "proximity" not in span
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_appends_chunk_context_when_spans_found():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "1995 taxmann.com 569",
+        "intent": "citation_lookup",
+        "filters": {},
+    })
+
+    await extract_intent(gateway, "1995 taxmann.com 569 Delhi High Court")
+
+    call_kwargs = gateway.chat.await_args.kwargs
+    user_message = call_kwargs["messages"][1]["content"]
+    assert user_message.startswith("1995 taxmann.com 569 Delhi High Court\n\n")
+    assert "Structural spans already present in the query above" in user_message
+    assert '"type": "citation"' in user_message
+    assert '"type": "court_city"' in user_message
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_user_message_unchanged_when_no_spans_found():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "capital gains treatment",
+        "intent": "conceptual",
+        "filters": {},
+    })
+
+    await extract_intent(gateway, "capital gains treatment")
+
+    call_kwargs = gateway.chat.await_args.kwargs
+    user_message = call_kwargs["messages"][1]["content"]
+    assert user_message == "capital gains treatment"

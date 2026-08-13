@@ -4,6 +4,7 @@ from typing import Awaitable, Callable
 
 from langfuse import get_client
 
+from common.query_tokenizer import chunk_query
 from common.schema_context import KNOWN_COURTS, build_schema_context
 from retrieval_api.gateway_client import GatewayClient
 
@@ -30,6 +31,24 @@ def _fallback_intent(query: str) -> dict:
     info about a named person) - degrade to a plain semantic search instead
     of failing the whole AI Mode request."""
     return {"rewritten_query": query, "intent": "unknown", "filters": {}}
+
+
+def _build_chunk_context(query: str) -> str | None:
+    """Trimmed JSON projection of chunk_query's structural spans, for injection
+    into extract_intent's user message. Drops `proximity`/`alt_text` (ES-only,
+    and alt_text's normalized form would never literal-match _sanitize_filters'
+    substring check against the raw query - see design spec) and any
+    type=="text" chunk (a bare word run adds no signal beyond the raw query
+    the model already sees). Returns None when nothing structural is found,
+    so callers can omit the block entirely rather than send an empty list."""
+    spans = [
+        {"text": chunk["text"], "type": chunk["type"]}
+        for chunk in chunk_query(query)
+        if chunk["type"] != "text"
+    ]
+    if not spans:
+        return None
+    return json.dumps(spans)
 
 
 _LLAMA_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
@@ -194,11 +213,17 @@ async def extract_intent(
     gateway: GatewayClient, query: str, on_step: OnStep | None = None, model: str | None = None,
 ) -> dict:
     resolved_model = model or await gateway.get_model(role="slm")
+    chunk_context = _build_chunk_context(query)
+    user_message = query if chunk_context is None else (
+        f"{query}\n\n"
+        "Structural spans already present in the query above (for reference "
+        f"only — do not add anything not already in the query text):\n{chunk_context}"
+    )
     response = await gateway.chat(
         role="slm",
         messages=[
             {"role": "system", "content": _system_prompt_for_model(resolved_model)},
-            {"role": "user", "content": query},
+            {"role": "user", "content": user_message},
         ],
         model=model,
         response_format=_RESPONSE_FORMAT,
