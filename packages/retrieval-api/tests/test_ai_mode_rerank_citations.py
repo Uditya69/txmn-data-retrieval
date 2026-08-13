@@ -115,7 +115,8 @@ async def test_rerank_and_prefetch_runs_both_concurrently(monkeypatch):
     monkeypatch.setattr(rerank_module, "rerank_top_chunks", fake_rerank_top)
 
     top_chunks, citations = await rerank_and_prefetch(
-        gateway=object(), es_client=object(), query="q", candidates=[{"chunk_id": "a", "doc_id": "d1"}],
+        gateway=object(), es_client=object(), query="q",
+        candidates=[{"chunk_id": "a", "doc_id": "d1", "rrf_score": 0.5}],
     )
 
     assert top_chunks == [{"chunk_id": "a"}]
@@ -142,13 +143,53 @@ async def test_rerank_and_prefetch_emits_rerank_step(monkeypatch):
 
     await rerank_and_prefetch(
         gateway=object(), es_client=object(), query="q",
-        candidates=[{"chunk_id": "a", "doc_id": "d1"}], on_step=on_step,
+        candidates=[{"chunk_id": "a", "doc_id": "d1", "rrf_score": 0.5}], on_step=on_step,
     )
 
     assert steps == [("rerank", {
+        "total_candidates": 1,
         "considered_count": 1,
         "top_chunks": [{"chunk_id": "a", "doc_id": "d1", "rerank_score": 0.95, "text": "chunk text"}],
     })]
+
+
+@pytest.mark.asyncio
+async def test_rerank_and_prefetch_caps_reranker_input_to_top_n_by_rrf_score(monkeypatch):
+    """RRF-merged candidates routinely run into the hundreds - sending all of them to the
+    reranker in one request is a real timeout/payload risk (same class as the synthesis
+    prompt that already timed out). Only the top _MAX_RERANK_CANDIDATES by rrf_score should
+    reach rerank_top_chunks; a low-ranked candidate must never be the one actually reranked."""
+    import retrieval_api.ai_mode.citations as citations_module
+    import retrieval_api.ai_mode.rerank as rerank_module
+
+    seen_candidates = []
+
+    async def fake_prefetch(es_client, candidates, top_n_docs=20):
+        return {}
+
+    async def fake_rerank_top(gateway, query, candidates, top_n=None, model=None):
+        seen_candidates.extend(candidates)
+        return []
+
+    monkeypatch.setattr(citations_module, "prefetch_citations", fake_prefetch)
+    monkeypatch.setattr(rerank_module, "rerank_top_chunks", fake_rerank_top)
+    monkeypatch.setattr(citations_module, "_MAX_RERANK_CANDIDATES", 3)
+
+    candidates = [
+        {"chunk_id": f"c{i}", "doc_id": f"d{i}", "rrf_score": score}
+        for i, score in enumerate([0.9, 0.5, 0.1, 0.05, 0.01])
+    ]
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    await rerank_and_prefetch(gateway=object(), es_client=object(), query="q", candidates=candidates, on_step=on_step)
+
+    assert [c["chunk_id"] for c in seen_candidates] == ["c0", "c1", "c2"]
+    rerank_step = next(data for step, data in steps if step == "rerank")
+    assert rerank_step["total_candidates"] == 5
+    assert rerank_step["considered_count"] == 3
 
 
 @pytest.mark.asyncio

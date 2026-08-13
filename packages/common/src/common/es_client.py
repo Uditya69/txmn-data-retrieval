@@ -95,7 +95,15 @@ def _wrap_function_score(field_query: dict) -> dict:
     weaker text match, burying better-matching docs that have modest/absent boost values. That
     result is why raw_search doesn't call this - not a missing-data bug this time, an
     architecture one (multiply-mode itself), left as a follow-up rather than further tuning
-    factors/modifiers here."""
+    factors/modifiers here.
+
+    No separate landmarkruling:-10 exclusion here (an earlier version of this function had one,
+    a top-level query must_not - since removed as a misreading of centax-node's actual source;
+    see raw_search's comment for the full explanation). It isn't needed even for the boost:
+    -10 already fails the `range: {gt: 0}` filter every function below is gated on, same as any
+    missing/zero value, so a -10 doc already gets the neutral (1x, no boost) treatment - exactly
+    centax-node's own "Don't add Function Score for blacklisted" comment describes, with no
+    extra clause required."""
     def _boost_function(field: str, factor: float, modifier: str) -> dict:
         return {
             "filter": {"range": {field: {"gt": 0}}},
@@ -104,12 +112,7 @@ def _wrap_function_score(field_query: dict) -> dict:
 
     return {
         "function_score": {
-            "query": {
-                "bool": {
-                    "must": [field_query],
-                    "must_not": [{"term": {"landmarkruling": -10}}],
-                }
-            },
+            "query": field_query,
             "functions": [
                 _boost_function("documenttypeboost", 0.2, "sqrt"),
                 _boost_function("court_boost", 0.01, "none"),
@@ -120,23 +123,26 @@ def _wrap_function_score(field_query: dict) -> dict:
     }
 
 
-def _exclude_blacklisted(field_query: dict) -> dict:
-    """landmarkruling: -10 marks a hard-excluded/blacklisted doc (centax's own convention,
-    see _wrap_function_score's must_not) - a content filter, not a ranking signal, so it
-    stays even though the ranking boost that used to carry it (function_score) does not."""
+def build_query_preview(query: str) -> dict:
+    """The exact shape/chunk/ES-query breakdown raw_search uses for this query, without
+    executing a search - single source of truth shared with raw_search (below) so the two
+    can never drift apart. Powers the `/v1/query-analysis` endpoint
+    (retrieval_api/query_analysis.py) - our equivalent of centax-node's own
+    `/research-premium/api/v1/getLowLevelQuery`, for comparing query breakdowns side by side."""
+    shape = classify_query_shape(query)
+    expanded_query = expand_query_synonyms(query)
+    chunks = chunk_query(query)
     return {
-        "bool": {
-            "must": [field_query],
-            "must_not": [{"term": {"landmarkruling": -10}}],
-        }
+        "query": query,
+        "shape": shape,
+        "expanded_query": expanded_query if expanded_query != query else None,
+        "chunks": chunks,
+        "es_query": _build_field_query(expanded_query, shape, chunks=chunks),
     }
 
 
 async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
-    shape = classify_query_shape(query)
-    field_query = _build_field_query(
-        expand_query_synonyms(query), shape, chunks=chunk_query(query),
-    )
+    field_query = build_query_preview(query)["es_query"]
     # Deliberately NOT wrapped in _wrap_function_score(). Even after patching that formula's
     # missing/zero-value bugs (see its docstring), a 53-query eval run showed the patched
     # boosting still nearly halves pass rate versus plain text relevance (21/53 boosted vs
@@ -144,11 +150,22 @@ async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
     # (boost_mode: "multiply" lets documenttypeboost/court_boost/landmarkruling outweigh real
     # text relevance by 10-50x), not another missing-data instance, so it's left disabled here
     # rather than patched further. Re-enabling requires redesigning the boost combination
-    # (e.g. bounded/additive instead of multiplicative), not just flipping this back on. The
-    # blacklist exclusion that used to ride along inside function_score's must_not is kept
-    # independently via _exclude_blacklisted, since that's a content filter, not ranking.
-    body = _exclude_blacklisted(field_query)
-    response = await client.search(index=client.index, query=body, size=limit)
+    # (e.g. bounded/additive instead of multiplicative), not just flipping this back on.
+    #
+    # No landmarkruling:-10 exclusion here either, deliberately - a previous version of this
+    # function had one (`_exclude_blacklisted`, since removed), reasoning it preserved a
+    # content filter that used to ride along inside centax-node's function_score must_not. That
+    # was a misreading of the source: in centax-node's actual query (services/caselaws.js), that
+    # must_not is scoped as a per-function `filter` *inside* one entry of function_score's
+    # `functions` array - in ES semantics that only controls whether *that one function's* boost
+    # applies to a doc (matching its own comment, "Don't add Function Score for blacklisted"). It
+    # never excluded the doc from search results at all; centax-node shows these ~173 flagged
+    # docs in results normally, just without the landmark-ruling boost bonus. Our prior version
+    # hoisted that must_not to the top-level query instead, which - unlike centax-node - hid all
+    # ~173 docs from every search entirely, a real regression with no source-of-truth backing it.
+    # And now that boosting is off altogether, the original motivation (skip the boost for these
+    # docs) is moot too: there's no boost being computed for anyone to skip.
+    response = await client.search(index=client.index, query=field_query, size=limit)
     results = []
     for hit in response["hits"]["hits"]:
         source = hit["_source"]

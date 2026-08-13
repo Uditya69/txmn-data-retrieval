@@ -7,6 +7,7 @@ from common.es_client import (
     fetch_citations,
     fetch_fullcontent,
     fetch_document_metadata,
+    build_query_preview,
 )
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
@@ -98,7 +99,7 @@ async def test_raw_search_expands_known_abbreviation_into_multi_match_query_text
 
     await raw_search(client, "ACIT order on depreciation", limit=20)
 
-    sent_query = client.search_calls[0]["bool"]["must"][0]
+    sent_query = client.search_calls[0]
     multi_match_query = sent_query["bool"]["should"][0]["multi_match"]["query"]
     assert "ACIT order on depreciation" in multi_match_query
     assert "ASSISTANT COMMISSIONER INCOME TAX" in multi_match_query
@@ -114,7 +115,7 @@ async def test_raw_search_adds_exact_match_phrase_clause_for_merged_keyword_numb
 
     await raw_search(client, "Section 6 of Income Tax Act", limit=20)
 
-    sent_query = client.search_calls[0]["bool"]["must"][0]
+    sent_query = client.search_calls[0]
     phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
     section_clauses = [c for c in phrase_clauses if c["match_phrase"]["heading"]["query"] == "Section 6"]
     assert section_clauses
@@ -130,7 +131,7 @@ async def test_raw_search_chunks_unrecognized_word_run_into_a_text_phrase_clause
 
     await raw_search(client, "can a company claim depreciation on goodwill", limit=20)
 
-    sent_query = client.search_calls[0]["bool"]["must"][0]
+    sent_query = client.search_calls[0]
     phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
     text_clauses = [c for c in phrase_clauses if c["match_phrase"]["heading"]["slop"] == 5]
     assert text_clauses
@@ -144,7 +145,7 @@ async def test_raw_search_adds_zero_padded_alternative_clause_for_short_section_
 
     await raw_search(client, "section 92C ITES comparables", limit=20)
 
-    sent_query = client.search_calls[0]["bool"]["must"][0]
+    sent_query = client.search_calls[0]
     phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
     queries = {c["match_phrase"]["heading"]["query"] for c in phrase_clauses}
     assert "section 92C" in queries
@@ -160,10 +161,34 @@ async def test_raw_search_queries_heading_subheading_fullcontent_not_just_sparse
     query = client.search_calls[0]
     should_fields = {
         clause["multi_match"]["fields"][0] if "multi_match" in clause else None
-        for clause in query["bool"]["must"][0]["bool"]["should"]
+        for clause in query["bool"]["should"]
     }
     for field in ("heading", "subheading", "fullcontent"):
         assert field in should_fields, f"{field} missing from should clauses: {should_fields}"
+
+
+def test_build_query_preview_matches_what_raw_search_actually_sends():
+    """Single source of truth: raw_search calls build_query_preview() internally (see its
+    own source) rather than recomputing shape/chunks/query separately, specifically so the
+    /v1/query-analysis endpoint (backed by this function) can never drift from what a real
+    search actually does."""
+    preview = build_query_preview("Section 6 of Income Tax Act")
+
+    assert preview["query"] == "Section 6 of Income Tax Act"
+    assert preview["shape"] == "provision"
+    assert any(c["type"] == "section" and c["text"] == "Section 6" for c in preview["chunks"])
+    assert "bool" in preview["es_query"]
+
+
+def test_build_query_preview_omits_expanded_query_when_unchanged():
+    preview = build_query_preview("can a company claim depreciation")
+    assert preview["expanded_query"] is None
+
+
+def test_build_query_preview_includes_expanded_query_when_synonym_applies():
+    preview = build_query_preview("ACIT order on depreciation")
+    assert preview["expanded_query"] is not None
+    assert "ASSISTANT COMMISSIONER INCOME TAX" in preview["expanded_query"]
 
 
 @pytest.mark.asyncio
@@ -182,15 +207,24 @@ async def test_raw_search_does_not_wrap_query_in_function_score():
 
 
 @pytest.mark.asyncio
-async def test_raw_search_excludes_blacklisted_landmarkruling_docs():
-    """landmarkruling: -10 is a content-exclusion filter (centax's blacklist convention),
-    not a ranking signal - it stays even with the ranking boost (function_score) disabled."""
+async def test_raw_search_does_not_exclude_landmarkruling_blacklisted_docs():
+    """A prior version of raw_search hoisted centax-node's landmarkruling:-10 handling into
+    a top-level query must_not, believing it preserved a content-exclusion filter. That was a
+    misreading of the source: in centax-node's actual query (services/caselaws.js), that
+    must_not is scoped as a per-function `filter` *inside* one function_score function entry -
+    it only controls whether that one function's boost applies, matching its own comment
+    ("Don't add Function Score for blacklisted"). It never excluded the doc from results at
+    all. Our prior top-level version was a real regression (hid ~173 legitimate docs from
+    every search) with no source-of-truth backing it, and is now removed - raw_search must
+    send the field_query as-is, no must_not anywhere, no landmarkruling clause at all."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "exemption claim", limit=20)
 
-    bool_clause = client.search_calls[0]["bool"]
-    assert {"term": {"landmarkruling": -10}} in bool_clause.get("must_not", [])
+    query = client.search_calls[0]
+    assert query == {"bool": {"should": query["bool"]["should"], "minimum_should_match": 1}}
+    assert "must_not" not in query["bool"]
+    assert "landmarkruling" not in str(query)
 
 
 def test_get_es_client_reads_index_and_auth_from_settings():

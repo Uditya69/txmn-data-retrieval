@@ -143,49 +143,15 @@ def extract_quoted_phrases(query: str) -> list[str]:
     return phrases + words
 
 
-_PIPELINE_STAGES = [
-    ("quoted_phrase_extraction", "centax-node queryAnalyzer.js (ported)"),
-    ("citation_span_merge", "this codebase (new - not in centax-node)"),
-    ("keyword_number_merge", "centax-node queryAnalyzer.js (ported, keyword-restricted)"),
-    ("court_city_merge", "centax-node queryAnalyzer.js (ported)"),
-    ("stopword_strip", "centax-node queryAnalyzer.js (ported)"),
-]
-
-
-def analyze_query(query: str) -> dict:
-    """Diagnostic breakdown of the full query-shape + boost-phrase pipeline, for UI/trace
-    visibility only - NOT itself on the search path (classify_query_shape, expand_query_synonyms,
-    and extract_boost_phrases run independently in es_client.py::raw_search; this just re-derives
-    the same values stage-by-stage so each intermediate step is inspectable). See each stage
-    function's own docstring for exactly what it does and why; `source` here just tags which
-    stages are ported from centax-node's queryAnalyzer.js versus new to this codebase."""
-    normalized = normalize_citation_spacing(query)
-    shape = classify_query_shape(query)
-    expanded = expand_query_synonyms(query)
-
-    tokens = extract_quoted_phrases(query)
-    stages = [{"stage": "quoted_phrase_extraction", "source": _PIPELINE_STAGES[0][1], "tokens": list(tokens)}]
-
-    tokens = merge_citation_span(tokens)
-    stages.append({"stage": "citation_span_merge", "source": _PIPELINE_STAGES[1][1], "tokens": list(tokens)})
-
-    tokens = merge_keyword_number(tokens)
-    stages.append({"stage": "keyword_number_merge", "source": _PIPELINE_STAGES[2][1], "tokens": list(tokens)})
-
-    tokens = merge_court_city(tokens)
-    stages.append({"stage": "court_city_merge", "source": _PIPELINE_STAGES[3][1], "tokens": list(tokens)})
-
-    tokens = strip_stopwords(tokens)
-    stages.append({"stage": "stopword_strip", "source": _PIPELINE_STAGES[4][1], "tokens": list(tokens)})
-
-    return {
-        "query": query,
-        "normalized_citation_spacing": normalized if normalized != query else None,
-        "shape": shape,
-        "expanded_query": expanded if expanded != query else None,
-        "pipeline_stages": stages,
-        "boost_phrases": [t for t in tokens if " " in t],
-    }
+# analyze_query() used to live here as a UI-trace-only diagnostic that independently
+# re-derived shape/expansion/phrases stage-by-stage, separate from what the real search path
+# (es_client.raw_search) computed. It was removed after that independence caused a real bug:
+# raw_search moved to chunk_query() (proximity-phrase chunking - groups an unrecognized word
+# run like "Dimension Data India" into one phrase), but analyze_query kept using its own older
+# pipeline that never did that grouping, so the UI trace showed a stale breakdown that didn't
+# match what ES actually received. Use chunk_query() directly, or es_client.build_query_preview()
+# for the full shape+chunks+ES-query breakdown - both single-sourced from what raw_search itself
+# calls, so this can't drift out of sync again.
 
 
 def extract_boost_phrases(query: str) -> list[str]:

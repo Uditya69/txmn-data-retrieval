@@ -23,22 +23,19 @@ describe('TracePanel', () => {
     expect(screen.getByText(/42/)).toBeInTheDocument()
   })
 
-  it('renders a query_analysis step with shape summary and staged pipeline breakdown', () => {
+  it('renders a query_analysis step with shape summary and chunk breakdown', () => {
     const steps: TraceStep[] = [
       {
         step: 'query_analysis',
         data: {
-          query: 'Section 6 of Income Tax Act',
+          query: 'Dimension Data India section 92C',
           shape: 'provision',
           expanded_query: null,
-          pipeline_stages: [
-            { stage: 'quoted_phrase_extraction', source: 'centax-node queryAnalyzer.js (ported)', tokens: ['Section', '6', 'of', 'Income', 'Tax', 'Act'] },
-            { stage: 'citation_span_merge', source: 'this codebase (new - not in centax-node)', tokens: ['Section', '6', 'of', 'Income', 'Tax', 'Act'] },
-            { stage: 'keyword_number_merge', source: 'centax-node queryAnalyzer.js (ported, keyword-restricted)', tokens: ['Section 6', 'of', 'Income', 'Tax', 'Act'] },
-            { stage: 'court_city_merge', source: 'centax-node queryAnalyzer.js (ported)', tokens: ['Section 6', 'of', 'Income', 'Tax', 'Act'] },
-            { stage: 'stopword_strip', source: 'centax-node queryAnalyzer.js (ported)', tokens: ['Section 6', 'Income', 'Tax', 'Act'] },
+          chunks: [
+            { text: 'Dimension Data India', proximity: 5, type: 'text', alt_text: null },
+            { text: 'section 92C', proximity: 0, type: 'section', alt_text: 'section 092C' },
           ],
-          boost_phrases: ['Section 6'],
+          es_query: { bool: { should: [], minimum_should_match: 1 } },
         },
       },
     ]
@@ -46,10 +43,12 @@ describe('TracePanel', () => {
 
     expect(screen.getByRole('heading', { level: 3, name: 'Query analysis' })).toBeInTheDocument()
     expect(screen.getByText(/shape: provision/)).toBeInTheDocument()
-    expect(screen.getByText(/1 boost phrase/)).toBeInTheDocument()
-    expect(screen.getByText(/keyword_number_merge/)).toBeInTheDocument()
-    expect(screen.getByText(/centax-node queryAnalyzer.js \(ported, keyword-restricted\)/)).toBeInTheDocument()
-    expect(screen.getByText(/Final boost phrases:.*"Section 6"/)).toBeInTheDocument()
+    expect(screen.getByText(/2 chunks/)).toBeInTheDocument()
+    expect(screen.getByText('"Dimension Data India"')).toBeInTheDocument()
+    expect(screen.getByText(/text, slop 5/)).toBeInTheDocument()
+    expect(screen.getByText('"section 92C"')).toBeInTheDocument()
+    expect(screen.getByText(/section, slop 0/)).toBeInTheDocument()
+    expect(screen.getByText('"section 092C"')).toBeInTheDocument()
   })
 
   it('truncates long lists to 5 with a Show more button that reveals the rest locally', async () => {

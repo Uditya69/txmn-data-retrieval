@@ -1,7 +1,7 @@
 from common.query_tokenizer import (
     classify_query_shape, normalize_citation_spacing, merge_keyword_number,
     merge_court_city, merge_citation_span, strip_stopwords, extract_quoted_phrases,
-    expand_query_synonyms, extract_boost_phrases, analyze_query, chunk_query,
+    expand_query_synonyms, extract_boost_phrases, chunk_query,
 )
 
 
@@ -131,53 +131,6 @@ def test_extract_boost_phrases_excludes_single_word_tokens():
 def test_extract_boost_phrases_excludes_stripped_stopwords():
     # "in case of" is stopped away; only the merged court phrase survives as multi-word
     assert extract_boost_phrases("ruling in case of Delhi High Court") == ["Delhi High Court"]
-
-
-def test_analyze_query_reports_shape_and_final_boost_phrases():
-    result = analyze_query("Section 6 of Income Tax Act")
-
-    assert result["query"] == "Section 6 of Income Tax Act"
-    assert result["shape"] == "provision"
-    assert result["boost_phrases"] == ["Section 6"]
-
-
-def test_analyze_query_matches_extract_boost_phrases_and_classify_query_shape():
-    """analyze_query re-derives the same pipeline the actual search path runs
-    independently (es_client.raw_search) - its output must never diverge from
-    calling those functions directly, or the trace would be lying about what
-    the search actually did."""
-    query = "Reliance Industries 1995 taxmann.com 569 Rule 57A section 5(8)"
-
-    result = analyze_query(query)
-
-    assert result["shape"] == classify_query_shape(query)
-    assert set(result["boost_phrases"]) == set(extract_boost_phrases(query))
-
-
-def test_analyze_query_reports_pipeline_stage_provenance():
-    result = analyze_query("Husco International 133 taxmann.com 196")
-
-    stage_names = [s["stage"] for s in result["pipeline_stages"]]
-    assert stage_names == [
-        "quoted_phrase_extraction", "citation_span_merge",
-        "keyword_number_merge", "court_city_merge", "stopword_strip",
-    ]
-    citation_stage = next(s for s in result["pipeline_stages"] if s["stage"] == "citation_span_merge")
-    assert "133 taxmann.com 196" in citation_stage["tokens"]
-    assert "this codebase (new" in citation_stage["source"]
-    quoted_stage = result["pipeline_stages"][0]
-    assert "centax-node" in quoted_stage["source"]
-
-
-def test_analyze_query_omits_expanded_query_when_no_synonym_applies():
-    result = analyze_query("can a company claim depreciation")
-    assert result["expanded_query"] is None
-
-
-def test_analyze_query_includes_expanded_query_when_synonym_applies():
-    result = analyze_query("ACIT order on depreciation")
-    assert result["expanded_query"] is not None
-    assert "ASSISTANT COMMISSIONER INCOME TAX" in result["expanded_query"]
 
 
 def test_chunk_query_groups_unrecognized_word_run_into_one_text_chunk():

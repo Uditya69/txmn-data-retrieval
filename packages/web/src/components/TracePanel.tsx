@@ -23,8 +23,8 @@ function summarize(step: TraceStep): string {
   const d = step.data as Record<string, any>
   switch (step.step) {
     case 'query_analysis': {
-      const phraseCount = (d.boost_phrases ?? []).length
-      return `shape: ${d.shape} — ${phraseCount} boost phrase${phraseCount === 1 ? '' : 's'}`
+      const chunkCount = (d.chunks ?? []).length
+      return `shape: ${d.shape} — ${chunkCount} chunk${chunkCount === 1 ? '' : 's'}`
     }
     case 'intent':
       return `"${d.query}" -> "${d.rewritten_query}" (${d.intent})`
@@ -40,8 +40,11 @@ function summarize(step: TraceStep): string {
     }
     case 'rrf_merge':
       return `${d.candidate_count} candidates merged`
-    case 'rerank':
-      return `${d.considered_count} considered, top ${d.top_chunks?.length ?? 0} kept`
+    case 'rerank': {
+      const capped = d.total_candidates !== undefined && d.total_candidates > d.considered_count
+      const from = capped ? ` (capped from ${d.total_candidates})` : ''
+      return `${d.considered_count} considered${from}, top ${d.top_chunks?.length ?? 0} kept`
+    }
     case 'synthesis_prompt':
       return `${(d.prompt ?? '').length} chars`
     case 'agent_tool_call':
@@ -105,7 +108,10 @@ function TruncatedHitList({
 }
 
 function QueryAnalysisBody({ data }: { data: Record<string, any> }) {
-  const stages: Array<{ stage: string; source: string; tokens: string[] }> = data.pipeline_stages ?? []
+  // Same build_query_preview() output the /v1/query-analysis endpoint returns - see its
+  // own docstring (common/es_client.py) - so this must never show a different breakdown
+  // than what raw_search actually sent to ES.
+  const chunks: Array<{ text: string; proximity: number; type: string; alt_text: string | null }> = data.chunks ?? []
   return (
     <>
       {data.expanded_query && (
@@ -114,17 +120,19 @@ function QueryAnalysisBody({ data }: { data: Record<string, any> }) {
         </p>
       )}
       <ul className={styles.hitList}>
-        {stages.map((s) => (
-          <li key={s.stage}>
-            <strong>{s.stage}</strong> <em>({s.source})</em>: {s.tokens.map((t) => `"${t}"`).join(', ')}
+        {chunks.map((c, i) => (
+          <li key={`${c.text}-${i}`}>
+            <strong>"{c.text}"</strong> <em>({c.type}, slop {c.proximity})</em>
+            {c.alt_text && <> — alt: <code>"{c.alt_text}"</code></>}
           </li>
         ))}
       </ul>
-      <p className={styles.summary}>
-        Final boost phrases: {(data.boost_phrases ?? []).length > 0
-          ? data.boost_phrases.map((p: string) => `"${p}"`).join(', ')
-          : '(none)'}
-      </p>
+      {/* {data.es_query && (
+        <details>
+          <summary className={styles.summary} style={{ cursor: 'pointer' }}>Raw ES query</summary>
+          <pre className={styles.hitList}>{JSON.stringify(data.es_query, null, 2)}</pre>
+        </details>
+      )} */}
     </>
   )
 }
