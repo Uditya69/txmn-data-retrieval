@@ -5,7 +5,7 @@ from langfuse import get_client
 
 from common.es_client import raw_search
 from common.milvus_client import hybrid_search
-from common.query_tokenizer import classify_query_shape
+from common.query_tokenizer import analyze_query, classify_query_shape
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.instant.rerank import rerank_instant_results
@@ -105,6 +105,13 @@ async def run_instant(
 ) -> dict:
     langfuse = get_client()
     with langfuse.start_as_current_observation(as_type="span", name="instant-search", input={"query": query}):
+        # Diagnostic-only, not on the search path itself: es_client.raw_search re-derives
+        # shape/expansion/boost-phrases independently, this just exposes the same pipeline
+        # stage-by-stage so a "why did this doc rank where it did" question can be answered
+        # by reading the trace instead of re-running probe scripts by hand.
+        if on_step is not None:
+            await on_step("query_analysis", analyze_query(query))
+
         (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(
             _run_es(es_client, query, on_step),
             _run_milvus(gateway, milvus_client, query, on_step),

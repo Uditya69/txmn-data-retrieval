@@ -1,7 +1,7 @@
 from elasticsearch import AsyncElasticsearch
 
 from common.config import Settings
-from common.query_tokenizer import classify_query_shape, expand_query_synonyms, extract_boost_phrases
+from common.query_tokenizer import chunk_query, classify_query_shape, expand_query_synonyms
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
 _BOOST_PROFILES = {
@@ -35,29 +35,37 @@ def get_es_client(settings: Settings) -> IndexedESClient:
     return IndexedESClient(client, settings.es_index)
 
 
-_PHRASE_BOOST_FACTOR = 3.0
-
-
-def _build_field_query(query: str, shape: str, boost_phrases: list[str] = ()) -> dict:
+def _build_field_query(query: str, shape: str, chunks: list[dict] = ()) -> dict:
     """Query-shape-aware multi-field search (design doc section 1+3): every content field
     is searched (facts_text/held_text/headnotes_text are only 26-58% populated on the real
     index, so heading/subheading/fullcontent - 100% populated - must never be skipped),
     with boosts picked by the no-LLM query-shape classifier.
 
-    boost_phrases (queryAnalyzer.js-ported merges like "Section 6"/"Delhi High Court", or a
-    quoted span) get an extra phrase-match should clause layered on top - never replacing
-    the loose per-field terms above, so a query that doesn't fully match the merge pipeline
-    still falls back to plain recall instead of a legacy-style hard AND-of-all-tokens."""
+    chunks (see query_tokenizer.chunk_query - ported from centax-node's queryAnalyzer.js/
+    searchTextElastic.js) add match_phrase-with-slop should clauses per field, one per chunk -
+    never replacing the loose per-field multi_match terms above, so a query still falls back to
+    plain OR-term recall (typos/fuzzy matches match_phrase can't tolerate) even where chunking
+    finds nothing. Each phrase clause reuses the SAME per-field boost weight as that field's
+    multi_match clause - chunking only changes matching precision (does "Dimension Data India"
+    have to appear together, within `slop` positions, versus anywhere independently), not the
+    boost scale. This replaces the older, narrower extract_boost_phrases mechanism (which only
+    phrase-boosted the few explicitly-recognized merges - Section+number, court+city, citation
+    triple, quotes - and left every other word, including an unrecognized party name, to compete
+    as independent OR terms with no phrase treatment at all)."""
     boosts = _BOOST_PROFILES[shape]
-    fields = list(boosts.keys())
     should = [
         {"multi_match": {"query": query, "fields": [field], "boost": boost, "fuzziness": "AUTO"}}
         for field, boost in boosts.items()
     ]
-    should += [
-        {"multi_match": {"query": phrase, "fields": fields, "type": "phrase", "boost": _PHRASE_BOOST_FACTOR}}
-        for phrase in boost_phrases
-    ]
+    for chunk in chunks:
+        for field, boost in boosts.items():
+            should.append({
+                "match_phrase": {field: {"query": chunk["text"], "slop": chunk["proximity"], "boost": boost}},
+            })
+            if chunk.get("alt_text"):
+                should.append({
+                    "match_phrase": {field: {"query": chunk["alt_text"], "slop": chunk["proximity"], "boost": boost}},
+                })
     return {"bool": {"should": should, "minimum_should_match": 1}}
 
 
@@ -127,7 +135,7 @@ def _exclude_blacklisted(field_query: dict) -> dict:
 async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
     shape = classify_query_shape(query)
     field_query = _build_field_query(
-        expand_query_synonyms(query), shape, boost_phrases=extract_boost_phrases(query),
+        expand_query_synonyms(query), shape, chunks=chunk_query(query),
     )
     # Deliberately NOT wrapped in _wrap_function_score(). Even after patching that formula's
     # missing/zero-value bugs (see its docstring), a 53-query eval run showed the patched

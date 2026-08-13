@@ -183,7 +183,11 @@ async def test_extract_intent_drops_unknown_null_and_empty_filters():
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "trade training takeover Kolkata",
-        "intent": "conceptual",
+        # provision_lookup here (not the more realistic "conceptual") purely so the
+        # "section" filter survives to exercise this test's real subject - dropping
+        # unknown/null/empty filter keys - without also tripping the section/intent
+        # gate covered by its own dedicated tests below.
+        "intent": "provision_lookup",
         "filters": {"city": "Kolkata", "act": None, "court": "", "section": "37(1)"},
     })
 
@@ -294,6 +298,60 @@ async def test_extract_intent_preserves_user_supplied_year_and_section_numbers()
 
     assert result["rewritten_query"] == "income tax section 80HH deduction in 1985"
     assert result["filters"] == {"section": "80HH"}
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_drops_section_filter_for_conceptual_queries():
+    """A "section" filter only resolves correctly for provision_lookup queries - it
+    matches ACT/RULE-group documents whose heading IS the section number verbatim
+    (see es_client.py::_section_heading_queries), not case law that merely cites the
+    section. Applied to a conceptual/case-law query, it silently redirects the doc_id
+    allowlist to statute-text documents that share no doc_ids with the case-law Milvus
+    collections the search runs against, zeroing out results despite the corpus having
+    a good match. Confirmed live: a conceptual query with a bare "section 92C" filter
+    went from 70 unfiltered Milvus hits (including the gold doc) to 0 filtered hits."""
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "Dimension Data India section 92C ITES comparables",
+        "intent": "conceptual",
+        "filters": {"section": "92C"},
+    })
+
+    result = await extract_intent(gateway, "Dimension Data India section 92C ITES comparables")
+
+    assert result["intent"] == "conceptual"
+    assert result["filters"] == {}
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_drops_section_filter_for_citation_lookup_queries():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "Ramesh Gupta vs ITO section 143(3)",
+        "intent": "citation_lookup",
+        "filters": {"party": "Ramesh Gupta", "section": "143(3)"},
+    })
+
+    result = await extract_intent(gateway, "Ramesh Gupta vs ITO section 143(3)")
+
+    assert result["filters"] == {"party": "Ramesh Gupta"}
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_keeps_section_filter_for_provision_lookup_queries():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "section 92C text",
+        "intent": "provision_lookup",
+        "filters": {"section": "92C"},
+    })
+
+    result = await extract_intent(gateway, "section 92C text")
+
+    assert result["filters"] == {"section": "92C"}
 
 
 @pytest.mark.asyncio

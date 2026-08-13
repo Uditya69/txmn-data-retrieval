@@ -4,6 +4,7 @@ import type { TraceStep } from '../api/useSearch'
 import styles from './TracePanel.module.css'
 
 const STEP_LABELS: Record<string, string> = {
+  query_analysis: 'Query analysis',
   intent: 'Intent',
   filters_resolved: 'Filters resolved',
   es_search: 'ES search',
@@ -21,6 +22,10 @@ const STEP_LABELS: Record<string, string> = {
 function summarize(step: TraceStep): string {
   const d = step.data as Record<string, any>
   switch (step.step) {
+    case 'query_analysis': {
+      const phraseCount = (d.boost_phrases ?? []).length
+      return `shape: ${d.shape} — ${phraseCount} boost phrase${phraseCount === 1 ? '' : 's'}`
+    }
     case 'intent':
       return `"${d.query}" -> "${d.rewritten_query}" (${d.intent})`
     case 'filters_resolved':
@@ -99,8 +104,36 @@ function TruncatedHitList({
   )
 }
 
+function QueryAnalysisBody({ data }: { data: Record<string, any> }) {
+  const stages: Array<{ stage: string; source: string; tokens: string[] }> = data.pipeline_stages ?? []
+  return (
+    <>
+      {data.expanded_query && (
+        <p className={styles.summary}>
+          Synonym-expanded: <code>{data.expanded_query}</code>
+        </p>
+      )}
+      <ul className={styles.hitList}>
+        {stages.map((s) => (
+          <li key={s.stage}>
+            <strong>{s.stage}</strong> <em>({s.source})</em>: {s.tokens.map((t) => `"${t}"`).join(', ')}
+          </li>
+        ))}
+      </ul>
+      <p className={styles.summary}>
+        Final boost phrases: {(data.boost_phrases ?? []).length > 0
+          ? data.boost_phrases.map((p: string) => `"${p}"`).join(', ')
+          : '(none)'}
+      </p>
+    </>
+  )
+}
+
 function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: (docId: string) => void }) {
   const d = step.data as Record<string, any>
+  if (step.step === 'query_analysis') {
+    return <QueryAnalysisBody data={d} />
+  }
   if (step.step === 'es_search') {
     return <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
   }
