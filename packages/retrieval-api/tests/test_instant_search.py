@@ -215,6 +215,8 @@ async def test_run_instant_emits_es_and_milvus_trace_steps(monkeypatch):
 
     # es_search runs on an independent branch (asyncio.gather with _run_milvus)
     # so its relative order vs. the milvus steps isn't guaranteed - only that
-    # dense precedes sparse within the milvus branch.
-    assert set(steps) == {"es_search", "milvus_dense", "milvus_sparse"}
+    # dense precedes sparse within the milvus branch, and query_analysis (emitted
+    # synchronously before the gather) comes first.
+    assert set(steps) == {"query_analysis", "es_search", "milvus_dense", "milvus_sparse"}
+    assert steps[0] == "query_analysis"
     assert steps.index("milvus_dense") < steps.index("milvus_sparse")

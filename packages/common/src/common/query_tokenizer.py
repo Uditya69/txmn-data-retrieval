@@ -143,6 +143,51 @@ def extract_quoted_phrases(query: str) -> list[str]:
     return phrases + words
 
 
+_PIPELINE_STAGES = [
+    ("quoted_phrase_extraction", "centax-node queryAnalyzer.js (ported)"),
+    ("citation_span_merge", "this codebase (new - not in centax-node)"),
+    ("keyword_number_merge", "centax-node queryAnalyzer.js (ported, keyword-restricted)"),
+    ("court_city_merge", "centax-node queryAnalyzer.js (ported)"),
+    ("stopword_strip", "centax-node queryAnalyzer.js (ported)"),
+]
+
+
+def analyze_query(query: str) -> dict:
+    """Diagnostic breakdown of the full query-shape + boost-phrase pipeline, for UI/trace
+    visibility only - NOT itself on the search path (classify_query_shape, expand_query_synonyms,
+    and extract_boost_phrases run independently in es_client.py::raw_search; this just re-derives
+    the same values stage-by-stage so each intermediate step is inspectable). See each stage
+    function's own docstring for exactly what it does and why; `source` here just tags which
+    stages are ported from centax-node's queryAnalyzer.js versus new to this codebase."""
+    normalized = normalize_citation_spacing(query)
+    shape = classify_query_shape(query)
+    expanded = expand_query_synonyms(query)
+
+    tokens = extract_quoted_phrases(query)
+    stages = [{"stage": "quoted_phrase_extraction", "source": _PIPELINE_STAGES[0][1], "tokens": list(tokens)}]
+
+    tokens = merge_citation_span(tokens)
+    stages.append({"stage": "citation_span_merge", "source": _PIPELINE_STAGES[1][1], "tokens": list(tokens)})
+
+    tokens = merge_keyword_number(tokens)
+    stages.append({"stage": "keyword_number_merge", "source": _PIPELINE_STAGES[2][1], "tokens": list(tokens)})
+
+    tokens = merge_court_city(tokens)
+    stages.append({"stage": "court_city_merge", "source": _PIPELINE_STAGES[3][1], "tokens": list(tokens)})
+
+    tokens = strip_stopwords(tokens)
+    stages.append({"stage": "stopword_strip", "source": _PIPELINE_STAGES[4][1], "tokens": list(tokens)})
+
+    return {
+        "query": query,
+        "normalized_citation_spacing": normalized if normalized != query else None,
+        "shape": shape,
+        "expanded_query": expanded if expanded != query else None,
+        "pipeline_stages": stages,
+        "boost_phrases": [t for t in tokens if " " in t],
+    }
+
+
 def extract_boost_phrases(query: str) -> list[str]:
     """Runs the full queryAnalyzer.js-ported pipeline (quote grouping -> citation-span merge
     -> keyword+number merge -> court+city merge -> stopword strip) and returns only the
@@ -157,3 +202,89 @@ def extract_boost_phrases(query: str) -> list[str]:
     tokens = merge_court_city(tokens)
     tokens = strip_stopwords(tokens)
     return [t for t in tokens if " " in t]
+
+
+# Ported from centax-node's queryAnalyzer.js ProximityDefault class (services/queryAnalyzer.js) -
+# each becomes an ES match_phrase `slop` value (see searchTextElastic.js, which sends
+# `{"match_phrase": {field: {query, slop: element.Proximity}}}` per token). 0 = exact phrase
+# (ProximityDefault.Phrase/DateType), 2 = citation triples tolerate minor gaps
+# (ProximityDefault.Citation), 5 = an ordinary run of words (ProximityDefault.Text/DefaultValue).
+_PROXIMITY_EXACT = 0
+_PROXIMITY_CITATION = 2
+_PROXIMITY_TEXT = 5
+
+_ZERO_PAD_WIDTH = 3
+
+
+def _zero_padded_variant(number_part: str) -> str | None:
+    """Legacy generates a zero-padded numeric alternative for a short section/rule number
+    (production getLowLevelQuery output for "section 92C" resolved to
+    "SECTION 92C | SECTION 092C" - some older citations format the numeric part zero-padded).
+    Only the numeric prefix is padded; a letter/subsection suffix ("C", "(1)(c)") is kept as-is.
+    Returns None when there's nothing to pad (already >= 3 digits, or no leading digits)."""
+    match = re.match(r"^(\d+)(.*)$", number_part)
+    if not match:
+        return None
+    digits, suffix = match.groups()
+    if len(digits) >= _ZERO_PAD_WIDTH:
+        return None
+    return f"{digits.zfill(_ZERO_PAD_WIDTH)}{suffix}"
+
+
+def _classify_merged_chunk(token: str) -> tuple[str, int, str | None]:
+    """A merged (multi-word) token from the extract_boost_phrases pipeline doesn't carry which
+    merge rule produced it, so this re-derives that from the token's own shape - cheaper than
+    threading provenance through every merge function, and the shapes don't overlap (a
+    Section-keyword-led token can't also look like a citation triple or a court-city pair)."""
+    words = token.split()
+    first_word = words[0].rstrip(".").lower()
+    if first_word in _SECTION_KEYWORDS and len(words) >= 2:
+        alt_number = _zero_padded_variant(words[-1])
+        alt_text = f"{' '.join(words[:-1])} {alt_number}" if alt_number else None
+        return "section", _PROXIMITY_EXACT, alt_text
+    if len(words) == 3 and words[0].isdigit() and words[2].isdigit() and is_known_journal(words[1]):
+        return "citation", _PROXIMITY_CITATION, None
+    if any(w.lower() in _COURT_TYPE_TOKENS for w in words[1:]):
+        return "court_city", _PROXIMITY_EXACT, None
+    return "quoted", _PROXIMITY_EXACT, None
+
+
+def chunk_query(query: str) -> list[dict]:
+    """Groups a query into ES match_phrase-ready chunks, closing a real gap versus the older
+    extract_boost_phrases: centax-node's queryAnalyzer.js converts the ENTIRE query into
+    phrase-with-slop matches, not just the few explicitly-recognized shapes (Section+number,
+    court+city, citation triple, quotes) - anything else still gets grouped. Its default/
+    fallback rule (queryAnalyzer.js:465-491, TokenType.Text) accumulates any maximal run of
+    consecutive non-keyword words into one contiguous phrase token with slop=5
+    (ProximityDefault.Text), split only at recognized keyword boundaries. That's what makes a
+    party name like "Dimension Data India" - no Section/Court/citation keyword anywhere near
+    it - one precise phrase in centax-node's own getLowLevelQuery output, instead of three
+    independent OR'd terms the way extract_boost_phrases (and multi_match on the raw query)
+    leaves it: a doc merely containing "Dimension" OR "Data" OR "India" anywhere, in any order,
+    scores the same as one where they appear together as the actual party name.
+    Does not decide field boosts - callers apply whatever per-field weight they choose per
+    chunk; this only decides how the query text is grouped and how much positional slop each
+    group tolerates when matched."""
+    tokens = extract_quoted_phrases(query)
+    tokens = merge_citation_span(tokens)
+    tokens = merge_keyword_number(tokens)
+    tokens = merge_court_city(tokens)
+    tokens = strip_stopwords(tokens)
+
+    chunks: list[dict] = []
+    text_run: list[str] = []
+
+    def flush_text_run():
+        if text_run:
+            chunks.append({"text": " ".join(text_run), "proximity": _PROXIMITY_TEXT, "type": "text", "alt_text": None})
+            text_run.clear()
+
+    for token in tokens:
+        if " " in token:
+            flush_text_run()
+            chunk_type, proximity, alt_text = _classify_merged_chunk(token)
+            chunks.append({"text": token, "proximity": proximity, "type": chunk_type, "alt_text": alt_text})
+        else:
+            text_run.append(token)
+    flush_text_run()
+    return chunks

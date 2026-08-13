@@ -135,12 +135,26 @@ def _safe_rewrite(query: str, rewritten: str) -> str:
     return rewritten
 
 
-def _sanitize_filters(query: str, filters) -> dict:
+def _sanitize_filters(query: str, filters, intent: str) -> dict:
     if not isinstance(filters, dict):
         return {}
     clean = {}
     for key, value in filters.items():
         if key not in _ALLOWED_FILTERS:
+            continue
+        # "section" only resolves correctly for provision_lookup queries (it matches
+        # ACT/RULE-group documents whose heading IS the section number verbatim, e.g.
+        # "Section - 92C" - see es_client.py::_section_heading_queries). For any other
+        # intent - a case-law/conceptual query that merely mentions a section number in
+        # passing - that same filter silently redirects the doc_id allowlist to statute-
+        # text documents instead of case law, which share no doc_ids with the case-law
+        # Milvus collections the search actually runs against: the filtered search comes
+        # back with zero hits everywhere despite the corpus having a good match (confirmed
+        # live: a "conceptual" query with a bare "section 92C" filter went from 70 unfiltered
+        # Milvus hits, including the gold doc, to 0 filtered hits). Intent is already
+        # classified correctly by the SLM at this point - it just wasn't being used to gate
+        # which filters are even valid to apply.
+        if key == "section" and intent != "provision_lookup":
             continue
         if key == "date_range":
             if isinstance(value, dict):
@@ -168,10 +182,11 @@ def _validate_result(query: str, result) -> dict:
     rewritten, intent = result.get("rewritten_query"), result.get("intent")
     if not isinstance(rewritten, str) or not rewritten.strip() or not isinstance(intent, str):
         return _fallback_intent(query)
+    resolved_intent = intent if intent in _ALLOWED_INTENTS else "unknown"
     return {
         "rewritten_query": _safe_rewrite(query, rewritten.strip()),
-        "intent": intent if intent in _ALLOWED_INTENTS else "unknown",
-        "filters": _sanitize_filters(query, result.get("filters")),
+        "intent": resolved_intent,
+        "filters": _sanitize_filters(query, result.get("filters"), resolved_intent),
     }
 
 

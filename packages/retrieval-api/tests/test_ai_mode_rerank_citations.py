@@ -6,6 +6,20 @@ from retrieval_api.ai_mode.citations import prefetch_citations, rerank_and_prefe
 
 
 @pytest.mark.asyncio
+async def test_rerank_top_chunks_skips_gateway_call_when_candidates_empty():
+    """Empty candidates -> empty `documents` list -> DeepInfra 422s ("the number of
+    queries and documents must be the same"), which model-gateway used to turn into an
+    unhandled 500. Nothing to rerank anyway, so this must short-circuit before ever
+    calling the gateway."""
+    gateway = AsyncMock()
+
+    result = await rerank_top_chunks(gateway, "query", [])
+
+    assert result == []
+    gateway.rerank.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_rerank_top_chunks_sorts_by_score_and_truncates():
     gateway = AsyncMock()
     gateway.rerank.return_value = [0.2, 0.9, 0.5]

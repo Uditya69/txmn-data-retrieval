@@ -108,6 +108,11 @@ async def embed(req: EmbedRequest, request: Request):
 
 @router.post("/v1/rerank")
 async def rerank(req: RerankRequest, request: Request):
+    # DeepInfra's rerank endpoint 422s on an empty documents list ("the number of queries and
+    # documents must be the same") - nothing to rerank anyway, so short-circuit before it ever
+    # reaches the adapter, rather than let that surface as an unhandled 500 to the caller.
+    if not req.documents:
+        return {"scores": []}
     default_model, provider = _resolve(req.role)
     model = req.model or default_model
     langfuse = get_client()

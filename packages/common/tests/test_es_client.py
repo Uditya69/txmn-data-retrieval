@@ -104,27 +104,51 @@ async def test_raw_search_expands_known_abbreviation_into_multi_match_query_text
     assert "ASSISTANT COMMISSIONER INCOME TAX" in multi_match_query
 
 
+def _heading_phrase_clauses(should: list[dict]) -> list[dict]:
+    return [c for c in should if "match_phrase" in c and "heading" in c["match_phrase"]]
+
+
 @pytest.mark.asyncio
-async def test_raw_search_adds_phrase_boost_clause_for_merged_keyword_number():
+async def test_raw_search_adds_exact_match_phrase_clause_for_merged_keyword_number():
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "Section 6 of Income Tax Act", limit=20)
 
     sent_query = client.search_calls[0]["bool"]["must"][0]
-    should = sent_query["bool"]["should"]
-    phrase_clauses = [c for c in should if c["multi_match"].get("type") == "phrase"]
-    assert any(c["multi_match"]["query"] == "Section 6" for c in phrase_clauses)
+    phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
+    section_clauses = [c for c in phrase_clauses if c["match_phrase"]["heading"]["query"] == "Section 6"]
+    assert section_clauses
+    assert section_clauses[0]["match_phrase"]["heading"]["slop"] == 0
 
 
 @pytest.mark.asyncio
-async def test_raw_search_omits_phrase_boost_clauses_when_no_merge_survives():
+async def test_raw_search_chunks_unrecognized_word_run_into_a_text_phrase_clause():
+    """The gap chunk_query closes: words with no Section/Court/citation keyword
+    anchor still get grouped into one match_phrase (slop=5), not left as loose
+    independent OR terms - see chunk_query's own docstring for why."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "can a company claim depreciation on goodwill", limit=20)
 
     sent_query = client.search_calls[0]["bool"]["must"][0]
-    should = sent_query["bool"]["should"]
-    assert not [c for c in should if c["multi_match"].get("type") == "phrase"]
+    phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
+    text_clauses = [c for c in phrase_clauses if c["match_phrase"]["heading"]["slop"] == 5]
+    assert text_clauses
+    # stopword-strip removes "on" before chunking, same as extract_boost_phrases did
+    assert "on" not in text_clauses[0]["match_phrase"]["heading"]["query"].split()
+
+
+@pytest.mark.asyncio
+async def test_raw_search_adds_zero_padded_alternative_clause_for_short_section_numbers():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "section 92C ITES comparables", limit=20)
+
+    sent_query = client.search_calls[0]["bool"]["must"][0]
+    phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
+    queries = {c["match_phrase"]["heading"]["query"] for c in phrase_clauses}
+    assert "section 92C" in queries
+    assert "section 092C" in queries
 
 
 @pytest.mark.asyncio
