@@ -1,16 +1,8 @@
-from common.config import get_settings
 from common.milvus_client import hybrid_search
-from common.schemas import MILVUS_COLLECTIONS
+from common.schemas import collections_for_intent
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.trace_utils import collection_trace
-
-_INTENT_RRF_WEIGHTS: dict[str, tuple[float, float]] = {
-    "citation_lookup": (0.5, 1.5),
-    "provision_lookup": (0.5, 1.5),
-    "conceptual": (1.5, 0.5),
-    "unknown": (1.0, 1.0),
-}
 
 
 def rrf_merge(
@@ -36,57 +28,55 @@ def _flatten(by_collection: dict[str, list[dict]]) -> list[dict]:
 async def retrieve(
     gateway: GatewayClient,
     milvus_client,
-    rewritten_query: str,
+    search_query: str,
     doc_id_allowlist: list[str] | None,
-    intent: str = "unknown",
+    intent: list[str] | None = None,
     on_step: OnStep | None = None,
 ) -> list[dict]:
-    dense_weight, sparse_weight = (
-        _INTENT_RRF_WEIGHTS.get(intent, (1.0, 1.0)) if get_settings().intent_rrf_weighting_enabled else (1.0, 1.0)
-    )
+    collections = collections_for_intent(intent or [])
 
-    dense_vector = await gateway.embed(role="query_embed", text=rewritten_query)
+    dense_vector = await gateway.embed(role="query_embed", text=search_query)
 
     dense_by_collection = await hybrid_search(
-        milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=dense_vector,
-        sparse_query_text=rewritten_query, doc_id_allowlist=doc_id_allowlist, limit=50,
+        milvus_client, collections=collections, dense_vector=dense_vector,
+        sparse_query_text=search_query, doc_id_allowlist=doc_id_allowlist, limit=50,
     )
     sparse_by_collection = await hybrid_search(
-        milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None,
-        sparse_query_text=rewritten_query, doc_id_allowlist=doc_id_allowlist, limit=50,
+        milvus_client, collections=collections, dense_vector=None,
+        sparse_query_text=search_query, doc_id_allowlist=doc_id_allowlist, limit=50,
     )
 
     # Circuit breaker: a resolved doc_id_allowlist that's non-empty but the wrong kind of
-    # document for these collections (e.g. the section-filter bug intent.py's section/intent
-    # gate exists to prevent - a filter meant for ACT/RULE statute-text documents applied to
-    # a case-law query) silently zeroes every collection even though an unfiltered search
-    # would find real matches. If the allowlist was non-empty but produced zero hits
-    # everywhere, retry once unfiltered rather than returning nothing - the embedding is
-    # already computed, so this only costs the two Milvus round-trips, and only in the case
-    # that's already about to return zero results anyway.
+    # document for these collections silently zeroes every collection even though an
+    # unfiltered search would find real matches. If the allowlist was non-empty but
+    # produced zero hits everywhere, retry once unfiltered rather than returning nothing -
+    # the embedding is already computed, so this only costs the two Milvus round-trips.
+    # Retries against the SAME routed collection set - a routed-but-genuinely-wrong-
+    # category query should surface as zero results, not silently widen to every
+    # collection (that would defeat the point of routing).
     if doc_id_allowlist and not any(dense_by_collection.values()) and not any(sparse_by_collection.values()):
         if on_step is not None:
             await on_step("filter_fallback", {
-                "reason": "doc_id_allowlist matched zero Milvus results across every collection; retrying unfiltered",
+                "reason": "doc_id_allowlist matched zero Milvus results across every routed collection; retrying unfiltered",
                 "doc_id_allowlist_count": len(doc_id_allowlist),
             })
         dense_by_collection = await hybrid_search(
-            milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=dense_vector,
-            sparse_query_text=rewritten_query, doc_id_allowlist=None, limit=50,
+            milvus_client, collections=collections, dense_vector=dense_vector,
+            sparse_query_text=search_query, doc_id_allowlist=None, limit=50,
         )
         sparse_by_collection = await hybrid_search(
-            milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None,
-            sparse_query_text=rewritten_query, doc_id_allowlist=None, limit=50,
+            milvus_client, collections=collections, dense_vector=None,
+            sparse_query_text=search_query, doc_id_allowlist=None, limit=50,
         )
 
     if on_step is not None:
         await on_step("milvus_dense", collection_trace(dense_by_collection))
         await on_step("milvus_sparse", collection_trace(sparse_by_collection))
 
-    merged = rrf_merge(
-        _flatten(dense_by_collection), _flatten(sparse_by_collection),
-        dense_weight=dense_weight, sparse_weight=sparse_weight,
-    )
+    # RRF fusion weight is always neutral - category does not drive dense/sparse
+    # weighting (considered during brainstorming, explicitly rejected; see
+    # docs/superpowers/specs/2026-08-14-category-collection-routing-design.md).
+    merged = rrf_merge(_flatten(dense_by_collection), _flatten(sparse_by_collection))
 
     if on_step is not None:
         top_candidates = [
@@ -100,7 +90,7 @@ async def retrieve(
         ]
         await on_step("rrf_merge", {
             "candidate_count": len(merged), "top_candidates": top_candidates,
-            "dense_weight": dense_weight, "sparse_weight": sparse_weight,
+            "dense_weight": 1.0, "sparse_weight": 1.0,
         })
 
     return merged
