@@ -24,10 +24,10 @@ async def run_ai_mode(gateway, es_client, milvus_client, query: str, on_step: On
                 span.update(output={"num_allowed": None if doc_id_allowlist is None else len(doc_id_allowlist)})
 
             with langfuse.start_as_current_observation(
-                as_type="chain", name="retrieve", input={"rewritten_query": intent_result["rewritten_query"]},
+                as_type="chain", name="retrieve", input={"search_query": intent_result["search_query"]},
             ) as span:
                 candidates = await retrieve(
-                    gateway, milvus_client, intent_result["rewritten_query"], doc_id_allowlist,
+                    gateway, milvus_client, intent_result["search_query"], doc_id_allowlist,
                     intent_result["intent"], on_step=on_step,
                 )
                 span.update(output={"num_candidates": len(candidates)})
