@@ -3,6 +3,7 @@ from common.schemas import (
     CHUNKED_COLLECTIONS,
     BM25_SOURCE_FIELD,
     MASTERINFO_CITATION_FIELDS,
+    collections_for_intent,
 )
 
 
@@ -39,3 +40,46 @@ def test_masterinfo_citation_fields():
         "masterinfo.citations", "masterinfo.info.court", "masterinfo.info.bench",
         "otherinfo.judge", "otherinfo.partyname",
     ]
+
+
+def test_collections_for_intent_empty_list_returns_all_collections():
+    assert collections_for_intent([]) == MILVUS_COLLECTIONS
+
+
+def test_collections_for_intent_single_category_routes_to_its_group():
+    assert collections_for_intent(["acts"]) == ["act_section"]
+    assert collections_for_intent(["rules"]) == ["rule_section"]
+    assert collections_for_intent(["articles"]) == ["article_section"]
+    assert collections_for_intent(["commentary"]) == ["commentary_section"]
+
+
+def test_collections_for_intent_caselaws_routes_to_original_seven():
+    assert collections_for_intent(["caselaws"]) == [
+        "case_summary", "digest", "headnotes", "facts", "held", "ruling", "metadata",
+    ]
+
+
+def test_collections_for_intent_multi_category_unions_groups():
+    result = collections_for_intent(["acts", "caselaws"])
+
+    assert set(result) == {
+        "case_summary", "digest", "headnotes", "facts", "held", "ruling", "metadata",
+        "act_section",
+    }
+
+
+def test_collections_for_intent_result_order_follows_milvus_collections():
+    result = collections_for_intent(["acts", "caselaws"])
+
+    assert result == [c for c in MILVUS_COLLECTIONS if c in set(result)]
+
+
+def test_collections_for_intent_tariff_only_falls_back_to_all_collections():
+    """tariff_section isn't in MILVUS_COLLECTIONS yet - a tariff-only tag has
+    nothing to route to, so it must fall back to searching everything rather
+    than an empty collection list (which would search nothing)."""
+    assert collections_for_intent(["tariff"]) == MILVUS_COLLECTIONS
+
+
+def test_collections_for_intent_unrecognized_tag_only_falls_back_to_all_collections():
+    assert collections_for_intent(["not_a_real_category"]) == MILVUS_COLLECTIONS

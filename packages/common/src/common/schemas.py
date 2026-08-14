@@ -28,3 +28,32 @@ MASTERINFO_CITATION_FIELDS = [
     "otherinfo.judge",
     "otherinfo.partyname",
 ]
+
+# Maps each intent category tag to the Milvus collection(s) it routes to. "tariff"
+# has no entry - tariff_section isn't in MILVUS_COLLECTIONS yet (parked in the
+# ingestion pipeline's _disabled_collections, not live) - a tariff-only intent tag
+# falls through collections_for_intent's fallback instead. "caselaws" maps to the
+# original 7 collections including metadata - its fields (landmark_ruling, doc-level
+# heading/subheading) are case-doc-specific, not a generic cross-category collection.
+CATEGORY_COLLECTIONS: dict[str, list[str]] = {
+    "caselaws": ["case_summary", "digest", "headnotes", "facts", "held", "ruling", "metadata"],
+    "acts": ["act_section"],
+    "rules": ["rule_section"],
+    "articles": ["article_section"],
+    "commentary": ["commentary_section"],
+}
+
+
+def collections_for_intent(intent: list[str]) -> list[str]:
+    """Which Milvus collections to search for a given intent category list.
+    Empty/unrecognized-only intent (nothing confidently tagged, a tariff-only
+    tag, or a value CATEGORY_COLLECTIONS has no entry for) falls back to
+    searching every collection - never worse than the old always-search-
+    everything behavior. Multi-category intent unions its groups. Return
+    order follows MILVUS_COLLECTIONS's own order, not intent's tag order, so
+    trace/log output stays collection-order-stable regardless of tag order.
+    """
+    if not intent:
+        return MILVUS_COLLECTIONS
+    routed = {collection for tag in intent for collection in CATEGORY_COLLECTIONS.get(tag, [])}
+    return [c for c in MILVUS_COLLECTIONS if c in routed] or MILVUS_COLLECTIONS
