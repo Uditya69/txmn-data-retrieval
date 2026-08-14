@@ -17,12 +17,12 @@ from agents.pipeline import run_agentic_search
 from common.config import get_settings
 from common.es_client import get_es_client, raw_search
 from common.milvus_client import get_milvus_client, hybrid_search
-from common.schemas import MILVUS_COLLECTIONS
+from common.schemas import MILVUS_COLLECTIONS, collections_for_intent
 from retrieval_api.ai_mode.citations import prefetch_citations
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
 from retrieval_api.ai_mode.intent import extract_intent
 from retrieval_api.ai_mode.rerank import rerank_top_chunks
-from retrieval_api.ai_mode.retrieve import _flatten, _INTENT_RRF_WEIGHTS, rrf_merge
+from retrieval_api.ai_mode.retrieve import _flatten, rrf_merge
 from retrieval_api.ai_mode.synthesize import synthesize
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.score_cutoff import elbow_cutoff
@@ -184,27 +184,26 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             )) or {name: [] for name in MILVUS_COLLECTIONS}
 
             intent = await measured("intent", extract_intent(gateway, query, model=slm_model))
-            rewritten_query = intent.get("rewritten_query", query) if intent else query
+            rewritten_query = intent.get("search_query", query) if intent else query
+            routed_collections = collections_for_intent(intent.get("intent") or []) if intent else MILVUS_COLLECTIONS
             allowlist = await measured("filters", resolve_allowlist(es_client, intent.get("filters", {}))) if intent else None
             rewritten_vector = raw_vector if rewritten_query == query else await measured(
                 "rewritten_embedding", gateway.embed(role="query_embed", text=rewritten_query),
             )
             rewritten_dense = (
                 await measured("rewritten_dense", hybrid_search(
-                    milvus_client, MILVUS_COLLECTIONS, rewritten_vector, rewritten_query,
+                    milvus_client, routed_collections, rewritten_vector, rewritten_query,
                     doc_id_allowlist=allowlist, limit=limit,
                 )) if rewritten_vector is not None else None
-            ) or {name: [] for name in MILVUS_COLLECTIONS}
+            ) or {name: [] for name in routed_collections}
             rewritten_sparse = await measured("rewritten_sparse", hybrid_search(
-                milvus_client, MILVUS_COLLECTIONS, None, rewritten_query,
+                milvus_client, routed_collections, None, rewritten_query,
                 doc_id_allowlist=allowlist, limit=limit,
-            )) or {name: [] for name in MILVUS_COLLECTIONS}
+            )) or {name: [] for name in routed_collections}
 
-            dense_weight, sparse_weight = _INTENT_RRF_WEIGHTS.get(intent.get("intent"), (1.0, 1.0)) if intent else (1.0, 1.0)
-            merged = rrf_merge(
-                _flatten(rewritten_dense), _flatten(rewritten_sparse),
-                dense_weight=dense_weight, sparse_weight=sparse_weight,
-            )
+            # RRF fusion weight is always neutral - category does not drive
+            # dense/sparse weighting (see Task 3 / the routing design spec).
+            merged = rrf_merge(_flatten(rewritten_dense), _flatten(rewritten_sparse))
             reranked = await measured(
                 "reranker", rerank_top_chunks(gateway, query, merged, top_n=len(merged), model=reranker_model),
             ) if merged else []
