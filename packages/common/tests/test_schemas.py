@@ -6,14 +6,18 @@ from common.schemas import (
 )
 
 
-def test_seven_collections():
+def test_eleven_collections():
     assert set(MILVUS_COLLECTIONS) == {
         "case_summary", "digest", "headnotes", "facts", "held", "ruling", "metadata",
+        "act_section", "rule_section", "article_section", "commentary_section",
     }
 
 
 def test_chunked_collections_match_verified_code_behavior():
-    assert CHUNKED_COLLECTIONS == {"digest", "facts", "held", "ruling"}
+    assert CHUNKED_COLLECTIONS == {
+        "digest", "facts", "held", "ruling",
+        "act_section", "rule_section", "article_section", "commentary_section",
+    }
     assert "case_summary" not in CHUNKED_COLLECTIONS
     assert "headnotes" not in CHUNKED_COLLECTIONS
     assert "metadata" not in CHUNKED_COLLECTIONS

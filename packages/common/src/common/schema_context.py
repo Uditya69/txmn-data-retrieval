@@ -8,6 +8,10 @@ COLLECTION_DESCRIPTIONS = {
     "held": "the court's holding/ratio - what was decided",
     "ruling": "the final operative ruling/order text",
     "metadata": "document-level heading and subheading text",
+    "act_section": "statute section text from Acts (e.g. Income-tax Act, CGST Act)",
+    "rule_section": "statute section text from Rules made under an Act",
+    "article_section": "editorial article/commentary text on tax topics",
+    "commentary_section": "editorial commentary text explaining provisions",
 }
 
 KNOWN_FILTER_FIELDS = ["court", "act", "section", "party", "date_range", "bench", "judge"]
