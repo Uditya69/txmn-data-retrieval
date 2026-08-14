@@ -10,7 +10,7 @@ from model_gateway.config import build_role_model_map, build_role_provider_map, 
 router = APIRouter()
 
 ROLE_MODEL_MAP: dict[str, str] = build_role_model_map(get_gateway_settings())
-ROLE_PROVIDER_MAP: dict[str, str] = build_role_provider_map()
+ROLE_PROVIDER_MAP: dict[str, str] = build_role_provider_map(get_gateway_settings())
 
 # Matches the headers retrieval_api.gateway_client sets so this generation
 # nests under the caller's trace instead of starting a new one.
