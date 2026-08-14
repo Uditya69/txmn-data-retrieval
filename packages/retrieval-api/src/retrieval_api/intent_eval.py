@@ -13,7 +13,7 @@ def load_intent_cases(path: str | Path) -> list[dict]:
         raise ValueError("intent filter eval dataset must be a non-empty JSON array")
     seen: set[str] = set()
     for case in cases:
-        required = {"id", "query", "expected_filters"}
+        required = {"id", "query", "expected_filters", "expected_categories"}
         missing = required - case.keys()
         if missing:
             raise ValueError(f"{case.get('id', '<unknown>')}: missing {sorted(missing)}")
@@ -23,8 +23,13 @@ def load_intent_cases(path: str | Path) -> list[dict]:
     return cases
 
 
-def check_intent_case(expected_filters: dict, actual_filters: dict) -> bool:
-    return expected_filters == actual_filters
+def check_intent_case(
+    expected_filters: dict, actual_filters: dict,
+    expected_categories: list[str], actual_categories: list[str],
+) -> tuple[bool, bool]:
+    filters_ok = expected_filters == actual_filters
+    categories_ok = set(expected_categories) == set(actual_categories)
+    return filters_ok, categories_ok
 
 
 async def run(gateway_url: str, model: str | None, dataset_path: str | Path) -> None:
@@ -37,15 +42,23 @@ async def run(gateway_url: str, model: str | None, dataset_path: str | Path) -> 
         except Exception as exception:
             print(f"ERROR {case['id']}: {exception}")
             continue
-        ok = check_intent_case(case["expected_filters"], result["filters"])
+        filters_ok, categories_ok = check_intent_case(
+            case["expected_filters"], result["filters"],
+            case["expected_categories"], result["intent"],
+        )
+        ok = filters_ok and categories_ok
         passed += ok
         status = "PASS" if ok else "FAIL"
-        print(f"{status} {case['id']}: expected={case['expected_filters']} actual={result['filters']}")
+        print(
+            f"{status} {case['id']}: "
+            f"filters(expected={case['expected_filters']} actual={result['filters']} ok={filters_ok}) "
+            f"categories(expected={case['expected_categories']} actual={result['intent']} ok={categories_ok})"
+        )
     print(f"\n{passed}/{len(cases)} passed")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Prompt-only intent/filter extraction accuracy check")
+    parser = argparse.ArgumentParser(description="Prompt-only intent/filter/category extraction accuracy check")
     parser.add_argument("--gateway-url", default="http://localhost:8011")
     parser.add_argument("--model", default=None, help="Override the slm role's model")
     parser.add_argument("--dataset", default="evals/intent_filter_cases.json")

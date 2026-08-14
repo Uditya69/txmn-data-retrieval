@@ -2,61 +2,109 @@
   {
     "id": "F01",
     "query": "What did the Bombay High Court decide about input tax credit under Rule 6(3)(c)?",
-    "expected_filters": {"court": "Bombay High Court"}
+    "expected_filters": {"court": "Bombay High Court"},
+    "expected_categories": ["rules", "caselaws"]
   },
   {
     "id": "F02",
     "query": "Recent rulings under the CGST Act on provisional attachment of bank accounts",
-    "expected_filters": {"act": "CGST Act"}
+    "expected_filters": {"act": "CGST Act"},
+    "expected_categories": ["caselaws"]
   },
   {
     "id": "F03",
     "query": "Explain the scope of section 80HH deduction for backward area undertakings",
-    "expected_filters": {"section": "80HH"}
+    "expected_filters": {"section": "80HH"},
+    "expected_categories": ["commentary"]
   },
   {
     "id": "F04",
     "query": "case law for Ramesh Gupta vs. Income-tax Officer",
-    "expected_filters": {"party": "Ramesh Gupta"}
+    "expected_filters": {"party": "Ramesh Gupta"},
+    "expected_categories": ["caselaws"]
   },
   {
     "id": "F05",
     "query": "Judgments delivered between 2020-01-01 and 2022-01-01 on transfer pricing comparables",
-    "expected_filters": {"date_range": {"gte": "2020-01-01", "lte": "2022-01-01"}}
+    "expected_filters": {"date_range": {"gte": "2020-01-01", "lte": "2022-01-01"}},
+    "expected_categories": ["caselaws"]
   },
   {
     "id": "F06",
     "query": "Ruling of the Principal Bench of the Income Tax Appellate Tribunal on Modvat credit",
-    "expected_filters": {"bench": "Principal Bench"}
+    "expected_filters": {"bench": "Principal Bench"},
+    "expected_categories": ["caselaws"]
   },
   {
     "id": "F07",
     "query": "Judgment authored by Judge D.Y. Chandrachud on constitutional validity of section 271(1)(c)",
-    "expected_filters": {"judge": "D.Y. Chandrachud", "section": "271(1)(c)"}
+    "expected_filters": {"judge": "D.Y. Chandrachud", "section": "271(1)(c)"},
+    "expected_categories": ["acts", "caselaws"]
   },
   {
     "id": "F08",
     "query": "Delhi High Court ruling under the Income-tax Act, 1961 on capital gains exemption",
-    "expected_filters": {"court": "Delhi High Court", "act": "Income-tax Act, 1961"}
+    "expected_filters": {"court": "Delhi High Court", "act": "Income-tax Act, 1961"},
+    "expected_categories": ["caselaws"]
   },
   {
     "id": "F09",
     "query": "Gujarat High Court judgment interpreting section 271(1)(c) as unconstitutional",
-    "expected_filters": {"court": "Gujarat High Court", "section": "271(1)(c)"}
+    "expected_filters": {"court": "Gujarat High Court", "section": "271(1)(c)"},
+    "expected_categories": ["acts", "caselaws"]
   },
   {
     "id": "F10",
     "query": "Can a court order investigators to trace and seize a company's property when investors were defrauded?",
-    "expected_filters": {}
+    "expected_filters": {},
+    "expected_categories": ["caselaws"]
   },
   {
     "id": "F11",
     "query": "80HH scrap sale yes useless drum sale no metallic wire factory",
-    "expected_filters": {}
+    "expected_filters": {},
+    "expected_categories": ["caselaws"]
   },
   {
     "id": "F12",
     "query": "Alka Khandu Avhad case on cheque dishonour liability under section 138",
-    "expected_filters": {"party": "Alka Khandu Avhad", "section": "138"}
+    "expected_filters": {"party": "Alka Khandu Avhad", "section": "138"},
+    "expected_categories": ["acts", "caselaws"]
+  },
+  {
+    "id": "C01",
+    "query": "definition of capital asset under section 2(14)",
+    "expected_filters": {},
+    "expected_categories": ["acts"]
+  },
+  {
+    "id": "C02",
+    "query": "Rule 3 perquisite valuation method",
+    "expected_filters": {},
+    "expected_categories": ["rules"]
+  },
+  {
+    "id": "C03",
+    "query": "article on GST implications of the new e-invoicing mandate",
+    "expected_filters": {},
+    "expected_categories": ["articles"]
+  },
+  {
+    "id": "C04",
+    "query": "explain how section 54F exemption works",
+    "expected_filters": {},
+    "expected_categories": ["commentary"]
+  },
+  {
+    "id": "C05",
+    "query": "HSN code and GST rate for solar panels",
+    "expected_filters": {},
+    "expected_categories": ["tariff"]
+  },
+  {
+    "id": "C06",
+    "query": "case law on section 54F exemption eligibility",
+    "expected_filters": {},
+    "expected_categories": ["acts", "caselaws"]
   }
 ]
