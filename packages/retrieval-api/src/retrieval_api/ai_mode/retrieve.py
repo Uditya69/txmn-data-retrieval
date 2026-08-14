@@ -51,14 +51,36 @@ async def retrieve(
         milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=dense_vector,
         sparse_query_text=rewritten_query, doc_id_allowlist=doc_id_allowlist, limit=50,
     )
-    if on_step is not None:
-        await on_step("milvus_dense", collection_trace(dense_by_collection))
-
     sparse_by_collection = await hybrid_search(
         milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None,
         sparse_query_text=rewritten_query, doc_id_allowlist=doc_id_allowlist, limit=50,
     )
+
+    # Circuit breaker: a resolved doc_id_allowlist that's non-empty but the wrong kind of
+    # document for these collections (e.g. the section-filter bug intent.py's section/intent
+    # gate exists to prevent - a filter meant for ACT/RULE statute-text documents applied to
+    # a case-law query) silently zeroes every collection even though an unfiltered search
+    # would find real matches. If the allowlist was non-empty but produced zero hits
+    # everywhere, retry once unfiltered rather than returning nothing - the embedding is
+    # already computed, so this only costs the two Milvus round-trips, and only in the case
+    # that's already about to return zero results anyway.
+    if doc_id_allowlist and not any(dense_by_collection.values()) and not any(sparse_by_collection.values()):
+        if on_step is not None:
+            await on_step("filter_fallback", {
+                "reason": "doc_id_allowlist matched zero Milvus results across every collection; retrying unfiltered",
+                "doc_id_allowlist_count": len(doc_id_allowlist),
+            })
+        dense_by_collection = await hybrid_search(
+            milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=dense_vector,
+            sparse_query_text=rewritten_query, doc_id_allowlist=None, limit=50,
+        )
+        sparse_by_collection = await hybrid_search(
+            milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None,
+            sparse_query_text=rewritten_query, doc_id_allowlist=None, limit=50,
+        )
+
     if on_step is not None:
+        await on_step("milvus_dense", collection_trace(dense_by_collection))
         await on_step("milvus_sparse", collection_trace(sparse_by_collection))
 
     merged = rrf_merge(

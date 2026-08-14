@@ -3,6 +3,7 @@ from langfuse import get_client
 from pydantic import BaseModel
 
 from model_gateway.adapters.deepinfra import DeepInfraAdapter
+from model_gateway.adapters.local import LocalAdapter
 from model_gateway.adapters.voyage import VoyageAdapter
 from model_gateway.config import build_role_model_map, build_role_provider_map, get_gateway_settings
 
@@ -29,6 +30,8 @@ def get_adapter(provider: str):
     settings = get_gateway_settings()
     if provider == "voyage":
         return VoyageAdapter(api_key=settings.voyage_api_key)
+    if provider == "local":
+        return LocalAdapter(base_url=settings.local_base_url, api_key=settings.local_api_key)
     return DeepInfraAdapter(api_key=settings.deepinfra_api_key)
 
 
@@ -108,6 +111,11 @@ async def embed(req: EmbedRequest, request: Request):
 
 @router.post("/v1/rerank")
 async def rerank(req: RerankRequest, request: Request):
+    # DeepInfra's rerank endpoint 422s on an empty documents list ("the number of queries and
+    # documents must be the same") - nothing to rerank anyway, so short-circuit before it ever
+    # reaches the adapter, rather than let that surface as an unhandled 500 to the caller.
+    if not req.documents:
+        return {"scores": []}
     default_model, provider = _resolve(req.role)
     model = req.model or default_model
     langfuse = get_client()

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ChatMessage, ChatMode, ResultState } from '../types'
-import { mergeResults, mapRerankedResults, type CardSource } from '../lib/mergeResults'
+import { mergeResults, mapRerankedResults, type CardSource, type MilvusByCollection } from '../lib/mergeResults'
 import { parseCitations } from '../lib/citations'
 import { groupIntoParagraphs, renderInlineText } from '../lib/richText'
 import { highlightMatches } from '../lib/highlight'
@@ -71,6 +71,48 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
   )
   const [page, setPage] = useState(0)
   useEffect(() => setPage(0), [instant])
+  const [lookupId, setLookupId] = useState('')
+  // Deliberately built from `instant` directly, not `allCards`: mergeResults dedupes a
+  // doc_id to whichever source claims it FIRST (ES, then Milvus dense, then sparse - see
+  // its own comment), so a doc present in both ES and Milvus sparse only gets an `allCards`
+  // entry tagged 'es'. Looking up rank against `allCards` would then silently report
+  // "not found" for Milvus sparse even though that retriever genuinely returned it - exactly
+  // the kind of wrong answer this lookup exists to prevent. Each source's own rank is
+  // recomputed independently here instead, ES in its already-rank-ordered position, Milvus
+  // dense/sparse deduped to best-score-per-doc_id across their 7 collections and re-sorted -
+  // the honest "which rank is this doc_id at within this retriever, on its own" answer, not
+  // filtered by whether some other retriever already claimed it first for display purposes.
+  const lookup = useMemo(() => {
+    const target = lookupId.trim()
+    if (!target) return null
+    if (isReranked) {
+      const idx = (instant?.reranked ?? []).findIndex((h) => h.doc_id === target)
+      return { reranked: idx === -1 ? null : idx + 1 }
+    }
+    const rankInEs = (() => {
+      const idx = (instant?.es ?? []).findIndex((h) => h.doc_id === target)
+      return idx === -1 ? null : idx + 1
+    })()
+    const rankInMilvus = (byCollection: MilvusByCollection | null | undefined) => {
+      const bestScoreByDocId = new Map<string, number>()
+      for (const hits of Object.values(byCollection ?? {})) {
+        for (const hit of hits) {
+          const prev = bestScoreByDocId.get(hit.doc_id)
+          if (prev === undefined || hit.score > prev) bestScoreByDocId.set(hit.doc_id, hit.score)
+        }
+      }
+      const ranked = [...bestScoreByDocId.entries()].sort((a, b) => b[1] - a[1])
+      const idx = ranked.findIndex(([docId]) => docId === target)
+      return idx === -1 ? null : idx + 1
+    }
+    return {
+      bySource: {
+        es: rankInEs,
+        milvus_dense: rankInMilvus(instant?.milvus),
+        milvus_sparse: rankInMilvus(instant?.milvus_sparse),
+      } as Record<CardSource, number | null>,
+    }
+  }, [lookupId, instant, isReranked])
   const cards = devMode && !isReranked ? allCards.filter((card) => activeSources.has(card.source)) : allCards
   const pageCount = Math.max(1, Math.ceil(cards.length / PAGE_SIZE))
   const clampedPage = Math.min(page, pageCount - 1)
@@ -114,6 +156,32 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
               </button>
             )
           })}
+        </div>
+      )}
+
+      {devMode && instant && (
+        <div className="mb-3">
+          <input
+            type="text"
+            value={lookupId}
+            onChange={(e) => setLookupId(e.target.value)}
+            placeholder="Check doc_id rank…"
+            aria-label="Check doc_id rank"
+            className="text-xs w-full px-2 py-1.5 rounded-lg font-mono"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border-soft)', color: 'var(--text)' }}
+          />
+          {lookup && (
+            <p className="text-xs mt-1.5 font-mono" style={{ color: 'var(--text-faint)' }}>
+              {isReranked
+                ? lookup.reranked
+                  ? `rank #${lookup.reranked}`
+                  : 'not found'
+                : SOURCE_FILTERS.map(({ source, label }) => {
+                    const rank = lookup.bySource?.[source]
+                    return `${label}: ${rank ? `#${rank}` : '—'}`
+                  }).join('   ')}
+            </p>
+          )}
         </div>
       )}
 

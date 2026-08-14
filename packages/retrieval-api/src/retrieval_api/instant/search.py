@@ -3,7 +3,7 @@ import asyncio
 
 from langfuse import get_client
 
-from common.es_client import raw_search
+from common.es_client import build_query_preview, raw_search
 from common.milvus_client import hybrid_search
 from common.query_tokenizer import classify_query_shape
 from common.schemas import MILVUS_COLLECTIONS
@@ -105,6 +105,16 @@ async def run_instant(
 ) -> dict:
     langfuse = get_client()
     with langfuse.start_as_current_observation(as_type="span", name="instant-search", input={"query": query}):
+        # build_query_preview is the same function raw_search() calls internally (and that
+        # backs the standalone /v1/query-analysis endpoint) - using it here rather than
+        # independently recomputing shape/chunks means this trace step can never drift from
+        # what the real ES query actually was, the way the older analyze_query()-based version
+        # of this step did (it used its own separate, pre-chunk_query pipeline, so it never
+        # showed an unrecognized word run like "Dimension Data India" grouped into one phrase
+        # the way the real query - and /v1/query-analysis - already did).
+        if on_step is not None:
+            await on_step("query_analysis", build_query_preview(query))
+
         (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(
             _run_es(es_client, query, on_step),
             _run_milvus(gateway, milvus_client, query, on_step),

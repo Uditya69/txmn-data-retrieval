@@ -2,7 +2,7 @@ import json
 from unittest.mock import AsyncMock
 import pytest
 
-from retrieval_api.ai_mode.intent import extract_intent
+from retrieval_api.ai_mode.intent import _build_chunk_context, extract_intent
 
 
 @pytest.mark.asyncio
@@ -183,7 +183,11 @@ async def test_extract_intent_drops_unknown_null_and_empty_filters():
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
         "rewritten_query": "trade training takeover Kolkata",
-        "intent": "conceptual",
+        # provision_lookup here (not the more realistic "conceptual") purely so the
+        # "section" filter survives to exercise this test's real subject - dropping
+        # unknown/null/empty filter keys - without also tripping the section/intent
+        # gate covered by its own dedicated tests below.
+        "intent": "provision_lookup",
         "filters": {"city": "Kolkata", "act": None, "court": "", "section": "37(1)"},
     })
 
@@ -297,6 +301,60 @@ async def test_extract_intent_preserves_user_supplied_year_and_section_numbers()
 
 
 @pytest.mark.asyncio
+async def test_extract_intent_drops_section_filter_for_conceptual_queries():
+    """A "section" filter only resolves correctly for provision_lookup queries - it
+    matches ACT/RULE-group documents whose heading IS the section number verbatim
+    (see es_client.py::_section_heading_queries), not case law that merely cites the
+    section. Applied to a conceptual/case-law query, it silently redirects the doc_id
+    allowlist to statute-text documents that share no doc_ids with the case-law Milvus
+    collections the search runs against, zeroing out results despite the corpus having
+    a good match. Confirmed live: a conceptual query with a bare "section 92C" filter
+    went from 70 unfiltered Milvus hits (including the gold doc) to 0 filtered hits."""
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "Dimension Data India section 92C ITES comparables",
+        "intent": "conceptual",
+        "filters": {"section": "92C"},
+    })
+
+    result = await extract_intent(gateway, "Dimension Data India section 92C ITES comparables")
+
+    assert result["intent"] == "conceptual"
+    assert result["filters"] == {}
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_drops_section_filter_for_citation_lookup_queries():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "Ramesh Gupta vs ITO section 143(3)",
+        "intent": "citation_lookup",
+        "filters": {"party": "Ramesh Gupta", "section": "143(3)"},
+    })
+
+    result = await extract_intent(gateway, "Ramesh Gupta vs ITO section 143(3)")
+
+    assert result["filters"] == {"party": "Ramesh Gupta"}
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_keeps_section_filter_for_provision_lookup_queries():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "section 92C text",
+        "intent": "provision_lookup",
+        "filters": {"section": "92C"},
+    })
+
+    result = await extract_intent(gateway, "section 92C text")
+
+    assert result["filters"] == {"section": "92C"}
+
+
+@pytest.mark.asyncio
 async def test_extract_intent_rejects_lossy_rewrite():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
@@ -381,3 +439,103 @@ async def test_extract_intent_forwards_model_override_and_skips_get_model():
     gateway.get_model.assert_not_awaited()
     call_kwargs = gateway.chat.await_args.kwargs
     assert call_kwargs["model"] == "google/gemma-4-E4B-it"
+
+
+def test_build_chunk_context_returns_none_for_text_only_query():
+    assert _build_chunk_context("capital gains set off business losses") is None
+
+
+def test_build_chunk_context_projects_and_filters_chunks():
+    result = _build_chunk_context('1995 taxmann.com 569 Delhi High Court "capital gains"')
+
+    assert result is not None
+    spans = json.loads(result)
+    assert isinstance(spans, list)
+    for span in spans:
+        assert set(span.keys()) == {"text", "type"}
+        assert span["type"] != "text"
+    types = {span["type"] for span in spans}
+    assert "citation" in types
+    assert "court_city" in types
+
+
+def test_build_chunk_context_drops_stopword_led_court_city_spans():
+    """merge_court_city merges any token immediately before court/high/tribunal,
+    including stopwords ("the court", "the tribunal") - injecting these as
+    authoritative structural spans nudges the SLM toward a bogus court filter
+    that _sanitize_filters can't catch (its substring check trivially passes
+    a stopword phrase that IS literally in the query)."""
+    result = _build_chunk_context("assessee approached the court after the tribunal order")
+
+    spans = json.loads(result) if result is not None else []
+    texts = [span["text"] for span in spans]
+    assert "the court" not in texts
+    assert "the tribunal" not in texts
+
+
+def test_build_chunk_context_does_not_escape_non_ascii_text():
+    """json.dumps defaults to ensure_ascii=True, which would \\uXXXX-escape a
+    non-ASCII span - undercutting the "already present in the query above"
+    framing since the injected block would then visually diverge from the
+    query text shown right above it."""
+    result = _build_chunk_context('"café royalty" ruling')
+
+    assert result is not None
+    assert "café royalty" in result
+    assert "\\u" not in result
+
+
+def test_build_chunk_context_keeps_real_court_name_spans():
+    result = _build_chunk_context("Delhi High Court ruling on capital gains")
+
+    assert result is not None
+    spans = json.loads(result)
+    texts = [span["text"] for span in spans]
+    assert "Delhi High Court" in texts
+
+
+def test_build_chunk_context_drops_alt_text_and_proximity():
+    result = _build_chunk_context("Rule 57A applicability")
+
+    assert result is not None
+    spans = json.loads(result)
+    for span in spans:
+        assert "alt_text" not in span
+        assert "proximity" not in span
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_appends_chunk_context_when_spans_found():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "1995 taxmann.com 569",
+        "intent": "citation_lookup",
+        "filters": {},
+    })
+
+    await extract_intent(gateway, "1995 taxmann.com 569 Delhi High Court")
+
+    call_kwargs = gateway.chat.await_args.kwargs
+    user_message = call_kwargs["messages"][1]["content"]
+    assert user_message.startswith("1995 taxmann.com 569 Delhi High Court\n\n")
+    assert "Structural spans already present in the query above" in user_message
+    assert '"type": "citation"' in user_message
+    assert '"type": "court_city"' in user_message
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_user_message_unchanged_when_no_spans_found():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "rewritten_query": "capital gains treatment",
+        "intent": "conceptual",
+        "filters": {},
+    })
+
+    await extract_intent(gateway, "capital gains treatment")
+
+    call_kwargs = gateway.chat.await_args.kwargs
+    user_message = call_kwargs["messages"][1]["content"]
+    assert user_message == "capital gains treatment"

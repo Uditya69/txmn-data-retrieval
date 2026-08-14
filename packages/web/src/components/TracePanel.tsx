@@ -4,6 +4,7 @@ import type { TraceStep } from '../api/useSearch'
 import styles from './TracePanel.module.css'
 
 const STEP_LABELS: Record<string, string> = {
+  query_analysis: 'Query analysis',
   intent: 'Intent',
   filters_resolved: 'Filters resolved',
   es_search: 'ES search',
@@ -21,6 +22,10 @@ const STEP_LABELS: Record<string, string> = {
 function summarize(step: TraceStep): string {
   const d = step.data as Record<string, any>
   switch (step.step) {
+    case 'query_analysis': {
+      const chunkCount = (d.chunks ?? []).length
+      return `shape: ${d.shape} — ${chunkCount} chunk${chunkCount === 1 ? '' : 's'}`
+    }
     case 'intent':
       return `"${d.query}" -> "${d.rewritten_query}" (${d.intent})`
     case 'filters_resolved':
@@ -35,8 +40,11 @@ function summarize(step: TraceStep): string {
     }
     case 'rrf_merge':
       return `${d.candidate_count} candidates merged`
-    case 'rerank':
-      return `${d.considered_count} considered, top ${d.top_chunks?.length ?? 0} kept`
+    case 'rerank': {
+      const capped = d.total_candidates !== undefined && d.total_candidates > d.considered_count
+      const from = capped ? ` (capped from ${d.total_candidates})` : ''
+      return `${d.considered_count} considered${from}, top ${d.top_chunks?.length ?? 0} kept`
+    }
     case 'synthesis_prompt':
       return `${(d.prompt ?? '').length} chars`
     case 'agent_tool_call':
@@ -99,8 +107,41 @@ function TruncatedHitList({
   )
 }
 
+function QueryAnalysisBody({ data }: { data: Record<string, any> }) {
+  // Same build_query_preview() output the /v1/query-analysis endpoint returns - see its
+  // own docstring (common/es_client.py) - so this must never show a different breakdown
+  // than what raw_search actually sent to ES.
+  const chunks: Array<{ text: string; proximity: number; type: string; alt_text: string | null }> = data.chunks ?? []
+  return (
+    <>
+      {data.expanded_query && (
+        <p className={styles.summary}>
+          Synonym-expanded: <code>{data.expanded_query}</code>
+        </p>
+      )}
+      <ul className={styles.hitList}>
+        {chunks.map((c, i) => (
+          <li key={`${c.text}-${i}`}>
+            <strong>"{c.text}"</strong> <em>({c.type}, slop {c.proximity})</em>
+            {c.alt_text && <> — alt: <code>"{c.alt_text}"</code></>}
+          </li>
+        ))}
+      </ul>
+      {/* {data.es_query && (
+        <details>
+          <summary className={styles.summary} style={{ cursor: 'pointer' }}>Raw ES query</summary>
+          <pre className={styles.hitList}>{JSON.stringify(data.es_query, null, 2)}</pre>
+        </details>
+      )} */}
+    </>
+  )
+}
+
 function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: (docId: string) => void }) {
   const d = step.data as Record<string, any>
+  if (step.step === 'query_analysis') {
+    return <QueryAnalysisBody data={d} />
+  }
   if (step.step === 'es_search') {
     return <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
   }

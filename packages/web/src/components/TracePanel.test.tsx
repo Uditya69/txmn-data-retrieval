@@ -23,6 +23,34 @@ describe('TracePanel', () => {
     expect(screen.getByText(/42/)).toBeInTheDocument()
   })
 
+  it('renders a query_analysis step with shape summary and chunk breakdown', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'query_analysis',
+        data: {
+          query: 'Dimension Data India section 92C',
+          shape: 'provision',
+          expanded_query: null,
+          chunks: [
+            { text: 'Dimension Data India', proximity: 5, type: 'text', alt_text: null },
+            { text: 'section 92C', proximity: 0, type: 'section', alt_text: 'section 092C' },
+          ],
+          es_query: { bool: { should: [], minimum_should_match: 1 } },
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.getByRole('heading', { level: 3, name: 'Query analysis' })).toBeInTheDocument()
+    expect(screen.getByText(/shape: provision/)).toBeInTheDocument()
+    expect(screen.getByText(/2 chunks/)).toBeInTheDocument()
+    expect(screen.getByText('"Dimension Data India"')).toBeInTheDocument()
+    expect(screen.getByText(/text, slop 5/)).toBeInTheDocument()
+    expect(screen.getByText('"section 92C"')).toBeInTheDocument()
+    expect(screen.getByText(/section, slop 0/)).toBeInTheDocument()
+    expect(screen.getByText('"section 092C"')).toBeInTheDocument()
+  })
+
   it('truncates long lists to 5 with a Show more button that reveals the rest locally', async () => {
     const user = userEvent.setup()
     const topHits = Array.from({ length: 8 }, (_, i) => ({

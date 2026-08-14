@@ -4,6 +4,8 @@ from typing import Awaitable, Callable
 
 from langfuse import get_client
 
+from common.legal_lexicon import is_stopword
+from common.query_tokenizer import chunk_query
 from common.schema_context import KNOWN_COURTS, build_schema_context
 from retrieval_api.gateway_client import GatewayClient
 
@@ -30,6 +32,38 @@ def _fallback_intent(query: str) -> dict:
     info about a named person) - degrade to a plain semantic search instead
     of failing the whole AI Mode request."""
     return {"rewritten_query": query, "intent": "unknown", "filters": {}}
+
+
+def _build_chunk_context(query: str) -> str | None:
+    """Trimmed JSON projection of chunk_query's structural spans, for injection
+    into extract_intent's user message. Drops `proximity`/`alt_text` (ES-only,
+    and alt_text's normalized form would never literal-match _sanitize_filters'
+    substring check against the raw query - see design spec) and any
+    type=="text" chunk (a bare word run adds no signal beyond the raw query
+    the model already sees). Also drops any court_city chunk whose leading
+    token is a stopword (e.g. "the court", "the tribunal") - merge_court_city
+    merges any token immediately before court/high/tribunal regardless of
+    whether it's a real place name, and injecting a stopword-led span as an
+    authoritative structural span nudges the SLM toward a bogus court filter
+    that _sanitize_filters cannot catch (its check only requires the value be
+    a literal substring of the query, which a stopword phrase trivially is).
+    Returns None when nothing structural is found, so callers can omit the
+    block entirely rather than send an empty list.
+
+    Note: chunk_query's upstream extract_quoted_phrases reorders tokens
+    (quoted phrases first, then the rest), so in rare cases a later chunk's
+    text is drawn from the query but is not a contiguous substring of the
+    original query in its original order - the content still comes from the
+    query text, just not guaranteed to appear at one exact span position."""
+    spans = [
+        {"text": chunk["text"], "type": chunk["type"]}
+        for chunk in chunk_query(query)
+        if chunk["type"] != "text"
+        and not (chunk["type"] == "court_city" and is_stopword(chunk["text"].split()[0]))
+    ]
+    if not spans:
+        return None
+    return json.dumps(spans, ensure_ascii=False)
 
 
 _LLAMA_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
@@ -135,12 +169,26 @@ def _safe_rewrite(query: str, rewritten: str) -> str:
     return rewritten
 
 
-def _sanitize_filters(query: str, filters) -> dict:
+def _sanitize_filters(query: str, filters, intent: str) -> dict:
     if not isinstance(filters, dict):
         return {}
     clean = {}
     for key, value in filters.items():
         if key not in _ALLOWED_FILTERS:
+            continue
+        # "section" only resolves correctly for provision_lookup queries (it matches
+        # ACT/RULE-group documents whose heading IS the section number verbatim, e.g.
+        # "Section - 92C" - see es_client.py::_section_heading_queries). For any other
+        # intent - a case-law/conceptual query that merely mentions a section number in
+        # passing - that same filter silently redirects the doc_id allowlist to statute-
+        # text documents instead of case law, which share no doc_ids with the case-law
+        # Milvus collections the search actually runs against: the filtered search comes
+        # back with zero hits everywhere despite the corpus having a good match (confirmed
+        # live: a "conceptual" query with a bare "section 92C" filter went from 70 unfiltered
+        # Milvus hits, including the gold doc, to 0 filtered hits). Intent is already
+        # classified correctly by the SLM at this point - it just wasn't being used to gate
+        # which filters are even valid to apply.
+        if key == "section" and intent != "provision_lookup":
             continue
         if key == "date_range":
             if isinstance(value, dict):
@@ -168,10 +216,11 @@ def _validate_result(query: str, result) -> dict:
     rewritten, intent = result.get("rewritten_query"), result.get("intent")
     if not isinstance(rewritten, str) or not rewritten.strip() or not isinstance(intent, str):
         return _fallback_intent(query)
+    resolved_intent = intent if intent in _ALLOWED_INTENTS else "unknown"
     return {
         "rewritten_query": _safe_rewrite(query, rewritten.strip()),
-        "intent": intent if intent in _ALLOWED_INTENTS else "unknown",
-        "filters": _sanitize_filters(query, result.get("filters")),
+        "intent": resolved_intent,
+        "filters": _sanitize_filters(query, result.get("filters"), resolved_intent),
     }
 
 
@@ -179,11 +228,17 @@ async def extract_intent(
     gateway: GatewayClient, query: str, on_step: OnStep | None = None, model: str | None = None,
 ) -> dict:
     resolved_model = model or await gateway.get_model(role="slm")
+    chunk_context = _build_chunk_context(query)
+    user_message = query if chunk_context is None else (
+        f"{query}\n\n"
+        "Structural spans already present in the query above (for reference "
+        f"only — do not add anything not already in the query text):\n{chunk_context}"
+    )
     response = await gateway.chat(
         role="slm",
         messages=[
             {"role": "system", "content": _system_prompt_for_model(resolved_model)},
-            {"role": "user", "content": query},
+            {"role": "user", "content": user_message},
         ],
         model=model,
         response_format=_RESPONSE_FORMAT,

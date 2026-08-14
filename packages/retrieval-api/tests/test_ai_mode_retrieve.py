@@ -193,6 +193,62 @@ async def test_retrieve_defaults_to_neutral_weighting_for_unrecognized_intent(mo
 
 
 @pytest.mark.asyncio
+async def test_retrieve_falls_back_to_unfiltered_when_allowlist_zeroes_everything(monkeypatch):
+    """A resolved doc_id_allowlist that's non-empty but wrong-typed/disjoint from the
+    target Milvus collections (e.g. the section-filter bug covered in test_ai_mode_intent.py)
+    must not silently return zero candidates when an unfiltered search would find real
+    matches - retry once unfiltered instead."""
+    import retrieval_api.ai_mode.retrieve as module
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        if doc_id_allowlist is not None:
+            return {"ruling": []}
+        return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 0.9}]}
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    result = await module.retrieve(
+        gateway, milvus_client=object(), rewritten_query="q",
+        doc_id_allowlist=["wrong-doc-id"], on_step=on_step,
+    )
+
+    assert result[0]["chunk_id"] == "a"
+    assert [step for step, _ in steps] == ["filter_fallback", "milvus_dense", "milvus_sparse", "rrf_merge"]
+    fallback_data = next(data for step, data in steps if step == "filter_fallback")
+    assert fallback_data["doc_id_allowlist_count"] == 1
+    gateway.embed.assert_awaited_once()  # retry reuses the already-computed embedding
+
+
+@pytest.mark.asyncio
+async def test_retrieve_does_not_fall_back_when_no_allowlist_was_applied(monkeypatch):
+    """Zero hits with no allowlist at all is just a genuinely empty result, not the
+    disjoint-allowlist failure mode - must not trigger a pointless retry."""
+    import retrieval_api.ai_mode.retrieve as module
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+    calls = []
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        calls.append(doc_id_allowlist)
+        return {"ruling": []}
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+
+    result = await module.retrieve(gateway, milvus_client=object(), rewritten_query="q", doc_id_allowlist=None)
+
+    assert result == []
+    assert len(calls) == 2  # dense + sparse, no retry
+
+
+@pytest.mark.asyncio
 async def test_retrieve_defaults_intent_param_to_unknown_when_omitted(monkeypatch):
     """Backward-compatibility: existing callers that don't pass `intent` at
     all (e.g. the eval harness, if any direct caller exists) must keep

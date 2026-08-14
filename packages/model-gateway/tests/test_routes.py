@@ -94,6 +94,22 @@ def test_rerank_route(monkeypatch):
     assert response.json() == {"scores": [0.9, 0.1]}
 
 
+def test_rerank_route_returns_empty_scores_without_calling_adapter_when_documents_empty(monkeypatch):
+    """DeepInfra's rerank endpoint 422s on an empty documents list ("the number of
+    queries and documents must be the same"), which used to surface as an unhandled 500.
+    Short-circuit before the adapter is ever called."""
+    fake_adapter = AsyncMock()
+    monkeypatch.setattr(routes_module, "get_adapter", lambda provider: fake_adapter)
+    monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"reranker": "rerank-model"})
+    monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"reranker": "deepinfra"})
+
+    client = TestClient(app)
+    response = client.post("/v1/rerank", json={"role": "reranker", "query": "q", "documents": []})
+
+    assert response.json() == {"scores": []}
+    fake_adapter.rerank.assert_not_called()
+
+
 def test_get_model_route_returns_model_for_known_role(monkeypatch):
     monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"slm": "meta-llama/Meta-Llama-3.1-8B-Instruct"})
     client = TestClient(app)

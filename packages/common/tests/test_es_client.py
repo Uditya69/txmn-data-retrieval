@@ -7,6 +7,7 @@ from common.es_client import (
     fetch_citations,
     fetch_fullcontent,
     fetch_document_metadata,
+    build_query_preview,
 )
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
@@ -98,33 +99,57 @@ async def test_raw_search_expands_known_abbreviation_into_multi_match_query_text
 
     await raw_search(client, "ACIT order on depreciation", limit=20)
 
-    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
+    sent_query = client.search_calls[0]
     multi_match_query = sent_query["bool"]["should"][0]["multi_match"]["query"]
     assert "ACIT order on depreciation" in multi_match_query
     assert "ASSISTANT COMMISSIONER INCOME TAX" in multi_match_query
 
 
+def _heading_phrase_clauses(should: list[dict]) -> list[dict]:
+    return [c for c in should if "match_phrase" in c and "heading" in c["match_phrase"]]
+
+
 @pytest.mark.asyncio
-async def test_raw_search_adds_phrase_boost_clause_for_merged_keyword_number():
+async def test_raw_search_adds_exact_match_phrase_clause_for_merged_keyword_number():
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "Section 6 of Income Tax Act", limit=20)
 
-    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
-    should = sent_query["bool"]["should"]
-    phrase_clauses = [c for c in should if c["multi_match"].get("type") == "phrase"]
-    assert any(c["multi_match"]["query"] == "Section 6" for c in phrase_clauses)
+    sent_query = client.search_calls[0]
+    phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
+    section_clauses = [c for c in phrase_clauses if c["match_phrase"]["heading"]["query"] == "Section 6"]
+    assert section_clauses
+    assert section_clauses[0]["match_phrase"]["heading"]["slop"] == 0
 
 
 @pytest.mark.asyncio
-async def test_raw_search_omits_phrase_boost_clauses_when_no_merge_survives():
+async def test_raw_search_chunks_unrecognized_word_run_into_a_text_phrase_clause():
+    """The gap chunk_query closes: words with no Section/Court/citation keyword
+    anchor still get grouped into one match_phrase (slop=5), not left as loose
+    independent OR terms - see chunk_query's own docstring for why."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "can a company claim depreciation on goodwill", limit=20)
 
-    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
-    should = sent_query["bool"]["should"]
-    assert not [c for c in should if c["multi_match"].get("type") == "phrase"]
+    sent_query = client.search_calls[0]
+    phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
+    text_clauses = [c for c in phrase_clauses if c["match_phrase"]["heading"]["slop"] == 5]
+    assert text_clauses
+    # stopword-strip removes "on" before chunking, same as extract_boost_phrases did
+    assert "on" not in text_clauses[0]["match_phrase"]["heading"]["query"].split()
+
+
+@pytest.mark.asyncio
+async def test_raw_search_adds_zero_padded_alternative_clause_for_short_section_numbers():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "section 92C ITES comparables", limit=20)
+
+    sent_query = client.search_calls[0]
+    phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
+    queries = {c["match_phrase"]["heading"]["query"] for c in phrase_clauses}
+    assert "section 92C" in queries
+    assert "section 092C" in queries
 
 
 @pytest.mark.asyncio
@@ -136,33 +161,70 @@ async def test_raw_search_queries_heading_subheading_fullcontent_not_just_sparse
     query = client.search_calls[0]
     should_fields = {
         clause["multi_match"]["fields"][0] if "multi_match" in clause else None
-        for clause in query["function_score"]["query"]["bool"]["must"][0]["bool"]["should"]
+        for clause in query["bool"]["should"]
     }
     for field in ("heading", "subheading", "fullcontent"):
         assert field in should_fields, f"{field} missing from should clauses: {should_fields}"
 
 
+def test_build_query_preview_matches_what_raw_search_actually_sends():
+    """Single source of truth: raw_search calls build_query_preview() internally (see its
+    own source) rather than recomputing shape/chunks/query separately, specifically so the
+    /v1/query-analysis endpoint (backed by this function) can never drift from what a real
+    search actually does."""
+    preview = build_query_preview("Section 6 of Income Tax Act")
+
+    assert preview["query"] == "Section 6 of Income Tax Act"
+    assert preview["shape"] == "provision"
+    assert any(c["type"] == "section" and c["text"] == "Section 6" for c in preview["chunks"])
+    assert "bool" in preview["es_query"]
+
+
+def test_build_query_preview_omits_expanded_query_when_unchanged():
+    preview = build_query_preview("can a company claim depreciation")
+    assert preview["expanded_query"] is None
+
+
+def test_build_query_preview_includes_expanded_query_when_synonym_applies():
+    preview = build_query_preview("ACIT order on depreciation")
+    assert preview["expanded_query"] is not None
+    assert "ASSISTANT COMMISSIONER INCOME TAX" in preview["expanded_query"]
+
+
 @pytest.mark.asyncio
-async def test_raw_search_wraps_query_in_function_score_with_boost_fields():
+async def test_raw_search_does_not_wrap_query_in_function_score():
+    """raw_search deliberately skips _wrap_function_score - see its docstring and the
+    comment in raw_search: a 53-query eval run showed the patched boost formula still
+    nearly halves pass rate versus plain BM25 text relevance (21/53 boosted vs 42/53
+    unboosted), an architectural (boost_mode: multiply) issue, not a missing-data one."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "exemption claim", limit=20)
 
     query = client.search_calls[0]
-    assert "function_score" in query
-    factor_fields = {f["field_value_factor"]["field"] for f in query["function_score"]["functions"]}
-    assert factor_fields == {"documenttypeboost", "court_boost", "landmarkruling"}
+    assert "function_score" not in query
+    assert "bool" in query
 
 
 @pytest.mark.asyncio
-async def test_raw_search_excludes_blacklisted_landmarkruling_docs():
+async def test_raw_search_does_not_exclude_landmarkruling_blacklisted_docs():
+    """A prior version of raw_search hoisted centax-node's landmarkruling:-10 handling into
+    a top-level query must_not, believing it preserved a content-exclusion filter. That was a
+    misreading of the source: in centax-node's actual query (services/caselaws.js), that
+    must_not is scoped as a per-function `filter` *inside* one function_score function entry -
+    it only controls whether that one function's boost applies, matching its own comment
+    ("Don't add Function Score for blacklisted"). It never excluded the doc from results at
+    all. Our prior top-level version was a real regression (hid ~173 legitimate docs from
+    every search) with no source-of-truth backing it, and is now removed - raw_search must
+    send the field_query as-is, no must_not anywhere, no landmarkruling clause at all."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "exemption claim", limit=20)
 
     query = client.search_calls[0]
-    bool_clause = query["function_score"]["query"]["bool"]
-    assert {"term": {"landmarkruling": -10}} in bool_clause.get("must_not", [])
+    assert query == {"bool": {"should": query["bool"]["should"], "minimum_should_match": 1}}
+    assert "must_not" not in query["bool"]
+    assert "landmarkruling" not in str(query)
 
 
 def test_get_es_client_reads_index_and_auth_from_settings():

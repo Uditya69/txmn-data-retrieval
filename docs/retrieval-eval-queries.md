@@ -15,6 +15,13 @@ failures interpretable when comparing Elasticsearch, Milvus sparse BM25, and Mil
 Voyage retrieval. Elasticsearch and Milvus results must be evaluated independently;
 `doc_id` is only the join key and scores must not be fused across those systems.
 
+**ES ranking boost is disabled as of this writing** (`common/es_client.py::raw_search` no
+longer calls `_wrap_function_score`) — see the update note at the top of
+`docs/superpowers/specs/2026-08-11-instant-mode-es-retrieval-redesign-design.md`. A 53-query
+run against this exact dataset scored 21/53 with the (fully-patched) `documenttypeboost x
+court_boost x landmarkruling` boost active versus 42/53 with it off, so ES results reported
+here reflect plain BM25 text relevance, not the boosted formula the original design called for.
+
 ## Suggested evaluation protocol
 
 - Run every query independently through raw ES, Milvus sparse, and Milvus dense.
