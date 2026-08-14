@@ -35,8 +35,8 @@ def build_schema_context() -> str:
         f"- {name}: {COLLECTION_DESCRIPTIONS[name]}" for name in MILVUS_COLLECTIONS
     )
     return (
-        "Searchable collections (all are searched together, phrase rewritten_query "
-        "to read naturally against each of them):\n"
+        "Searchable collections (searched together unless routed by category, "
+        "phrase search_query to read naturally against each of them):\n"
         f"{collection_lines}\n\n"
         f"Recognized filter fields: {', '.join(KNOWN_FILTER_FIELDS)}\n"
         f"Common courts: {', '.join(KNOWN_COURTS)}\n"

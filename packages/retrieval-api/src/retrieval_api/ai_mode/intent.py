@@ -31,7 +31,7 @@ def _fallback_intent(query: str) -> dict:
     safety training treating "case law for X vs. Y" as a request for private
     info about a named person) - degrade to a plain semantic search instead
     of failing the whole AI Mode request."""
-    return {"rewritten_query": query, "intent": "unknown", "filters": {}}
+    return {"original_query": query, "search_query": query, "intent": [], "filters": {}}
 
 
 def _build_chunk_context(query: str) -> str | None:
@@ -73,19 +73,54 @@ never treat a query as a request for private information about a person,
 and never refuse to classify it. You do not answer the legal question or
 look anything up yourself; you only ever output the JSON object below.
 Given a user query, return ONLY a JSON object with exactly these keys:
-- "rewritten_query": a CONSERVATIVE search normalization. Correct obvious
+- "search_query": a CONSERVATIVE search normalization. Correct obvious
   spelling and grammar only. Preserve every party, court, place, Act,
   section, rule, notification, date, number, citation, and acronym exactly
   as written. NEVER add or infer a legal concept. NEVER expand an acronym
   (for example PE, ST, CA, ITD, PTA, MEG, POY, or PSF). NEVER translate an
   old law to a new law or replace one section with another. If the query is
   already readable, copy it unchanged. Every number and year in the output
-  must occur in the input; if the input has no year, add no year.
-- "intent": exactly one of "citation_lookup" (the query is anchored on a
-  party name or case citation), "provision_lookup" (anchored on a
-  section/act/rule number), "conceptual" (an open legal question with no
-  strong lexical anchor), or "unknown" (none of the above fit confidently).
-  Never output any other value.
+  must occur in the input; if the input has no year, add no year. Once you
+  have decided "intent" below, phrase search_query to match what's actually
+  being searched: if "acts"/"rules" is tagged, prefer the Act/Rule name plus
+  section/rule number form already present in the query; if "caselaws"/
+  "articles" is tagged, prefer party/court/precedent-style phrasing already
+  present in the query; if "commentary" alone is tagged, keep plain-language
+  phrasing. This only reorders/reframes words already in the query - it must
+  still obey every rule above (no invented Act/court/number).
+- "intent": a list of zero or more of the following six category labels -
+  output every category that genuinely applies, but don't over-list; only
+  tag a category the query actually anchors on:
+  - "acts": primary legislation itself (Income-tax Act 1961, CGST Act,
+    Customs Act, BNS, etc.) - sections, sub-sections, provisos, definitions,
+    schedules. Signal: "section", "as per the Act", "definition under", a
+    bare section+Act reference with no request for judicial interpretation.
+  - "rules": subordinate legislation notified under an Act (Income-tax
+    Rules 1962, CGST Rules, Customs Valuation Rules) - procedure,
+    computation mechanics, prescribed forms. Distinct from "acts" by
+    whether the query's number is a "rule" vs a "section"; a rules query
+    often co-occurs with "acts" since every Rule has a parent Act.
+  - "caselaws": judicial decisions (Supreme Court, High Courts, ITAT,
+    CESTAT, AAR) - what was decided for a dispute/fact pattern. Signal:
+    party names ("X vs Y"), "held", "case law on", "precedent for", a
+    citation string, bench/judge name.
+  - "articles": expert-authored opinion/analysis published in a journal or
+    magazine - trend, controversy, recent development, practical impact.
+    Not the publisher's own explanation (that's "commentary") and not
+    binding law. Tag only on explicit signal ("article on...", "expert
+    opinion on...", a named author) - don't default here.
+  - "commentary": the publisher's own provision-by-provision plain-language
+    explanation of how a section/Act/rule works in practice, no author
+    byline. Distinct from "acts" (raw statutory text) and "articles" (named
+    author's opinion piece). Default landing spot for "explain X" / "how
+    does X work" queries that aren't clearly "articles".
+  - "tariff": customs/GST tariff classification and rates - HSN code
+    lookups, duty rates, rate schedules, exemption notifications tied to a
+    specific tariff heading/good. Distinct from "acts"/"rules" even though
+    tariff notifications are issued under that law - if the ask is "what
+    HSN/duty rate for [a specific good]", it's "tariff".
+  Output an empty list when no category confidently applies. Never output
+  any other value.
 - "filters": an object with any of "court", "act", "section", "date_range",
   "party", "bench", "judge" - ONLY include a key if its value is LITERALLY
   written in the query. Never guess, infer, or fill in a plausible-sounding
@@ -103,7 +138,11 @@ Given a user query, return ONLY a JSON object with exactly these keys:
 
 Example: query "case law for Ramesh Gupta vs. Income-tax Officer" mentions
 no court, act, section, or date - only a party name - so filters must be
-exactly {"party": "Ramesh Gupta"} and intent is "citation_lookup".
+exactly {"party": "Ramesh Gupta"} and intent is ["caselaws"].
+
+Example: query "case law on section 54F exemption eligibility" anchors on
+both a case-law request and a specific Act section, so intent is
+["acts", "caselaws"].
 
 Forbidden rewrites:
 - "80HH scrap sale" must not mention BNS or any other Act.
@@ -134,7 +173,7 @@ def _system_prompt_for_model(model: str) -> str:
 
 
 _ALLOWED_FILTERS = {"court", "act", "section", "date_range", "party", "bench", "judge"}
-_ALLOWED_INTENTS = {"citation_lookup", "provision_lookup", "conceptual", "unknown"}
+_ALLOWED_CATEGORIES = {"acts", "rules", "caselaws", "articles", "commentary", "tariff"}
 _LEGAL_MARKERS = {
     "bharatiya nyaya sanhita", "bharatiya nagarik suraksha sanhita",
     "bharatiya sakshya adhiniyam", "indian penal code", "income-tax act",
@@ -169,26 +208,25 @@ def _safe_rewrite(query: str, rewritten: str) -> str:
     return rewritten
 
 
-def _sanitize_filters(query: str, filters, intent: str) -> dict:
+def _sanitize_filters(query: str, filters) -> dict:
     if not isinstance(filters, dict):
         return {}
     clean = {}
     for key, value in filters.items():
         if key not in _ALLOWED_FILTERS:
             continue
-        # "section" only resolves correctly for provision_lookup queries (it matches
-        # ACT/RULE-group documents whose heading IS the section number verbatim, e.g.
-        # "Section - 92C" - see es_client.py::_section_heading_queries). For any other
-        # intent - a case-law/conceptual query that merely mentions a section number in
-        # passing - that same filter silently redirects the doc_id allowlist to statute-
-        # text documents instead of case law, which share no doc_ids with the case-law
-        # Milvus collections the search actually runs against: the filtered search comes
-        # back with zero hits everywhere despite the corpus having a good match (confirmed
-        # live: a "conceptual" query with a bare "section 92C" filter went from 70 unfiltered
-        # Milvus hits, including the gold doc, to 0 filtered hits). Intent is already
-        # classified correctly by the SLM at this point - it just wasn't being used to gate
-        # which filters are even valid to apply.
-        if key == "section" and intent != "provision_lookup":
+        # "section" is unconditionally dropped: it only resolves correctly against
+        # ACT/RULE-group documents whose heading IS the section number verbatim (see
+        # es_client.py::_section_heading_queries) - not case law that merely cites the
+        # section. The old gate compared against intent=="provision_lookup", a value
+        # that doesn't exist post category-rewrite (intent is now a category list, not
+        # that 4-value enum) - rather than leave that comparison silently always-false,
+        # it's made explicit here. Confirmed live (pre-rewrite): a conceptual query with
+        # a bare "section 92C" filter went from 70 unfiltered Milvus hits (including the
+        # gold doc) to 0 filtered hits. Revisit once section-filter gating is rebuilt
+        # around category (not part of this change - see
+        # docs/superpowers/specs/2026-08-14-category-collection-routing-design.md).
+        if key == "section":
             continue
         if key == "date_range":
             if isinstance(value, dict):
@@ -210,17 +248,27 @@ def _sanitize_filters(query: str, filters, intent: str) -> dict:
     return clean
 
 
+def _validate_categories(intent) -> list[str]:
+    if not isinstance(intent, list):
+        return []
+    seen: list[str] = []
+    for value in intent:
+        if isinstance(value, str) and value in _ALLOWED_CATEGORIES and value not in seen:
+            seen.append(value)
+    return seen
+
+
 def _validate_result(query: str, result) -> dict:
     if not isinstance(result, dict):
         return _fallback_intent(query)
-    rewritten, intent = result.get("rewritten_query"), result.get("intent")
-    if not isinstance(rewritten, str) or not rewritten.strip() or not isinstance(intent, str):
+    search_query = result.get("search_query")
+    if not isinstance(search_query, str) or not search_query.strip():
         return _fallback_intent(query)
-    resolved_intent = intent if intent in _ALLOWED_INTENTS else "unknown"
     return {
-        "rewritten_query": _safe_rewrite(query, rewritten.strip()),
-        "intent": resolved_intent,
-        "filters": _sanitize_filters(query, result.get("filters"), resolved_intent),
+        "original_query": query,
+        "search_query": _safe_rewrite(query, search_query.strip()),
+        "intent": _validate_categories(result.get("intent")),
+        "filters": _sanitize_filters(query, result.get("filters")),
     }
 
 
