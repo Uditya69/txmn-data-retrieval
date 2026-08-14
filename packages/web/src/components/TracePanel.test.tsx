@@ -12,7 +12,16 @@ describe('TracePanel', () => {
 
   it('renders one card per step, in arrival order, with a summary line', () => {
     const steps: TraceStep[] = [
-      { step: 'intent', data: { query: 'cgst', rewritten_query: 'CGST meaning', intent: 'taxation', filters: {} } },
+      {
+        step: 'intent',
+        data: {
+          query: 'cgst',
+          original_query: 'cgst',
+          search_query: 'CGST meaning',
+          intent: ['caselaws', 'acts'],
+          filters: {},
+        },
+      },
       { step: 'rrf_merge', data: { candidate_count: 42, top_candidates: [] } },
     ]
     render(<TracePanel steps={steps} />)
@@ -20,6 +29,7 @@ describe('TracePanel', () => {
     const headers = screen.getAllByRole('heading', { level: 3 })
     expect(headers.map((h) => h.textContent)).toEqual(['Intent', 'RRF merge'])
     expect(screen.getByText(/CGST meaning/)).toBeInTheDocument()
+    expect(screen.getByText(/caselaws, acts/)).toBeInTheDocument()
     expect(screen.getByText(/42/)).toBeInTheDocument()
   })
 

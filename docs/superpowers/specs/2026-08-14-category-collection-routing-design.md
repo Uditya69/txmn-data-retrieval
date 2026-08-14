@@ -122,6 +122,15 @@ this hits the existing zero-hit circuit breaker in `retrieve.py` (retries unfilt
 the same routed collection set). No new code needed; flagged here so it isn't mistaken for a
 routing bug later.
 
+### Known consequence: routing to a non-caselaws-only category loses lexical (sparse) signal
+
+`act_section`/`rule_section`/`article_section`/`commentary_section` have no `sparse_vector`
+field (excluded from `common.schemas.SPARSE_VECTOR_COLLECTIONS`). So when `intent` routes to
+any of these groups without `caselaws` also present, the sparse `hybrid_search` pass returns
+nothing for them and RRF merge degrades to pure-dense ranking for that portion of the search.
+This is a real quality consequence worth checking against `evals/retrieval_cases.json` before
+this routing goes near production traffic — not a bug to fix in this branch.
+
 ## Code changes summary
 
 - `common/schemas.py`: add `CATEGORY_COLLECTIONS`, `collections_for_intent()`.
@@ -130,7 +139,10 @@ routing bug later.
 - `pipeline.py`: pass `intent_result["intent"]` into `retrieve()` (already required by the
   Aug 13 spec's signature; confirm it's wired, not dropped).
 - `intent.py`: prompt-only addition for `search_query` phrasing bias.
-- `retrieval_eval.py`: mirror the routing call so eval runs match production behavior.
+- `retrieval_eval.py`: mirror the routing call so eval runs match production behavior. Note:
+  `evaluate_case()`'s persisted `collection_ranks` dict now varies in key-set from run to run
+  depending on which collections were routed to — a schema note for anyone consuming old
+  eval-result JSON files going forward.
 - `CLAUDE.md`: rule 4 rewrite as above.
 
 ## Testing

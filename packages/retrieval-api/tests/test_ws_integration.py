@@ -38,7 +38,10 @@ def test_ws_search_streams_ai_mode_trace_steps_before_final_answer(monkeypatch):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None):
-        await on_step("intent", {"query": query, "rewritten_query": "r", "intent": "x", "filters": {}})
+        await on_step(
+            "intent",
+            {"query": query, "original_query": query, "search_query": "r", "intent": ["caselaws"], "filters": {}},
+        )
         await on_step("filters_resolved", {"filters": {}, "doc_id_count": 0, "doc_id_sample": []})
         return {"ok": True, "answer": "final answer", "citations": {}}
 
@@ -61,7 +64,7 @@ def test_ws_search_streams_ai_mode_trace_steps_before_final_answer(monkeypatch):
 
     trace_1 = {
         "type": "ai_mode_trace", "step": "intent",
-        "data": {"query": "q", "rewritten_query": "r", "intent": "x", "filters": {}},
+        "data": {"query": "q", "original_query": "q", "search_query": "r", "intent": ["caselaws"], "filters": {}},
     }
     trace_2 = {
         "type": "ai_mode_trace", "step": "filters_resolved",

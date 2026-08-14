@@ -119,10 +119,10 @@ describe('useSearch', () => {
     act(() => {
       socket.emit('open')
       socket.emit('message', {
-        data: JSON.stringify({ type: 'ai_mode_trace', step: 'intent', data: { rewritten_query: 'r' } }),
+        data: JSON.stringify({ type: 'ai_mode_trace', step: 'intent', data: { search_query: 'r', intent: ['caselaws'] } }),
       })
     })
-    expect(result.current.traceSteps).toEqual([{ step: 'intent', data: { rewritten_query: 'r' } }])
+    expect(result.current.traceSteps).toEqual([{ step: 'intent', data: { search_query: 'r', intent: ['caselaws'] } }])
 
     act(() => {
       socket.emit('message', {
@@ -130,7 +130,7 @@ describe('useSearch', () => {
       })
     })
     expect(result.current.traceSteps).toEqual([
-      { step: 'intent', data: { rewritten_query: 'r' } },
+      { step: 'intent', data: { search_query: 'r', intent: ['caselaws'] } },
       { step: 'filters_resolved', data: { doc_id_count: 0 } },
     ])
   })

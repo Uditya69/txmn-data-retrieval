@@ -169,6 +169,14 @@ async def test_retrieve_routes_collections_by_intent(monkeypatch):
         gateway, milvus_client=object(), search_query="q", doc_id_allowlist=None, intent=["acts"],
     )
 
+    # This test verifies retrieve.py passes the routed collection set through to hybrid_search
+    # unchanged for both the dense and sparse passes - it does NOT reflect what actually gets
+    # searched in production. act_section has no sparse_vector field (excluded from
+    # common.schemas.SPARSE_VECTOR_COLLECTIONS), so the real hybrid_search further drops it from
+    # the sparse pass, meaning an intent=["acts"]-only query's sparse pass searches zero
+    # collections. That filtering is hybrid_search's own responsibility and is covered by
+    # packages/common/tests/test_milvus_client.py::test_hybrid_search_skips_sparse_search_for_ruling_collection
+    # (same mechanism, "ruling" collection), not retrieve.py's.
     assert seen_collections == [["act_section"], ["act_section"]]  # dense pass, sparse pass
 
 

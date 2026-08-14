@@ -14,7 +14,6 @@ class Settings(BaseSettings):
     es_index: str = "taxmann_caselaw"
     es_verify_certs: bool = True
     gateway_url: str
-    intent_rrf_weighting_enabled: bool = True
 
 
 @lru_cache

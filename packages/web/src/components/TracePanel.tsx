@@ -27,7 +27,7 @@ function summarize(step: TraceStep): string {
       return `shape: ${d.shape} — ${chunkCount} chunk${chunkCount === 1 ? '' : 's'}`
     }
     case 'intent':
-      return `"${d.query}" -> "${d.rewritten_query}" (${d.intent})`
+      return `"${d.query}" -> "${d.search_query}" (${(d.intent ?? []).join(', ')})`
     case 'filters_resolved':
       return `${d.doc_id_count} doc(s) matched`
     case 'es_search':

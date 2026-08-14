@@ -54,6 +54,6 @@ def collections_for_intent(intent: list[str]) -> list[str]:
     trace/log output stays collection-order-stable regardless of tag order.
     """
     if not intent:
-        return MILVUS_COLLECTIONS
+        return list(MILVUS_COLLECTIONS)
     routed = {collection for tag in intent for collection in CATEGORY_COLLECTIONS.get(tag, [])}
-    return [c for c in MILVUS_COLLECTIONS if c in routed] or MILVUS_COLLECTIONS
+    return [c for c in MILVUS_COLLECTIONS if c in routed] or list(MILVUS_COLLECTIONS)
