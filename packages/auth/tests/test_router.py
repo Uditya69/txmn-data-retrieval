@@ -3,15 +3,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from auth.router import get_users_dependency, router
-from tests.fakes import FakeUsersCollection
 
 
 @pytest.fixture
-def client():
+def client(fake_users_collection):
     app = FastAPI()
     app.include_router(router)
-    fake_users = FakeUsersCollection()
-    app.dependency_overrides[get_users_dependency] = lambda: fake_users
+    app.dependency_overrides[get_users_dependency] = lambda: fake_users_collection
     return TestClient(app)
 
 
