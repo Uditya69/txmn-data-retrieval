@@ -37,3 +37,33 @@ def test_merge_expertise_patch_overwrites_only_provided_keys():
 def test_merge_expertise_patch_handles_empty_existing():
     result = merge_expertise_patch({}, {"expertise_level": "student"})
     assert result == {"expertise_level": "student"}
+
+
+def test_merge_expertise_patch_drops_invalid_expertise_level():
+    existing = {"expertise_level": "practitioner"}
+    result = merge_expertise_patch(existing, {"expertise_level": "omniscient"})
+    assert result == {"expertise_level": "practitioner"}
+
+
+def test_merge_expertise_patch_drops_invalid_query_style():
+    existing = {"query_style": "broad"}
+    result = merge_expertise_patch(existing, {"query_style": "essay-length"})
+    assert result == {"query_style": "broad"}
+
+
+def test_merge_expertise_patch_strips_extraneous_keys():
+    result = merge_expertise_patch({}, {"expertise_level": "student", "injected": "malicious"})
+    assert result == {"expertise_level": "student"}
+    assert "injected" not in result
+
+
+def test_merge_expertise_patch_returns_existing_unchanged_when_all_values_invalid():
+    existing = {"expertise_level": "practitioner", "query_style": "precise-citation"}
+    result = merge_expertise_patch(existing, {"expertise_level": "bogus", "query_style": "bogus"})
+    assert result == existing
+
+
+def test_merge_expertise_patch_valid_values_still_merge_normally():
+    existing = {"expertise_level": "practitioner", "query_style": "precise-citation"}
+    result = merge_expertise_patch(existing, {"expertise_level": "expert", "query_style": "broad"})
+    assert result == {"expertise_level": "expert", "query_style": "broad"}

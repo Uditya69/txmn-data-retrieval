@@ -23,6 +23,12 @@ router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
+# Holds strong references to fire-and-forget background tasks (e.g. the
+# persona-signal write below) - asyncio's event loop only keeps a weak
+# reference to a task, so an unreferenced task can be garbage-collected
+# mid-execution. Each task removes itself from this set via its done callback.
+_background_tasks: set[asyncio.Task] = set()
+
 
 def get_gateway_client(settings) -> GatewayClient:
     return GatewayClient(base_url=settings.gateway_url)
@@ -141,12 +147,14 @@ async def search(websocket: WebSocket):
                     await send(ai_mode_message)
 
                     if user_id is not None and personas_collection is not None:
-                        asyncio.create_task(
+                        task = asyncio.create_task(
                             record_persona_signal(
                                 personas_collection, gateway, user_id, query,
                                 categories=ai_mode_result.get("intent", []),
                             )
                         )
+                        _background_tasks.add(task)
+                        task.add_done_callback(_background_tasks.discard)
                 else:
                     output["ai_mode_error"] = ai_mode_result["error"]
                     await send({"type": "ai_mode_error", "error": ai_mode_result["error"]})

@@ -21,5 +21,12 @@ async def record_signal(
     merged["query_count"] = existing_count + 1
     merged["updated_at"] = datetime.now(timezone.utc).isoformat()
 
+    # NOTE: this is a read-modify-write (find_one above, replace_one here), not an
+    # atomic update - two concurrent record_signal calls for the same user_id can
+    # race: both read the same `existing` snapshot, and whichever replace_one lands
+    # last silently overwrites the other's merged result (including a fresh
+    # expertise_level). Not fixed here - a real fix needs MongoDB update-pipeline
+    # operators ($inc/$mergeObjects etc.) to make the whole read-modify-write
+    # atomic, which is a bigger design change than this finding calls for.
     await personas.replace_one({"user_id": user_id}, merged, upsert=True)
     return merged

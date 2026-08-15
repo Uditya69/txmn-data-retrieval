@@ -7,7 +7,7 @@ os.environ.setdefault(
     "mongodb://localhost:27017/?serverSelectionTimeoutMS=2000&connectTimeoutMS=2000",
 )
 os.environ.setdefault("MONGO_DB", "test-auth-db")
-os.environ.setdefault("JWT_SECRET", "test-jwt-secret")
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-that-is-at-least-32-characters-long")
 os.environ.setdefault("JWT_EXPIRY_MINUTES", "60")
 
 
