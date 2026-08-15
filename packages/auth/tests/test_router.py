@@ -38,3 +38,9 @@ def test_login_rejects_wrong_password(client):
     client.post("/auth/signup", json={"email": "alice@example.com", "password": "hunter2"})
     response = client.post("/auth/login", json={"email": "alice@example.com", "password": "wrong"})
     assert response.status_code == 401
+
+
+def test_signup_rejects_password_over_72_bytes(client):
+    long_password = "a" * 73
+    response = client.post("/auth/signup", json={"email": "bob@example.com", "password": long_password})
+    assert response.status_code == 422

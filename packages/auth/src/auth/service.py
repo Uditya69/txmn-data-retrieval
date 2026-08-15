@@ -13,6 +13,7 @@ class InvalidCredentials(Exception):
 
 
 async def signup(users, email: str, password: str) -> str:
+    email = email.strip().lower()
     existing = await users.find_one({"email": email})
     if existing is not None:
         raise EmailAlreadyRegistered(email)
@@ -28,6 +29,7 @@ async def signup(users, email: str, password: str) -> str:
 
 
 async def login(users, email: str, password: str) -> str:
+    email = email.strip().lower()
     user = await users.find_one({"email": email})
     if user is None or not verify_password(password, user["password_hash"]):
         raise InvalidCredentials(email)

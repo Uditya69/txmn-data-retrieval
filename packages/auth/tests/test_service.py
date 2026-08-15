@@ -49,3 +49,19 @@ async def test_login_rejects_wrong_password(fake_users_collection):
     await signup(users, "alice@example.com", "hunter2")
     with pytest.raises(InvalidCredentials):
         await login(users, "alice@example.com", "wrong-password")
+
+
+@pytest.mark.asyncio
+async def test_signup_normalizes_email_case_and_whitespace(fake_users_collection):
+    users = fake_users_collection
+    await signup(users, "Alice@X.com", "hunter2")
+    with pytest.raises(EmailAlreadyRegistered):
+        await signup(users, "alice@x.com ", "different-password")
+
+
+@pytest.mark.asyncio
+async def test_login_normalizes_email_case_and_whitespace(fake_users_collection):
+    users = fake_users_collection
+    user_id = await signup(users, "Alice@X.com", "hunter2")
+    result = await login(users, " alice@x.com", "hunter2")
+    assert result == user_id
