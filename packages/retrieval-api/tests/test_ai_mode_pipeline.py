@@ -24,7 +24,7 @@ async def test_run_ai_mode_success_path(monkeypatch):
     async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
         return {"answer": "final answer", "citations": citations}
 
     monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
@@ -35,8 +35,45 @@ async def test_run_ai_mode_success_path(monkeypatch):
 
     result = await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="original query")
 
-    assert result == {"ok": True, "answer": "final answer", "citations": {"d1": {}}}
+    assert result == {"ok": True, "answer": "final answer", "citations": {"d1": {}}, "intent": ["caselaws"]}
     assert received_intent["value"] == ["caselaws"]
+
+
+@pytest.mark.asyncio
+async def test_run_ai_mode_passes_persona_context_to_synthesize_and_returns_intent(monkeypatch):
+    import retrieval_api.ai_mode.pipeline as module
+
+    async def fake_extract_intent(gateway, query, on_step=None):
+        return {"original_query": query, "search_query": "rewritten", "intent": ["acts"], "filters": {}}
+
+    async def fake_resolve_allowlist(es_client, filters, on_step=None):
+        return None
+
+    async def fake_retrieve(gateway, milvus_client, search_query, doc_id_allowlist, intent, on_step=None):
+        return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
+
+    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
+        return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
+
+    received_persona_context = {}
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+        received_persona_context["value"] = persona_context
+        return {"answer": "final answer", "citations": citations}
+
+    monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_resolve_allowlist)
+    monkeypatch.setattr(module, "retrieve", fake_retrieve)
+    monkeypatch.setattr(module, "rerank_and_prefetch", fake_rerank_and_prefetch)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+
+    result = await run_ai_mode(
+        gateway=object(), es_client=object(), milvus_client=object(), query="q",
+        persona_context="This user frequently asks about acts.",
+    )
+
+    assert received_persona_context["value"] == "This user frequently asks about acts."
+    assert result["intent"] == ["acts"]
 
 
 @pytest.mark.asyncio
@@ -84,7 +121,7 @@ async def test_run_ai_mode_succeeds_with_party_only_filter(monkeypatch):
     async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
         return {"answer": "final answer", "citations": citations}
 
     monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
@@ -97,7 +134,7 @@ async def test_run_ai_mode_succeeds_with_party_only_filter(monkeypatch):
     )
 
     assert result["ok"] is True
-    assert result == {"ok": True, "answer": "final answer", "citations": {"d1": {}}}
+    assert result == {"ok": True, "answer": "final answer", "citations": {"d1": {}}, "intent": ["caselaws"]}
 
 
 @pytest.mark.asyncio
@@ -122,7 +159,7 @@ async def test_run_ai_mode_forwards_on_step_to_every_stage(monkeypatch):
         received_on_steps.append(("rerank_and_prefetch", on_step))
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
         received_on_steps.append(("synthesize", on_step))
         return {"answer": "final answer", "citations": citations}
 
