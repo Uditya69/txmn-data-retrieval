@@ -4,7 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.11,<3.12"
 
 [tool.uv.workspace]
-members = ["packages/common", "packages/model-gateway", "packages/retrieval-api", "packages/agents", "packages/auth"]
+members = ["packages/common", "packages/model-gateway", "packages/retrieval-api", "packages/agents", "packages/auth", "packages/persona"]
 
 [tool.uv.sources]
 common = { workspace = true }
@@ -12,6 +12,7 @@ model-gateway = { workspace = true }
 retrieval-api = { workspace = true }
 agents = { workspace = true }
 auth = { workspace = true }
+persona = { workspace = true }
 
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "respx>=0.21"]
