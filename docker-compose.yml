@@ -1,9 +1,4 @@
 services:
-  mongo:
-    image: mongo:7
-    volumes:
-      - mongo-data:/data/db
-
   model-gateway:
     build:
       context: .
@@ -19,8 +14,7 @@ services:
     env_file: .env
     environment:
       GATEWAY_URL: http://model-gateway:8001
-      MONGO_URI: mongodb://mongo:27017
-    depends_on: [model-gateway, mongo]
+    depends_on: [model-gateway]
 
   web:
     build:
@@ -34,6 +28,3 @@ services:
       WS_URL: ws://localhost:8010/ws/search
       AGENT_WS_URL: ws://localhost:8010/ws/agent
     depends_on: [retrieval-api]
-
-volumes:
-  mongo-data:
