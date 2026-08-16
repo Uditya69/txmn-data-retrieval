@@ -5,8 +5,10 @@ import { ChatMessageView } from './components/ChatMessageView'
 import DocumentReader from './components/DocumentReader'
 import DevModeToggle from './components/DevModeToggle'
 import RerankToggle from './components/RerankToggle'
+import AuthMenu from './components/AuthMenu'
 import { useSearch } from './api/useSearch'
 import { useAgentSearch } from './api/useAgentSearch'
+import { useAuth } from './api/useAuth'
 import { resolveWsUrl, resolveAgentWsUrl, resolveApiBaseUrl } from './lib/config'
 import type { ChatMessage, ChatMode, Conversation, ResultState } from './types'
 
@@ -97,7 +99,9 @@ function readDevModeFromUrl(): boolean {
 export default function App() {
   const wsUrl = resolveWsUrl()
   const agentWsUrl = resolveAgentWsUrl()
-  const classicSearch = useSearch(wsUrl)
+  const apiBaseUrl = resolveApiBaseUrl(wsUrl)
+  const auth = useAuth(apiBaseUrl)
+  const classicSearch = useSearch(wsUrl, auth.token)
   const agentSearch = useAgentSearch(agentWsUrl)
 
   const [conversations, setConversations] = useState<Conversation[]>(loadConversations)
@@ -287,6 +291,14 @@ export default function App() {
             <div className="ml-auto flex items-center gap-3">
               <RerankToggle rerank={rerank} onToggle={setRerank} />
               <DevModeToggle devMode={devMode} onToggle={setDevMode} />
+              <AuthMenu
+                email={auth.email}
+                loading={auth.loading}
+                error={auth.error}
+                onSignup={auth.signup}
+                onLogin={auth.login}
+                onLogout={auth.logout}
+              />
             </div>
           </div>
         </header>
@@ -321,7 +333,7 @@ export default function App() {
         </main>
       </div>
 
-      <DocumentReader docId={openDocId} apiBaseUrl={resolveApiBaseUrl(wsUrl)} onClose={() => setOpenDocId(null)} onOpenDocument={setOpenDocId} />
+      <DocumentReader docId={openDocId} apiBaseUrl={apiBaseUrl} onClose={() => setOpenDocId(null)} onOpenDocument={setOpenDocId} />
     </div>
   )
 }
