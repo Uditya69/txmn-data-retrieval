@@ -1,8 +1,18 @@
 from persona.merge import KNOWN_CATEGORIES
 
+_TRUST_THRESHOLD = 20
+
+RELEVANCE_INSTRUCTION = (
+    "The note above is a prior about this user's typical usage, not a "
+    "fact about this query. Use it only if this query is genuinely "
+    "ambiguous on its own. If the query's own content conflicts with or "
+    "is unrelated to the note, ignore the note and rely on the query "
+    "alone."
+)
+
 
 def render_persona_context(persona: dict | None) -> str:
-    if not persona:
+    if not persona or persona.get("query_count", 0) < _TRUST_THRESHOLD:
         return ""
 
     affinity = persona.get("category_affinity") or {}
