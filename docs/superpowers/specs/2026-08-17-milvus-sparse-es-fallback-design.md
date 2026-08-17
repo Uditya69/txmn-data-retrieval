@@ -93,10 +93,22 @@ If zero gap-collections are routed for a given query (e.g. `intent: ["commentary
 `commentary_section` regains a sparse field — hypothetically — or more realistically any query
 where the routed set happens to avoid every gap collection), no ES fallback call is made at all.
 
+**Per-group starvation cap.** A plain top-20-overall pull risks one group crowding out another —
+`groups.group.name: CASELAWS` (241,694 docs) routed alongside `Experts Opinion` (5,975 docs) in
+the same call could plausibly return 19-1 or 20-0 in CASELAWS's favor on a query that happens to
+skew that way, even though `article_section` was legitimately routed as relevant. Fetch stays
+relevancy-ranked (ES's own score, no artificial even-split), but capped so no single group can
+claim more than **15 of the 20** total slots: take the top 20 combined, and if any one group holds
+more than 15 of them, trim that group's excess back to 15 and backfill the freed slots from the
+other routed group(s)' next-best hits (rank 21+ within their own group) until 20 is reached again
+or that group's hits run out. With only one gap-group routed (the common case — most `intent`
+tags route to a single gap-collection), this cap never engages.
+
 ### Snippet extraction
 
 - Fetch 20 docs per ES fallback call (matches `raw_search`'s existing default `limit=20`), one
-  snippet per doc.
+  snippet per doc — subject to the per-group starvation cap described below when more than one
+  gap-group is routed in the same call.
 - Use ES's `highlight` API on `fullcontent` with `number_of_fragments: 1` — this is relevance-
   scored fragment selection (ES's `unified` highlighter scores every candidate window by query-
   term match density/proximity and returns the single best-scoring one), not first-occurrence.
@@ -154,6 +166,14 @@ Lists A and B will very often be uneven length (e.g. 6 Milvus-native collections
 vs. 1 gap-collection's ES rows) — once the shorter list is exhausted, append the longer list's
 remaining rows in their own existing rank order, don't stop early and don't pad.
 
+**The dense pass is untouched by any of this.** Interleave-by-rank is a sparse-side-only fix.
+Dense search runs the same Voyage embedding model across all 11 collections regardless of source
+— a cosine-similarity score from `case_summary` and one from `article_section` are directly
+comparable (same model, same vector space), so `_flatten()`'s existing single global sort-by-score
+stays correct and unchanged for the dense pass. There's no ES-sourced dense signal to mix in in
+the first place — ES never produces embeddings — so this section's fix has nothing to do on the
+dense side.
+
 ### `doc_id_allowlist`
 
 The ES fallback query applies the same `doc_id_allowlist` term filter on `id` that the dense
@@ -205,6 +225,9 @@ sequential "try Milvus sparse, fall back to ES" step, no latency penalty from se
 - `sparse_fallback_search`: test the ES query includes the right `groups.group.name` filter for
   a given routed collection set, respects `doc_id_allowlist`, requests highlights with
   `number_of_fragments: 1`.
+- Per-group starvation cap: test that a single-group response is unaffected (no trimming), and
+  that a multi-group response where one group holds >15 of the top 20 gets trimmed to 15 with the
+  freed slots backfilled from the other group's next-best hits, not simply dropped.
 - Snippet trimming: unit test the tiktoken trim/center logic against a fragment longer than 1024
   tokens and one shorter (no-op case).
 - `_flatten`/interleave: unit test that Milvus-native and ES-origin rows never get compared by
