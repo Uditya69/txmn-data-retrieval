@@ -63,7 +63,21 @@ async def retrieve(
         if not gap_collections:
             return {}
         groups = [ES_GROUP_FOR_COLLECTION[c] for c in gap_collections]
-        return await sparse_fallback_search(es_client, search_query, groups, doc_id_allowlist=allowlist)
+        try:
+            return await sparse_fallback_search(es_client, search_query, groups, doc_id_allowlist=allowlist)
+        except Exception as exc:
+            # ES was never in this path before this branch - a fallback path degrades
+            # gracefully (same "no ES rows" shape the rest of the pipeline already
+            # handles, e.g. zero gap collections routed), it doesn't escalate an ES
+            # hiccup (timeout, 5xx, index.highlight.max_analyzed_offset on a very long
+            # judgment) into a total query failure for dense/native-sparse results that
+            # would otherwise have been fine.
+            if on_step is not None:
+                await on_step("es_fallback_degraded", {
+                    "reason": "sparse_fallback_search raised; continuing without ES-fallback rows",
+                    "error": str(exc),
+                })
+            return {}
 
     dense_by_collection, sparse_by_collection, es_sparse_by_collection = await asyncio.gather(
         hybrid_search(

@@ -1,3 +1,5 @@
+import functools
+
 from elasticsearch import AsyncElasticsearch
 
 from common.config import Settings
@@ -11,8 +13,18 @@ import tiktoken
 # being systematically under-scored by the reranker for carrying less context than the
 # real Milvus chunks they compete against. See
 # docs/superpowers/specs/2026-08-17-milvus-sparse-es-fallback-design.md.
-_SNIPPET_TOKENIZER = tiktoken.get_encoding("cl100k_base")
 _SNIPPET_TARGET_TOKENS = 1024
+
+
+@functools.lru_cache(maxsize=1)
+def _get_snippet_tokenizer():
+    """Lazy, cached getter - tiktoken.get_encoding() fetches the BPE vocab file over the
+    network on first use (cached to disk after). Must NOT run at module import time: this
+    module is imported by retrieval_api at process startup, and a module-level constant here
+    previously meant any network hiccup made the whole service fail to boot over a
+    snippet-trimming helper on a fallback code path. Deferring to first real call turns that
+    into (at worst) a failure local to sparse_fallback_search."""
+    return tiktoken.get_encoding("cl100k_base")
 
 
 def _trim_to_token_budget(text: str, target_tokens: int = _SNIPPET_TARGET_TOKENS) -> str:
@@ -20,12 +32,13 @@ def _trim_to_token_budget(text: str, target_tokens: int = _SNIPPET_TARGET_TOKENS
     ES's own highlighter already centers a fragment on the best-scoring match; this only
     caps an oversized fragment down to budget, trimming evenly from both ends so a match
     positioned anywhere near the middle of the requested (oversized) fragment survives."""
-    ids = _SNIPPET_TOKENIZER.encode(text)
+    tokenizer = _get_snippet_tokenizer()
+    ids = tokenizer.encode(text)
     if len(ids) <= target_tokens:
         return text
     excess = len(ids) - target_tokens
     start = excess // 2
-    return _SNIPPET_TOKENIZER.decode(ids[start : start + target_tokens])
+    return tokenizer.decode(ids[start : start + target_tokens])
 
 
 def _cap_group_shares(hits: list[dict], limit: int, group_cap: int) -> list[dict]:
@@ -84,9 +97,10 @@ async def sparse_fallback_search(
         index=client.index,
         query={"bool": {"must": must}},
         size=fetch_size,
+        _source=["id", "groups.group.name"],
         highlight={"fields": {"fullcontent": {
             "fragment_size": _ES_HIGHLIGHT_FRAGMENT_CHARS, "number_of_fragments": 1,
-        }}},
+        }}, "pre_tags": [""], "post_tags": [""]},
     )
 
     hits = []

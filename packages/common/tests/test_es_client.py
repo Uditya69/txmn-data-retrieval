@@ -39,12 +39,14 @@ class FakeAsyncES:
         self.mget_docs = mget_docs or {}
         self.search_calls = []
         self.highlight_calls = []
+        self.source_calls = []
         self.mget_calls = []
         self.index = index
 
-    async def search(self, index, query, size, highlight=None):
+    async def search(self, index, query, size, highlight=None, _source=None):
         self.search_calls.append(query)
         self.highlight_calls.append(highlight)
+        self.source_calls.append(_source)
         self.searched_index = index
         return {"hits": {"hits": self.search_hits}}
 
@@ -585,6 +587,37 @@ async def test_sparse_fallback_search_applies_doc_id_allowlist_and_highlight_con
     must_clauses = query["bool"]["must"]
     assert {"terms": {"groups.group.name.keyword": ["ACT"]}} in must_clauses
     assert {"terms": {"id": ["d1", "d2"]}} in must_clauses
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_strips_highlight_markup_tags():
+    """Default ES highlighting wraps matches in <em>...</em> - that raw markup must never
+    reach the reranker/LLM as if it were clean document text, and unclosed/split tags could
+    eat into _trim_to_token_budget's centered cut. pre_tags/post_tags=[""] disables the
+    wrapping while keeping fragment selection/centering."""
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    await sparse_fallback_search(client, "query text", groups=["CASELAWS"])
+
+    highlight = client.highlight_calls[0]
+    assert highlight["pre_tags"] == [""]
+    assert highlight["post_tags"] == [""]
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_restricts_source_to_id_and_group():
+    """sparse_fallback_search only ever reads source['id'] and
+    source['groups']['group']['name'] - fullcontent (the full legal document text, 100%
+    populated) must not be fetched needlessly for every one of up to 100 hits per query."""
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    await sparse_fallback_search(client, "query text", groups=["CASELAWS"])
+
+    assert client.source_calls[0] == ["id", "groups.group.name"]
 
 
 @pytest.mark.asyncio

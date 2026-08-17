@@ -351,6 +351,41 @@ async def test_retrieve_does_not_fall_back_when_no_allowlist_was_applied(monkeyp
     assert len(calls) == 2  # dense + sparse, no retry
 
 
+@pytest.mark.asyncio
+async def test_retrieve_survives_es_fallback_raising(monkeypatch):
+    """ES was never in the retrieve() path before this branch - a fallback path must
+    degrade gracefully, not escalate an ES hiccup (timeout, 5xx,
+    index.highlight.max_analyzed_offset on a long judgment) into a total query failure
+    for dense/native-sparse results that would otherwise have been fine."""
+    import retrieval_api.ai_mode.retrieve as module
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        if dense_vector is not None:
+            return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "dense hit", "score": 0.9}]}
+        return {}
+
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        raise RuntimeError("index.highlight.max_analyzed_offset")
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    result = await module.retrieve(
+        gateway, milvus_client=object(), es_client=object(), search_query="q",
+        doc_id_allowlist=None, intent=["caselaws"], on_step=on_step,
+    )
+
+    assert [row["chunk_id"] for row in result] == ["a"]
+    assert "es_fallback_degraded" in [step for step, _ in steps]
+
+
 def test_flatten_plain_sort_unchanged_when_no_es_fallback_rows():
     by_collection = {
         "held": [{"chunk_id": "h1", "score": 3.0}],
