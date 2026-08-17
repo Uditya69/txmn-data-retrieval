@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock
 import pytest
 
-from retrieval_api.ai_mode.retrieve import rrf_merge, retrieve
+from retrieval_api.ai_mode.retrieve import rrf_merge, retrieve, _flatten
 
 
 def test_rrf_merge_combines_and_ranks_by_reciprocal_rank():
@@ -69,14 +69,78 @@ async def test_retrieve_embeds_search_query_and_merges_dense_sparse(monkeypatch)
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
         if dense_vector is not None:
             return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 0.9}]}
-        return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 5.0}]}
+        return {}  # ruling has no native sparse_vector - matches real SPARSE_VECTOR_COLLECTIONS behavior
+
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        return {"ruling": [{
+            "chunk_id": "es:d1:0", "doc_id": "d1", "text": "t", "score": 5.0, "source": "es_fallback",
+        }]}
 
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
 
-    result = await retrieve(gateway, milvus_client=object(), search_query="q", doc_id_allowlist=["d1"])
+    result = await retrieve(
+        gateway, milvus_client=object(), es_client=object(), search_query="q", doc_id_allowlist=["d1"],
+    )
 
     gateway.embed.assert_awaited_once_with(role="query_embed", text="q")
     assert result[0]["chunk_id"] == "a"
+
+
+@pytest.mark.asyncio
+async def test_retrieve_calls_es_fallback_only_for_routed_gap_collections(monkeypatch):
+    import retrieval_api.ai_mode.retrieve as module
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+    es_calls = []
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"case_summary": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 1.0}]}
+
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        es_calls.append(groups)
+        return {}
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+
+    # intent "caselaws" routes to case_summary/digest/headnotes/facts/held/ruling/metadata -
+    # "ruling" is the one gap collection in that set, mapped to ES group CASELAWS.
+    await retrieve(gateway, milvus_client=object(), es_client=object(), search_query="q",
+                    doc_id_allowlist=None, intent=["caselaws"])
+
+    assert es_calls == [["CASELAWS"]]
+
+
+@pytest.mark.asyncio
+async def test_retrieve_skips_es_fallback_when_no_gap_collection_routed(monkeypatch):
+    import retrieval_api.ai_mode.retrieve as module
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+    es_calls = []
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"held": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 1.0}]}
+
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        es_calls.append(groups)
+        return {}
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+
+    # No such single-collection intent tag exists today that avoids every gap collection
+    # except by routing to a strict subset - this test constructs that condition directly
+    # by monkeypatching collections_for_intent so the test doesn't depend on future intent
+    # taxonomy changes.
+    monkeypatch.setattr(module, "collections_for_intent", lambda intent: ["held"])
+
+    await retrieve(gateway, milvus_client=object(), es_client=object(), search_query="q",
+                    doc_id_allowlist=None, intent=["caselaws"])
+
+    assert es_calls == []
 
 
 def test_collection_trace_caps_top_hits_at_five_and_builds_preview():
@@ -109,13 +173,19 @@ async def test_retrieve_emits_dense_sparse_and_rrf_merge_steps(monkeypatch):
             return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "dense text", "score": 0.9}]}
         return {"ruling": [{"chunk_id": "b", "doc_id": "d1", "text": "sparse text", "score": 5.0}]}
 
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        return {}
+
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
     steps = []
 
     async def on_step(step, data):
         steps.append(step)
 
-    result = await module.retrieve(gateway, milvus_client=object(), search_query="q", doc_id_allowlist=None, on_step=on_step)
+    result = await module.retrieve(
+        gateway, milvus_client=object(), es_client=object(), search_query="q", doc_id_allowlist=None, on_step=on_step,
+    )
 
     assert steps == ["milvus_dense", "milvus_sparse", "rrf_merge"]
     assert {row["chunk_id"] for row in result} == {"a", "b"}
@@ -135,14 +205,18 @@ async def test_retrieve_always_uses_neutral_rrf_weighting(monkeypatch):
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
         return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 0.9}]}
 
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        return {}
+
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
     steps = []
 
     async def on_step(step, data):
         steps.append((step, data))
 
     await module.retrieve(
-        gateway, milvus_client=object(), search_query="q", doc_id_allowlist=None,
+        gateway, milvus_client=object(), es_client=object(), search_query="q", doc_id_allowlist=None,
         intent=["caselaws"], on_step=on_step,
     )
 
@@ -163,10 +237,14 @@ async def test_retrieve_routes_collections_by_intent(monkeypatch):
         seen_collections.append(collections)
         return {}
 
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        return {}
+
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
 
     await module.retrieve(
-        gateway, milvus_client=object(), search_query="q", doc_id_allowlist=None, intent=["acts"],
+        gateway, milvus_client=object(), es_client=object(), search_query="q", doc_id_allowlist=None, intent=["acts"],
     )
 
     # This test verifies retrieve.py passes the routed collection set through to hybrid_search
@@ -193,9 +271,13 @@ async def test_retrieve_defaults_to_all_collections_when_intent_omitted(monkeypa
         seen_collections.append(collections)
         return {}
 
-    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        return {}
 
-    await module.retrieve(gateway, milvus_client=object(), search_query="q", doc_id_allowlist=None)
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+
+    await module.retrieve(gateway, milvus_client=object(), es_client=object(), search_query="q", doc_id_allowlist=None)
 
     assert seen_collections[0] == MILVUS_COLLECTIONS
 
@@ -218,14 +300,18 @@ async def test_retrieve_falls_back_to_unfiltered_when_allowlist_zeroes_everythin
             return {"ruling": []}
         return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 0.9}]}
 
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        return {}
+
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
     steps = []
 
     async def on_step(step, data):
         steps.append((step, data))
 
     result = await module.retrieve(
-        gateway, milvus_client=object(), search_query="q",
+        gateway, milvus_client=object(), es_client=object(), search_query="q",
         doc_id_allowlist=["wrong-doc-id"], intent=["caselaws"], on_step=on_step,
     )
 
@@ -253,9 +339,169 @@ async def test_retrieve_does_not_fall_back_when_no_allowlist_was_applied(monkeyp
         calls.append(doc_id_allowlist)
         return {"ruling": []}
 
-    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        return {}
 
-    result = await module.retrieve(gateway, milvus_client=object(), search_query="q", doc_id_allowlist=None)
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+
+    result = await module.retrieve(gateway, milvus_client=object(), es_client=object(), search_query="q", doc_id_allowlist=None)
 
     assert result == []
     assert len(calls) == 2  # dense + sparse, no retry
+
+
+@pytest.mark.asyncio
+async def test_retrieve_survives_es_fallback_raising(monkeypatch):
+    """ES was never in the retrieve() path before this branch - a fallback path must
+    degrade gracefully, not escalate an ES hiccup (timeout, 5xx,
+    index.highlight.max_analyzed_offset on a long judgment) into a total query failure
+    for dense/native-sparse results that would otherwise have been fine."""
+    import retrieval_api.ai_mode.retrieve as module
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        if dense_vector is not None:
+            return {"ruling": [{"chunk_id": "a", "doc_id": "d1", "text": "dense hit", "score": 0.9}]}
+        return {}
+
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        raise RuntimeError("index.highlight.max_analyzed_offset")
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    result = await module.retrieve(
+        gateway, milvus_client=object(), es_client=object(), search_query="q",
+        doc_id_allowlist=None, intent=["caselaws"], on_step=on_step,
+    )
+
+    assert [row["chunk_id"] for row in result] == ["a"]
+    assert "es_fallback_degraded" in [step for step, _ in steps]
+
+
+def test_flatten_plain_sort_unchanged_when_no_es_fallback_rows():
+    by_collection = {
+        "held": [{"chunk_id": "h1", "score": 3.0}],
+        "facts": [{"chunk_id": "f1", "score": 9.0}, {"chunk_id": "f2", "score": 1.0}],
+    }
+    result = _flatten(by_collection)
+
+    assert [row["chunk_id"] for row in result] == ["f1", "h1", "f2"]
+
+
+def test_flatten_interleaves_native_and_es_fallback_rows_by_local_rank():
+    # Native rows carry high raw scores (Milvus BM25 Function scale), ES rows carry low
+    # raw scores (ES BM25 scale) - a naive global sort-by-score would put every native
+    # row ahead of every ES row regardless of true relevance. Interleaving must not do
+    # that: each source's own #1 gets equal footing.
+    by_collection = {
+        "held": [
+            {"chunk_id": "n1", "score": 100.0},
+            {"chunk_id": "n2", "score": 90.0},
+        ],
+        "ruling": [
+            {"chunk_id": "e1", "score": 2.0, "source": "es_fallback"},
+            {"chunk_id": "e2", "score": 1.0, "source": "es_fallback"},
+        ],
+    }
+    result = _flatten(by_collection)
+
+    assert [row["chunk_id"] for row in result] == ["n1", "e1", "n2", "e2"]
+
+
+def test_flatten_interleave_appends_longer_lists_remainder_in_rank_order():
+    by_collection = {
+        "held": [
+            {"chunk_id": "n1", "score": 100.0},
+            {"chunk_id": "n2", "score": 90.0},
+            {"chunk_id": "n3", "score": 80.0},
+        ],
+        "ruling": [{"chunk_id": "e1", "score": 2.0, "source": "es_fallback"}],
+    }
+    result = _flatten(by_collection)
+
+    assert [row["chunk_id"] for row in result] == ["n1", "e1", "n2", "n3"]
+
+
+def test_flatten_interleave_handles_es_only_input():
+    by_collection = {
+        "ruling": [
+            {"chunk_id": "e1", "score": 2.0, "source": "es_fallback"},
+            {"chunk_id": "e2", "score": 5.0, "source": "es_fallback"},
+        ],
+    }
+    result = _flatten(by_collection)
+
+    assert [row["chunk_id"] for row in result] == ["e2", "e1"]
+
+
+@pytest.mark.asyncio
+async def test_retrieve_gap_only_intent_still_returns_ranked_results(monkeypatch):
+    """intent=["acts"] routes only to act_section, a gap collection with no native sparse -
+    the sparse pass must not silently degrade to empty just because Milvus sparse skips it."""
+    import retrieval_api.ai_mode.retrieve as module
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        if dense_vector is not None:
+            return {"act_section": [{"chunk_id": "d1", "doc_id": "doc1", "text": "dense hit", "score": 0.8}]}
+        return {}  # act_section excluded from native sparse, same as production SPARSE_VECTOR_COLLECTIONS
+
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        assert groups == ["ACT"]
+        return {"act_section": [{
+            "chunk_id": "es:doc1:0", "doc_id": "doc1", "text": "es hit",
+            "score": 4.0, "source": "es_fallback",
+        }]}
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+
+    result = await retrieve(gateway, milvus_client=object(), es_client=object(), search_query="q",
+                             doc_id_allowlist=None, intent=["acts"])
+
+    chunk_ids = {row["chunk_id"] for row in result}
+    assert chunk_ids == {"d1", "es:doc1:0"}
+
+
+@pytest.mark.asyncio
+async def test_retrieve_mixed_intent_produces_both_native_and_es_origin_rows(monkeypatch):
+    """intent=["caselaws", "articles"] routes case_summary/digest/headnotes/facts/held/
+    metadata (native sparse) + ruling + article_section (both gap collections, one shared
+    ES call)."""
+    import retrieval_api.ai_mode.retrieve as module
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        if dense_vector is not None:
+            return {c: [{"chunk_id": f"dense-{c}", "doc_id": f"doc-{c}", "text": "t", "score": 0.5}] for c in collections}
+        return {"held": [{"chunk_id": "native-held", "doc_id": "doc-held", "text": "t", "score": 9.0}]}
+
+    async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None):
+        assert sorted(groups) == sorted(["CASELAWS", "Experts Opinion"])
+        return {
+            "ruling": [{"chunk_id": "es-ruling", "doc_id": "doc-ruling", "text": "t", "score": 3.0, "source": "es_fallback"}],
+            "article_section": [{"chunk_id": "es-article", "doc_id": "doc-article", "text": "t", "score": 2.0, "source": "es_fallback"}],
+        }
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+
+    result = await retrieve(gateway, milvus_client=object(), es_client=object(), search_query="q",
+                             doc_id_allowlist=None, intent=["caselaws", "articles"])
+
+    chunk_ids = {row["chunk_id"] for row in result}
+    assert "native-held" in chunk_ids
+    assert "es-ruling" in chunk_ids
+    assert "es-article" in chunk_ids

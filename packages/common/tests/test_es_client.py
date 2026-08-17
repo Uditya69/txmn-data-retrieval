@@ -38,11 +38,15 @@ class FakeAsyncES:
         self.search_hits = search_hits or []
         self.mget_docs = mget_docs or {}
         self.search_calls = []
+        self.highlight_calls = []
+        self.source_calls = []
         self.mget_calls = []
         self.index = index
 
-    async def search(self, index, query, size):
+    async def search(self, index, query, size, highlight=None, _source=None):
         self.search_calls.append(query)
+        self.highlight_calls.append(highlight)
+        self.source_calls.append(_source)
         self.searched_index = index
         return {"hits": {"hits": self.search_hits}}
 
@@ -482,3 +486,170 @@ async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
     assert "judgment_text" not in result["d1"]
     # confirm the field restriction was actually passed through to ES (mget _source param)
     assert client.mget_calls[0]["_source"] == MASTERINFO_CITATION_FIELDS
+
+
+def test_trim_to_token_budget_returns_short_text_unchanged():
+    from common.es_client import _trim_to_token_budget
+
+    text = "short text well under budget"
+    assert _trim_to_token_budget(text, target_tokens=1024) == text
+
+
+def test_trim_to_token_budget_centers_and_trims_oversized_text():
+    from common.es_client import _trim_to_token_budget
+    import tiktoken
+
+    tokenizer = tiktoken.get_encoding("cl100k_base")
+    # "filler" repeated gives before/after segments that are token-exact symmetric by
+    # construction (unlike numbered "wordN" placeholders, whose token length varies with
+    # N's digit count and drifts MARKER's true offset away from the token-count midpoint).
+    before = " ".join(["filler"] * 2000)
+    after = " ".join(["filler"] * 2000)
+    text = f"{before} MARKER {after}"
+
+    trimmed = _trim_to_token_budget(text, target_tokens=100)
+
+    trimmed_tokens = tokenizer.encode(trimmed)
+    assert len(trimmed_tokens) == 100
+    assert "MARKER" in trimmed
+
+
+def test_cap_group_shares_single_group_is_unaffected():
+    from common.es_client import _cap_group_shares
+
+    hits = [{"_group": "CASELAWS", "id": i} for i in range(20)]
+    result = _cap_group_shares(hits, limit=20, group_cap=15)
+
+    assert result == hits
+
+
+def test_cap_group_shares_trims_dominant_group_and_backfills_from_minority():
+    from common.es_client import _cap_group_shares
+
+    # 18 CASELAWS hits (relevance rank 1-18) + 2 Experts Opinion hits (rank 19-20) -
+    # naive top-20 would return 18 CASELAWS + 2 Experts Opinion. The cap should trim
+    # CASELAWS to 15 and backfill the 3 freed slots from Experts Opinion's next-best
+    # hits (which don't exist here beyond the 2 already present, so this asserts what
+    # DOES exist survives and CASELAWS is capped, not that phantom hits appear).
+    caselaws_hits = [{"_group": "CASELAWS", "id": f"cl{i}"} for i in range(18)]
+    eo_hits = [{"_group": "Experts Opinion", "id": f"eo{i}"} for i in range(2)]
+    hits = caselaws_hits + eo_hits  # already in relevance order
+
+    result = _cap_group_shares(hits, limit=20, group_cap=15)
+
+    result_caselaws = [h for h in result if h["_group"] == "CASELAWS"]
+    result_eo = [h for h in result if h["_group"] == "Experts Opinion"]
+    assert len(result_caselaws) == 15
+    assert result_caselaws == caselaws_hits[:15]
+    assert result_eo == eo_hits
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_filters_by_group_and_partitions_by_collection():
+    client = FakeAsyncES(search_hits=[
+        {
+            "_source": {"id": "d1", "groups": {"group": {"name": "CASELAWS"}}},
+            "_score": 9.0,
+            "highlight": {"fullcontent": ["snippet about the ruling"]},
+        },
+        {
+            "_source": {"id": "d2", "groups": {"group": {"name": "Experts Opinion"}}},
+            "_score": 7.0,
+            "highlight": {"fullcontent": ["snippet about the article"]},
+        },
+    ], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    result = await sparse_fallback_search(client, "query text", groups=["CASELAWS", "Experts Opinion"])
+
+    assert result == {
+        "ruling": [{
+            "chunk_id": "es:d1:0", "doc_id": "d1", "text": "snippet about the ruling",
+            "score": 9.0, "source": "es_fallback",
+        }],
+        "article_section": [{
+            "chunk_id": "es:d2:0", "doc_id": "d2", "text": "snippet about the article",
+            "score": 7.0, "source": "es_fallback",
+        }],
+    }
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_applies_doc_id_allowlist_and_highlight_config():
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    await sparse_fallback_search(client, "query text", groups=["ACT"], doc_id_allowlist=["d1", "d2"])
+
+    query = client.search_calls[0]
+    must_clauses = query["bool"]["must"]
+    assert {"terms": {"groups.group.name.keyword": ["ACT"]}} in must_clauses
+    assert {"terms": {"id": ["d1", "d2"]}} in must_clauses
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_strips_highlight_markup_tags():
+    """Default ES highlighting wraps matches in <em>...</em> - that raw markup must never
+    reach the reranker/LLM as if it were clean document text, and unclosed/split tags could
+    eat into _trim_to_token_budget's centered cut. pre_tags/post_tags=[""] disables the
+    wrapping while keeping fragment selection/centering."""
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    await sparse_fallback_search(client, "query text", groups=["CASELAWS"])
+
+    highlight = client.highlight_calls[0]
+    assert highlight["pre_tags"] == [""]
+    assert highlight["post_tags"] == [""]
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_restricts_source_to_id_and_group():
+    """sparse_fallback_search only ever reads source['id'] and
+    source['groups']['group']['name'] - fullcontent (the full legal document text, 100%
+    populated) must not be fetched needlessly for every one of up to 100 hits per query."""
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    await sparse_fallback_search(client, "query text", groups=["CASELAWS"])
+
+    assert client.source_calls[0] == ["id", "groups.group.name"]
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_skips_hits_missing_highlight_or_unknown_group():
+    client = FakeAsyncES(search_hits=[
+        {"_source": {"id": "d1", "groups": {"group": {"name": "CASELAWS"}}}, "_score": 9.0, "highlight": {}},
+        {"_source": {"id": "d2", "groups": {"group": {"name": "Nonsense Group"}}}, "_score": 8.0,
+         "highlight": {"fullcontent": ["x"]}},
+    ], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    result = await sparse_fallback_search(client, "query text", groups=["CASELAWS"])
+
+    assert result == {}
+
+
+def test_cap_group_shares_backfills_to_full_limit_when_minority_group_has_more():
+    from common.es_client import _cap_group_shares
+
+    # 18 CASELAWS + 10 Experts Opinion, all in relevance order (interleaved isn't
+    # required - the function must not assume a particular pre-existing interleave).
+    caselaws_hits = [{"_group": "CASELAWS", "id": f"cl{i}"} for i in range(18)]
+    eo_hits = [{"_group": "Experts Opinion", "id": f"eo{i}"} for i in range(10)]
+    hits = caselaws_hits + eo_hits
+
+    result = _cap_group_shares(hits, limit=20, group_cap=15)
+
+    assert len(result) == 20
+    result_caselaws = [h for h in result if h["_group"] == "CASELAWS"]
+    result_eo = [h for h in result if h["_group"] == "Experts Opinion"]
+    assert len(result_caselaws) == 15
+    assert len(result_eo) == 5
+    assert result_caselaws == caselaws_hits[:15]
+    assert result_eo == eo_hits[:5]
