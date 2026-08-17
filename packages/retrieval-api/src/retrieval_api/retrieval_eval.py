@@ -137,14 +137,20 @@ def _agentic_hit_rank(doc_ids: list[str] | None, gold: set[str]) -> int | None:
     return 1 if gold & set(doc_ids) else None
 
 
-def stage_cache_path(cache_dir: Path, case_id: str, slm_model: str | None, reranker_model: str | None) -> Path:
+def stage_cache_path(
+    cache_dir: Path, case_id: str, slm_model: str | None, reranker_model: str | None,
+    rerank_enabled: bool = True,
+) -> Path:
     # Cache key deliberately excludes synthesis_model: everything through the
     # reranker stage (ES, both Milvus branches, intent rewrite, RRF, rerank)
     # is unaffected by which synthesis model is used, so swapping only
-    # synthesis_model should always be a cache hit. slm_model/reranker_model
-    # ARE part of the key since they change the rewritten query and/or the
-    # reranked chunk order, which changes everything downstream of them.
-    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", f"{slm_model or 'default'}__{reranker_model or 'default'}")
+    # synthesis_model should always be a cache hit. slm_model/reranker_model/
+    # rerank_enabled ARE part of the key since they change the rewritten query
+    # and/or the reranked chunk order, which changes everything downstream of them.
+    slug = re.sub(
+        r"[^a-zA-Z0-9_-]+", "-",
+        f"{slm_model or 'default'}__{reranker_model or 'default'}__rerank-{rerank_enabled}",
+    )
     return cache_dir / case_id / f"{slug}.json"
 
 
@@ -162,7 +168,8 @@ def _save_stage_cache(path: Path, data: dict) -> None:
 async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit: int = 50,
                         langfuse_enabled: bool = True, slm_model: str | None = None,
                         reranker_model: str | None = None, synthesis_model: str | None = None,
-                        skip_agentic: bool = False, cache_dir: Path | None = None) -> dict:
+                        skip_agentic: bool = False, cache_dir: Path | None = None,
+                        rerank_enabled: bool = True) -> dict:
     query = case["query"]
     gold = set(case["gold_doc_ids"])
     langfuse = get_client()
@@ -186,7 +193,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             finally:
                 timings[name] = round((time.perf_counter() - stage_started) * 1000, 1)
 
-        cache_path = stage_cache_path(cache_dir, case["id"], slm_model, reranker_model) if cache_dir else None
+        cache_path = stage_cache_path(cache_dir, case["id"], slm_model, reranker_model, rerank_enabled) if cache_dir else None
         cached = _load_stage_cache(cache_path) if cache_path else None
 
         if cached is not None:
@@ -232,9 +239,16 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             # RRF fusion weight is always neutral - category does not drive
             # dense/sparse weighting (see Task 3 / the routing design spec).
             merged = rrf_merge(_flatten(rewritten_dense), _flatten(rewritten_sparse))
-            reranked = await measured(
-                "reranker", rerank_top_chunks(gateway, query, merged, top_n=len(merged), model=reranker_model),
-            ) if merged else []
+            if not rerank_enabled:
+                # Mirrors ai_mode/citations.py::_skip_rerank - no gateway call, carry
+                # rrf_score over as rerank_score so downstream elbow_cutoff/synthesis
+                # code (which expects that key) still works unchanged.
+                reranked = [{**c, "rerank_score": c["rrf_score"]} for c in merged]
+                timings["reranker"] = 0.0
+            else:
+                reranked = await measured(
+                    "reranker", rerank_top_chunks(gateway, query, merged, top_n=len(merged), model=reranker_model),
+                ) if merged else []
             reranked = reranked or []
 
             if cache_path is not None:
@@ -373,6 +387,7 @@ async def _run(args) -> int:
     snapshot_path.write_text(snapshot_json)
 
     settings = get_settings()
+    rerank_enabled = settings.ai_mode_rerank_enabled if args.rerank_enabled is None else args.rerank_enabled
     es_client = get_es_client(settings)
     milvus_client = get_milvus_client(settings)
     gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=not args.no_langfuse)
@@ -386,6 +401,7 @@ async def _run(args) -> int:
                 langfuse_enabled=not args.no_langfuse,
                 slm_model=args.slm_model, reranker_model=args.reranker_model, synthesis_model=args.synthesis_model,
                 skip_agentic=args.skip_agentic, cache_dir=args.cache_dir,
+                rerank_enabled=rerank_enabled,
             )
             results.append(result)
             ranks = result["ranks"]
@@ -412,6 +428,7 @@ async def _run(args) -> int:
                 "reranker_model": args.reranker_model,
                 "synthesis_model": args.synthesis_model,
                 "skip_agentic": args.skip_agentic,
+                "rerank_enabled": rerank_enabled,
             },
             "results": results,
         }
@@ -443,6 +460,15 @@ def main() -> None:
     parser.add_argument("--synthesis-model", help="override the DeepInfra model used for the synthesis role")
     parser.add_argument("--sample12", action="store_true", help="scope to the fixed 12-query stratified sample")
     parser.add_argument("--skip-agentic", action="store_true", help="skip the agentic tool-call stage (out of scope for AI Mode model comparisons)")
+    rerank_group = parser.add_mutually_exclusive_group()
+    rerank_group.add_argument(
+        "--rerank", dest="rerank_enabled", action="store_true", default=None,
+        help="force the reranker stage on, overriding AI_MODE_RERANK_ENABLED",
+    )
+    rerank_group.add_argument(
+        "--no-rerank", dest="rerank_enabled", action="store_false",
+        help="force the reranker stage off, overriding AI_MODE_RERANK_ENABLED",
+    )
     parser.add_argument("--cache-dir", type=Path, help="cache ES/Milvus/intent/rerank stage output per (query id, slm_model, reranker_model) here, so runs that only vary synthesis_model skip straight to synthesis")
     parser.add_argument("--run-name", default="retrieval-eval")
     parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")

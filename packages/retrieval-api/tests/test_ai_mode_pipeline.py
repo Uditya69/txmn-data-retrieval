@@ -21,7 +21,7 @@ async def test_run_ai_mode_success_path(monkeypatch):
         received_intent["value"] = intent
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
-    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
+    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
     async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
@@ -52,7 +52,7 @@ async def test_run_ai_mode_passes_persona_context_to_synthesize_and_returns_inte
     async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
-    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
+    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
     received_persona_context = {}
@@ -118,7 +118,7 @@ async def test_run_ai_mode_succeeds_with_party_only_filter(monkeypatch):
         assert doc_id_allowlist == ["d1"]
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
-    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
+    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
     async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
@@ -155,7 +155,7 @@ async def test_run_ai_mode_forwards_on_step_to_every_stage(monkeypatch):
         received_on_steps.append(("retrieve", on_step))
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
-    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
+    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
         received_on_steps.append(("rerank_and_prefetch", on_step))
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
@@ -199,7 +199,7 @@ async def test_run_ai_mode_forwards_persona_context_to_extract_intent_and_synthe
     async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None):
         return []
 
-    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
+    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
         return [], {}
 
     async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):

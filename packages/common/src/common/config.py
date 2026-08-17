@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     es_index: str = "taxmann_caselaw"
     es_verify_certs: bool = True
     gateway_url: str
+    # A/B eval switch: disables AI Mode's rerank-and-prefetch's DeepInfra reranker call
+    # when False, falling back to top-N-by-rrf_score straight out of RRF fusion. Lets us
+    # compare AI Mode quality with/without the reranker step without a code change.
+    ai_mode_rerank_enabled: bool = True
 
 
 @lru_cache

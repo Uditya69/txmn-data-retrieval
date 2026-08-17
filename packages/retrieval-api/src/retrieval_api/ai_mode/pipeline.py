@@ -1,5 +1,6 @@
 from langfuse import get_client
 
+from common.config import get_settings
 from retrieval_api.ai_mode.intent import extract_intent, OnStep
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
 from retrieval_api.ai_mode.retrieve import retrieve
@@ -38,7 +39,10 @@ async def run_ai_mode(
             with langfuse.start_as_current_observation(
                 as_type="chain", name="rerank-and-prefetch", input={"query": query, "num_candidates": len(candidates)},
             ) as span:
-                top_chunks, citations = await rerank_and_prefetch(gateway, es_client, query, candidates, on_step=on_step)
+                top_chunks, citations = await rerank_and_prefetch(
+                    gateway, es_client, query, candidates, on_step=on_step,
+                    rerank_enabled=get_settings().ai_mode_rerank_enabled,
+                )
                 span.update(output={"num_top_chunks": len(top_chunks), "num_citations": len(citations)})
 
             with langfuse.start_as_current_observation(as_type="chain", name="synthesize", input={"query": query}) as span:

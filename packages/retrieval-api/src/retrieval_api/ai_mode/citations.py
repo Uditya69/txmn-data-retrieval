@@ -30,13 +30,31 @@ async def prefetch_citations(es_client, candidates: list[dict], top_n_docs: int 
 # (top 5/10/20) sit far inside this cap.
 _MAX_RERANK_CANDIDATES = 100
 
+# When reranking is disabled (AI_MODE_RERANK_ENABLED=false), fall back to this many
+# top-by-rrf_score candidates - matches rerank_top_chunks' own _MAX_CHUNKS cap so the
+# with/without-reranker comparison isn't also confounded by a different chunk count.
+_NO_RERANK_TOP_N = 5
+
+
+async def _skip_rerank(rerank_candidates: list[dict]) -> list[dict]:
+    # No gateway call - just carry rrf_score over as rerank_score so downstream trace
+    # output (rerank_and_prefetch's on_step, TracePanel) has a comparable field either way.
+    return [{**c, "rerank_score": c["rrf_score"]} for c in rerank_candidates[:_NO_RERANK_TOP_N]]
+
 
 async def rerank_and_prefetch(
-    gateway, es_client, query: str, candidates: list[dict], on_step: OnStep | None = None
+    gateway, es_client, query: str, candidates: list[dict], on_step: OnStep | None = None,
+    rerank_enabled: bool = True,
 ) -> tuple[list[dict], dict[str, dict]]:
     rerank_candidates = sorted(candidates, key=lambda row: row["rrf_score"], reverse=True)[:_MAX_RERANK_CANDIDATES]
+
+    if rerank_enabled:
+        rerank_coro = rerank_module.rerank_top_chunks(gateway, query, rerank_candidates)
+    else:
+        rerank_coro = _skip_rerank(rerank_candidates)
+
     top_chunks, citations = await asyncio.gather(
-        rerank_module.rerank_top_chunks(gateway, query, rerank_candidates),
+        rerank_coro,
         prefetch_citations(es_client, candidates),
     )
 
