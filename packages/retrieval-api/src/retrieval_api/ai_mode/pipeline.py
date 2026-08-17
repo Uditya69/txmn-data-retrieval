@@ -30,7 +30,7 @@ async def run_ai_mode(
                 as_type="chain", name="retrieve", input={"search_query": intent_result["search_query"]},
             ) as span:
                 candidates = await retrieve(
-                    gateway, milvus_client, intent_result["search_query"], doc_id_allowlist,
+                    gateway, milvus_client, es_client, intent_result["search_query"], doc_id_allowlist,
                     intent_result["intent"], on_step=on_step,
                 )
                 span.update(output={"num_candidates": len(candidates)})

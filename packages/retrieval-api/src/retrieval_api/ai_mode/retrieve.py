@@ -1,7 +1,9 @@
+import asyncio
 from itertools import zip_longest
 
+from common.es_client import sparse_fallback_search
 from common.milvus_client import hybrid_search
-from common.schemas import collections_for_intent
+from common.schemas import ES_GROUP_FOR_COLLECTION, SPARSE_VECTOR_COLLECTIONS, collections_for_intent
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.trace_utils import collection_trace
@@ -44,29 +46,43 @@ def _flatten(by_collection: dict[str, list[dict]]) -> list[dict]:
 async def retrieve(
     gateway: GatewayClient,
     milvus_client,
+    es_client,
     search_query: str,
     doc_id_allowlist: list[str] | None,
     intent: list[str] | None = None,
     on_step: OnStep | None = None,
 ) -> list[dict]:
     collections = collections_for_intent(intent or [])
+    gap_collections = [
+        c for c in collections if c not in SPARSE_VECTOR_COLLECTIONS and c in ES_GROUP_FOR_COLLECTION
+    ]
 
     dense_vector = await gateway.embed(role="query_embed", text=search_query)
 
-    dense_by_collection = await hybrid_search(
-        milvus_client, collections=collections, dense_vector=dense_vector,
-        sparse_query_text=search_query, doc_id_allowlist=doc_id_allowlist, limit=50,
+    async def _run_es_fallback(allowlist):
+        if not gap_collections:
+            return {}
+        groups = [ES_GROUP_FOR_COLLECTION[c] for c in gap_collections]
+        return await sparse_fallback_search(es_client, search_query, groups, doc_id_allowlist=allowlist)
+
+    dense_by_collection, sparse_by_collection, es_sparse_by_collection = await asyncio.gather(
+        hybrid_search(
+            milvus_client, collections=collections, dense_vector=dense_vector,
+            sparse_query_text=search_query, doc_id_allowlist=doc_id_allowlist, limit=50,
+        ),
+        hybrid_search(
+            milvus_client, collections=collections, dense_vector=None,
+            sparse_query_text=search_query, doc_id_allowlist=doc_id_allowlist, limit=50,
+        ),
+        _run_es_fallback(doc_id_allowlist),
     )
-    sparse_by_collection = await hybrid_search(
-        milvus_client, collections=collections, dense_vector=None,
-        sparse_query_text=search_query, doc_id_allowlist=doc_id_allowlist, limit=50,
-    )
+    sparse_by_collection.update(es_sparse_by_collection)
 
     # Circuit breaker: a resolved doc_id_allowlist that's non-empty but the wrong kind of
     # document for these collections silently zeroes every collection even though an
     # unfiltered search would find real matches. If the allowlist was non-empty but
     # produced zero hits everywhere, retry once unfiltered rather than returning nothing -
-    # the embedding is already computed, so this only costs the two Milvus round-trips.
+    # the embedding is already computed, so this only costs the extra round-trips.
     # Retries against the SAME routed collection set - a routed-but-genuinely-wrong-
     # category query should surface as zero results, not silently widen to every
     # collection (that would defeat the point of routing).
@@ -76,14 +92,18 @@ async def retrieve(
                 "reason": "doc_id_allowlist matched zero Milvus results across every routed collection; retrying unfiltered",
                 "doc_id_allowlist_count": len(doc_id_allowlist),
             })
-        dense_by_collection = await hybrid_search(
-            milvus_client, collections=collections, dense_vector=dense_vector,
-            sparse_query_text=search_query, doc_id_allowlist=None, limit=50,
+        dense_by_collection, sparse_by_collection, es_sparse_by_collection = await asyncio.gather(
+            hybrid_search(
+                milvus_client, collections=collections, dense_vector=dense_vector,
+                sparse_query_text=search_query, doc_id_allowlist=None, limit=50,
+            ),
+            hybrid_search(
+                milvus_client, collections=collections, dense_vector=None,
+                sparse_query_text=search_query, doc_id_allowlist=None, limit=50,
+            ),
+            _run_es_fallback(None),
         )
-        sparse_by_collection = await hybrid_search(
-            milvus_client, collections=collections, dense_vector=None,
-            sparse_query_text=search_query, doc_id_allowlist=None, limit=50,
-        )
+        sparse_by_collection.update(es_sparse_by_collection)
 
     if on_step is not None:
         await on_step("milvus_dense", collection_trace(dense_by_collection))
