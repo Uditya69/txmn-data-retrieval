@@ -164,7 +164,7 @@ function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: 
     return <TruncatedHitList hits={d.top_chunks ?? []} onOpenDocument={onOpenDocument} />
   }
   if (step.step === 'synthesis_prompt') {
-    return <pre className={styles.hitList}>{d.prompt}</pre>
+    return <pre className={styles.promptBlock}>{d.prompt}</pre>
   }
   if (step.step === 'agent_tool_result' && d.result?.rows) {
     return <TruncatedHitList hits={d.result.rows} onOpenDocument={onOpenDocument} />

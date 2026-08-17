@@ -39,6 +39,20 @@
   gap: 4px;
 }
 
+.promptBlock {
+  margin: 0;
+  padding: 8px;
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 400px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
+}
+
 .showMore {
   margin-top: 6px;
   background: none;
