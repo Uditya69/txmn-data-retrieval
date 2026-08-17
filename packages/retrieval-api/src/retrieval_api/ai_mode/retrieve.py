@@ -24,8 +24,13 @@ def rrf_merge(
     return [{**rows[chunk_id], "rrf_score": score} for chunk_id, score in ordered]
 
 
-def _flatten(by_collection: dict[str, list[dict]]) -> list[dict]:
-    all_rows = [row for rows in by_collection.values() for row in rows]
+def _flatten(by_collection: dict[str, list[dict]], default_origin: str = "milvus") -> list[dict]:
+    all_rows = []
+    for collection, rows in by_collection.items():
+        for row in rows:
+            row.setdefault("collection", collection)
+            row["origin"] = "es" if row.get("source") == "es_fallback" else default_origin
+            all_rows.append(row)
     es_rows = [row for row in all_rows if row.get("source") == "es_fallback"]
     if not es_rows:
         return sorted(all_rows, key=lambda row: row["score"], reverse=True)
@@ -126,7 +131,9 @@ async def retrieve(
     # RRF fusion weight is always neutral - category does not drive dense/sparse
     # weighting (considered during brainstorming, explicitly rejected; see
     # docs/superpowers/specs/2026-08-14-category-collection-routing-design.md).
-    merged = rrf_merge(_flatten(dense_by_collection), _flatten(sparse_by_collection))
+    merged = rrf_merge(
+        _flatten(dense_by_collection, "milvus_dense"), _flatten(sparse_by_collection, "milvus_sparse"),
+    )
 
     if on_step is not None:
         top_candidates = [
@@ -135,6 +142,8 @@ async def retrieve(
                 "doc_id": row["doc_id"],
                 "rrf_score": row["rrf_score"],
                 "text_preview": row["text"][:200],
+                "origin": row.get("origin"),
+                "collection": row.get("collection"),
             }
             for row in merged[:15]
         ]

@@ -19,6 +19,12 @@ const STEP_LABELS: Record<string, string> = {
   agent_answer: 'Agent answer',
 }
 
+const ORIGIN_LABELS: Record<string, string> = {
+  es: 'ES',
+  milvus_dense: 'Milvus dense',
+  milvus_sparse: 'Milvus sparse',
+}
+
 function summarize(step: TraceStep): string {
   const d = step.data as Record<string, any>
   switch (step.step) {
@@ -85,6 +91,7 @@ function TruncatedHitList({
             : hit.text_preview ?? hit.text
           return (
             <li key={hit.chunk_id ?? hit.doc_id ?? i}>
+              {hit.origin && <span className={styles.originBadge}>{ORIGIN_LABELS[hit.origin] ?? hit.origin}</span>}
               [{score?.toFixed?.(4) ?? score}]{' '}
               {onOpenDocument ? (
                 <button type="button" className={styles.docLink} onClick={() => onOpenDocument(hit.doc_id)}>
