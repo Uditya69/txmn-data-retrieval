@@ -104,11 +104,15 @@ where the routed set happens to avoid every gap collection), no ES fallback call
   scoring benefits from the same fuzziness/phrase/synonym handling.
 - Request an oversized character fragment, then trim/center it with `tiktoken` (`cl100k_base` —
   the same tokenizer `tm-dp/packages/data-pipeline/src/data_pipeline/chunking.py` uses) to
-  **~1024 tokens**, matching that pipeline's real `CHUNK_SIZE_TOKENS` ceiling. This is a token
-  budget, not a character count — real Milvus chunks for these collections run up to ~1024
-  tokens (~4000+ characters for English legal prose), so a smaller ES snippet would be
+  **~1024 tokens**, approximating that pipeline's `CHUNK_SIZE_TOKENS` splitter cap. This is a
+  token budget, not a character count — real Milvus chunks for these collections run up to
+  ~1024 tokens (~4000+ characters for English legal prose), so a smaller ES snippet would be
   systematically under-scored by the reranker for carrying less context than what it's competing
-  against, not because it's actually less relevant.
+  against, not because it's actually less relevant. Note this is an approximation, not an exact
+  match: `_stitch_overlap()` prepends up to `CHUNK_OVERLAP_TOKENS` (100) more tokens onto most
+  real stored middle-chunks, so an actual Milvus chunk can run slightly above 1024 tokens — close
+  enough to target 1024 for the ES snippet, not worth replicating the overlap-stitching logic
+  itself for a 100-token difference.
 - No overlap-stitching, no recursive splitting, no table-atom handling — that machinery exists
   in `tm-dp` for pre-chunking a whole document at ingestion time into an ordered sequence of
   chunks. This is a single ad-hoc snippet extraction around one query match, a different problem;
@@ -146,6 +150,10 @@ never compared against each other anywhere in this process, only used to rank wi
 source — `rrf_merge()` itself is untouched, still fusing dense and sparse rank lists exactly as
 it does today.
 
+Lists A and B will very often be uneven length (e.g. 6 Milvus-native collections' combined rows
+vs. 1 gap-collection's ES rows) — once the shorter list is exhausted, append the longer list's
+remaining rows in their own existing rank order, don't stop early and don't pad.
+
 ### `doc_id_allowlist`
 
 The ES fallback query applies the same `doc_id_allowlist` term filter on `id` that the dense
@@ -177,10 +185,15 @@ sequential "try Milvus sparse, fall back to ES" step, no latency penalty from se
   collection dict mixes Milvus-native and ES-origin buckets.
 - New dependency: `tiktoken` (already used elsewhere in the org's stack — `tm-dp`'s own
   chunking pipeline — same tokenizer, `cl100k_base`).
-- `CLAUDE.md` hard rule 3: no change needed to the rule's text — the interleave-by-rank design is
-  exactly the kind of rank-based fusion the rule already sanctions (same category as Instant
-  mode's `rrf_merge_by_doc_id` exception), just worth a mention in the rule's list of sanctioned
-  exceptions once implemented.
+- `CLAUDE.md` hard rule 3 **must be rewritten**, not left as-is. Its current text names only
+  Instant mode's `rrf_merge_by_doc_id` as the sanctioned rank-fusion exception, and explicitly
+  warns "don't extend raw-score blending elsewhere off the back of this exception" — read
+  literally, that's a standing objection to adding a second exception without the rule itself
+  being updated to name it. Add this interleave-by-rank design as a second named, sanctioned
+  exception (same category: rank-position fusion, never raw-score fusion), mirroring how the
+  Aug 14 routing spec rewrote rule 4's text outright when that spec changed its behavior — see
+  `docs/superpowers/specs/2026-08-14-category-collection-routing-design.md`'s "CLAUDE.md rule 4"
+  section for the precedent to follow.
 
 ## Testing
 
