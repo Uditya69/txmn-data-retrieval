@@ -149,7 +149,10 @@ async def test_rerank_and_prefetch_emits_rerank_step(monkeypatch):
     assert steps == [("rerank", {
         "total_candidates": 1,
         "considered_count": 1,
-        "top_chunks": [{"chunk_id": "a", "doc_id": "d1", "rerank_score": 0.95, "text": "chunk text"}],
+        "top_chunks": [{
+            "chunk_id": "a", "doc_id": "d1", "rerank_score": 0.95, "text": "chunk text",
+            "origin": None, "collection": None,
+        }],
     })]
 
 

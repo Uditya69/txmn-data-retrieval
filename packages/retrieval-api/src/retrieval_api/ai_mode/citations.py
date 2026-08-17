@@ -42,7 +42,14 @@ async def rerank_and_prefetch(
 
     if on_step is not None:
         trace_chunks = [
-            {"chunk_id": c["chunk_id"], "doc_id": c["doc_id"], "rerank_score": c["rerank_score"], "text": c["text"]}
+            {
+                "chunk_id": c["chunk_id"],
+                "doc_id": c["doc_id"],
+                "rerank_score": c["rerank_score"],
+                "text": c["text"],
+                "origin": c.get("origin"),
+                "collection": c.get("collection"),
+            }
             for c in top_chunks
         ]
         await on_step("rerank", {
