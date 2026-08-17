@@ -17,7 +17,7 @@ async def run_ai_mode(
             with langfuse.start_as_current_observation(
                 as_type="chain", name="extract-intent", input={"query": query},
             ) as span:
-                intent_result = await extract_intent(gateway, query, on_step=on_step)
+                intent_result = await extract_intent(gateway, query, on_step=on_step, persona_context=persona_context)
                 span.update(output=intent_result)
 
             with langfuse.start_as_current_observation(
