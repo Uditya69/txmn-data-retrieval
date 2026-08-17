@@ -1,4 +1,5 @@
 from common.es_client import fetch_citations
+from persona.prompt import RELEVANCE_INSTRUCTION
 from retrieval_api.ai_mode.intent import OnStep
 
 _SYSTEM_PROMPT = """You are a knowledgeable legal researcher explaining case
@@ -36,7 +37,7 @@ async def synthesize(
     if on_step is not None:
         await on_step("synthesis_prompt", {"prompt": prompt})
 
-    system_prompt = _SYSTEM_PROMPT if not persona_context else f"{_SYSTEM_PROMPT}\n{persona_context}"
+    system_prompt = _SYSTEM_PROMPT if not persona_context else f"{_SYSTEM_PROMPT}\n{persona_context}\n{RELEVANCE_INSTRUCTION}"
 
     answer, reasoning = await gateway.chat_with_reasoning(
         role="synthesis",
