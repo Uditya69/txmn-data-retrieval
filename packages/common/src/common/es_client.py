@@ -28,6 +28,29 @@ def _trim_to_token_budget(text: str, target_tokens: int = _SNIPPET_TARGET_TOKENS
     return _SNIPPET_TOKENIZER.decode(ids[start : start + target_tokens])
 
 
+def _cap_group_shares(hits: list[dict], limit: int, group_cap: int) -> list[dict]:
+    """hits must already be in ES relevance order (ES's own default sort). Caps any single
+    group's share of the top `limit` hits at `group_cap` - minority groups' hits are picked
+    up naturally within this same single pass as encountered, in relevance order, without
+    ever reaching back into an over-cap group's exclusions. With only one group present,
+    this is a no-op past the limit slice - the cap only ever engages with 2+ groups in the
+    same call. See "Per-group starvation cap" in
+    docs/superpowers/specs/2026-08-17-milvus-sparse-es-fallback-design.md."""
+    if len({hit["_group"] for hit in hits}) <= 1:
+        return hits[:limit]
+
+    taken_counts: dict[str, int] = {}
+    kept: list[dict] = []
+    for hit in hits:
+        group = hit["_group"]
+        if taken_counts.get(group, 0) < group_cap:
+            kept.append(hit)
+            taken_counts[group] = taken_counts.get(group, 0) + 1
+        if len(kept) == limit:
+            break
+    return kept
+
+
 _BOOST_PROFILES = {
     "citation": {"heading": 5.0, "subheading": 3.0, "fullcontent": 1.0,
                  "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 1.5},

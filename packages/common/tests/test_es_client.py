@@ -508,3 +508,53 @@ def test_trim_to_token_budget_centers_and_trims_oversized_text():
     trimmed_tokens = tokenizer.encode(trimmed)
     assert len(trimmed_tokens) == 100
     assert "MARKER" in trimmed
+
+
+def test_cap_group_shares_single_group_is_unaffected():
+    from common.es_client import _cap_group_shares
+
+    hits = [{"_group": "CASELAWS", "id": i} for i in range(20)]
+    result = _cap_group_shares(hits, limit=20, group_cap=15)
+
+    assert result == hits
+
+
+def test_cap_group_shares_trims_dominant_group_and_backfills_from_minority():
+    from common.es_client import _cap_group_shares
+
+    # 18 CASELAWS hits (relevance rank 1-18) + 2 Experts Opinion hits (rank 19-20) -
+    # naive top-20 would return 18 CASELAWS + 2 Experts Opinion. The cap should trim
+    # CASELAWS to 15 and backfill the 3 freed slots from Experts Opinion's next-best
+    # hits (which don't exist here beyond the 2 already present, so this asserts what
+    # DOES exist survives and CASELAWS is capped, not that phantom hits appear).
+    caselaws_hits = [{"_group": "CASELAWS", "id": f"cl{i}"} for i in range(18)]
+    eo_hits = [{"_group": "Experts Opinion", "id": f"eo{i}"} for i in range(2)]
+    hits = caselaws_hits + eo_hits  # already in relevance order
+
+    result = _cap_group_shares(hits, limit=20, group_cap=15)
+
+    result_caselaws = [h for h in result if h["_group"] == "CASELAWS"]
+    result_eo = [h for h in result if h["_group"] == "Experts Opinion"]
+    assert len(result_caselaws) == 15
+    assert result_caselaws == caselaws_hits[:15]
+    assert result_eo == eo_hits
+
+
+def test_cap_group_shares_backfills_to_full_limit_when_minority_group_has_more():
+    from common.es_client import _cap_group_shares
+
+    # 18 CASELAWS + 10 Experts Opinion, all in relevance order (interleaved isn't
+    # required - the function must not assume a particular pre-existing interleave).
+    caselaws_hits = [{"_group": "CASELAWS", "id": f"cl{i}"} for i in range(18)]
+    eo_hits = [{"_group": "Experts Opinion", "id": f"eo{i}"} for i in range(10)]
+    hits = caselaws_hits + eo_hits
+
+    result = _cap_group_shares(hits, limit=20, group_cap=15)
+
+    assert len(result) == 20
+    result_caselaws = [h for h in result if h["_group"] == "CASELAWS"]
+    result_eo = [h for h in result if h["_group"] == "Experts Opinion"]
+    assert len(result_caselaws) == 15
+    assert len(result_eo) == 5
+    assert result_caselaws == caselaws_hits[:15]
+    assert result_eo == eo_hits[:5]
