@@ -42,6 +42,7 @@ def test_ws_search_logged_in_user_with_persona_reaches_run_ai_mode_with_rendered
             "category_affinity": {"caselaws": 0.9, "acts": 0.1},
             "expertise_level": "expert",
             "query_style": "precise-citation",
+            "query_count": 20,
         }
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
