@@ -15,6 +15,27 @@ def merge_category_affinity(
     return result
 
 
+def _resolve_mode(votes: dict[str, int], previous: str | None) -> str:
+    max_count = max(votes.values())
+    leaders = sorted(value for value, count in votes.items() if count == max_count)
+    # Tie: keep the previous mode rather than churn to an arbitrary leader -
+    # see docs/superpowers/specs/2026-08-17-persona-context-trust-gating-design.md §1.
+    return previous if previous in leaders else leaders[0]
+
+
+def _merge_vote_field(existing: dict, new_value: str, votes_key: str, value_key: str) -> tuple[dict, str]:
+    votes = existing.get(votes_key)
+    if votes is None:
+        # Migration: an old doc has the plain string field but no tally yet -
+        # seed the tally with that value as one vote before adding this one.
+        old_value = existing.get(value_key)
+        votes = {old_value: 1} if old_value else {}
+    else:
+        votes = dict(votes)
+    votes[new_value] = votes.get(new_value, 0) + 1
+    return votes, _resolve_mode(votes, existing.get(value_key))
+
+
 def merge_expertise_patch(existing: dict, patch: dict | None) -> dict:
     if not patch:
         return existing
@@ -35,4 +56,14 @@ def merge_expertise_patch(existing: dict, patch: dict | None) -> dict:
 
     if not filtered:
         return existing
-    return {**existing, **filtered}
+
+    result = dict(existing)
+    if "expertise_level" in filtered:
+        votes, mode = _merge_vote_field(existing, filtered["expertise_level"], "expertise_votes", "expertise_level")
+        result["expertise_votes"] = votes
+        result["expertise_level"] = mode
+    if "query_style" in filtered:
+        votes, mode = _merge_vote_field(existing, filtered["query_style"], "query_style_votes", "query_style")
+        result["query_style_votes"] = votes
+        result["query_style"] = mode
+    return result
