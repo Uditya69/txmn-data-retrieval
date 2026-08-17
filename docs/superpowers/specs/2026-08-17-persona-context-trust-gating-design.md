@@ -233,3 +233,13 @@ ai_mode_result.intent -> record_persona_signal -> extract_expertise_signal (SLM)
 - Threshold of 20 is a starting value agreed on in this design session,
   not derived from data — worth revisiting once real query-count
   distributions are observed.
+- **Migration/threshold interaction**: a pre-existing doc that crosses
+  `query_count == 20` right as it migrates (§1) only has a 1-vote seed
+  plus this query's new vote backing its tally (2 real votes, possibly
+  tied) — the gate renders it with full confidence even though the
+  underlying tally is exactly as thin as the last-write-wins noise this
+  design fixes. Only affects docs that existed before this ships, at the
+  moment they first cross the threshold; tallies accumulate normally
+  after that, and docs created after this ships never hit this case.
+  Accepted trade-off given the no-backfill-script non-goal, not a defect
+  to fix here — noted for awareness.
