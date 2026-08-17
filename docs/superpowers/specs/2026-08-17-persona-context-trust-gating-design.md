@@ -100,6 +100,13 @@ def render_persona_context(persona: dict | None) -> str:
 Threshold is a module-level constant (`_TRUST_THRESHOLD = 20`), not a
 magic number, so it's discoverable and adjustable.
 
+The elided rendering logic must handle both doc shapes: a doc can pass
+the `query_count >= 20` gate while still being pre-migration (old plain
+`expertise_level`/`query_style` string fields, no tally yet — migration
+only happens on the next *write*, per §1). Render from the tally mode if
+`expertise_votes`/`query_style_votes` are present, else fall back to the
+plain string fields directly.
+
 This only gates *surfacing*. `record_signal` keeps writing on every
 query regardless of count — persona keeps accumulating signal from query
 1, it's just not spoken about to the LLM until there's enough of it.
