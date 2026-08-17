@@ -38,11 +38,13 @@ class FakeAsyncES:
         self.search_hits = search_hits or []
         self.mget_docs = mget_docs or {}
         self.search_calls = []
+        self.highlight_calls = []
         self.mget_calls = []
         self.index = index
 
-    async def search(self, index, query, size):
+    async def search(self, index, query, size, highlight=None):
         self.search_calls.append(query)
+        self.highlight_calls.append(highlight)
         self.searched_index = index
         return {"hits": {"hits": self.search_hits}}
 
@@ -538,6 +540,66 @@ def test_cap_group_shares_trims_dominant_group_and_backfills_from_minority():
     assert len(result_caselaws) == 15
     assert result_caselaws == caselaws_hits[:15]
     assert result_eo == eo_hits
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_filters_by_group_and_partitions_by_collection():
+    client = FakeAsyncES(search_hits=[
+        {
+            "_source": {"id": "d1", "groups": {"group": {"name": "CASELAWS"}}},
+            "_score": 9.0,
+            "highlight": {"fullcontent": ["snippet about the ruling"]},
+        },
+        {
+            "_source": {"id": "d2", "groups": {"group": {"name": "Experts Opinion"}}},
+            "_score": 7.0,
+            "highlight": {"fullcontent": ["snippet about the article"]},
+        },
+    ], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    result = await sparse_fallback_search(client, "query text", groups=["CASELAWS", "Experts Opinion"])
+
+    assert result == {
+        "ruling": [{
+            "chunk_id": "es:d1:0", "doc_id": "d1", "text": "snippet about the ruling",
+            "score": 9.0, "source": "es_fallback",
+        }],
+        "article_section": [{
+            "chunk_id": "es:d2:0", "doc_id": "d2", "text": "snippet about the article",
+            "score": 7.0, "source": "es_fallback",
+        }],
+    }
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_applies_doc_id_allowlist_and_highlight_config():
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    await sparse_fallback_search(client, "query text", groups=["ACT"], doc_id_allowlist=["d1", "d2"])
+
+    query = client.search_calls[0]
+    must_clauses = query["bool"]["must"]
+    assert {"terms": {"groups.group.name.keyword": ["ACT"]}} in must_clauses
+    assert {"terms": {"id": ["d1", "d2"]}} in must_clauses
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_skips_hits_missing_highlight_or_unknown_group():
+    client = FakeAsyncES(search_hits=[
+        {"_source": {"id": "d1", "groups": {"group": {"name": "CASELAWS"}}}, "_score": 9.0, "highlight": {}},
+        {"_source": {"id": "d2", "groups": {"group": {"name": "Nonsense Group"}}}, "_score": 8.0,
+         "highlight": {"fullcontent": ["x"]}},
+    ], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    result = await sparse_fallback_search(client, "query text", groups=["CASELAWS"])
+
+    assert result == {}
 
 
 def test_cap_group_shares_backfills_to_full_limit_when_minority_group_has_more():

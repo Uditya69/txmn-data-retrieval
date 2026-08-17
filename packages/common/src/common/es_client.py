@@ -2,7 +2,7 @@ from elasticsearch import AsyncElasticsearch
 
 from common.config import Settings
 from common.query_tokenizer import chunk_query, classify_query_shape, expand_query_synonyms
-from common.schemas import MASTERINFO_CITATION_FIELDS
+from common.schemas import ES_GROUP_FOR_COLLECTION, MASTERINFO_CITATION_FIELDS
 
 import tiktoken
 
@@ -49,6 +49,71 @@ def _cap_group_shares(hits: list[dict], limit: int, group_cap: int) -> list[dict
         if len(kept) == limit:
             break
     return kept
+
+
+_ES_FALLBACK_LIMIT = 20
+_ES_FALLBACK_GROUP_CAP = 15
+_ES_HIGHLIGHT_FRAGMENT_CHARS = 6000  # oversized on purpose - _trim_to_token_budget cuts to ~1024 tokens after
+
+_COLLECTION_FOR_ES_GROUP = {group: collection for collection, group in ES_GROUP_FOR_COLLECTION.items()}
+
+
+async def sparse_fallback_search(
+    client, query: str, groups: list[str], doc_id_allowlist: list[str] | None = None,
+    limit: int = _ES_FALLBACK_LIMIT, group_cap: int = _ES_FALLBACK_GROUP_CAP,
+) -> dict[str, list[dict]]:
+    """ES fallback for lexical search on the Milvus collections whose sparse_vector was
+    dropped. One ES call per query regardless of how many gap-collections are routed
+    together - `groups` is the list of ES groups.group.name values to search (mapped from
+    the routed gap-collections via ES_GROUP_FOR_COLLECTION), OR'd into one filter. Returns
+    rows partitioned back into the same dict[collection, list[row]] shape
+    common.milvus_client.hybrid_search returns, via the inverse of that same mapping. See
+    docs/superpowers/specs/2026-08-17-milvus-sparse-es-fallback-design.md."""
+    field_query = build_query_preview(query)["es_query"]
+    must: list[dict] = [{"terms": {"groups.group.name.keyword": groups}}]
+    if doc_id_allowlist:
+        must.append({"terms": {"id": doc_id_allowlist}})
+    must.append(field_query)
+
+    # Requesting more than `limit` when multiple groups are routed gives _cap_group_shares
+    # a real pool to draw from - without this, ES's own top-`limit` (sorted globally by
+    # score) could already be dominated by one group before the cap ever sees the rest.
+    fetch_size = limit if len(groups) <= 1 else limit * len(groups)
+
+    response = await client.search(
+        index=client.index,
+        query={"bool": {"must": must}},
+        size=fetch_size,
+        highlight={"fields": {"fullcontent": {
+            "fragment_size": _ES_HIGHLIGHT_FRAGMENT_CHARS, "number_of_fragments": 1,
+        }}},
+    )
+
+    hits = []
+    for hit in response["hits"]["hits"]:
+        source = hit["_source"]
+        group = source.get("groups", {}).get("group", {}).get("name")
+        fragments = hit.get("highlight", {}).get("fullcontent")
+        if group not in _COLLECTION_FOR_ES_GROUP or not fragments:
+            continue
+        hits.append({
+            "_group": group, "_doc_id": source["id"], "_snippet": fragments[0], "_score": hit["_score"],
+        })
+
+    capped = _cap_group_shares(hits, limit, group_cap)
+
+    by_collection: dict[str, list[dict]] = {}
+    for hit in capped:
+        collection = _COLLECTION_FOR_ES_GROUP[hit["_group"]]
+        row = {
+            "chunk_id": f"es:{hit['_doc_id']}:0",
+            "doc_id": hit["_doc_id"],
+            "text": _trim_to_token_budget(hit["_snippet"]),
+            "score": hit["_score"],
+            "source": "es_fallback",
+        }
+        by_collection.setdefault(collection, []).append(row)
+    return by_collection
 
 
 _BOOST_PROFILES = {
