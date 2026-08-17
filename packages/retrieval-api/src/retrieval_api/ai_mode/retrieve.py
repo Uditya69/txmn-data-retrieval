@@ -1,3 +1,5 @@
+from itertools import zip_longest
+
 from common.milvus_client import hybrid_search
 from common.schemas import collections_for_intent
 from retrieval_api.ai_mode.intent import OnStep
@@ -21,8 +23,22 @@ def rrf_merge(
 
 
 def _flatten(by_collection: dict[str, list[dict]]) -> list[dict]:
-    flattened = [row for rows in by_collection.values() for row in rows]
-    return sorted(flattened, key=lambda row: row["score"], reverse=True)
+    all_rows = [row for rows in by_collection.values() for row in rows]
+    es_rows = [row for row in all_rows if row.get("source") == "es_fallback"]
+    if not es_rows:
+        return sorted(all_rows, key=lambda row: row["score"], reverse=True)
+
+    native_rows = [row for row in all_rows if row.get("source") != "es_fallback"]
+    ranked_native = sorted(native_rows, key=lambda row: row["score"], reverse=True)
+    ranked_es = sorted(es_rows, key=lambda row: row["score"], reverse=True)
+
+    interleaved: list[dict] = []
+    for native_row, es_row in zip_longest(ranked_native, ranked_es):
+        if native_row is not None:
+            interleaved.append(native_row)
+        if es_row is not None:
+            interleaved.append(es_row)
+    return interleaved
 
 
 async def retrieve(

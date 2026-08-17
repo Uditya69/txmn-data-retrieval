@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock
 import pytest
 
-from retrieval_api.ai_mode.retrieve import rrf_merge, retrieve
+from retrieval_api.ai_mode.retrieve import rrf_merge, retrieve, _flatten
 
 
 def test_rrf_merge_combines_and_ranks_by_reciprocal_rank():
@@ -259,3 +259,59 @@ async def test_retrieve_does_not_fall_back_when_no_allowlist_was_applied(monkeyp
 
     assert result == []
     assert len(calls) == 2  # dense + sparse, no retry
+
+
+def test_flatten_plain_sort_unchanged_when_no_es_fallback_rows():
+    by_collection = {
+        "held": [{"chunk_id": "h1", "score": 3.0}],
+        "facts": [{"chunk_id": "f1", "score": 9.0}, {"chunk_id": "f2", "score": 1.0}],
+    }
+    result = _flatten(by_collection)
+
+    assert [row["chunk_id"] for row in result] == ["f1", "h1", "f2"]
+
+
+def test_flatten_interleaves_native_and_es_fallback_rows_by_local_rank():
+    # Native rows carry high raw scores (Milvus BM25 Function scale), ES rows carry low
+    # raw scores (ES BM25 scale) - a naive global sort-by-score would put every native
+    # row ahead of every ES row regardless of true relevance. Interleaving must not do
+    # that: each source's own #1 gets equal footing.
+    by_collection = {
+        "held": [
+            {"chunk_id": "n1", "score": 100.0},
+            {"chunk_id": "n2", "score": 90.0},
+        ],
+        "ruling": [
+            {"chunk_id": "e1", "score": 2.0, "source": "es_fallback"},
+            {"chunk_id": "e2", "score": 1.0, "source": "es_fallback"},
+        ],
+    }
+    result = _flatten(by_collection)
+
+    assert [row["chunk_id"] for row in result] == ["n1", "e1", "n2", "e2"]
+
+
+def test_flatten_interleave_appends_longer_lists_remainder_in_rank_order():
+    by_collection = {
+        "held": [
+            {"chunk_id": "n1", "score": 100.0},
+            {"chunk_id": "n2", "score": 90.0},
+            {"chunk_id": "n3", "score": 80.0},
+        ],
+        "ruling": [{"chunk_id": "e1", "score": 2.0, "source": "es_fallback"}],
+    }
+    result = _flatten(by_collection)
+
+    assert [row["chunk_id"] for row in result] == ["n1", "e1", "n2", "n3"]
+
+
+def test_flatten_interleave_handles_es_only_input():
+    by_collection = {
+        "ruling": [
+            {"chunk_id": "e1", "score": 2.0, "source": "es_fallback"},
+            {"chunk_id": "e2", "score": 5.0, "source": "es_fallback"},
+        ],
+    }
+    result = _flatten(by_collection)
+
+    assert [row["chunk_id"] for row in result] == ["e2", "e1"]
