@@ -102,9 +102,18 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     whether the query's number is a "rule" vs a "section"; a rules query
     often co-occurs with "acts" since every Rule has a parent Act.
   - "caselaws": judicial decisions (Supreme Court, High Courts, ITAT,
-    CESTAT, AAR) - what was decided for a dispute/fact pattern. Signal:
-    party names ("X vs Y"), "held", "case law on", "precedent for", a
-    citation string, bench/judge name.
+    CESTAT, AAR) - what was decided for a dispute/fact pattern. Two
+    distinct signal types, either alone is sufficient:
+    (a) literal markers - party names ("X vs Y"), "held", "case law on",
+    "precedent for", a citation string, bench/judge name;
+    (b) a fact-pattern or scenario question with no literal markers at all
+    - "is X taxable when Y", "can a court order Z", "must an employer do
+    W", "should authorities take action A" - any query asking what the
+    legal outcome IS or WAS for a concrete situation, not what a
+    provision MEANS in the abstract. This second type is just as strong a
+    signal as the first and must not be missed for lacking a party name
+    or citation - real case-law queries are very often phrased this way,
+    asking about the outcome of a fact pattern without naming the case.
   - "articles": expert-authored opinion/analysis published in a journal or
     magazine - trend, controversy, recent development, practical impact.
     Not the publisher's own explanation (that's "commentary") and not
@@ -113,8 +122,12 @@ Given a user query, return ONLY a JSON object with exactly these keys:
   - "commentary": the publisher's own provision-by-provision plain-language
     explanation of how a section/Act/rule works in practice, no author
     byline. Distinct from "acts" (raw statutory text) and "articles" (named
-    author's opinion piece). Default landing spot for "explain X" / "how
-    does X work" queries that aren't clearly "articles".
+    author's opinion piece). Default landing spot only for queries asking
+    what a provision means or how it works in the abstract ("explain
+    section X", "how is Y computed", "what does clause Z cover") - NOT for
+    a concrete fact-pattern/scenario question ("is X taxable when Y"),
+    which is a "caselaws" signal even when phrased in plain language with
+    no case name. When a query could be read either way, tag both.
   - "tariff": customs/GST tariff classification and rates - HSN code
     lookups, duty rates, rate schedules, exemption notifications tied to a
     specific tariff heading/good. Distinct from "acts"/"rules" even though
