@@ -98,11 +98,19 @@ where the routed set happens to avoid every gap collection), no ES fallback call
 the same call could plausibly return 19-1 or 20-0 in CASELAWS's favor on a query that happens to
 skew that way, even though `article_section` was legitimately routed as relevant. Fetch stays
 relevancy-ranked (ES's own score, no artificial even-split), but capped so no single group can
-claim more than **15 of the 20** total slots: take the top 20 combined, and if any one group holds
-more than 15 of them, trim that group's excess back to 15 and backfill the freed slots from the
-other routed group(s)' next-best hits (rank 21+ within their own group) until 20 is reached again
-or that group's hits run out. With only one gap-group routed (the common case — most `intent`
-tags route to a single gap-collection), this cap never engages.
+claim more than **15 of the 20** total slots: walk the fetched pool in relevance order, keep a hit
+only while its group is under 15, stop once 20 total are kept. **Correction from implementation
+(the version above, describing a separate backfill-from-excess step, is stale — see below):** an
+earlier version of this design described trimming a dominant group's excess back to 15 and then
+backfilling the freed slots from the other group's still-untaken hits. That's wrong — every
+"excess" hit belongs to a group already at its cap by construction, so backfilling from it just
+puts the group back over cap. The single relevance-ordered walk above is both correct and
+sufficient: a minority group's hits get included naturally as they're encountered in the same
+pass, with no separate backfill step needed. A consequence worth stating plainly: if the minority
+group(s) don't have enough hits in the fetched pool to fill out to 20 once the dominant group hits
+its cap, the result is simply shorter than 20 — never padded, never reaching back into the capped
+group's overflow. With only one gap-group routed (the common case — most `intent` tags route to a
+single gap-collection), this cap never engages.
 
 ### Snippet extraction
 
