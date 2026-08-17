@@ -15,9 +15,9 @@ from langfuse import get_client
 from agents.citations import extract_cited_doc_ids
 from agents.pipeline import run_agentic_search
 from common.config import get_settings
-from common.es_client import get_es_client, raw_search
+from common.es_client import get_es_client, raw_search, sparse_fallback_search
 from common.milvus_client import get_milvus_client, hybrid_search
-from common.schemas import MILVUS_COLLECTIONS, collections_for_intent
+from common.schemas import ES_GROUP_FOR_COLLECTION, MILVUS_COLLECTIONS, SPARSE_VECTOR_COLLECTIONS, collections_for_intent
 from retrieval_api.ai_mode.citations import prefetch_citations
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
 from retrieval_api.ai_mode.intent import extract_intent
@@ -103,6 +103,34 @@ def _collection_ranks(by_collection: dict[str, list[dict]], gold: set[str]) -> d
     return {name: doc_rank(rows, gold) for name, rows in by_collection.items()}
 
 
+async def _sparse_with_es_fallback(
+    milvus_client, es_client, collections: list[str], query: str,
+    doc_id_allowlist: list[str] | None = None, limit: int = 50,
+) -> dict[str, list[dict]]:
+    """Mirrors retrieve.py's sparse pass: native Milvus sparse for collections that
+    have it, ES fallback (one merged call) for the gap collections that don't
+    (ruling/act_section/rule_section/article_section/commentary_section). This file
+    already reimplements the dense/sparse/RRF flow inline rather than calling
+    retrieve() directly (established pattern - see raw_dense/rewritten_dense above),
+    so this follows that same precedent instead of extracting a new shared helper
+    into retrieve.py. A fallback failure degrades to native-only results, same as
+    retrieve()'s own try/except around _run_es_fallback - one query's ES hiccup
+    shouldn't crash an eval run partway through."""
+    native_sparse = await hybrid_search(
+        milvus_client, collections, None, query, doc_id_allowlist=doc_id_allowlist, limit=limit,
+    )
+    gap_collections = [c for c in collections if c not in SPARSE_VECTOR_COLLECTIONS and c in ES_GROUP_FOR_COLLECTION]
+    if not gap_collections:
+        return native_sparse
+    groups = [ES_GROUP_FOR_COLLECTION[c] for c in gap_collections]
+    try:
+        es_sparse = await sparse_fallback_search(es_client, query, groups, doc_id_allowlist=doc_id_allowlist)
+    except Exception:
+        es_sparse = {}
+    native_sparse.update(es_sparse)
+    return native_sparse
+
+
 def _agentic_hit_rank(doc_ids: list[str] | None, gold: set[str]) -> int | None:
     if not doc_ids:
         return None
@@ -179,8 +207,8 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                     milvus_client, MILVUS_COLLECTIONS, raw_vector, query, limit=limit,
                 )) if raw_vector is not None else None
             ) or {name: [] for name in MILVUS_COLLECTIONS}
-            raw_sparse = await measured("raw_sparse", hybrid_search(
-                milvus_client, MILVUS_COLLECTIONS, None, query, limit=limit,
+            raw_sparse = await measured("raw_sparse", _sparse_with_es_fallback(
+                milvus_client, es_client, MILVUS_COLLECTIONS, query, limit=limit,
             )) or {name: [] for name in MILVUS_COLLECTIONS}
 
             intent = await measured("intent", extract_intent(gateway, query, model=slm_model))
@@ -196,8 +224,8 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                     doc_id_allowlist=allowlist, limit=limit,
                 )) if rewritten_vector is not None else None
             ) or {name: [] for name in routed_collections}
-            rewritten_sparse = await measured("rewritten_sparse", hybrid_search(
-                milvus_client, routed_collections, None, rewritten_query,
+            rewritten_sparse = await measured("rewritten_sparse", _sparse_with_es_fallback(
+                milvus_client, es_client, routed_collections, rewritten_query,
                 doc_id_allowlist=allowlist, limit=limit,
             )) or {name: [] for name in routed_collections}
 
