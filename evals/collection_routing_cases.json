@@ -1,0 +1,110 @@
+[
+  {
+    "id": "R01",
+    "expect": "confident",
+    "query": "case law for Ramesh Gupta vs. Income-tax Officer",
+    "expected_categories": ["caselaws"]
+  },
+  {
+    "id": "R02",
+    "expect": "confident",
+    "query": "Delhi High Court ruling under the Income-tax Act, 1961 on capital gains exemption",
+    "expected_categories": ["caselaws"]
+  },
+  {
+    "id": "R03",
+    "expect": "confident",
+    "query": "definition of 'assessee' under section 2 of the Income-tax Act",
+    "expected_categories": ["acts"]
+  },
+  {
+    "id": "R04",
+    "expect": "confident",
+    "query": "prescribed form and procedure under Rule 6 of the Income-tax Rules 1962 for TDS returns",
+    "expected_categories": ["rules"]
+  },
+  {
+    "id": "R05",
+    "expect": "confident",
+    "query": "explain how section 54F exemption works in practice",
+    "expected_categories": ["commentary"]
+  },
+  {
+    "id": "R06",
+    "expect": "confident",
+    "query": "expert opinion article on the recent controversy around faceless assessment",
+    "expected_categories": ["articles"]
+  },
+  {
+    "id": "R07",
+    "expect": "confident",
+    "query": "HSN code and duty rate for imported solar panels",
+    "expected_categories": ["tariff"]
+  },
+  {
+    "id": "R08",
+    "expect": "confident",
+    "query": "case law on section 54F exemption eligibility",
+    "expected_categories": ["acts", "caselaws"]
+  },
+  {
+    "id": "R09",
+    "expect": "confident",
+    "query": "Gujarat High Court judgment interpreting section 271(1)(c) as unconstitutional",
+    "expected_categories": ["acts", "caselaws"]
+  },
+  {
+    "id": "R10",
+    "expect": "confident",
+    "query": "recent rulings under the CGST Act on provisional attachment of bank accounts",
+    "expected_categories": ["caselaws"]
+  },
+  {
+    "id": "R11",
+    "expect": "vague",
+    "query": "is this legal?",
+    "expected_categories": []
+  },
+  {
+    "id": "R12",
+    "expect": "vague",
+    "query": "tax notice help",
+    "expected_categories": []
+  },
+  {
+    "id": "R13",
+    "expect": "vague",
+    "query": "gift from father taxable?",
+    "expected_categories": []
+  },
+  {
+    "id": "R14",
+    "expect": "vague",
+    "query": "capital gains",
+    "expected_categories": []
+  },
+  {
+    "id": "R15",
+    "expect": "vague",
+    "query": "what should I do about my tax problem",
+    "expected_categories": []
+  },
+  {
+    "id": "R16",
+    "expect": "vague",
+    "query": "gst",
+    "expected_categories": []
+  },
+  {
+    "id": "R17",
+    "expect": "vague",
+    "query": "can they do that",
+    "expected_categories": []
+  },
+  {
+    "id": "R18",
+    "expect": "vague",
+    "query": "help with income tax",
+    "expected_categories": []
+  }
+]
