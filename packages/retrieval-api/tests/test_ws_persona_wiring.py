@@ -74,6 +74,51 @@ def test_ws_search_logged_in_user_with_persona_reaches_run_ai_mode_with_rendered
     assert "precise-citation" in captured["persona_context"]
 
 
+def test_ws_search_logged_in_user_with_thin_persona_gets_empty_persona_context(monkeypatch):
+    """A logged-in user (valid access_token) whose persona has real category_affinity/
+    expertise_level/query_style signal but a query_count below the trust threshold
+    (query_count >= 20 in render_persona_context) must still reach run_ai_mode with
+    persona_context=="" - same as a guest. Proves the trust gate is actually wired
+    end to end (Mongo lookup -> render_persona_context -> run_ai_mode), not just
+    correct in render_persona_context's own unit tests."""
+    captured = {}
+
+    async def fake_get_persona(personas_collection, user_id):
+        assert user_id == "user-123"
+        return {
+            "user_id": "user-123",
+            "category_affinity": {"caselaws": 0.9, "acts": 0.1},
+            "expertise_level": "expert",
+            "query_style": "precise-citation",
+            "query_count": 3,
+        }
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+        captured["persona_context"] = persona_context
+        return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
+
+    _patch_common(monkeypatch, fake_run_ai_mode)
+    monkeypatch.setattr(ws_module, "get_persona", fake_get_persona)
+
+    record_calls = []
+
+    async def fake_record_persona_signal(personas_collection, gateway, user_id, query, categories):
+        record_calls.append((user_id, categories))
+
+    monkeypatch.setattr(ws_module, "record_persona_signal", fake_record_persona_signal)
+
+    auth_settings = get_auth_settings()
+    token = create_access_token("user-123", auth_settings)
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "gst rate", "mode": "ai_mode", "access_token": token})
+        response = websocket.receive_json()
+
+    assert response == {"type": "ai_mode_done", "answer": "final answer", "citations": {}}
+    assert captured["persona_context"] == ""
+
+
 def test_ws_search_guest_gets_empty_persona_context_and_no_persona_write(monkeypatch):
     """A guest (no access_token) must reach run_ai_mode with persona_context=="",
     and no persona-write background task may be scheduled - record_persona_signal
