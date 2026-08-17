@@ -97,8 +97,8 @@ describe('persistConversations', () => {
   })
 
   it('writes the stripped payload to localStorage under normal conditions', () => {
-    persistConversations([conversation('a'), conversation('b')])
-    const stored = JSON.parse(localStorage.getItem('taxmann-retrieval-conversations') ?? '[]')
+    persistConversations('taxmann-retrieval-conversations:anon', [conversation('a'), conversation('b')])
+    const stored = JSON.parse(localStorage.getItem('taxmann-retrieval-conversations:anon') ?? '[]')
     expect(stored).toHaveLength(2)
   })
 
@@ -113,7 +113,9 @@ describe('persistConversations', () => {
       originalSetItem(key, value)
     })
 
-    expect(() => persistConversations([conversation('a'), conversation('b'), conversation('c')])).not.toThrow()
+    expect(() =>
+      persistConversations('taxmann-retrieval-conversations:anon', [conversation('a'), conversation('b'), conversation('c')]),
+    ).not.toThrow()
     expect(calls).toBe(3)
 
     setItemSpy.mockRestore()
