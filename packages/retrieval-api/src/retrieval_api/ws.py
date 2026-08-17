@@ -5,9 +5,16 @@ from fastapi import APIRouter, WebSocket
 from langfuse import get_client
 
 from agents.pipeline import run_agentic_search
+from auth.config import get_auth_settings
+from auth.security import decode_access_token
 from common.config import get_settings
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
+from persona.config import get_persona_settings
+from persona.db import get_mongo_client, get_personas_collection
+from persona.prompt import render_persona_context
+from persona.repository import get_persona
+from retrieval_api.ai_mode.persona_signal import record_persona_signal
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.instant.search import run_instant
 from retrieval_api.ai_mode.pipeline import run_ai_mode
@@ -16,9 +23,21 @@ router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
+# Holds strong references to fire-and-forget background tasks (e.g. the
+# persona-signal write below) - asyncio's event loop only keeps a weak
+# reference to a task, so an unreferenced task can be garbage-collected
+# mid-execution. Each task removes itself from this set via its done callback.
+_background_tasks: set[asyncio.Task] = set()
+
 
 def get_gateway_client(settings) -> GatewayClient:
     return GatewayClient(base_url=settings.gateway_url)
+
+
+def _resolve_user_id(access_token: str | None) -> str | None:
+    if not access_token:
+        return None
+    return decode_access_token(access_token, get_auth_settings())
 
 
 async def _emit_trace_step(send, step: str, data: dict) -> None:
@@ -39,6 +58,7 @@ async def search(websocket: WebSocket):
     mode = message.get("mode", "both")  # "instant" | "ai_mode" | "both"
     trace = message.get("trace", False)
     rerank = message.get("rerank", False)
+    user_id = _resolve_user_id(message.get("access_token"))
 
     settings = get_settings()
     es_client = get_es_client(settings)
@@ -48,6 +68,24 @@ async def search(websocket: WebSocket):
     except Exception:
         logger.exception("Milvus connection failed; proceeding without Milvus for this request")
         milvus_client = None
+
+    personas_collection = None
+    persona_context = ""
+    if user_id is not None:
+        try:
+            persona_settings = get_persona_settings()
+            mongo_client = get_mongo_client(persona_settings)
+            personas_collection = get_personas_collection(mongo_client, persona_settings)
+            persona = await get_persona(personas_collection, user_id)
+            persona_context = render_persona_context(persona)
+        except Exception:
+            # A down/unreachable persona store must never crash the request -
+            # mirrors the milvus_client resilience pattern above. Degrade to
+            # no persona context (as if the user were a guest for this request)
+            # rather than failing the whole /ws/search round-trip.
+            logger.exception("Persona lookup failed for user %r; proceeding without persona context", user_id)
+            personas_collection = None
+            persona_context = ""
 
     send_lock = asyncio.Lock()
 
@@ -77,6 +115,7 @@ async def search(websocket: WebSocket):
                     run_ai_mode(
                         gateway, es_client, milvus_client, query,
                         on_step=emit_trace_step if trace else None,
+                        persona_context=persona_context,
                     )
                 )
                 if mode in ("ai_mode", "both") else None
@@ -106,6 +145,16 @@ async def search(websocket: WebSocket):
                     if ai_mode_result.get("reasoning"):
                         ai_mode_message["reasoning"] = ai_mode_result["reasoning"]
                     await send(ai_mode_message)
+
+                    if user_id is not None and personas_collection is not None:
+                        task = asyncio.create_task(
+                            record_persona_signal(
+                                personas_collection, gateway, user_id, query,
+                                categories=ai_mode_result.get("intent", []),
+                            )
+                        )
+                        _background_tasks.add(task)
+                        task.add_done_callback(_background_tasks.discard)
                 else:
                     output["ai_mode_error"] = ai_mode_result["error"]
                     await send({"type": "ai_mode_error", "error": ai_mode_result["error"]})

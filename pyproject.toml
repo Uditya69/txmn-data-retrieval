@@ -4,13 +4,25 @@ version = "0.1.0"
 requires-python = ">=3.11,<3.12"
 
 [tool.uv.workspace]
-members = ["packages/common", "packages/model-gateway", "packages/retrieval-api", "packages/agents"]
+members = ["packages/common", "packages/model-gateway", "packages/retrieval-api", "packages/agents", "packages/auth", "packages/persona"]
 
 [tool.uv.sources]
 common = { workspace = true }
 model-gateway = { workspace = true }
 retrieval-api = { workspace = true }
 agents = { workspace = true }
+auth = { workspace = true }
+persona = { workspace = true }
 
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "respx>=0.21"]
+
+[tool.pytest.ini_options]
+# importlib import mode avoids module-name collisions across packages when running
+# the aggregated suite from the repo root (e.g. two packages each having their own
+# tests/test_config.py, or two packages' tests/ dirs both being __init__.py-based
+# packages named "tests" - both would otherwise collide under the default "prepend"
+# mode's sys.modules namespace). Per-package pyproject.toml files keep their own
+# [tool.pytest.ini_options] (default "prepend" mode) for standalone package runs,
+# where no cross-package collision is possible.
+addopts = "--import-mode=importlib"

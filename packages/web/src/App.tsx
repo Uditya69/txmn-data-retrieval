@@ -5,13 +5,22 @@ import { ChatMessageView } from './components/ChatMessageView'
 import DocumentReader from './components/DocumentReader'
 import DevModeToggle from './components/DevModeToggle'
 import RerankToggle from './components/RerankToggle'
+import AuthMenu from './components/AuthMenu'
 import { useSearch } from './api/useSearch'
 import { useAgentSearch } from './api/useAgentSearch'
+import { useAuth } from './api/useAuth'
 import { resolveWsUrl, resolveAgentWsUrl, resolveApiBaseUrl } from './lib/config'
 import type { ChatMessage, ChatMode, Conversation, ResultState } from './types'
 
-const CONVERSATIONS_KEY = 'taxmann-retrieval-conversations'
+const CONVERSATIONS_KEY_PREFIX = 'taxmann-retrieval-conversations'
 const SIDEBAR_KEY = 'taxmann-retrieval-sidebar-collapsed'
+
+// Scopes chat history per logged-in account so switching users on the same
+// browser doesn't leak one user's chats to another. Logged-out users share
+// one anon bucket - matches pre-auth behavior.
+function conversationsKey(email: string | null): string {
+  return email ? `${CONVERSATIONS_KEY_PREFIX}:${email}` : `${CONVERSATIONS_KEY_PREFIX}:anon`
+}
 
 let nextId = 0
 function genId(prefix: string) {
@@ -27,9 +36,9 @@ function isValidMessage(m: unknown): m is ChatMessage {
   return false
 }
 
-function loadConversations(): Conversation[] {
+function loadConversations(key: string): Conversation[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(CONVERSATIONS_KEY) ?? '[]')
+    const parsed = JSON.parse(localStorage.getItem(key) ?? '[]')
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
       (c): c is Conversation => c && typeof c === 'object' && Array.isArray(c.messages) && c.messages.every(isValidMessage),
@@ -67,11 +76,11 @@ function isQuotaExceeded(err: unknown): boolean {
 // Drops the oldest conversations (they're appended at the end - see
 // handleSubmit's `[newConversation, ...prev]`) until the write fits, instead
 // of letting an uncaught QuotaExceededError crash the whole app.
-export function persistConversations(conversations: Conversation[]) {
+export function persistConversations(key: string, conversations: Conversation[]) {
   const payload = toPersistable(conversations)
   for (let keep = payload.length; keep >= 0; keep -= 1) {
     try {
-      localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(payload.slice(0, keep)))
+      localStorage.setItem(key, JSON.stringify(payload.slice(0, keep)))
       return
     } catch (err) {
       if (!isQuotaExceeded(err)) {
@@ -97,11 +106,14 @@ function readDevModeFromUrl(): boolean {
 export default function App() {
   const wsUrl = resolveWsUrl()
   const agentWsUrl = resolveAgentWsUrl()
-  const classicSearch = useSearch(wsUrl)
+  const apiBaseUrl = resolveApiBaseUrl(wsUrl)
+  const auth = useAuth(apiBaseUrl)
+  const classicSearch = useSearch(wsUrl, auth.token)
   const agentSearch = useAgentSearch(agentWsUrl)
 
-  const [conversations, setConversations] = useState<Conversation[]>(loadConversations)
+  const [conversations, setConversations] = useState<Conversation[]>(() => loadConversations(conversationsKey(auth.email)))
   const [activeId, setActiveId] = useState<string | null>(null)
+  const conversationsScopeRef = useRef(auth.email)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === '1')
   const [mode, setMode] = useState<ChatMode>('classic')
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
@@ -115,9 +127,18 @@ export default function App() {
   const activeConversation = conversations.find((c) => c.id === activeId) ?? null
   const messages = activeConversation?.messages ?? []
 
+  // Login/logout/switch-account changes which bucket is active - swap the
+  // in-memory list to match instead of leaking the previous user's chats.
   useEffect(() => {
-    persistConversations(conversations)
-  }, [conversations])
+    if (conversationsScopeRef.current === auth.email) return
+    conversationsScopeRef.current = auth.email
+    setConversations(loadConversations(conversationsKey(auth.email)))
+    setActiveId(null)
+  }, [auth.email])
+
+  useEffect(() => {
+    persistConversations(conversationsKey(auth.email), conversations)
+  }, [conversations, auth.email])
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed ? '1' : '0')
@@ -287,6 +308,14 @@ export default function App() {
             <div className="ml-auto flex items-center gap-3">
               <RerankToggle rerank={rerank} onToggle={setRerank} />
               <DevModeToggle devMode={devMode} onToggle={setDevMode} />
+              <AuthMenu
+                email={auth.email}
+                loading={auth.loading}
+                error={auth.error}
+                onSignup={auth.signup}
+                onLogin={auth.login}
+                onLogout={auth.logout}
+              />
             </div>
           </div>
         </header>
@@ -321,7 +350,7 @@ export default function App() {
         </main>
       </div>
 
-      <DocumentReader docId={openDocId} apiBaseUrl={resolveApiBaseUrl(wsUrl)} onClose={() => setOpenDocId(null)} onOpenDocument={setOpenDocId} />
+      <DocumentReader docId={openDocId} apiBaseUrl={apiBaseUrl} onClose={() => setOpenDocId(null)} onOpenDocument={setOpenDocId} />
     </div>
   )
 }

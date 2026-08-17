@@ -37,6 +37,7 @@ export type SearchMode = 'instant' | 'ai_mode' | 'both'
 
 export function useSearch(
   wsUrl: string,
+  accessToken?: string | null,
 ): SearchState & { search: (query: string, trace: boolean, mode?: SearchMode, rerank?: boolean) => void } {
   const [state, setState] = useState<SearchState>(INITIAL_STATE)
   const socketRef = useRef<WebSocket | null>(null)
@@ -56,7 +57,12 @@ export function useSearch(
       socketRef.current = socket
 
       socket.addEventListener('open', () => {
-        socket.send(JSON.stringify({ query, mode, trace, rerank }))
+        // access_token is only included when a user is signed in - the backend
+        // treats it as fully optional (see ws.py's _resolve_user_id) and this
+        // keeps guest requests byte-identical to before persona existed.
+        const payload: Record<string, unknown> = { query, mode, trace, rerank }
+        if (accessToken) payload.access_token = accessToken
+        socket.send(JSON.stringify(payload))
       })
 
       socket.addEventListener('message', (event) => {
@@ -98,7 +104,7 @@ export function useSearch(
         setState((prev) => (prev.loading ? { ...prev, loading: false } : prev))
       })
     },
-    [wsUrl],
+    [wsUrl, accessToken],
   )
 
   return { ...state, search }

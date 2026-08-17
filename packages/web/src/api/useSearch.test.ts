@@ -28,6 +28,32 @@ beforeEach(() => {
 })
 
 describe('useSearch', () => {
+  it('omits access_token from the payload when none is provided (guest)', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).not.toHaveProperty('access_token')
+  })
+
+  it('includes access_token in the payload when a token is provided', () => {
+    const { result } = renderHook(() => useSearch('ws://test', 'tok-abc'))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ access_token: 'tok-abc' })
+  })
+
   it('sends the query with mode "both" and the trace flag once the socket opens, and stores the instant result', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
 

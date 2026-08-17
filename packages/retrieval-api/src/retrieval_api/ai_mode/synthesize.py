@@ -24,7 +24,7 @@ Formatting:
 
 async def synthesize(
     gateway, es_client, query: str, top_chunks: list[dict], citations: dict,
-    on_step: OnStep | None = None, model: str | None = None,
+    on_step: OnStep | None = None, model: str | None = None, persona_context: str = "",
 ) -> dict:
     missing_doc_ids = [c["doc_id"] for c in top_chunks if c["doc_id"] not in citations]
     if missing_doc_ids:
@@ -36,10 +36,12 @@ async def synthesize(
     if on_step is not None:
         await on_step("synthesis_prompt", {"prompt": prompt})
 
+    system_prompt = _SYSTEM_PROMPT if not persona_context else f"{_SYSTEM_PROMPT}\n{persona_context}"
+
     answer, reasoning = await gateway.chat_with_reasoning(
         role="synthesis",
         messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ],
         model=model,
