@@ -196,7 +196,7 @@ async def test_run_ai_mode_forwards_persona_context_to_extract_intent_and_synthe
     async def fake_resolve_allowlist(es_client, filters, on_step=None):
         return None
 
-    async def fake_retrieve(gateway, milvus_client, search_query, doc_id_allowlist, intent, on_step=None):
+    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None):
         return []
 
     async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None):
