@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from retrieval_api.ai_mode.intent import _build_chunk_context, extract_intent
+from persona.prompt import RELEVANCE_INSTRUCTION
 
 
 @pytest.mark.asyncio
@@ -555,3 +556,28 @@ async def test_extract_intent_user_message_unchanged_when_no_spans_found():
     call_kwargs = gateway.chat.await_args.kwargs
     user_message = call_kwargs["messages"][1]["content"]
     assert user_message == "capital gains treatment"
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_includes_persona_context_in_user_message():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({"search_query": "q", "intent": [], "filters": {}})
+
+    await extract_intent(gateway, "q", persona_context="This user frequently asks about caselaws.")
+
+    user_message = gateway.chat.await_args.kwargs["messages"][1]["content"]
+    assert "This user frequently asks about caselaws." in user_message
+    assert RELEVANCE_INSTRUCTION in user_message
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_omits_persona_block_when_context_empty():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({"search_query": "q", "intent": [], "filters": {}})
+
+    await extract_intent(gateway, "q")
+
+    user_message = gateway.chat.await_args.kwargs["messages"][1]["content"]
+    assert RELEVANCE_INSTRUCTION not in user_message

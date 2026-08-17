@@ -7,6 +7,7 @@ from langfuse import get_client
 from common.legal_lexicon import is_stopword
 from common.query_tokenizer import chunk_query
 from common.schema_context import KNOWN_COURTS, build_schema_context
+from persona.prompt import RELEVANCE_INSTRUCTION
 from retrieval_api.gateway_client import GatewayClient
 
 # Invariant: on_step implementations must not raise. The current only caller
@@ -274,6 +275,7 @@ def _validate_result(query: str, result) -> dict:
 
 async def extract_intent(
     gateway: GatewayClient, query: str, on_step: OnStep | None = None, model: str | None = None,
+    persona_context: str = "",
 ) -> dict:
     resolved_model = model or await gateway.get_model(role="slm")
     chunk_context = _build_chunk_context(query)
@@ -282,6 +284,8 @@ async def extract_intent(
         "Structural spans already present in the query above (for reference "
         f"only — do not add anything not already in the query text):\n{chunk_context}"
     )
+    if persona_context:
+        user_message += f"\n\n{persona_context}\n{RELEVANCE_INSTRUCTION}"
     response = await gateway.chat(
         role="slm",
         messages=[
