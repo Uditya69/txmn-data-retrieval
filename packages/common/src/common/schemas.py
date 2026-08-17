@@ -19,6 +19,19 @@ SPARSE_VECTOR_COLLECTIONS = set(MILVUS_COLLECTIONS) - {
     "ruling", "act_section", "rule_section", "article_section", "commentary_section",
 }
 
+# ES's groups.group.name field maps 1:1 onto 4 of these 5 by name (ACT/RULE/COMMENTARY/
+# CASELAWS). article_section is the exception - a naming mismatch, not a data problem:
+# verified live against 20 doc_ids spanning the full id range (20/20 consistent), and
+# independently confirmed by a teammate familiar with the ingestion side. See
+# docs/superpowers/specs/2026-08-17-milvus-sparse-es-fallback-design.md.
+ES_GROUP_FOR_COLLECTION: dict[str, str] = {
+    "ruling": "CASELAWS",
+    "act_section": "ACT",
+    "rule_section": "RULE",
+    "article_section": "Experts Opinion",
+    "commentary_section": "COMMENTARY",
+}
+
 MASTERINFO_CITATION_FIELDS = [
     "heading",
     "subheading",

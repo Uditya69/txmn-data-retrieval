@@ -83,3 +83,22 @@ def test_collections_for_intent_tariff_only_falls_back_to_all_collections():
 
 def test_collections_for_intent_unrecognized_tag_only_falls_back_to_all_collections():
     assert collections_for_intent(["not_a_real_category"]) == MILVUS_COLLECTIONS
+
+
+def test_es_group_for_collection_covers_every_sparse_missing_collection():
+    from common.schemas import ES_GROUP_FOR_COLLECTION, MILVUS_COLLECTIONS, SPARSE_VECTOR_COLLECTIONS
+
+    gap_collections = set(MILVUS_COLLECTIONS) - SPARSE_VECTOR_COLLECTIONS
+    assert set(ES_GROUP_FOR_COLLECTION.keys()) == gap_collections
+
+
+def test_es_group_for_collection_values():
+    from common.schemas import ES_GROUP_FOR_COLLECTION
+
+    assert ES_GROUP_FOR_COLLECTION == {
+        "ruling": "CASELAWS",
+        "act_section": "ACT",
+        "rule_section": "RULE",
+        "article_section": "Experts Opinion",
+        "commentary_section": "COMMENTARY",
+    }
