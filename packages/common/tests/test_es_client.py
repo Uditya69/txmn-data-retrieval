@@ -482,3 +482,29 @@ async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
     assert "judgment_text" not in result["d1"]
     # confirm the field restriction was actually passed through to ES (mget _source param)
     assert client.mget_calls[0]["_source"] == MASTERINFO_CITATION_FIELDS
+
+
+def test_trim_to_token_budget_returns_short_text_unchanged():
+    from common.es_client import _trim_to_token_budget
+
+    text = "short text well under budget"
+    assert _trim_to_token_budget(text, target_tokens=1024) == text
+
+
+def test_trim_to_token_budget_centers_and_trims_oversized_text():
+    from common.es_client import _trim_to_token_budget
+    import tiktoken
+
+    tokenizer = tiktoken.get_encoding("cl100k_base")
+    # "filler" repeated gives before/after segments that are token-exact symmetric by
+    # construction (unlike numbered "wordN" placeholders, whose token length varies with
+    # N's digit count and drifts MARKER's true offset away from the token-count midpoint).
+    before = " ".join(["filler"] * 2000)
+    after = " ".join(["filler"] * 2000)
+    text = f"{before} MARKER {after}"
+
+    trimmed = _trim_to_token_budget(text, target_tokens=100)
+
+    trimmed_tokens = tokenizer.encode(trimmed)
+    assert len(trimmed_tokens) == 100
+    assert "MARKER" in trimmed

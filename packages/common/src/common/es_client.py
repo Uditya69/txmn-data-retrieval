@@ -4,6 +4,30 @@ from common.config import Settings
 from common.query_tokenizer import chunk_query, classify_query_shape, expand_query_synonyms
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
+import tiktoken
+
+# Same tokenizer tm-dp/packages/data-pipeline/src/data_pipeline/chunking.py uses for its
+# CHUNK_SIZE_TOKENS=1024 splitter cap - matching it here keeps ES-fallback snippets from
+# being systematically under-scored by the reranker for carrying less context than the
+# real Milvus chunks they compete against. See
+# docs/superpowers/specs/2026-08-17-milvus-sparse-es-fallback-design.md.
+_SNIPPET_TOKENIZER = tiktoken.get_encoding("cl100k_base")
+_SNIPPET_TARGET_TOKENS = 1024
+
+
+def _trim_to_token_budget(text: str, target_tokens: int = _SNIPPET_TARGET_TOKENS) -> str:
+    """Trims text to at most target_tokens tokens, centered - never expands short text.
+    ES's own highlighter already centers a fragment on the best-scoring match; this only
+    caps an oversized fragment down to budget, trimming evenly from both ends so a match
+    positioned anywhere near the middle of the requested (oversized) fragment survives."""
+    ids = _SNIPPET_TOKENIZER.encode(text)
+    if len(ids) <= target_tokens:
+        return text
+    excess = len(ids) - target_tokens
+    start = excess // 2
+    return _SNIPPET_TOKENIZER.decode(ids[start : start + target_tokens])
+
+
 _BOOST_PROFILES = {
     "citation": {"heading": 5.0, "subheading": 3.0, "fullcontent": 1.0,
                  "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 1.5},
