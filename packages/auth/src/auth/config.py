@@ -14,6 +14,7 @@ class AuthSettings(BaseSettings):
     mongo_db: str
     jwt_secret: str = Field(min_length=32)
     jwt_expiry_minutes: int
+    refresh_token_expiry_days: int = 30
 
 
 @lru_cache

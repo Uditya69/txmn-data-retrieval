@@ -16,3 +16,12 @@ def get_users_collection(client: AsyncIOMotorClient, settings: AuthSettings) -> 
     # window (two concurrent signups for the same email can both succeed) until that
     # unique index exists. Not added here - see finding write-up for scope rationale.
     return client[settings.mongo_db]["users"]
+
+
+def get_refresh_tokens_collection(client: AsyncIOMotorClient, settings: AuthSettings) -> AsyncIOMotorCollection:
+    # Same real-deployment caveat as users' email index above: a production
+    # deployment wants `await collection.create_index("token_hash", unique=True)`
+    # and `await collection.create_index("expires_at", expireAfterSeconds=0)`
+    # (Mongo TTL index - lets expired-but-never-refreshed tokens self-clean
+    # instead of accumulating forever). Not added here, same scope rationale.
+    return client[settings.mongo_db]["refresh_tokens"]

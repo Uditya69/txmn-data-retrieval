@@ -34,6 +34,19 @@ class FakeUsersCollection:
         self.documents.append(document)
 
 
+class FakeRefreshTokensCollection(FakeUsersCollection):
+    """Same shape as FakeUsersCollection plus delete_one - refresh-token
+    rotation/revocation/expiry all delete records, which users.py never needed."""
+
+    async def delete_one(self, filter: dict) -> None:
+        self.documents = [doc for doc in self.documents if not all(doc.get(k) == v for k, v in filter.items())]
+
+
 @pytest.fixture
 def fake_users_collection():
     return FakeUsersCollection()
+
+
+@pytest.fixture
+def fake_refresh_tokens_collection():
+    return FakeRefreshTokensCollection()

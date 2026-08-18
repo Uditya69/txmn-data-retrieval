@@ -7,7 +7,9 @@ from auth.config import get_auth_settings
 from auth.security import (
     create_access_token,
     decode_access_token,
+    generate_refresh_token,
     hash_password,
+    hash_refresh_token,
     verify_password,
 )
 
@@ -49,3 +51,17 @@ def test_decode_access_token_rejects_wrong_secret():
         algorithm="HS256",
     )
     assert decode_access_token(token, settings) is None
+
+
+def test_generate_refresh_token_produces_distinct_unguessable_tokens():
+    a = generate_refresh_token()
+    b = generate_refresh_token()
+    assert a != b
+    assert len(a) >= 32
+
+
+def test_hash_refresh_token_is_deterministic_and_one_way():
+    token = generate_refresh_token()
+    hashed = hash_refresh_token(token)
+    assert hashed == hash_refresh_token(token)  # same input -> same hash, for lookup-by-hash
+    assert hashed != token
