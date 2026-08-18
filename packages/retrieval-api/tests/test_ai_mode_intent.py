@@ -2,7 +2,7 @@ import json
 from unittest.mock import AsyncMock
 import pytest
 
-from retrieval_api.ai_mode.intent import _build_chunk_context, extract_intent
+from retrieval_api.ai_mode.intent import _build_chunk_context, _has_legal_anchor, extract_intent
 from persona.prompt import RELEVANCE_INSTRUCTION
 
 
@@ -581,3 +581,23 @@ async def test_extract_intent_omits_persona_block_when_context_empty():
 
     user_message = gateway.chat.await_args.kwargs["messages"][1]["content"]
     assert RELEVANCE_INSTRUCTION not in user_message
+
+
+def test_has_legal_anchor_true_when_chunk_context_present():
+    assert _has_legal_anchor("Delhi High Court ruling", '[{"text": "Delhi High Court", "type": "court_city"}]') is True
+
+
+def test_has_legal_anchor_true_when_lexicon_synonym_matches():
+    # "ACIT" expands via the legal lexicon (see common/legal_lexicon.py's synonyms table) -
+    # expand_query_synonyms appends the expansion, so the returned string differs from the input.
+    assert _has_legal_anchor("ACIT order challenged", None) is True
+
+
+def test_has_legal_anchor_true_when_shape_is_not_plain():
+    # "section 80HH" matches SECTION_PATTERN inside classify_query_shape -> shape="provision",
+    # even with chunk_context=None passed explicitly (simulating no structural spans found).
+    assert _has_legal_anchor("explain section 80HH", None) is True
+
+
+def test_has_legal_anchor_false_for_bare_topic_words():
+    assert _has_legal_anchor("capital gains", None) is False

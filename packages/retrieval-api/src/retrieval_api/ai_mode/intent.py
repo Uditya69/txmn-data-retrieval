@@ -5,7 +5,7 @@ from typing import Awaitable, Callable
 from langfuse import get_client
 
 from common.legal_lexicon import is_stopword
-from common.query_tokenizer import chunk_query
+from common.query_tokenizer import chunk_query, classify_query_shape, expand_query_synonyms
 from common.schema_context import KNOWN_COURTS, build_schema_context
 from persona.prompt import RELEVANCE_INSTRUCTION
 from retrieval_api.gateway_client import GatewayClient
@@ -65,6 +65,21 @@ def _build_chunk_context(query: str) -> str | None:
     if not spans:
         return None
     return json.dumps(spans, ensure_ascii=False)
+
+
+def _has_legal_anchor(query: str, chunk_context: str | None) -> bool:
+    """True when any layer of the existing lexical pipeline (structural chunking, legal
+    lexicon, shape classification) recognizes something in this query - a citation,
+    section/rule reference, court/party name, date, or known legal abbreviation. False
+    means the query is lexically empty of legal content, used both as a soft prompt hint
+    (below) and a hard classification floor (_too_vague_to_tag, in _validate_result)."""
+    if chunk_context is not None:
+        return True  # a structural span (citation/section/court/date/party) was found
+    if expand_query_synonyms(query) != query:
+        return True  # a legal-lexicon term/abbreviation was recognized
+    if classify_query_shape(query) != "plain":
+        return True  # provision/citation shape implies an anchor
+    return False
 
 
 _LLAMA_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
