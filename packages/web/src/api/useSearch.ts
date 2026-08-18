@@ -96,11 +96,12 @@ export function useSearch(
           setState((prev) => ({ ...prev, loading: false, aiMode: { ok: false, error: message.error } }))
         } else if (message.type === 'session_expired') {
           // The access_token we sent didn't decode server-side (most commonly expired -
-          // see ws.py's _resolve_user_id) - the request still completed as a guest, but
-          // silently staying "logged in" with a dead token means persona/history features
-          // quietly stop working with no visible sign. Surface it and clear the stale
-          // session instead of letting that drift unnoticed.
-          setState((prev) => ({ ...prev, wsError: 'Your session expired — please sign in again.' }))
+          // see ws.py's _resolve_user_id) - this specific request already completed as a
+          // guest and can't be retroactively fixed, but onSessionExpired (wired to
+          // useAuth's silent refresh, not an immediate logout) gives the *next* request
+          // a fresh token before the user notices anything. Only actually signs the user
+          // out if the refresh token is also dead - the common case resolves silently.
+          setState((prev) => ({ ...prev, wsError: 'Reconnecting your session…' }))
           onSessionExpired?.()
         }
       })

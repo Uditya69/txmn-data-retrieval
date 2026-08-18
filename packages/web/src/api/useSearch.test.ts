@@ -194,7 +194,7 @@ describe('useSearch', () => {
       socket.emit('message', { data: JSON.stringify({ type: 'session_expired' }) })
     })
 
-    expect(result.current.wsError).toBe('Your session expired — please sign in again.')
+    expect(result.current.wsError).toBe('Reconnecting your session…')
     expect(onSessionExpired).toHaveBeenCalledOnce()
   })
 })
