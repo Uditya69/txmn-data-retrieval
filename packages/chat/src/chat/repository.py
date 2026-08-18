@@ -11,7 +11,7 @@ async def create_conversation(conversations, conversation_id: str, user_id: str,
         "created_at": now,
         "updated_at": now,
     }
-    await conversations.replace_one({"_id": conversation_id}, doc, upsert=True)
+    await conversations.replace_one({"_id": conversation_id, "user_id": user_id}, doc, upsert=True)
     return doc
 
 

@@ -165,7 +165,14 @@ export default function App() {
 
     let conversationId = activeId
     if (!conversationId) {
-      conversationId = genId('conv')
+      // Sent to the server as the conversation's Mongo _id (see App's runQuery
+      // -> useSearch's conversation_id payload field) - must be globally
+      // unique across users, not just unique within this page load. genId's
+      // module-scoped counter resets to "conv-1" on every fresh page load, so
+      // two different users' first conversations would collide and the
+      // second write would silently clobber the first (repository.py's
+      // create_conversation upserts by _id). crypto.randomUUID() avoids that.
+      conversationId = crypto.randomUUID()
       const newConversation: Conversation = { id: conversationId, title: titleFromQuestion(question), messages: [userMsg, assistantMsg] }
       setConversations((prev) => [newConversation, ...prev])
       setActiveId(conversationId)

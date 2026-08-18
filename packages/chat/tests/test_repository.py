@@ -1,4 +1,5 @@
 import pytest
+from pymongo.errors import DuplicateKeyError
 
 from chat.repository import (
     append_turn,
@@ -18,6 +19,29 @@ async def test_create_conversation_stores_document(fake_conversations_collection
     assert doc["title"] == "first question"
     assert doc["messages"] == [{"role": "user", "text": "hi"}]
     assert doc["created_at"] == doc["updated_at"]
+
+
+@pytest.mark.asyncio
+async def test_create_conversation_does_not_clobber_another_users_doc_with_same_id(fake_conversations_collection):
+    # Regression test: the frontend used to generate conversation ids from a
+    # module-scoped counter that reset on every page load, so two different
+    # users' first conversations could collide on the same id. Scoping the
+    # upsert filter by user_id (not just _id) means a same-id collision from
+    # a different user can no longer silently overwrite the first user's
+    # title/messages/user_id - it now fails loudly instead of corrupting data.
+    conversations = fake_conversations_collection
+    first = await create_conversation(conversations, "conv-1", "user-1", "user 1's question", [{"role": "user", "text": "hi"}])
+
+    with pytest.raises(DuplicateKeyError):
+        await create_conversation(conversations, "conv-1", "user-2", "user 2's question", [{"role": "user", "text": "hey"}])
+
+    # user-1's original document must be completely intact.
+    unchanged = await get_conversation(conversations, "conv-1", "user-1")
+    assert unchanged == first
+    assert unchanged["title"] == "user 1's question"
+    assert unchanged["user_id"] == "user-1"
+    # user-2 never got a document written under this id.
+    assert await get_conversation(conversations, "conv-1", "user-2") is None
 
 
 @pytest.mark.asyncio
