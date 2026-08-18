@@ -14,6 +14,9 @@ from persona.config import get_persona_settings
 from persona.db import get_mongo_client, get_personas_collection
 from persona.prompt import render_persona_context
 from persona.repository import get_persona
+from semantic_cache.config import get_semantic_cache_settings
+from semantic_cache.db import get_semantic_cache_collection, get_mongo_client as get_cache_mongo_client
+from semantic_cache.repository import lookup as cache_lookup, write as cache_write
 from retrieval_api.ai_mode.persona_signal import record_persona_signal
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.instant.search import run_instant
@@ -99,6 +102,49 @@ async def search(websocket: WebSocket):
             personas_collection = None
             persona_context = ""
 
+    # Semantic cache: an unreachable/misconfigured Atlas cluster must never
+    # crash the request - resolving settings/client/collection and the
+    # subsequent embed + lookup calls are all best-effort and fail open to a
+    # normal (uncached) pipeline run, matching the milvus_client/persona
+    # resilience pattern above.
+    cache_collection = None
+    query_embedding = None
+    instant_cache_hit = None
+    ai_mode_cache_hit = None
+    instant_cache_key = "instant_rerank" if rerank else "instant"
+    try:
+        cache_settings = get_semantic_cache_settings()
+        cache_mongo_client = get_cache_mongo_client(cache_settings)
+        cache_collection = get_semantic_cache_collection(cache_mongo_client, cache_settings)
+    except Exception:
+        logger.exception("Semantic cache setup failed; proceeding without cache")
+        cache_collection = None
+
+    if cache_collection is not None:
+        try:
+            query_embedding = await gateway.embed(role="query_embed", text=query)
+        except Exception:
+            logger.exception("Query embedding for semantic cache failed; proceeding without cache")
+            query_embedding = None
+
+    if query_embedding is not None:
+        if mode in ("instant", "both"):
+            try:
+                instant_cache_hit = await cache_lookup(
+                    cache_collection, instant_cache_key, query_embedding,
+                    cache_settings.semantic_cache_threshold,
+                )
+            except Exception:
+                logger.exception("Semantic cache lookup failed for instant mode; proceeding without cache")
+        if mode in ("ai_mode", "both"):
+            try:
+                ai_mode_cache_hit = await cache_lookup(
+                    cache_collection, "ai_mode", query_embedding,
+                    cache_settings.semantic_cache_threshold,
+                )
+            except Exception:
+                logger.exception("Semantic cache lookup failed for ai_mode; proceeding without cache")
+
     send_lock = asyncio.Lock()
 
     async def send(payload: dict) -> None:
@@ -127,7 +173,7 @@ async def search(websocket: WebSocket):
                         on_step=emit_trace_step if trace else None, rerank=rerank,
                     )
                 )
-                if mode in ("instant", "both") else None
+                if mode in ("instant", "both") and instant_cache_hit is None else None
             )
             ai_mode_task = (
                 asyncio.create_task(
@@ -137,7 +183,7 @@ async def search(websocket: WebSocket):
                         persona_context=persona_context,
                     )
                 )
-                if mode in ("ai_mode", "both") else None
+                if mode in ("ai_mode", "both") and ai_mode_cache_hit is None else None
             )
 
             # Root observation output: kept to what a reviewer needs at a
@@ -145,8 +191,19 @@ async def search(websocket: WebSocket):
             # of duplicating the full nested result payloads.
             output: dict = {}
 
-            if instant_task is not None:
-                instant_result = await instant_task
+            if instant_cache_hit is not None or instant_task is not None:
+                if instant_cache_hit is not None:
+                    instant_result = instant_cache_hit
+                else:
+                    instant_result = await instant_task
+                    if instant_result["es_error"] is None and instant_result["milvus_error"] is None:
+                        write_task = asyncio.create_task(
+                            cache_write(
+                                cache_collection, instant_cache_key, query, query_embedding, instant_result,
+                            )
+                        )
+                        _background_tasks.add(write_task)
+                        write_task.add_done_callback(_background_tasks.discard)
                 output["instant_ok"] = instant_result["es_error"] is None and instant_result["milvus_error"] is None
                 root_span.update(metadata={
                     "instant_es_error": instant_result["es_error"] or "",
@@ -154,8 +211,18 @@ async def search(websocket: WebSocket):
                 })
                 await send({"type": "instant_result", **instant_result})
 
-            if ai_mode_task is not None:
-                ai_mode_result = await ai_mode_task
+            if ai_mode_cache_hit is not None or ai_mode_task is not None:
+                if ai_mode_cache_hit is not None:
+                    ai_mode_result = ai_mode_cache_hit
+                else:
+                    ai_mode_result = await ai_mode_task
+                    if ai_mode_result["ok"]:
+                        write_task = asyncio.create_task(
+                            cache_write(cache_collection, "ai_mode", query, query_embedding, ai_mode_result)
+                        )
+                        _background_tasks.add(write_task)
+                        write_task.add_done_callback(_background_tasks.discard)
+
                 if ai_mode_result["ok"]:
                     output["answer"] = ai_mode_result["answer"]
                     ai_mode_message = {

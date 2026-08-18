@@ -1,10 +1,12 @@
 # packages/retrieval-api/tests/test_ws_integration.py
+import asyncio
 from unittest.mock import AsyncMock, Mock
 import pytest
 from fastapi.testclient import TestClient
 
 from retrieval_api.main import app
 import retrieval_api.ws as ws_module
+from semantic_cache.repository import write as cache_write
 
 
 def test_ws_search_sends_instant_then_ai_mode_events(monkeypatch):
@@ -384,3 +386,117 @@ def test_ws_agent_sends_error_on_pipeline_exception(monkeypatch):
         message = websocket.receive_json()
 
     assert message == {"type": "agent_error", "error": "RuntimeError: gateway down"}
+
+
+class _FakeEmbedGateway:
+    def __init__(self, embedding):
+        self._embedding = embedding
+
+    async def embed(self, role, text):
+        assert role == "query_embed"
+        return self._embedding
+
+
+@pytest.mark.asyncio
+async def test_ai_mode_cache_hit_skips_run_ai_mode_and_returns_cached_answer(
+    monkeypatch, fake_semantic_cache_collection,
+):
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
+    monkeypatch.setattr(
+        ws_module, "get_semantic_cache_collection", lambda *_: fake_semantic_cache_collection,
+    )
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("run_ai_mode should not be called on a cache hit")
+
+    monkeypatch.setattr(ws_module, "run_ai_mode", fail_if_called)
+    monkeypatch.setattr(ws_module, "run_instant", AsyncMock(return_value={
+        "es": [], "es_error": None, "milvus": [], "milvus_sparse": [], "milvus_error": None,
+    }))
+
+    await cache_write(
+        fake_semantic_cache_collection, "ai_mode", "what is section 80C", [1.0, 0.0],
+        {"ok": True, "answer": "cached answer", "citations": [], "intent": ["acts"]},
+    )
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "what is section 80C", "mode": "ai_mode"})
+        message = websocket.receive_json()
+
+    assert message == {"type": "ai_mode_done", "answer": "cached answer", "citations": []}
+
+
+@pytest.mark.asyncio
+async def test_ai_mode_cache_miss_runs_pipeline_and_writes_back(
+    monkeypatch, fake_semantic_cache_collection,
+):
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
+    monkeypatch.setattr(
+        ws_module, "get_semantic_cache_collection", lambda *_: fake_semantic_cache_collection,
+    )
+    monkeypatch.setattr(ws_module, "run_instant", AsyncMock(return_value={
+        "es": [], "es_error": None, "milvus": [], "milvus_sparse": [], "milvus_error": None,
+    }))
+    monkeypatch.setattr(ws_module, "run_ai_mode", AsyncMock(return_value={
+        "ok": True, "answer": "fresh answer", "citations": [], "intent": ["acts"],
+    }))
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "what is section 80C", "mode": "ai_mode"})
+        message = websocket.receive_json()
+
+    assert message == {"type": "ai_mode_done", "answer": "fresh answer", "citations": []}
+
+    cached = None
+    for _ in range(50):
+        cached = await cache_lookup_helper(fake_semantic_cache_collection)
+        if cached is not None:
+            break
+        await asyncio.sleep(0.01)
+
+    assert cached == {"ok": True, "answer": "fresh answer", "citations": [], "intent": ["acts"]}
+
+
+async def cache_lookup_helper(collection):
+    from semantic_cache.repository import lookup
+    return await lookup(collection, "ai_mode", [1.0, 0.0], threshold=0.95)
+
+
+@pytest.mark.asyncio
+async def test_cache_lookup_failure_degrades_to_normal_pipeline(monkeypatch):
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
+
+    class _BrokenCollection:
+        def aggregate(self, pipeline):
+            raise RuntimeError("Atlas unreachable")
+
+        async def insert_one(self, document):
+            raise RuntimeError("Atlas unreachable")
+
+    monkeypatch.setattr(ws_module, "get_semantic_cache_collection", lambda *_: _BrokenCollection())
+    monkeypatch.setattr(ws_module, "run_instant", AsyncMock(return_value={
+        "es": [], "es_error": None, "milvus": [], "milvus_sparse": [], "milvus_error": None,
+    }))
+    monkeypatch.setattr(ws_module, "run_ai_mode", AsyncMock(return_value={
+        "ok": True, "answer": "fresh answer despite cache error", "citations": [], "intent": [],
+    }))
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "what is section 80C", "mode": "ai_mode"})
+        message = websocket.receive_json()
+
+    assert message == {
+        "type": "ai_mode_done", "answer": "fresh answer despite cache error", "citations": [],
+    }

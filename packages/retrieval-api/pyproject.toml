@@ -12,6 +12,7 @@ dependencies = [
   "agents",
   "auth",
   "persona",
+  "semantic-cache",
 ]
 
 [project.scripts]
