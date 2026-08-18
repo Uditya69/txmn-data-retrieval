@@ -12,3 +12,7 @@ export function resolveAgentWsUrl(): string {
   const fromEnv = window.__ENV__?.AGENT_WS_URL
   return fromEnv && fromEnv.length > 0 ? fromEnv : 'ws://localhost:8010/ws/agent'
 }
+
+export function resolveAdminWsUrl(apiBaseUrl: string): string {
+  return `${apiBaseUrl.replace(/^http/, 'ws')}/ws/admin-eval`
+}
