@@ -1,0 +1,406 @@
+[
+  {
+    "id": "S01",
+    "query": "case law for Ramesh Gupta vs. Income-tax Officer",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"party": "Ramesh Gupta"},
+    "rewrite_must_contain": ["Ramesh Gupta"]
+  },
+  {
+    "id": "S02",
+    "query": "Delhi High Court ruling under the Income-tax Act, 1961 on capital gains exemption",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"court": "Delhi High Court", "act": "Income-tax Act, 1961"},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S03",
+    "query": "definition of 'assessee' under section 2 of the Income-tax Act",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["2"]
+  },
+  {
+    "id": "S04",
+    "query": "prescribed form and procedure under Rule 6 of the Income-tax Rules 1962 for TDS returns",
+    "expect": "confident",
+    "expected_categories": ["rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["6", "1962"]
+  },
+  {
+    "id": "S05",
+    "query": "explain how section 54F exemption works in practice",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["54F"]
+  },
+  {
+    "id": "S06",
+    "query": "expert opinion article on the recent controversy around faceless assessment",
+    "expect": "confident",
+    "expected_categories": ["articles"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S07",
+    "query": "HSN code and GST rate for solar panels",
+    "expect": "confident",
+    "expected_categories": ["tariff"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S08",
+    "query": "Rule 3 perquisite valuation method",
+    "expect": "confident",
+    "expected_categories": ["rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["3"]
+  },
+  {
+    "id": "S09",
+    "query": "case law on section 54F exemption eligibility",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["54F"]
+  },
+  {
+    "id": "S10",
+    "query": "Judgments delivered between 2020-01-01 and 2022-01-01 on transfer pricing comparables",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"date_range": {"gte": "2020-01-01", "lte": "2022-01-01"}},
+    "rewrite_must_contain": ["2020", "2022"]
+  },
+  {
+    "id": "S11",
+    "query": "Ruling of the Principal Bench of the Income Tax Appellate Tribunal on Modvat credit",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"bench": "Principal Bench"},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S12",
+    "query": "Judgment authored by Judge D.Y. Chandrachud on constitutional validity of section 271(1)(c)",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {"judge": "D.Y. Chandrachud"},
+    "rewrite_must_contain": ["271"]
+  },
+  {
+    "id": "S13",
+    "query": "Alka Khandu Avhad case on cheque dishonour liability under section 138",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {"party": "Alka Khandu Avhad"},
+    "rewrite_must_contain": ["138"]
+  },
+  {
+    "id": "S14",
+    "query": "Recent rulings under the CGST Act on provisional attachment of bank accounts",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"act": "CGST Act"},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S15",
+    "query": "80HH scrap sale yes useless drum sale no metallic wire factory",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["80HH"],
+    "rewrite_must_not_contain": ["BNS", "Bharatiya Nyaya Sanhita"]
+  },
+  {
+    "id": "S16",
+    "query": "software royalty PE taxability under DTAA",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["PE"],
+    "rewrite_must_not_contain": ["permanent establishment"]
+  },
+  {
+    "id": "S17",
+    "query": "69C diamond cash sale unexplained expenditure addition",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["69C"],
+    "rewrite_must_not_contain": ["CGST Act"]
+  },
+  {
+    "id": "S18",
+    "query": "59/98-ST certification exemption for job work",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["59/98-ST"],
+    "rewrite_must_not_contain": ["Customs Act"]
+  },
+  {
+    "id": "S19",
+    "query": "what is capital gains",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S20",
+    "query": "tell me something about tax",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S21",
+    "query": "hi",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S22",
+    "query": "can you help me",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S23",
+    "query": "what happens if I don't file returns on time",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S24",
+    "query": "explain input tax credit reversal",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S25",
+    "query": "Gujarat High Court judgment interpreting section 271(1)(c) as unconstitutional",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {"court": "Gujarat High Court"},
+    "rewrite_must_contain": ["271"]
+  },
+  {
+    "id": "S26",
+    "query": "Bombay High Court decision on input tax credit under Rule 6(3)(c)",
+    "expect": "confident",
+    "expected_categories": ["rules", "caselaws"],
+    "expected_filters": {"court": "Bombay High Court"},
+    "rewrite_must_contain": ["6(3)(c)"]
+  },
+  {
+    "id": "S27",
+    "query": "definition of capital asset under section 2(14)",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["2(14)"]
+  },
+  {
+    "id": "S28",
+    "query": "article on GST implications of the new e-invoicing mandate",
+    "expect": "confident",
+    "expected_categories": ["articles"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S29",
+    "query": "GST rate applicable on mobile phone accessories",
+    "expect": "confident",
+    "expected_categories": ["tariff"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S30",
+    "query": "commentary on set-off and carry forward of losses under section 72",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["72"]
+  },
+  {
+    "id": "S31",
+    "query": "Supreme Court ruling on reassessment notice validity under section 148",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {"court": "Supreme Court"},
+    "rewrite_must_contain": ["148"]
+  },
+  {
+    "id": "S32",
+    "query": "Rule 8D disallowance under Income-tax Rules for exempt income expenses",
+    "expect": "confident",
+    "expected_categories": ["rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["8D"]
+  },
+  {
+    "id": "S33",
+    "query": "TP adjustment comparable selection ruling ITAT Mumbai bench",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"bench": "Mumbai"},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S34",
+    "query": "case law for Priya Sharma vs. Commissioner of Income Tax",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"party": "Priya Sharma"},
+    "rewrite_must_contain": ["Priya Sharma"]
+  },
+  {
+    "id": "S35",
+    "query": "rulings between 2018-06-01 and 2019-12-31 on works contract classification",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"date_range": {"gte": "2018-06-01", "lte": "2019-12-31"}},
+    "rewrite_must_contain": ["2018", "2019"]
+  },
+  {
+    "id": "S36",
+    "query": "meaning of ok",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S37",
+    "query": "thanks that helps",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S38",
+    "query": "IGST Act provision on zero-rated supply refund",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {"act": "IGST Act"},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S39",
+    "query": "Customs Act section 111 confiscation of goods case law",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {"act": "Customs Act"},
+    "rewrite_must_contain": ["111"]
+  },
+  {
+    "id": "S40",
+    "query": "80-IA deduction eligibility infrastructure undertaking commentary",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["80-IA"]
+  },
+  {
+    "id": "S41",
+    "query": "article discussing budget 2024 amendments to capital gains taxation",
+    "expect": "confident",
+    "expected_categories": ["articles"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["2024"]
+  },
+  {
+    "id": "S42",
+    "query": "tariff classification and duty rate for imported laptops under Customs Tariff",
+    "expect": "confident",
+    "expected_categories": ["tariff"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S43",
+    "query": "Kerala High Court judgment on section 40(a)(ia) disallowance for non-deduction of TDS",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {"court": "Kerala High Court"},
+    "rewrite_must_contain": ["40(a)(ia)"]
+  },
+  {
+    "id": "S44",
+    "query": "what should I do",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S45",
+    "query": "explain more please",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S46",
+    "query": "Rule 114E reporting of specified financial transactions",
+    "expect": "confident",
+    "expected_categories": ["rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["114E"]
+  },
+  {
+    "id": "S47",
+    "query": "Ramesh Gupta and Suresh Iyer joint case on Rule 6(3)(c) input tax credit reversal decided by Bombay High Court between 2020-01-01 and 2021-06-30",
+    "expect": "confident",
+    "expected_categories": ["rules", "caselaws"],
+    "expected_filters": {"party": "Ramesh Gupta", "court": "Bombay High Court", "date_range": {"gte": "2020-01-01", "lte": "2021-06-30"}},
+    "rewrite_must_contain": ["Ramesh Gupta", "6(3)(c)"]
+  },
+  {
+    "id": "S48",
+    "query": "commentary explaining GAAR applicability to impermissible avoidance arrangements",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S49",
+    "query": "ok cool",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S50",
+    "query": "section 92C transfer pricing arm's length price computation methods",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["92C"]
+  }
+]
