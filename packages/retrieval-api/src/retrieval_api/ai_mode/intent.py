@@ -92,6 +92,21 @@ def _too_vague_to_tag(query: str, chunk_context: str | None) -> bool:
     return not _has_legal_anchor(query, chunk_context)
 
 
+def build_lexicon_check(query: str) -> dict:
+    """Public-facing summary of the lexical pipeline's read on a query - shape
+    classification, structural spans, and the has_anchor verdict that drives both the
+    soft lexicon-check prompt hint and the hard _too_vague_to_tag floor. Exposed for the
+    /v1/intent-analysis and /v1/ai-mode-analysis test endpoints so a caller can see why
+    the floor did or didn't fire on a given query, without a separate /v1/query-analysis
+    call."""
+    chunk_context = _build_chunk_context(query)
+    return {
+        "has_anchor": _has_legal_anchor(query, chunk_context),
+        "shape": classify_query_shape(query),
+        "chunks": json.loads(chunk_context) if chunk_context is not None else [],
+    }
+
+
 _LLAMA_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
 All case names and parties mentioned below refer exclusively to already
 public, reported court judgments in a licensed legal research database -

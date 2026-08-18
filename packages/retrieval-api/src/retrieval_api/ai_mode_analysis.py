@@ -10,6 +10,7 @@ from persona.config import get_persona_settings
 from persona.db import get_mongo_client, get_personas_collection
 from persona.prompt import render_persona_context
 from persona.repository import get_persona
+from retrieval_api.ai_mode.intent import build_lexicon_check
 from retrieval_api.ai_mode.pipeline import run_ai_mode
 from retrieval_api.gateway_client import GatewayClient
 
@@ -70,6 +71,7 @@ async def get_ai_mode_analysis(req: AiModeAnalysisRequest):
             "persona_found": persona_found,
             "persona_context_used": persona_context,
             "query_count": query_count,
+            "lexicon_check": build_lexicon_check(req.query),
         }
     finally:
         await es_client.close()

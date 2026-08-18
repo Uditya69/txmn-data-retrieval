@@ -2,7 +2,7 @@ import json
 from unittest.mock import AsyncMock
 import pytest
 
-from retrieval_api.ai_mode.intent import _build_chunk_context, _has_legal_anchor, extract_intent
+from retrieval_api.ai_mode.intent import _build_chunk_context, _has_legal_anchor, build_lexicon_check, extract_intent
 from persona.prompt import RELEVANCE_INSTRUCTION
 
 
@@ -676,3 +676,26 @@ async def test_extract_intent_keeps_intent_when_anchor_found():
     result = await extract_intent(gateway, "section 80HH deduction")
 
     assert result["intent"] == ["acts"]
+
+
+def test_build_lexicon_check_reports_anchor_and_chunks_for_citation_query():
+    result = build_lexicon_check("32 ITR 190 Provident Investment managing agency section 12B capital gains")
+
+    assert result["has_anchor"] is True
+    # CITATION_PATTERN requires a 4-digit year-like number; "32" is only 2 digits, so
+    # this query's shape falls through to "provision" via SECTION_PATTERN matching
+    # "section 12B" - the chunk-level "citation" type still gets recognized separately
+    # by chunk_query's own (looser) citation detection, which is what the assertions
+    # below check.
+    assert result["shape"] == "provision"
+    types = {chunk["type"] for chunk in result["chunks"]}
+    assert "citation" in types
+    assert "section" in types
+
+
+def test_build_lexicon_check_reports_no_anchor_for_bare_topic_words():
+    result = build_lexicon_check("capital gains")
+
+    assert result["has_anchor"] is False
+    assert result["shape"] == "plain"
+    assert result["chunks"] == []

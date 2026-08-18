@@ -32,6 +32,8 @@ def test_ai_mode_analysis_guest_query_has_no_persona(monkeypatch):
     assert body["persona_found"] is False
     assert body["persona_context_used"] == ""
     assert body["query_count"] is None
+    assert body["lexicon_check"]["has_anchor"] is True
+    assert body["lexicon_check"]["shape"] == "provision"
 
 
 def test_ai_mode_analysis_forwards_persona_context_when_trusted(monkeypatch):
@@ -119,3 +121,18 @@ def test_ai_mode_analysis_closes_clients_on_success(monkeypatch):
     assert response.status_code == 200
     es_client.close.assert_awaited_once()
     milvus_client.close.assert_called_once()
+
+
+def test_ai_mode_analysis_includes_lexicon_check_for_anchor_free_query(monkeypatch):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+        return {"ok": True, "answer": "answer", "citations": {}, "intent": []}
+
+    _patch_common(monkeypatch, fake_run_ai_mode)
+
+    response = client.post("/v1/ai-mode-analysis", json={"query": "capital gains"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["lexicon_check"]["has_anchor"] is False
+    assert body["lexicon_check"]["shape"] == "plain"
+    assert body["lexicon_check"]["chunks"] == []

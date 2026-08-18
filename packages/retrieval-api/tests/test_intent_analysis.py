@@ -30,6 +30,8 @@ def test_intent_analysis_guest_query_has_no_persona(monkeypatch):
     assert body["persona_found"] is False
     assert body["persona_context_used"] == ""
     assert body["query_count"] is None
+    assert body["lexicon_check"]["has_anchor"] is True
+    assert body["lexicon_check"]["shape"] == "provision"
 
 
 def test_intent_analysis_user_with_thin_persona_gets_gated_context(monkeypatch):
@@ -120,3 +122,20 @@ def test_intent_analysis_degrades_gracefully_when_persona_lookup_fails(monkeypat
     assert body["persona_found"] is False
     assert body["persona_context_used"] == ""
     assert body["query_count"] is None
+
+
+def test_intent_analysis_includes_lexicon_check_for_anchor_free_query(monkeypatch):
+    _patch_gateway(monkeypatch)
+
+    async def fake_extract_intent(gateway, query, persona_context=""):
+        return {"original_query": query, "search_query": query, "intent": [], "filters": {}}
+
+    monkeypatch.setattr(intent_analysis_module, "extract_intent", fake_extract_intent)
+
+    response = client.post("/v1/intent-analysis", json={"query": "capital gains"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["lexicon_check"]["has_anchor"] is False
+    assert body["lexicon_check"]["shape"] == "plain"
+    assert body["lexicon_check"]["chunks"] == []
