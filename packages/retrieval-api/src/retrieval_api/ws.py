@@ -7,6 +7,8 @@ from langfuse import get_client
 from agents.pipeline import run_agentic_search
 from auth.config import get_auth_settings
 from auth.security import decode_access_token
+from chat.config import get_chat_settings
+from chat.db import get_conversations_collection, get_mongo_client as get_chat_mongo_client
 from common.config import get_settings
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
@@ -14,6 +16,7 @@ from persona.config import get_persona_settings
 from persona.db import get_mongo_client, get_personas_collection
 from persona.prompt import render_persona_context
 from persona.repository import get_persona
+from retrieval_api.ai_mode.chat_signal import record_conversation_turn
 from retrieval_api.ai_mode.persona_signal import record_persona_signal
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.instant.search import run_instant
@@ -71,6 +74,7 @@ async def search(websocket: WebSocket):
     rerank = message.get("rerank", False)
     access_token = message.get("access_token")
     user_id = _resolve_user_id(access_token)
+    conversation_id = message.get("conversation_id")
 
     settings = get_settings()
     es_client = get_es_client(settings)
@@ -174,6 +178,27 @@ async def search(websocket: WebSocket):
                         )
                         _background_tasks.add(task)
                         task.add_done_callback(_background_tasks.discard)
+
+                    if user_id is not None and conversation_id is not None:
+                        try:
+                            chat_settings = get_chat_settings()
+                            chat_mongo_client = get_chat_mongo_client(chat_settings)
+                            conversations_collection = get_conversations_collection(chat_mongo_client, chat_settings)
+                            chat_task = asyncio.create_task(
+                                record_conversation_turn(
+                                    conversations_collection, conversation_id, user_id, query,
+                                    [
+                                        {"role": "user", "text": query},
+                                        {"role": "assistant", "text": ai_mode_result["answer"]},
+                                    ],
+                                )
+                            )
+                            _background_tasks.add(chat_task)
+                            chat_task.add_done_callback(_background_tasks.discard)
+                        except Exception:
+                            # A down/unreachable chat store must never crash the request -
+                            # mirrors the persona lookup's resilience pattern above.
+                            logger.exception("Failed to schedule conversation write for user %r", user_id)
                 else:
                     output["ai_mode_error"] = ai_mode_result["error"]
                     await send({"type": "ai_mode_error", "error": ai_mode_result["error"]})
