@@ -115,6 +115,21 @@ returned — overriding, not merely filtering, the model's own tag. This is deli
 narrower than the soft hint: only fires for short queries (`<= 5` words) with zero anchor
 signal, not any vague-shaped query of any length.
 
+**Signature change required.** `_validate_result` is currently `_validate_result(query:
+str, result) -> dict` — it has no access to `chunk_context` today (that's a local
+variable inside `extract_intent`, computed before `_validate_result` is called). This
+becomes `_validate_result(query: str, result, chunk_context: str | None) -> dict`, and
+its `intent` line changes from unconditionally calling `_validate_categories(...)` to:
+
+```python
+"intent": [] if _too_vague_to_tag(query, chunk_context) else _validate_categories(result.get("intent")),
+```
+
+The one call site inside `extract_intent` (`result = _validate_result(query, result)`)
+updates to pass `chunk_context` through. `_fallback_intent`'s path is unaffected — it
+already returns `intent: []` unconditionally when the SLM's response is unparseable, so
+`_too_vague_to_tag` has nothing to add there.
+
 **Why a hard rule is safe here specifically:** `collections_for_intent()` treats empty
 intent as "search all 11 collections" — never an exclusion. A false-positive (a genuinely
 answerable 5-word-or-fewer query that happens to use no recognized legal term) degrades
