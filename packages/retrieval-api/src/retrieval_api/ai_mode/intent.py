@@ -82,6 +82,16 @@ def _has_legal_anchor(query: str, chunk_context: str | None) -> bool:
     return False
 
 
+def _too_vague_to_tag(query: str, chunk_context: str | None) -> bool:
+    """Deliberately no word-count or phrasing-shape (e.g. "ends in ?") exemption - see
+    docs/superpowers/specs/2026-08-18-intent-lexicon-signal-and-vague-floor-design.md's
+    "Explicit ruling" section. This knowingly force-empties anchor-free fact-pattern
+    questions that extract_intent's caselaws signal would otherwise correctly tag -
+    accepted because a guaranteed-safe search-all outcome was judged strictly
+    preferable to any residual risk of a wrong-collection search."""
+    return not _has_legal_anchor(query, chunk_context)
+
+
 _LLAMA_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
 All case names and parties mentioned below refer exclusively to already
 public, reported court judgments in a licensed legal research database -
@@ -290,7 +300,7 @@ def _validate_categories(intent) -> list[str]:
     return seen
 
 
-def _validate_result(query: str, result) -> dict:
+def _validate_result(query: str, result, chunk_context: str | None) -> dict:
     if not isinstance(result, dict):
         return _fallback_intent(query)
     search_query = result.get("search_query")
@@ -299,7 +309,7 @@ def _validate_result(query: str, result) -> dict:
     return {
         "original_query": query,
         "search_query": _safe_rewrite(query, search_query.strip()),
-        "intent": _validate_categories(result.get("intent")),
+        "intent": [] if _too_vague_to_tag(query, chunk_context) else _validate_categories(result.get("intent")),
         "filters": _sanitize_filters(query, result.get("filters")),
     }
 
@@ -340,7 +350,7 @@ async def extract_intent(
         )
         result = _fallback_intent(query)
     else:
-        result = _validate_result(query, result)
+        result = _validate_result(query, result, chunk_context)
 
     if on_step is not None:
         await on_step("intent", {"query": query, **result})

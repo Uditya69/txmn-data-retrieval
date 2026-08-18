@@ -16,11 +16,11 @@ async def test_extract_intent_parses_json_object_response():
         "filters": {"act": "BNS"},
     })
 
-    result = await extract_intent(gateway, "IPC 302 punishment")
+    result = await extract_intent(gateway, "section 302 punishment")
 
     assert result == {
-        "original_query": "IPC 302 punishment",
-        "search_query": "IPC 302 punishment",  # rewrite rejected: <60% token overlap with input
+        "original_query": "section 302 punishment",
+        "search_query": "section 302 punishment",  # rewrite rejected: <60% token overlap with input
         "intent": ["acts"],
         "filters": {},
     }
@@ -121,7 +121,7 @@ async def test_extract_intent_emits_intent_step_when_on_step_given():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat.return_value = json.dumps({
-        "search_query": "original query normalized",
+        "search_query": "section 80HH normalized",
         "intent": ["caselaws"],
         "filters": {"act": "CGST Act"},
     })
@@ -130,18 +130,18 @@ async def test_extract_intent_emits_intent_step_when_on_step_given():
     async def on_step(step, data):
         steps.append((step, data))
 
-    result = await extract_intent(gateway, "original query normalized", on_step=on_step)
+    result = await extract_intent(gateway, "section 80HH normalized", on_step=on_step)
 
     assert result == {
-        "original_query": "original query normalized",
-        "search_query": "original query normalized",
+        "original_query": "section 80HH normalized",
+        "search_query": "section 80HH normalized",
         "intent": ["caselaws"],
         "filters": {},
     }
     assert steps == [("intent", {
-        "query": "original query normalized",
-        "original_query": "original query normalized",
-        "search_query": "original query normalized",
+        "query": "section 80HH normalized",
+        "original_query": "section 80HH normalized",
+        "search_query": "section 80HH normalized",
         "intent": ["caselaws"],
         "filters": {},
     })]
@@ -247,7 +247,7 @@ async def test_extract_intent_drops_unrecognized_category_values():
         "search_query": "q", "intent": ["acts", "not_a_real_category"], "filters": {},
     })
 
-    result = await extract_intent(gateway, "q")
+    result = await extract_intent(gateway, "section 80HH deduction")
 
     assert result["intent"] == ["acts"]
 
@@ -260,7 +260,7 @@ async def test_extract_intent_dedupes_category_values():
         "search_query": "q", "intent": ["acts", "acts", "caselaws"], "filters": {},
     })
 
-    result = await extract_intent(gateway, "q")
+    result = await extract_intent(gateway, "section 80HH deduction")
 
     assert sorted(result["intent"]) == ["acts", "caselaws"]
 
@@ -287,7 +287,7 @@ async def test_extract_intent_accepts_each_allowed_category_label():
         gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
         gateway.chat.return_value = json.dumps({"search_query": "q", "intent": [label], "filters": {}})
 
-        result = await extract_intent(gateway, "q")
+        result = await extract_intent(gateway, "section 80HH deduction")
 
         assert result["intent"] == [label]
 
@@ -630,3 +630,49 @@ def test_has_legal_anchor_true_when_shape_is_not_plain():
 
 def test_has_legal_anchor_false_for_bare_topic_words():
     assert _has_legal_anchor("capital gains", None) is False
+
+
+def test_too_vague_to_tag_true_when_no_anchor():
+    from retrieval_api.ai_mode.intent import _too_vague_to_tag
+    assert _too_vague_to_tag("capital gains", None) is True
+
+
+def test_too_vague_to_tag_false_when_anchor_present():
+    from retrieval_api.ai_mode.intent import _too_vague_to_tag
+    assert _too_vague_to_tag("explain section 80HH", None) is False
+
+
+def test_too_vague_to_tag_true_for_anchor_free_fact_pattern_question():
+    """Documents the accepted tradeoff from the design spec's "Explicit ruling" section:
+    a fact-pattern/scenario question with zero literal anchor is force-emptied by this
+    floor even though extract_intent's caselaws category signal would otherwise tag it -
+    deliberate, not a bug. A future change to _too_vague_to_tag has to consciously break
+    this test to reintroduce fact-pattern tagging."""
+    from retrieval_api.ai_mode.intent import _too_vague_to_tag
+    assert _too_vague_to_tag("gift from father taxable?", None) is True
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_forces_empty_intent_when_no_anchor_found():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "search_query": "capital gains", "intent": ["commentary"], "filters": {},
+    })
+
+    result = await extract_intent(gateway, "capital gains")
+
+    assert result["intent"] == []
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_keeps_intent_when_anchor_found():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "search_query": "section 80HH deduction", "intent": ["acts"], "filters": {},
+    })
+
+    result = await extract_intent(gateway, "section 80HH deduction")
+
+    assert result["intent"] == ["acts"]
