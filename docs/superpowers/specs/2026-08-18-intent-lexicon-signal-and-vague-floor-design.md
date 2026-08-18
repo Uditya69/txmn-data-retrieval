@@ -113,10 +113,13 @@ if not has_anchor:
 
 `_LLAMA_SYSTEM_PROMPT` gains one sentence near its existing "Output an empty list when no
 category confidently applies" instruction: a "Lexicon check" note is strong evidence to
-abstain. (This hint becomes moot in practice once §3's hard floor ships — the floor
-already forces empty on the same condition regardless of what the model does with the
-hint — but it's kept as defense in depth for the SLM call itself, and because §3 could in
-principle be relaxed later without touching this.)
+abstain. §3's hard floor overrides the SLM's `intent` output regardless of what this hint
+achieves — but the hint is not inert: the prompt itself instructs `search_query`'s
+phrasing to follow whichever intent the model believes applies ("if 'commentary' alone is
+tagged, keep plain-language phrasing", etc.), so nudging the model toward abstaining can
+still shape `search_query`'s rewrite even though the final `intent` field is decided by
+§3 either way. Also kept as defense in depth for the SLM call itself, and because §3
+could in principle be relaxed later without touching this.
 
 ### 3. Too-vague-to-tag — hard floor
 
@@ -190,8 +193,17 @@ extract_intent(query)
   taxable?"`) is now *expected* to also read `safe-empty` post-fix (previously `wrong`
   under the dataset's stale expectation, now correctly `expected_categories: []` per the
   ruling above) — update that dataset row's `expected_categories` to `[]` to match.
-  Confirm no regression on the 10 confident cases (all currently 7-11 words with a
-  detectable structural anchor in the current dataset).
+  Confirm no regression in pass/fail status on the 10 confident cases — not the same as
+  "no change at all": anchor detection was not individually verified for every case (e.g.
+  R06, `"expert opinion article on the recent controversy around faceless assessment"`,
+  has no digit after "article" so `SECTION_PATTERN` misses it, and its lexicon-synonym
+  coverage is unconfirmed). Word count no longer provides a safety net here (§3 dropped
+  it), so if a confident case genuinely lacks an anchor, this floor will force it to `[]`
+  — that still counts as `PASS` under `collection_routing_eval.py`'s own rule (empty is
+  always safe), just in the `safe-empty` bucket instead of `exact`. A case moving from
+  `exact` to `safe-empty` is an expected, accepted outcome of this design, not a defect;
+  a case moving to `wrong` would be a real regression and the only thing this check
+  should treat as a failure.
 
 ## Open questions / risks
 
