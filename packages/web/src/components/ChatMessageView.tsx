@@ -39,7 +39,7 @@ function LoadingDots() {
   )
 }
 
-function CopyTraceButton({ traceSteps }: { traceSteps: ResultState['traceSteps'] }) {
+function CopyTraceButton({ traceSteps, disabled }: { traceSteps: ResultState['traceSteps']; disabled: boolean }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = (e: MouseEvent) => {
@@ -47,6 +47,7 @@ function CopyTraceButton({ traceSteps }: { traceSteps: ResultState['traceSteps']
     // the button lives inside <summary>, whose default behavior is exactly that.
     e.preventDefault()
     e.stopPropagation()
+    if (disabled) return
     navigator.clipboard.writeText(JSON.stringify(traceSteps, null, 2))
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
@@ -56,10 +57,27 @@ function CopyTraceButton({ traceSteps }: { traceSteps: ResultState['traceSteps']
     <button
       type="button"
       onClick={handleCopy}
+      disabled={disabled}
+      title={disabled ? 'Wait for the response to finish loading' : 'Copy trace as JSON'}
       className="text-xs font-medium normal-case tracking-normal"
-      style={{ color: 'var(--text-faint)', marginLeft: '0.5rem' }}
+      style={{
+        color: disabled ? 'var(--text-faint)' : 'var(--accent, #4b7bec)',
+        marginLeft: '0.6rem',
+        padding: '0.1rem 0.5rem',
+        border: '1px solid var(--border-soft)',
+        borderRadius: '999px',
+        background: 'var(--bg-raised, transparent)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) e.currentTarget.style.background = 'var(--border-soft)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'var(--bg-raised, transparent)'
+      }}
     >
-      {copied ? 'Copied' : 'Copy'}
+      {copied ? 'Copied ✓' : 'Copy'}
     </button>
   )
 }
@@ -70,7 +88,7 @@ function TraceSection({ result, onOpenDocument }: { result: ResultState | undefi
     <details className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
       <summary className="text-xs font-medium uppercase tracking-wider cursor-pointer" style={{ color: 'var(--text-faint)' }}>
         Trace ({result.traceSteps.length})
-        <CopyTraceButton traceSteps={result.traceSteps} />
+        <CopyTraceButton traceSteps={result.traceSteps} disabled={result.status !== 'done'} />
       </summary>
       <div className="mt-2">
         <TracePanel steps={result.traceSteps} onOpenDocument={onOpenDocument} />

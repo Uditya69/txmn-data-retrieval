@@ -74,7 +74,7 @@ describe('ChatMessageView doc_id rank lookup (dev mode only)', () => {
 })
 
 describe('TraceSection copy button', () => {
-  function messageWithTrace(): ChatMessage {
+  function messageWithTrace(status: 'loading' | 'done' = 'done'): ChatMessage {
     return {
       id: 'm2',
       role: 'assistant',
@@ -82,7 +82,7 @@ describe('TraceSection copy button', () => {
       activeMode: 'classic',
       results: {
         classic: {
-          status: 'done',
+          status,
           instant: null,
           aiMode: null,
           traceSteps: [{ step: 'intent', data: { query: 'q', search_query: 'q', intent: ['acts'] } }],
@@ -111,6 +111,20 @@ describe('TraceSection copy button', () => {
 
     fireEvent.click(screen.getByText('Copy'))
 
-    expect(screen.getByText('Copied')).toBeInTheDocument()
+    expect(screen.getByText('Copied ✓')).toBeInTheDocument()
+  })
+
+  it('is disabled and does not copy while the response is still loading', () => {
+    const writeText = vi.fn()
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    render(<ChatMessageView message={messageWithTrace('loading')} devMode={true} onOpenDocument={() => {}} />)
+
+    const button = screen.getByText('Copy')
+    expect(button).toBeDisabled()
+
+    fireEvent.click(button)
+
+    expect(writeText).not.toHaveBeenCalled()
   })
 })
