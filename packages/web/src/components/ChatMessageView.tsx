@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import type { ChatMessage, ChatMode, ResultState } from '../types'
 import { mergeResults, mapRerankedResults, type CardSource, type MilvusByCollection } from '../lib/mergeResults'
 import { parseCitations } from '../lib/citations'
@@ -39,12 +39,38 @@ function LoadingDots() {
   )
 }
 
+function CopyTraceButton({ traceSteps }: { traceSteps: ResultState['traceSteps'] }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = (e: MouseEvent) => {
+    // Stop the click from also toggling the parent <details> open/closed -
+    // the button lives inside <summary>, whose default behavior is exactly that.
+    e.preventDefault()
+    e.stopPropagation()
+    navigator.clipboard.writeText(JSON.stringify(traceSteps, null, 2))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="text-xs font-medium normal-case tracking-normal"
+      style={{ color: 'var(--text-faint)', marginLeft: '0.5rem' }}
+    >
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  )
+}
+
 function TraceSection({ result, onOpenDocument }: { result: ResultState | undefined; onOpenDocument: (docId: string) => void }) {
   if (!result || result.traceSteps.length === 0) return null
   return (
     <details className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
       <summary className="text-xs font-medium uppercase tracking-wider cursor-pointer" style={{ color: 'var(--text-faint)' }}>
         Trace ({result.traceSteps.length})
+        <CopyTraceButton traceSteps={result.traceSteps} />
       </summary>
       <div className="mt-2">
         <TracePanel steps={result.traceSteps} onOpenDocument={onOpenDocument} />

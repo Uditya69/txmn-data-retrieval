@@ -34,6 +34,18 @@ describe('App', () => {
     expect(screen.getByText('agent')).toBeInTheDocument()
   })
 
+  it('defaults dev mode on with no ?dev URL param', () => {
+    render(<App />)
+    expect(screen.getByLabelText('Dev mode', { selector: 'input' })).toBeChecked()
+  })
+
+  it('turns dev mode off when the URL has ?dev=0', () => {
+    window.history.pushState({}, '', '/?dev=0')
+    render(<App />)
+    expect(screen.getByLabelText('Dev mode', { selector: 'input' })).not.toBeChecked()
+    window.history.pushState({}, '', '/')
+  })
+
   it('submits a question via the chat input and triggers classic search', () => {
     const search = vi.fn()
     vi.mocked(useSearch).mockReturnValue({ ...baseSearchState(), search })

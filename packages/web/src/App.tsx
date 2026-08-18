@@ -100,7 +100,8 @@ function loadingResult(): ResultState {
 }
 
 function readDevModeFromUrl(): boolean {
-  return new URLSearchParams(window.location.search).get('dev') === '1'
+  // Defaults on - ?dev=0 is the explicit opt-out, not ?dev=1 the opt-in.
+  return new URLSearchParams(window.location.search).get('dev') !== '0'
 }
 
 export default function App() {

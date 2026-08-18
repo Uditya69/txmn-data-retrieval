@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ChatMessageView } from './ChatMessageView'
 import type { ChatMessage, ResultState } from '../types'
@@ -70,5 +70,47 @@ describe('ChatMessageView doc_id rank lookup (dev mode only)', () => {
     fireEvent.change(screen.getByLabelText('Check doc_id rank'), { target: { value: 'd3' } })
 
     expect(screen.getByText('rank #2')).toBeInTheDocument()
+  })
+})
+
+describe('TraceSection copy button', () => {
+  function messageWithTrace(): ChatMessage {
+    return {
+      id: 'm2',
+      role: 'assistant',
+      question: 'q',
+      activeMode: 'classic',
+      results: {
+        classic: {
+          status: 'done',
+          instant: null,
+          aiMode: null,
+          traceSteps: [{ step: 'intent', data: { query: 'q', search_query: 'q', intent: ['acts'] } }],
+        },
+      },
+    }
+  }
+
+  it('copies the trace steps as JSON without toggling the details panel open state', () => {
+    const writeText = vi.fn()
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    render(<ChatMessageView message={messageWithTrace()} devMode={true} onOpenDocument={() => {}} />)
+
+    fireEvent.click(screen.getByText('Copy'))
+
+    expect(writeText).toHaveBeenCalledWith(
+      JSON.stringify([{ step: 'intent', data: { query: 'q', search_query: 'q', intent: ['acts'] } }], null, 2),
+    )
+  })
+
+  it('shows "Copied" feedback briefly after clicking', () => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn() } })
+
+    render(<ChatMessageView message={messageWithTrace()} devMode={true} onOpenDocument={() => {}} />)
+
+    fireEvent.click(screen.getByText('Copy'))
+
+    expect(screen.getByText('Copied')).toBeInTheDocument()
   })
 })
