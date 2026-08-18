@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # when False, falling back to top-N-by-rrf_score straight out of RRF fusion. Lets us
     # compare AI Mode quality with/without the reranker step without a code change.
     ai_mode_rerank_enabled: bool = True
+    # Gates the local-only admin eval-runner UI (retrieval_api/admin_eval/) - unset
+    # (the default) disables that feature entirely, so no deployment needs to think
+    # about it unless it opts in.
+    admin_secret: str | None = None
 
 
 @lru_cache

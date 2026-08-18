@@ -9,6 +9,11 @@ os.environ.setdefault(
 os.environ.setdefault("MONGO_DB", "test-auth-db")
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret-that-is-at-least-32-characters-long")
 os.environ.setdefault("JWT_EXPIRY_MINUTES", "60")
+# Dummy env vars for common.Settings required fields
+os.environ.setdefault("MILVUS_URI", "http://localhost:19530")
+os.environ.setdefault("MILVUS_TOKEN", "test-milvus-token")
+os.environ.setdefault("ES_URI", "http://localhost:9200")
+os.environ.setdefault("GATEWAY_URL", "http://localhost:8000")
 
 
 class FakePersonasCollection:
