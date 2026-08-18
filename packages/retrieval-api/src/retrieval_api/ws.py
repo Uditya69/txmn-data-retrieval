@@ -64,6 +64,19 @@ async def _emit_trace_step(send, step: str, data: dict) -> None:
         logger.debug("trace step %r dropped: %s", step, exc)
 
 
+async def _safe_cache_write(collection, mode: str, query: str, query_embedding: list[float], result: dict) -> None:
+    """Swallows any exception from `cache_write` - this runs as a
+    fire-and-forget background task (see the persona-signal write's
+    identical pattern in record_persona_signal), so an unguarded failure
+    (e.g. an unreachable Atlas cluster) would otherwise only surface via
+    asyncio's noisy default unretrieved-task-exception handler instead of
+    this module's own logging."""
+    try:
+        await cache_write(collection, mode, query, query_embedding, result)
+    except Exception:
+        logger.warning("semantic cache write failed for mode %r", mode, exc_info=True)
+
+
 @router.websocket("/ws/search")
 async def search(websocket: WebSocket):
     await websocket.accept()
@@ -198,7 +211,7 @@ async def search(websocket: WebSocket):
                     instant_result = await instant_task
                     if instant_result["es_error"] is None and instant_result["milvus_error"] is None:
                         write_task = asyncio.create_task(
-                            cache_write(
+                            _safe_cache_write(
                                 cache_collection, instant_cache_key, query, query_embedding, instant_result,
                             )
                         )
@@ -218,7 +231,7 @@ async def search(websocket: WebSocket):
                     ai_mode_result = await ai_mode_task
                     if ai_mode_result["ok"]:
                         write_task = asyncio.create_task(
-                            cache_write(cache_collection, "ai_mode", query, query_embedding, ai_mode_result)
+                            _safe_cache_write(cache_collection, "ai_mode", query, query_embedding, ai_mode_result)
                         )
                         _background_tasks.add(write_task)
                         write_task.add_done_callback(_background_tasks.discard)
