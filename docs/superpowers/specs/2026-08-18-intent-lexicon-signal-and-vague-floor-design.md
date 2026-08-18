@@ -189,11 +189,11 @@ extract_intent(query)
   unchanged when `False`.
 - Eval re-run: `collection_routing_eval.py` against the real model after implementation —
   confirm `"capital gains"` and `"help with income tax"` flip from `wrong` to
-  `safe-empty`. The dataset's other vague fact-pattern case (`"gift from father
-  taxable?"`) is now *expected* to also read `safe-empty` post-fix (previously `wrong`
-  under the dataset's stale expectation, now correctly `expected_categories: []` per the
-  ruling above) — update that dataset row's `expected_categories` to `[]` to match.
-  Confirm no regression in pass/fail status on the 10 confident cases — not the same as
+  `safe-empty`. The dataset's third vague case, `"gift from father taxable?"` (R13),
+  already has `expected_categories: []` (no dataset edit needed) — it was previously
+  `wrong` only because the model tagged it `["caselaws"]` and nothing forced that back to
+  empty; post-fix it should also read `safe-empty`, confirming the ruling above is
+  actually in effect, not just documented. Confirm no regression in pass/fail status on the 10 confident cases — not the same as
   "no change at all": anchor detection was not individually verified for every case (e.g.
   R06, `"expert opinion article on the recent controversy around faceless assessment"`,
   has no digit after "article" so `SECTION_PATTERN` misses it, and its lexicon-synonym
