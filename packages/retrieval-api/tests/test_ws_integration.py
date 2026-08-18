@@ -500,3 +500,140 @@ async def test_cache_lookup_failure_degrades_to_normal_pipeline(monkeypatch):
     assert message == {
         "type": "ai_mode_done", "answer": "fresh answer despite cache error", "citations": [],
     }
+
+
+@pytest.mark.asyncio
+async def test_instant_mode_cache_hit_skips_run_instant_and_returns_cached_result(
+    monkeypatch, fake_semantic_cache_collection,
+):
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
+    monkeypatch.setattr(
+        ws_module, "get_semantic_cache_collection", lambda *_: fake_semantic_cache_collection,
+    )
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("run_instant should not be called on a cache hit")
+
+    monkeypatch.setattr(ws_module, "run_instant", fail_if_called)
+    monkeypatch.setattr(ws_module, "run_ai_mode", AsyncMock(return_value={
+        "ok": True, "answer": "unused", "citations": [], "intent": [],
+    }))
+
+    cached_instant_result = {
+        "es": [{"doc_id": "cached1"}], "es_error": None,
+        "milvus": [], "milvus_sparse": [], "milvus_error": None,
+    }
+    await cache_write(
+        fake_semantic_cache_collection, "instant", "what is section 80C", [1.0, 0.0],
+        cached_instant_result,
+    )
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "what is section 80C", "mode": "instant"})
+        message = websocket.receive_json()
+
+    assert message == {"type": "instant_result", **cached_instant_result}
+
+
+@pytest.mark.asyncio
+@pytest.mark.xfail(
+    strict=True, raises=KeyError,
+    reason=(
+        "Pre-existing production bug found while writing this test (out of scope to fix here - "
+        "see final-review-fix-report.md): ws.py's `search()` handler computes "
+        "output['instant_ok'] and the instant_es_error/instant_milvus_error trace metadata "
+        "unconditionally for ANY instant_result - cache hit or miss alike (packages/"
+        "retrieval-api/src/retrieval_api/ws.py lines 220-224) - by indexing "
+        "instant_result['es_error']/['milvus_error']. Those keys only exist on the "
+        "rerank=False result shape; the rerank=True shape is {'reranked', 'reranked_error'}. "
+        "The already-known, deliberately-deferred KeyError bug was believed to live only in "
+        "the cache-miss write-back guard (lines 212-219, skipped on a cache hit), so a "
+        "cache-HIT test for instant_rerank was expected to avoid it entirely - it does not: "
+        "line 220 runs unconditionally after the hit/miss branch and crashes identically. "
+        "Once that line is fixed to branch on the result shape (matching the deferred "
+        "rerank=True fix), remove this xfail; the body below documents the intended, correct "
+        "behavior."
+    ),
+)
+async def test_instant_mode_rerank_cache_hit_uses_separate_key_from_plain_instant(
+    monkeypatch, fake_semantic_cache_collection,
+):
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
+    monkeypatch.setattr(
+        ws_module, "get_semantic_cache_collection", lambda *_: fake_semantic_cache_collection,
+    )
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("run_instant should not be called on a cache hit")
+
+    monkeypatch.setattr(ws_module, "run_instant", fail_if_called)
+    monkeypatch.setattr(ws_module, "run_ai_mode", AsyncMock(return_value={
+        "ok": True, "answer": "unused", "citations": [], "intent": [],
+    }))
+
+    cached_reranked_result = {"reranked": [{"doc_id": "cached-reranked"}], "reranked_error": None}
+    await cache_write(
+        fake_semantic_cache_collection, "instant_rerank", "what is section 80C", [1.0, 0.0],
+        cached_reranked_result,
+    )
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "what is section 80C", "mode": "instant", "rerank": True})
+        message = websocket.receive_json()
+
+    assert message == {"type": "instant_result", **cached_reranked_result}
+
+
+class _CountingFakeEmbedGateway:
+    """Same contract as _FakeEmbedGateway, but tracks how many times embed()
+    was invoked - used to prove the query embedding is computed once per
+    /ws/search request and reused across both the instant and ai_mode cache
+    lookups when mode="both", rather than being recomputed per mode."""
+
+    def __init__(self, embedding):
+        self._embedding = embedding
+        self.embed_call_count = 0
+
+    async def embed(self, role, text):
+        assert role == "query_embed"
+        self.embed_call_count += 1
+        return self._embedding
+
+
+@pytest.mark.asyncio
+async def test_both_mode_computes_query_embedding_once_and_reuses_for_both_lookups(
+    monkeypatch, fake_semantic_cache_collection,
+):
+    fake_gateway = _CountingFakeEmbedGateway([1.0, 0.0])
+
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: fake_gateway)
+    monkeypatch.setattr(
+        ws_module, "get_semantic_cache_collection", lambda *_: fake_semantic_cache_collection,
+    )
+    monkeypatch.setattr(ws_module, "run_instant", AsyncMock(return_value={
+        "es": [], "es_error": None, "milvus": [], "milvus_sparse": [], "milvus_error": None,
+    }))
+    monkeypatch.setattr(ws_module, "run_ai_mode", AsyncMock(return_value={
+        "ok": True, "answer": "fresh answer", "citations": [], "intent": [],
+    }))
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "what is section 80C", "mode": "both"})
+        first = websocket.receive_json()
+        second = websocket.receive_json()
+
+    assert first["type"] == "instant_result"
+    assert second == {"type": "ai_mode_done", "answer": "fresh answer", "citations": []}
+    assert fake_gateway.embed_call_count == 1
