@@ -54,6 +54,32 @@ describe('useSearch', () => {
     expect(JSON.parse(socket.sent[0])).toMatchObject({ access_token: 'tok-abc' })
   })
 
+  it('includes conversation_id in the payload when provided', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+
+    act(() => {
+      result.current.search('cgst', true, 'both', false, 'conv-42')
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ conversation_id: 'conv-42' })
+  })
+
+  it('omits conversation_id from the payload when not provided', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).not.toHaveProperty('conversation_id')
+  })
+
   it('sends the query with mode "both" and the trace flag once the socket opens, and stores the instant result', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
 
