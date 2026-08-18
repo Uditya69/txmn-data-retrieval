@@ -37,6 +37,10 @@ Standalone repo. No code dependency on `data-extraction-pipeline` (the sibling r
 - Every collection/field name mentioned in `common/schemas.py` (chunked-vs-not, bm25_source) was verified against the actual `data-extraction-pipeline` source code, not its docs — some of that repo's own markdown docs are stale (describe an older word-based, ruling-only chunking scheme). Trust the code-verified facts recorded in the design spec over anything you read in that repo's docs.
 - **ES's `documenttypeboost`/`court_boost`/`landmarkruling` ranking boost is disabled** (`common/es_client.py::raw_search` does not call `_wrap_function_score`). Two missing/zero-value bugs in that formula were found and patched (`landmarkruling` populated on only 2.1% of the corpus, `court_boost` a real `0` on 45.8% of it — `boost_mode: "multiply"` meant either one zeroed the entire relevance score for the affected doc regardless of text match quality). Patched and verified fixed on the live index — but a 53-query eval (`evals/retrieval_cases.json`) with the *patched* formula still active passed only 21/53, versus 42/53 with the boost skipped entirely. The multiplicative boost stack still routinely outweighs real text relevance by 10-50x even fully patched — an architecture problem (`boost_mode: multiply` itself), not another missing-data instance. Don't re-enable `_wrap_function_score` (kept in `es_client.py`, unused, as a record) without redesigning the combination first — see the update note atop `docs/superpowers/specs/2026-08-11-instant-mode-es-retrieval-redesign-design.md`.
 
+## Model selection
+
+Do not use Opus for subagents/reviewers in this repo (drains usage quota faster than the user wants) — default to Sonnet even for tasks that would otherwise call for "the most capable available model" (e.g. final whole-branch reviews). Only escalate beyond Sonnet if the user explicitly asks for it in the moment.
+
 ## Running things
 
 `uv sync --all-packages`, NOT bare `uv sync` — the latter can drop editable installs of workspace members (`common`, `model-gateway`, `retrieval-api`, `agents`), breaking local test collection.
