@@ -84,11 +84,16 @@ Single detector, two consumers below — avoids duplicating the anchor logic.
 ### 2. Lexicon signal — soft prompt hint
 
 When `_has_legal_anchor` is `False`, append a note to `extract_intent`'s user message
-(same pattern as the existing `chunk_context` injection):
+(same pattern as the existing `chunk_context` injection, appended after it — no new
+function needed, this is inline in `extract_intent` itself, after `chunk_context` and
+`has_anchor` are both computed):
 
-```
-Lexicon check: no known legal term, Act/section reference, citation, or party pattern
-was recognized anywhere in this query.
+```python
+if not has_anchor:
+    user_message += (
+        "\n\nLexicon check: no known legal term, Act/section reference, citation, or "
+        "party pattern was recognized anywhere in this query."
+    )
 ```
 
 `_LLAMA_SYSTEM_PROMPT` gains one sentence near its existing "Output an empty list when no
@@ -167,10 +172,9 @@ extract_intent(query)
 
 - `_has_legal_anchor`: unit tests for all 4 branches (chunk_context present; synonym
   match; non-plain shape; none of the above → `False`).
-- `_build_lexicon_signal`-equivalent wiring: `extract_intent` test confirming the
-  "Lexicon check" note appears in the user message for a vague query (`chunk_context is
-  None`, no synonym match, plain shape) and is absent for a query with a recognized
-  anchor.
+- Lexicon-signal wiring: `extract_intent` test confirming the "Lexicon check" note
+  appears in the user message for a vague query (`chunk_context is None`, no synonym
+  match, plain shape) and is absent for a query with a recognized anchor.
 - `_too_vague_to_tag`: unit tests — `<=5` words + no anchor → `True`; `<=5` words + anchor
   present → `False`; `>5` words + no anchor → `False` (word-count floor only, not a
   general vague-query catch); boundary at exactly 5 and 6 words.
