@@ -9,86 +9,14 @@ import AuthMenu from './components/AuthMenu'
 import { useSearch } from './api/useSearch'
 import { useAgentSearch } from './api/useAgentSearch'
 import { useAuth } from './api/useAuth'
+import { useConversations } from './api/useConversations'
 import { resolveWsUrl, resolveAgentWsUrl, resolveApiBaseUrl } from './lib/config'
 import type { ChatMessage, ChatMode, Conversation, ResultState } from './types'
-
-const CONVERSATIONS_KEY_PREFIX = 'taxmann-retrieval-conversations'
-const SIDEBAR_KEY = 'taxmann-retrieval-sidebar-collapsed'
-
-// Scopes chat history per logged-in account so switching users on the same
-// browser doesn't leak one user's chats to another. Logged-out users share
-// one anon bucket - matches pre-auth behavior.
-function conversationsKey(email: string | null): string {
-  return email ? `${CONVERSATIONS_KEY_PREFIX}:${email}` : `${CONVERSATIONS_KEY_PREFIX}:anon`
-}
 
 let nextId = 0
 function genId(prefix: string) {
   nextId += 1
   return `${prefix}-${nextId}`
-}
-
-function isValidMessage(m: unknown): m is ChatMessage {
-  if (!m || typeof m !== 'object') return false
-  const msg = m as Record<string, unknown>
-  if (msg.role === 'user') return typeof msg.text === 'string'
-  if (msg.role === 'assistant') return typeof msg.question === 'string' && typeof msg.results === 'object' && msg.results !== null
-  return false
-}
-
-function loadConversations(key: string): Conversation[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(key) ?? '[]')
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(
-      (c): c is Conversation => c && typeof c === 'object' && Array.isArray(c.messages) && c.messages.every(isValidMessage),
-    )
-  } catch {
-    return []
-  }
-}
-
-// Trace steps carry full rerank chunk text and the synthesis prompt (see
-// ai_mode/citations.py, ai_mode/synthesize.py) - they're only ever shown
-// live behind devMode (ChatMessageView's TraceSection), so persisting them
-// serves no purpose and is what blows past localStorage's ~5-10MB quota
-// after a handful of chats.
-export function toPersistable(conversations: Conversation[]): Conversation[] {
-  return conversations.map((c) => ({
-    ...c,
-    messages: c.messages.map((m) =>
-      m.role === 'assistant'
-        ? {
-            ...m,
-            results: Object.fromEntries(
-              Object.entries(m.results).map(([mode, r]) => [mode, r ? { ...r, traceSteps: [] } : r]),
-            ) as Partial<Record<ChatMode, ResultState>>,
-          }
-        : m,
-    ),
-  }))
-}
-
-function isQuotaExceeded(err: unknown): boolean {
-  return err instanceof DOMException && (err.name === 'QuotaExceededError' || err.code === 22)
-}
-
-// Drops the oldest conversations (they're appended at the end - see
-// handleSubmit's `[newConversation, ...prev]`) until the write fits, instead
-// of letting an uncaught QuotaExceededError crash the whole app.
-export function persistConversations(key: string, conversations: Conversation[]) {
-  const payload = toPersistable(conversations)
-  for (let keep = payload.length; keep >= 0; keep -= 1) {
-    try {
-      localStorage.setItem(key, JSON.stringify(payload.slice(0, keep)))
-      return
-    } catch (err) {
-      if (!isQuotaExceeded(err)) {
-        console.error('Failed to persist conversations', err)
-        return
-      }
-    }
-  }
 }
 
 function titleFromQuestion(question: string) {
@@ -112,10 +40,10 @@ export default function App() {
   const classicSearch = useSearch(wsUrl, auth.token, auth.refresh)
   const agentSearch = useAgentSearch(agentWsUrl)
 
-  const [conversations, setConversations] = useState<Conversation[]>(() => loadConversations(conversationsKey(auth.email)))
+  const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
-  const conversationsScopeRef = useRef(auth.email)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === '1')
+  const remoteConversations = useConversations(apiBaseUrl, auth.token)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mode, setMode] = useState<ChatMode>('classic')
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
   const [rerank, setRerank] = useState(false)
@@ -128,22 +56,18 @@ export default function App() {
   const activeConversation = conversations.find((c) => c.id === activeId) ?? null
   const messages = activeConversation?.messages ?? []
 
-  // Login/logout/switch-account changes which bucket is active - swap the
-  // in-memory list to match instead of leaking the previous user's chats.
+  // Login/logout changes where conversations come from - fetch the remote
+  // list for logged-in users, or clear in-memory state on logout so the
+  // previous user's chats don't leak to the next guest session.
   useEffect(() => {
-    if (conversationsScopeRef.current === auth.email) return
-    conversationsScopeRef.current = auth.email
-    setConversations(loadConversations(conversationsKey(auth.email)))
-    setActiveId(null)
-  }, [auth.email])
-
-  useEffect(() => {
-    persistConversations(conversationsKey(auth.email), conversations)
-  }, [conversations, auth.email])
-
-  useEffect(() => {
-    localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed ? '1' : '0')
-  }, [sidebarCollapsed])
+    if (auth.token) {
+      remoteConversations.refresh()
+    } else {
+      setConversations([])
+      setActiveId(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.token])
 
   // Auto-scroll only when a message is actually added (new question asked, or
   // switching conversations) - not on every streaming patch. patchResult
@@ -185,6 +109,9 @@ export default function App() {
       aiMode: classicSearch.aiMode,
       traceSteps: classicSearch.traceSteps,
     }))
+    if (!classicSearch.loading && classicSearch.aiMode && auth.token) {
+      remoteConversations.refresh()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classicSearch.instant, classicSearch.aiMode, classicSearch.traceSteps, classicSearch.loading])
 
@@ -202,7 +129,7 @@ export default function App() {
   function runQuery(conversationId: string, assistantId: string, question: string, targetMode: ChatMode) {
     if (targetMode === 'classic') {
       pendingClassicRef.current = { conversationId, assistantId }
-      classicSearch.search(question, true, 'both', rerank)
+      classicSearch.search(question, true, 'both', rerank, auth.token ? conversationId : undefined)
     } else {
       pendingAgentRef.current = { conversationId, assistantId }
       agentSearch.search(question)
@@ -211,6 +138,18 @@ export default function App() {
 
   function handleNewChat() {
     setActiveId(null)
+  }
+
+  async function handleSelectConversation(id: string) {
+    if (auth.token) {
+      const existing = conversations.find((c) => c.id === id)
+      if (!existing) {
+        const messages = await remoteConversations.loadConversation(id)
+        const summary = remoteConversations.conversations.find((c) => c.id === id)
+        setConversations((prev) => [...prev, { id, title: summary?.title ?? id, messages }])
+      }
+    }
+    setActiveId(id)
   }
 
   function handleSubmit(question: string) {
@@ -265,11 +204,15 @@ export default function App() {
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--ink)' }}>
       <Sidebar
-        conversations={conversations}
+        conversations={
+          auth.token
+            ? remoteConversations.conversations.map((c) => ({ id: c.id, title: c.title, messages: [] }))
+            : conversations
+        }
         activeId={activeId}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
-        onSelect={setActiveId}
+        onSelect={handleSelectConversation}
         onNewChat={handleNewChat}
       />
 

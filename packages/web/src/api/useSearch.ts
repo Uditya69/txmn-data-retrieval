@@ -39,12 +39,14 @@ export function useSearch(
   wsUrl: string,
   accessToken?: string | null,
   onSessionExpired?: () => void,
-): SearchState & { search: (query: string, trace: boolean, mode?: SearchMode, rerank?: boolean) => void } {
+): SearchState & {
+  search: (query: string, trace: boolean, mode?: SearchMode, rerank?: boolean, conversationId?: string) => void
+} {
   const [state, setState] = useState<SearchState>(INITIAL_STATE)
   const socketRef = useRef<WebSocket | null>(null)
 
   const search = useCallback(
-    (query: string, trace: boolean, mode: SearchMode = 'both', rerank: boolean = false) => {
+    (query: string, trace: boolean, mode: SearchMode = 'both', rerank: boolean = false, conversationId?: string) => {
       socketRef.current?.close()
       setState({ loading: true, instant: null, aiMode: null, traceSteps: [], wsError: null })
 
@@ -63,6 +65,7 @@ export function useSearch(
         // keeps guest requests byte-identical to before persona existed.
         const payload: Record<string, unknown> = { query, mode, trace, rerank }
         if (accessToken) payload.access_token = accessToken
+        if (conversationId) payload.conversation_id = conversationId
         socket.send(JSON.stringify(payload))
       })
 
