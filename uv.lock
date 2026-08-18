@@ -1116,6 +1116,7 @@ source = { editable = "packages/retrieval-api" }
 dependencies = [
     { name = "agents" },
     { name = "auth" },
+    { name = "chat" },
     { name = "common" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -1129,6 +1130,7 @@ dependencies = [
 requires-dist = [
     { name = "agents", editable = "packages/agents" },
     { name = "auth", editable = "packages/auth" },
+    { name = "chat", editable = "packages/chat" },
     { name = "common", editable = "packages/common" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
