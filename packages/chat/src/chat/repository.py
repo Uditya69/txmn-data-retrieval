@@ -16,16 +16,20 @@ async def create_conversation(conversations, conversation_id: str, user_id: str,
 
 
 async def append_turn(conversations, conversation_id: str, user_id: str, title: str, messages: list[dict]) -> dict:
+    """Appends `messages` (only the new turn's messages, not the full
+    history) onto the conversation's existing message list, creating the
+    conversation (with just this turn's messages) if it doesn't exist yet.
+    """
     existing = await conversations.find_one({"_id": conversation_id, "user_id": user_id})
     if existing is None:
         return await create_conversation(conversations, conversation_id, user_id, title, messages)
 
     doc = {
         **existing,
-        "messages": messages,
+        "messages": existing["messages"] + messages,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    await conversations.replace_one({"_id": conversation_id}, doc, upsert=True)
+    await conversations.replace_one({"_id": conversation_id, "user_id": user_id}, doc, upsert=True)
     return doc
 
 

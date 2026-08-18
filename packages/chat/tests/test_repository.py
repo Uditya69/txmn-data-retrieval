@@ -46,13 +46,24 @@ async def test_create_conversation_does_not_clobber_another_users_doc_with_same_
 
 @pytest.mark.asyncio
 async def test_append_turn_extends_existing_conversation(fake_conversations_collection):
+    # append_turn's contract: the caller passes only THIS turn's new messages,
+    # not the full history - append_turn is responsible for concatenating
+    # them onto whatever's already stored.
     conversations = fake_conversations_collection
-    await create_conversation(conversations, "conv-1", "user-1", "first question", [{"role": "user", "text": "hi"}])
-    updated = await append_turn(
+    await create_conversation(
         conversations, "conv-1", "user-1", "first question",
         [{"role": "user", "text": "hi"}, {"role": "assistant", "text": "hello"}],
     )
-    assert len(updated["messages"]) == 2
+    updated = await append_turn(
+        conversations, "conv-1", "user-1", "first question",
+        [{"role": "user", "text": "how are you"}, {"role": "assistant", "text": "good"}],
+    )
+    assert updated["messages"] == [
+        {"role": "user", "text": "hi"},
+        {"role": "assistant", "text": "hello"},
+        {"role": "user", "text": "how are you"},
+        {"role": "assistant", "text": "good"},
+    ]
     assert updated["updated_at"] >= updated["created_at"]
 
 
@@ -62,6 +73,27 @@ async def test_append_turn_creates_conversation_when_absent(fake_conversations_c
     doc = await append_turn(conversations, "conv-new", "user-1", "q", [{"role": "user", "text": "q"}])
     assert doc["_id"] == "conv-new"
     assert doc["messages"] == [{"role": "user", "text": "q"}]
+
+
+@pytest.mark.asyncio
+async def test_append_turn_third_call_appends_onto_two_prior_turns(fake_conversations_collection):
+    # Regression test for the bug where append_turn REPLACED the messages
+    # field with whatever the caller passed instead of appending - a third
+    # write must retain both prior turns, not just the most recent one.
+    conversations = fake_conversations_collection
+    await create_conversation(
+        conversations, "conv-1", "user-1", "q",
+        [{"role": "user", "text": "t1u"}, {"role": "assistant", "text": "t1a"}],
+    )
+    await append_turn(
+        conversations, "conv-1", "user-1", "q",
+        [{"role": "user", "text": "t2u"}, {"role": "assistant", "text": "t2a"}],
+    )
+    updated = await append_turn(
+        conversations, "conv-1", "user-1", "q",
+        [{"role": "user", "text": "t3u"}, {"role": "assistant", "text": "t3a"}],
+    )
+    assert [m["text"] for m in updated["messages"]] == ["t1u", "t1a", "t2u", "t2a", "t3u", "t3a"]
 
 
 @pytest.mark.asyncio

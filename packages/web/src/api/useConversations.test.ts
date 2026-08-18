@@ -36,19 +36,50 @@ describe('useConversations', () => {
     })
   })
 
-  it('loadConversation returns the messages from the detail endpoint', async () => {
+  it('loadConversation hydrates the server\'s flat {role,text} records into ChatMessages', async () => {
+    // Realistic server response: chat/repository.py persists flat
+    // {role, text} dicts, not the frontend's rich ChatMessage shape (which
+    // only ever exists in-memory - results, activeMode, trace steps, etc).
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
         id: 'conv-1', title: 'q1', created_at: 'x', updated_at: 'x',
-        messages: [{ id: 'm1', role: 'user', text: 'hi' }],
+        messages: [
+          { role: 'user', text: 'what is section 80HH' },
+          { role: 'assistant', text: 'Section 80HH provides a deduction...' },
+        ],
       }),
     } as Response)
 
     const { result } = renderHook(() => useConversations('http://api', 'token-123'))
     const messages = await result.current.loadConversation('conv-1')
 
-    expect(messages).toEqual([{ id: 'm1', role: 'user', text: 'hi' }])
+    expect(messages).toEqual([
+      { id: 'conv-1-0', role: 'user', text: 'what is section 80HH' },
+      {
+        id: 'conv-1-1',
+        role: 'assistant',
+        question: 'what is section 80HH',
+        activeMode: 'classic',
+        results: {
+          classic: {
+            status: 'done',
+            aiMode: { ok: true, answer: 'Section 80HH provides a deduction...', citations: {} },
+            traceSteps: [],
+          },
+        },
+      },
+    ])
+
+    // Every hydrated assistant message must carry a `results` field keyed by
+    // its activeMode - ChatMessageView does `message.results[message.activeMode]`
+    // unconditionally, so a missing `results` field crashes the reopen.
+    for (const m of messages) {
+      if (m.role === 'assistant') {
+        expect(m.results).toBeDefined()
+        expect(m.results[m.activeMode]).toBeDefined()
+      }
+    }
   })
 
   it('remove calls DELETE and drops the conversation from local state', async () => {

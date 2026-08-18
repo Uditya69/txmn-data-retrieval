@@ -32,6 +32,16 @@ logger = logging.getLogger(__name__)
 # mid-execution. Each task removes itself from this set via its done callback.
 _background_tasks: set[asyncio.Task] = set()
 
+# Mirrors the frontend's `titleFromQuestion` (packages/web/src/App.tsx) so a
+# persisted conversation's title doesn't visibly change (get longer) the
+# moment `remoteConversations.refresh()` swaps the locally-generated title
+# out for the server's stored one.
+_TITLE_MAX_LEN = 48
+
+
+def _title_from_query(query: str) -> str:
+    return f"{query[:_TITLE_MAX_LEN]}…" if len(query) > _TITLE_MAX_LEN else query
+
 
 def get_gateway_client(settings) -> GatewayClient:
     return GatewayClient(base_url=settings.gateway_url)
@@ -186,7 +196,7 @@ async def search(websocket: WebSocket):
                             conversations_collection = get_conversations_collection(chat_mongo_client, chat_settings)
                             chat_task = asyncio.create_task(
                                 record_conversation_turn(
-                                    conversations_collection, conversation_id, user_id, query,
+                                    conversations_collection, conversation_id, user_id, _title_from_query(query),
                                     [
                                         {"role": "user", "text": query},
                                         {"role": "assistant", "text": ai_mode_result["answer"]},

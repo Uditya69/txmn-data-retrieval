@@ -247,12 +247,16 @@ name = "chat"
 version = "0.1.0"
 source = { editable = "packages/chat" }
 dependencies = [
+    { name = "auth" },
+    { name = "fastapi" },
     { name = "motor" },
     { name = "pydantic-settings" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "auth", editable = "packages/auth" },
+    { name = "fastapi", specifier = ">=0.115" },
     { name = "motor", specifier = ">=3.5" },
     { name = "pydantic-settings", specifier = ">=2.5" },
 ]

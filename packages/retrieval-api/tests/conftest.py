@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from pymongo.errors import DuplicateKeyError
 
 os.environ.setdefault(
     "MONGO_URI",
@@ -56,6 +57,22 @@ class FakeConversationsCollection:
         return doc
 
     async def replace_one(self, filter: dict, replacement: dict, upsert: bool = False) -> None:
+        # `_id` is a real unique index in Mongo: if a document with this _id
+        # already exists but doesn't satisfy the rest of the filter (e.g. it
+        # belongs to a different user_id), an upsert can't "match no
+        # document and insert a new one" - Mongo would try to insert a new
+        # doc with the same _id and hit the unique index, raising
+        # DuplicateKeyError instead of silently overwriting someone else's
+        # document. Mirror that here rather than the old behavior of keying
+        # blindly off filter["_id"] regardless of the rest of the filter.
+        existing = self.documents.get(filter["_id"])
+        if existing is not None:
+            if all(existing.get(k) == v for k, v in filter.items()):
+                self.documents[filter["_id"]] = replacement
+                return
+            if upsert:
+                raise DuplicateKeyError(f"E11000 duplicate key error, _id: {filter['_id']!r}")
+            return
         self.documents[filter["_id"]] = replacement
 
     def find(self, filter: dict):

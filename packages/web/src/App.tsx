@@ -60,6 +60,11 @@ export default function App() {
   // list for logged-in users, or clear in-memory state on logout so the
   // previous user's chats don't leak to the next guest session.
   useEffect(() => {
+    // Clear the remote list synchronously first, on every token change
+    // (login, logout, or switching to a different logged-in user) - so a
+    // stale previous-user conversation list is never visibly shown in the
+    // sidebar while the new user's `refresh()` fetch is still in flight.
+    remoteConversations.clear()
     if (auth.token) {
       remoteConversations.refresh()
     } else {
@@ -208,14 +213,24 @@ export default function App() {
   const pending = classicSearch.loading || agentSearch.loading
   const wsError = classicSearch.wsError || agentSearch.wsError
 
+  // Agent-mode conversations never get a conversation_id wired through /ws/agent
+  // (out of scope for this fix wave - see design spec), so they're never
+  // persisted server-side and never show up in remoteConversations. Without
+  // this merge, a logged-in user's agent-mode chat would vanish from the
+  // sidebar (and become unreachable) the moment they start a new chat, since
+  // the sidebar for logged-in users otherwise sources ONLY the remote list.
+  // Merge in any local conversation not already represented remotely (by id).
+  const sidebarConversations = auth.token
+    ? [
+        ...conversations.filter((c) => !remoteConversations.conversations.some((rc) => rc.id === c.id)),
+        ...remoteConversations.conversations.map((c) => ({ id: c.id, title: c.title, messages: [] })),
+      ]
+    : conversations
+
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--ink)' }}>
       <Sidebar
-        conversations={
-          auth.token
-            ? remoteConversations.conversations.map((c) => ({ id: c.id, title: c.title, messages: [] }))
-            : conversations
-        }
+        conversations={sidebarConversations}
         activeId={activeId}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}

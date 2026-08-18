@@ -52,6 +52,29 @@ def test_get_conversation_404s_for_other_users_conversation(monkeypatch, fake_co
     assert response.status_code == 404
 
 
+def test_delete_conversation_404s_for_other_users_conversation(monkeypatch, fake_conversations_collection):
+    _patch_conversations(monkeypatch, fake_conversations_collection)
+    from chat.repository import create_conversation
+    import asyncio
+
+    asyncio.run(
+        create_conversation(fake_conversations_collection, "conv-1", "user-1", "q1", [])
+    )
+
+    token = create_access_token("user-2", get_auth_settings())
+    client = TestClient(app)
+    response = client.delete("/conversations/conv-1", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 404
+
+    # user-1's conversation must still exist - the failed cross-user delete
+    # attempt must not have removed it.
+    owner_token = create_access_token("user-1", get_auth_settings())
+    assert client.get(
+        "/conversations/conv-1", headers={"Authorization": f"Bearer {owner_token}"}
+    ).status_code == 200
+
+
 def test_delete_conversation_removes_it(monkeypatch, fake_conversations_collection):
     _patch_conversations(monkeypatch, fake_conversations_collection)
     from chat.repository import create_conversation
