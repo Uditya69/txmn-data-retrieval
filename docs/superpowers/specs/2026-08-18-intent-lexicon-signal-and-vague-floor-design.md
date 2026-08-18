@@ -8,24 +8,18 @@ Status: proposed
 `extract_intent` (`ai_mode/intent.py`) over-guesses category tags on genuinely vague
 queries. Confirmed with a new eval (`collection_routing_eval.py`,
 `evals/collection_routing_cases.json`) run against the real model: of 8 deliberately
-vague cases, 3 came back confidently (and wrongly) tagged instead of empty:
+vague cases, 3 came back confidently (and wrongly) tagged instead of empty, e.g.
+`"capital gains"` → `["commentary"]` and `"help with income tax"` → `["commentary"]` —
+bare topic words and generic requests with no actual legal content to anchor on.
 
-| Query | Expected | Actual |
-|---|---|---|
-| `"gift from father taxable?"` | `[]` | `["caselaws"]` |
-| `"capital gains"` | `[]` | `["commentary"]` |
-| `"help with income tax"` | `[]` | `["commentary"]` |
-
-Root cause: `_LLAMA_SYSTEM_PROMPT`'s category definitions are phrasing-shape rules, not
-anchor-requiring rules. `commentary`'s "default landing spot for 'explain X' / 'how does
-X work' queries" and `caselaws`'s "what was decided for a dispute/fact pattern" signal
-both fire on how a query is *shaped*, not on whether it names anything concrete (an Act,
-section, party, court, or citation). A bare topic word or a personal fact-pattern
-question can match that shape with zero real legal anchor present. The prompt's only
-abstain instruction — `"Output an empty list when no category confidently applies"` —
-gives the model no defined threshold for "confidently," and an 8B model is a weaker,
-noisier calibrator on short/ambiguous input than a larger one, with no exposed
-chain-of-thought to second-guess itself before committing to JSON in one pass.
+Root cause: the classification prompt's category definitions include phrasing-shape
+rules (a "default landing spot" for explain-style queries, a fact-pattern/scenario
+signal for caselaws-shaped questions) that can fire on how a query is *shaped* even when
+it names nothing concrete. The prompt's only abstain instruction —
+`"Output an empty list when no category confidently applies"` — gives the model no
+defined threshold for "confidently," and an 8B model is a weaker, noisier calibrator on
+short/ambiguous input than a larger one, with no exposed chain-of-thought to
+second-guess itself before committing to JSON in one pass.
 
 This matters because `collections_for_intent()` (`common/schemas.py`) routes narrowly on
 a non-empty `intent` — a wrong tag silently searches the wrong 1-8 collections instead of
@@ -36,28 +30,51 @@ only real failure mode this pipeline has for category routing.
 
 - Give the SLM an explicit, code-computed signal for "this query has no recognizable
   legal anchor at all" — currently invisible to it.
-- Add a deterministic floor that forces `intent = []` for queries too short and too
-  anchor-free to trust any classification, regardless of what the SLM tagged — the first
-  code-level override in this classification path, justified by the asymmetry above
-  (a false-positive here costs precision via a broader search, never a wrong one).
+- Add a deterministic floor: when the lexical pipeline (structural chunking + legal
+  lexicon + shape classification) finds nothing, force `intent = []` regardless of what
+  the SLM tagged. Searching all 11 collections is accepted as strictly preferable to any
+  risk of a wrong-collection search, full stop — see "Explicit ruling" below for what
+  this costs.
 - Reuse the existing legal-lexicon mechanism (`common/query_tokenizer.py`'s
   `classify_query_shape`/`expand_query_synonyms`, already powering `/v1/query-analysis`)
   rather than building a second detector.
 
 ## Non-goals
 
-- Not fixing the deeper root cause (the loose `commentary`/`caselaws` category
-  definitions themselves) — tracked as a separate, later prompt-tuning task. This spec's
-  two fixes catch the two shapes of the problem this design addresses (compound-empty
-  lexicon signal, short+anchor-free queries); a longer vague query with no anchor that
-  isn't caught by either still relies on the definitions' own (unfixed) looseness.
+- Not fixing the deeper root cause (the category definitions' own phrasing-shape
+  triggers) — tracked as a separate, later prompt-tuning task.
 - Not touching `_sanitize_filters`/`_validate_categories`'s existing behavior — this adds
   a new check alongside them, doesn't change what they do.
 - Not adding a hard override anywhere else in the classification path — this is a
-  narrowly scoped exception (see "Why a hard rule is safe here" below), not a precedent
-  for general SLM-output overriding.
+  narrowly scoped exception, not a precedent for general SLM-output overriding.
 - No change to `collections_for_intent()` itself — its existing empty-intent-searches-all
-  behavior is exactly what these two fixes lean on.
+  behavior is exactly what this leans on.
+- No word-count or query-shape (e.g. "ends in `?`") exemption — see "Explicit ruling."
+
+## Explicit ruling — this deliberately reverts part of an already-shipped fix
+
+`extract_intent`'s `caselaws` category already recognizes fact-pattern/scenario
+questions (e.g. `"is X taxable when Y"`) as a valid signal **even with zero literal
+anchor** — no Act, section, party, citation, or court name required. That fix exists
+specifically because keyword/lexicon matching cannot recognize a scenario; only reading
+the sentence's meaning can.
+
+The floor this spec adds triggers on exactly that same condition — no lexical anchor
+found — and forces `intent = []` unconditionally. There is no way to keep both: "no
+anchor → tag it anyway (fact-pattern)" and "no anchor → force empty" are the same
+trigger with opposite actions, and lexical/keyword matching has no way to distinguish
+"a real fact-pattern scenario" from "a bare vague topic" — both look identical to a
+word-bank lookup (neither contains a recognized term). Only semantic reading (i.e. the
+SLM itself) can tell them apart, and this floor runs after the SLM's output and
+overrides it regardless.
+
+**Decision, made explicitly and knowingly:** every fact-pattern question with no literal
+anchor will be forced back to `intent = []` by this floor, discarding the fact-pattern
+signal's benefit for that entire class of query. Traded away because a guaranteed-safe
+(if less precise) search-all outcome was judged strictly preferable to any residual risk
+of a wrong-collection search — including on the subset of anchor-less queries that would
+otherwise have been tagged correctly. This is a real, accepted cost of this design, not
+an oversight — recorded here so it isn't rediscovered as a "regression" later.
 
 ## Design
 
@@ -71,7 +88,7 @@ currently imported into this file, newly wired in):
 ```python
 def _has_legal_anchor(query: str, chunk_context: str | None) -> bool:
     if chunk_context is not None:
-        return True  # a structural span (date/section/court/etc.) was already found
+        return True  # a structural span (citation/section/court/date/party) was found
     if expand_query_synonyms(query) != query:
         return True  # a legal-lexicon term/abbreviation was recognized
     if classify_query_shape(query) != "plain":
@@ -83,10 +100,8 @@ Single detector, two consumers below — avoids duplicating the anchor logic.
 
 ### 2. Lexicon signal — soft prompt hint
 
-When `_has_legal_anchor` is `False`, append a note to `extract_intent`'s user message
-(same pattern as the existing `chunk_context` injection, appended after it — no new
-function needed, this is inline in `extract_intent` itself, after `chunk_context` and
-`has_anchor` are both computed):
+When `_has_legal_anchor` is `False`, append a note to `extract_intent`'s user message,
+inline after `chunk_context` and `has_anchor` are both computed (no new function needed):
 
 ```python
 if not has_anchor:
@@ -98,12 +113,10 @@ if not has_anchor:
 
 `_LLAMA_SYSTEM_PROMPT` gains one sentence near its existing "Output an empty list when no
 category confidently applies" instruction: a "Lexicon check" note is strong evidence to
-abstain unless the query's actual wording — not just its general subject — names
-something concrete.
-
-This is a hint, not a floor — the model can still tag despite it. Applies to queries of
-any length; catches the compound-empty case (no structural span, no lexicon match, plain
-shape) regardless of word count.
+abstain. (This hint becomes moot in practice once §3's hard floor ships — the floor
+already forces empty on the same condition regardless of what the model does with the
+hint — but it's kept as defense in depth for the SLM call itself, and because §3 could in
+principle be relaxed later without touching this.)
 
 ### 3. Too-vague-to-tag — hard floor
 
@@ -112,13 +125,10 @@ same guardrail tier — reject content the SLM shouldn't be trusted on, never ad
 
 ```python
 def _too_vague_to_tag(query: str, chunk_context: str | None) -> bool:
-    return len(query.split()) <= 5 and not _has_legal_anchor(query, chunk_context)
+    return not _has_legal_anchor(query, chunk_context)
 ```
 
-When `True`, `_validate_result` forces `result["intent"] = []` regardless of what the SLM
-returned — overriding, not merely filtering, the model's own tag. This is deliberately
-narrower than the soft hint: only fires for short queries (`<= 5` words) with zero anchor
-signal, not any vague-shaped query of any length.
+No word count, no phrasing-shape exemption — see "Explicit ruling" above for why.
 
 **Signature change required.** `_validate_result` is currently `_validate_result(query:
 str, result) -> dict` — it has no access to `chunk_context` today (that's a local
@@ -134,15 +144,6 @@ The one call site inside `extract_intent` (`result = _validate_result(query, res
 updates to pass `chunk_context` through. `_fallback_intent`'s path is unaffected — it
 already returns `intent: []` unconditionally when the SLM's response is unparseable, so
 `_too_vague_to_tag` has nothing to add there.
-
-**Why a hard rule is safe here specifically:** `collections_for_intent()` treats empty
-intent as "search all 11 collections" — never an exclusion. A false-positive (a genuinely
-answerable 5-word-or-fewer query that happens to use no recognized legal term) degrades
-to a broader search, not a wrong one. A false-negative under the *old* soft-hint-only
-behavior (a vague query keeps its wrongly-guessed tag) silently searches the wrong
-collections instead. That asymmetry — force-empty's worst case is strictly milder than
-the status quo's worst case — is what makes a hard override defensible here, unlike a
-general override on SLM category judgment elsewhere in this pipeline.
 
 ### 4. Filters
 
@@ -162,8 +163,8 @@ extract_intent(query)
        |
   [SLM call happens regardless]
        |
-  _validate_result(query, raw_result)
-       +-- _too_vague_to_tag(query, chunk_context)?          # NEW hard floor (§3)
+  _validate_result(query, raw_result, chunk_context)
+       +-- not has_anchor?                                  # NEW hard floor (§3)
              True  --> intent forced to []
              False --> intent = _validate_categories(...) as today
 ```
@@ -175,37 +176,32 @@ extract_intent(query)
 - Lexicon-signal wiring: `extract_intent` test confirming the "Lexicon check" note
   appears in the user message for a vague query (`chunk_context is None`, no synonym
   match, plain shape) and is absent for a query with a recognized anchor.
-- `_too_vague_to_tag`: unit tests — `<=5` words + no anchor → `True`; `<=5` words + anchor
-  present → `False`; `>5` words + no anchor → `False` (word-count floor only, not a
-  general vague-query catch); boundary at exactly 5 and 6 words.
+- `_too_vague_to_tag`: unit tests — no anchor → `True` regardless of length; anchor
+  present → `False` regardless of length; explicit test that a fact-pattern-shaped query
+  with no anchor (e.g. `"is X taxable when Y"`) still returns `True` — documenting the
+  accepted tradeoff as a test, not just prose, so a future change to this function has to
+  consciously break the test to reintroduce fact-pattern tagging.
 - `_validate_result`: test that a raw SLM result with a non-empty `intent` gets forced to
   `[]` when `_too_vague_to_tag` is `True`, and passes through `_validate_categories`
   unchanged when `False`.
 - Eval re-run: `collection_routing_eval.py` against the real model after implementation —
-  confirm R13 (`"gift from father taxable?"`, 4 words), R14 (`"capital gains"`, 2 words),
-  R18 (`"help with income tax"`, 4 words) all flip from `wrong` to `safe-empty` (all are
-  `<=5` words with no anchor, so the hard floor should catch all three directly — the
-  soft hint alone wasn't guaranteed to). Confirm no regression on the 10 confident cases —
-  all are well over 5 words (7-11 each in the current dataset), so `_too_vague_to_tag`'s
-  word-count gate alone guarantees it never fires on them, independent of whether each one
-  also has a detectable anchor (not individually verified for every case — e.g. R06,
-  `"expert opinion article on the recent controversy around faceless assessment"`, has no
-  digit after "article" so `SECTION_PATTERN` doesn't match it, and it's not confirmed
-  whether any token hits a lexicon synonym either — its safety here rests on word count,
-  not on a verified anchor).
-- Dataset gap worth closing during implementation: `evals/collection_routing_cases.json`
-  has no *short* (`<=5` words) confident case — e.g. `"section 54F exemption"` (3 words,
-  has an anchor) — so the live eval never exercises the one case where the hard floor's
-  own condition (`<=5` words) and a real anchor overlap. The unit tests cover this
-  combination directly; the dataset doesn't. Add one such case alongside the fix.
+  confirm `"capital gains"` and `"help with income tax"` flip from `wrong` to
+  `safe-empty`. The dataset's other vague fact-pattern case (`"gift from father
+  taxable?"`) is now *expected* to also read `safe-empty` post-fix (previously `wrong`
+  under the dataset's stale expectation, now correctly `expected_categories: []` per the
+  ruling above) — update that dataset row's `expected_categories` to `[]` to match.
+  Confirm no regression on the 10 confident cases (all currently 7-11 words with a
+  detectable structural anchor in the current dataset).
 
 ## Open questions / risks
 
-- The `5`-word threshold is a starting value matched to the three known failure cases
-  (2, 4, and 4 words), not derived from a larger sample — same caveat as the persona
-  system's `query_count >= 20` threshold. Worth revisiting once more real query data is
-  observed, ideally via the eval script's dataset growing over time.
-- This does not fix longer vague queries with no anchor (e.g. a rambling 8-word question
-  naming no Act/section/party) — those still rely entirely on the soft hint and the
-  unfixed category-definition looseness. Tracked as a separate follow-up (tightening
-  `commentary`/`caselaws`'s definitions to require an anchor), not part of this spec.
+- This does not fix vague queries that *do* happen to contain some recognized lexicon
+  term but are still fundamentally unfocused (e.g. a rambling multi-topic question that
+  happens to mention "tax") — `_has_legal_anchor` would return `True` for those, the
+  floor never fires, and they remain fully dependent on the SLM's own (unfixed, per
+  Non-goals) judgment. Not addressed here.
+- The accepted tradeoff (fact-pattern questions with no anchor lose their signal) has no
+  measured cost yet — how often real users phrase a genuine case-law question with zero
+  legal terms is unknown. Worth watching via the eval dataset growing with real traffic
+  patterns over time, and revisiting this ruling if that cost turns out to be larger than
+  expected.
