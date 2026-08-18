@@ -149,7 +149,10 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     tariff notifications are issued under that law - if the ask is "what
     HSN/duty rate for [a specific good]", it's "tariff".
   Output an empty list when no category confidently applies. Never output
-  any other value.
+  any other value. If the user message below includes a "Lexicon check" note
+  stating no legal term was recognized in the query, treat that as strong
+  evidence to abstain (output an empty list) unless the query's own wording -
+  not just its general subject - clearly names something concrete.
 - "filters": an object with any of "court", "act", "section", "date_range",
   "party", "bench", "judge" - ONLY include a key if its value is LITERALLY
   written in the query. Never guess, infer, or fill in a plausible-sounding
@@ -312,6 +315,12 @@ async def extract_intent(
         "Structural spans already present in the query above (for reference "
         f"only — do not add anything not already in the query text):\n{chunk_context}"
     )
+    has_anchor = _has_legal_anchor(query, chunk_context)
+    if not has_anchor:
+        user_message += (
+            "\n\nLexicon check: no known legal term, Act/section reference, citation, or "
+            "party pattern was recognized anywhere in this query."
+        )
     if persona_context:
         user_message += f"\n\n{persona_context}\n{RELEVANCE_INSTRUCTION}"
     response = await gateway.chat(

@@ -522,6 +522,33 @@ def test_build_chunk_context_drops_alt_text_and_proximity():
 
 
 @pytest.mark.asyncio
+async def test_extract_intent_appends_lexicon_check_when_no_anchor_found():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({"search_query": "capital gains", "intent": [], "filters": {}})
+
+    await extract_intent(gateway, "capital gains")
+
+    user_message = gateway.chat.await_args.kwargs["messages"][1]["content"]
+    assert "Lexicon check:" in user_message
+    assert "no known legal term" in user_message
+
+
+@pytest.mark.asyncio
+async def test_extract_intent_omits_lexicon_check_when_anchor_found():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    gateway.chat.return_value = json.dumps({
+        "search_query": "Delhi High Court ruling", "intent": ["caselaws"], "filters": {},
+    })
+
+    await extract_intent(gateway, "Delhi High Court ruling")
+
+    user_message = gateway.chat.await_args.kwargs["messages"][1]["content"]
+    assert "Lexicon check:" not in user_message
+
+
+@pytest.mark.asyncio
 async def test_extract_intent_appends_chunk_context_when_spans_found():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
@@ -555,7 +582,9 @@ async def test_extract_intent_user_message_unchanged_when_no_spans_found():
 
     call_kwargs = gateway.chat.await_args.kwargs
     user_message = call_kwargs["messages"][1]["content"]
-    assert user_message == "capital gains treatment"
+    assert user_message.startswith("capital gains treatment")
+    assert "Structural spans already present" not in user_message
+    assert "Lexicon check:" in user_message
 
 
 @pytest.mark.asyncio
