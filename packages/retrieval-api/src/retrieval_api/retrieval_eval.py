@@ -169,7 +169,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                         langfuse_enabled: bool = True, slm_model: str | None = None,
                         reranker_model: str | None = None, synthesis_model: str | None = None,
                         skip_agentic: bool = False, cache_dir: Path | None = None,
-                        rerank_enabled: bool = True) -> dict:
+                        rerank_enabled: bool = True, skip_synthesis: bool = False) -> dict:
     query = case["query"]
     gold = set(case["gold_doc_ids"])
     langfuse = get_client()
@@ -266,7 +266,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
         citation_invalid_ids: list[str] = []
         citation_valid = False
         gold_cited = False
-        if reranked:
+        if reranked and not skip_synthesis:
             synthesis_cutoff = elbow_cutoff([row["rerank_score"] for row in reranked], max_keep=5)
             synthesis_chunks = reranked[:synthesis_cutoff]
             citations = await measured("prefetch_citations", prefetch_citations(es_client, merged))
@@ -401,7 +401,7 @@ async def _run(args) -> int:
                 langfuse_enabled=not args.no_langfuse,
                 slm_model=args.slm_model, reranker_model=args.reranker_model, synthesis_model=args.synthesis_model,
                 skip_agentic=args.skip_agentic, cache_dir=args.cache_dir,
-                rerank_enabled=rerank_enabled,
+                rerank_enabled=rerank_enabled, skip_synthesis=args.skip_synthesis,
             )
             results.append(result)
             ranks = result["ranks"]
@@ -460,6 +460,7 @@ def main() -> None:
     parser.add_argument("--synthesis-model", help="override the DeepInfra model used for the synthesis role")
     parser.add_argument("--sample12", action="store_true", help="scope to the fixed 12-query stratified sample")
     parser.add_argument("--skip-agentic", action="store_true", help="skip the agentic tool-call stage (out of scope for AI Mode model comparisons)")
+    parser.add_argument("--skip-synthesis", action="store_true", help="skip the synthesis LLM call - retrieval-only comparisons (es/dense/sparse/rrf/reranker ranks) don't need it and it's the slowest stage per query")
     rerank_group = parser.add_mutually_exclusive_group()
     rerank_group.add_argument(
         "--rerank", dest="rerank_enabled", action="store_true", default=None,
