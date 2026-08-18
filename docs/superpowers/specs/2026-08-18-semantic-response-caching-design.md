@@ -159,6 +159,44 @@ existing background-task dispatch there) and `packages/semantic_cache`
   runs the pipeline and triggers a background write; a lookup/write error
   degrades to a normal pipeline run without failing the response.
 
+## Operational setup (required before this works in any environment)
+
+Application code cannot create an Atlas Vector Search index — this is a
+one-time, per-environment manual step (Atlas UI or `mongosh`/Atlas CLI),
+required in addition to setting `MONGO_URI`/`MONGO_DB`/
+`SEMANTIC_CACHE_THRESHOLD` (see `.env.example`). Until the index exists,
+every `lookup()` call fails and is caught by `ws.py`'s fail-open
+try/except — the app runs fine, it just never gets a cache hit.
+
+Create a vector search index named `semantic_cache_vector_index` (this
+exact name is hardcoded as `_VECTOR_INDEX_NAME` in
+`packages/semantic_cache/src/semantic_cache/repository.py` — update both
+together if it's ever renamed) on the `semantic_cache` collection, in the
+same database as `MONGO_DB`:
+
+```json
+{
+  "fields": [
+    {
+      "type": "vector",
+      "path": "query_embedding",
+      "numDimensions": "<match VOYAGE_EMBED_MODEL's actual output dimension>",
+      "similarity": "cosine"
+    },
+    {
+      "type": "filter",
+      "path": "mode"
+    }
+  ]
+}
+```
+
+`numDimensions` must exactly match whatever `VOYAGE_EMBED_MODEL` (currently
+`voyage-4-large` per `.env.example`) actually outputs — verify this against
+Voyage's own model documentation before creating the index; it was not
+independently confirmed while writing this spec/plan, and a mismatched
+dimension will make every insert/query against the index fail.
+
 ## Out of scope
 
 - Agentic search caching (no single query→answer entry point today).
