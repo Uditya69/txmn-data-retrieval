@@ -166,9 +166,19 @@ extract_intent(query)
   confirm R13 (`"gift from father taxable?"`, 4 words), R14 (`"capital gains"`, 2 words),
   R18 (`"help with income tax"`, 4 words) all flip from `wrong` to `safe-empty` (all are
   `<=5` words with no anchor, so the hard floor should catch all three directly — the
-  soft hint alone wasn't guaranteed to). Confirm no regression on the 10 confident cases
-  (all have real anchors, so `_too_vague_to_tag` should never fire on them regardless of
-  word count).
+  soft hint alone wasn't guaranteed to). Confirm no regression on the 10 confident cases —
+  all are well over 5 words (7-11 each in the current dataset), so `_too_vague_to_tag`'s
+  word-count gate alone guarantees it never fires on them, independent of whether each one
+  also has a detectable anchor (not individually verified for every case — e.g. R06,
+  `"expert opinion article on the recent controversy around faceless assessment"`, has no
+  digit after "article" so `SECTION_PATTERN` doesn't match it, and it's not confirmed
+  whether any token hits a lexicon synonym either — its safety here rests on word count,
+  not on a verified anchor).
+- Dataset gap worth closing during implementation: `evals/collection_routing_cases.json`
+  has no *short* (`<=5` words) confident case — e.g. `"section 54F exemption"` (3 words,
+  has an anchor) — so the live eval never exercises the one case where the hard floor's
+  own condition (`<=5` words) and a real anchor overlap. The unit tests cover this
+  combination directly; the dataset doesn't. Add one such case alongside the fix.
 
 ## Open questions / risks
 
