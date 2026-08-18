@@ -40,7 +40,8 @@ export default function SuiteRunner({ wsUrl, apiBaseUrl, token, onUnauthorized }
             key={s.id}
             type="button"
             onClick={() => setSelected(s.id)}
-            className="px-3 py-1.5 rounded border text-sm"
+            disabled={evalRun.running}
+            className="px-3 py-1.5 rounded border text-sm disabled:opacity-50"
             style={{ fontWeight: selected === s.id ? 600 : 400 }}
           >
             {s.name}
@@ -59,7 +60,7 @@ export default function SuiteRunner({ wsUrl, apiBaseUrl, token, onUnauthorized }
         />
         <button
           type="button"
-          onClick={() => evalRun.run(selected, token, limit ? Number(limit) : undefined)}
+          onClick={() => evalRun.run(selected, token, limit && Number(limit) > 0 ? Number(limit) : undefined)}
           disabled={evalRun.running}
           className="border rounded px-3 py-1.5 text-sm font-medium"
         >

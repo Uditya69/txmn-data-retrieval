@@ -13,13 +13,29 @@ _running: set[str] = set()
 _cache: dict[str, dict] = {}
 
 
+def _normalize_limit(raw) -> int | None:
+    """Normalize a client-supplied `limit` value.
+
+    Anything that isn't a positive integer (or a numeric string
+    representing one) is treated as "no limit" rather than raising or
+    being passed through as garbage to the suite adapters.
+    """
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int) and raw > 0:
+        return raw
+    if isinstance(raw, str) and raw.isdigit() and int(raw) > 0:
+        return int(raw)
+    return None
+
+
 @router.websocket("/ws/admin-eval")
 async def admin_eval(websocket: WebSocket):
     await websocket.accept()
     message = await websocket.receive_json()
     token = message.get("token")
     suite = message.get("suite")
-    limit = message.get("limit")
+    limit = _normalize_limit(message.get("limit"))
 
     if not is_valid_admin_token(token):
         await websocket.send_json({"type": "error", "reason": "unauthorized"})
@@ -44,6 +60,11 @@ async def admin_eval(websocket: WebSocket):
             await websocket.send_json(event)
             if event["type"] == "done":
                 _cache[suite] = {"summary": event["summary"], "cases": cases}
+    except Exception as exc:
+        try:
+            await websocket.send_json({"type": "error", "reason": f"run failed: {exc}"})
+        except Exception:
+            pass
     finally:
         _running.discard(suite)
 

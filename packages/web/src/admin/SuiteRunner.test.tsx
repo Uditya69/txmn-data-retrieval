@@ -86,4 +86,32 @@ describe('SuiteRunner', () => {
     expect(await screen.findByText('cached query')).toBeInTheDocument()
     expect(FakeWebSocket.instances).toHaveLength(0)
   })
+
+  it('disables suite-picker buttons while a run is in progress, preventing a mid-run switch', async () => {
+    render(<SuiteRunner wsUrl="ws://x/ws/admin-eval" apiBaseUrl="http://x" token="tok" onUnauthorized={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /run/i }))
+
+    const otherSuiteButton = screen.getByRole('button', { name: /intent \+ filters/i })
+    expect(otherSuiteButton).toBeDisabled()
+
+    await userEvent.click(otherSuiteButton)
+
+    // Click had no effect: still only one WS connection, and it was opened
+    // for the originally-selected suite, not the one just (attemptedly) clicked.
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    expect(JSON.parse(FakeWebSocket.instances[0].sent[0]).suite).toBe('slm_intent')
+  })
+
+  it('treats a limit of "0" as no limit rather than sending limit: 0', async () => {
+    render(<SuiteRunner wsUrl="ws://x/ws/admin-eval" apiBaseUrl="http://x" token="tok" onUnauthorized={vi.fn()} />)
+
+    const limitInput = screen.getByPlaceholderText(/limit/i)
+    await userEvent.type(limitInput, '0')
+    await userEvent.click(screen.getByRole('button', { name: /run/i }))
+
+    const socket = FakeWebSocket.instances[0]
+    const sentMessage = JSON.parse(socket.sent[0])
+    expect(sentMessage.limit).toBeUndefined()
+  })
 })
