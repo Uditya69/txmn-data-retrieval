@@ -37,7 +37,18 @@ def get_gateway_client(settings) -> GatewayClient:
 def _resolve_user_id(access_token: str | None) -> str | None:
     if not access_token:
         return None
-    return decode_access_token(access_token, get_auth_settings())
+    user_id = decode_access_token(access_token, get_auth_settings())
+    if user_id is None:
+        # A token WAS sent but didn't decode - most commonly an expired token
+        # (JWT_EXPIRY_MINUTES, currently 60) reused past its lifetime, since the
+        # web client never checks expiry client-side and just keeps resending
+        # whatever's in localStorage. Falls through to guest behavior silently
+        # (personas.py's caller treats user_id=None exactly like no token was
+        # sent at all) - this log line is the only visible sign that happened,
+        # so a "persona stopped updating" report can be told apart from "user
+        # was never logged in" instead of looking identical.
+        logger.warning("access_token present but failed to decode (likely expired) - proceeding as guest")
+    return user_id
 
 
 async def _emit_trace_step(send, step: str, data: dict) -> None:
