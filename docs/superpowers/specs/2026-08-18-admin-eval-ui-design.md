@@ -49,10 +49,10 @@ artifact each time (as this session did for `slm_intent_eval`, by hand).
 ## Architecture
 
 ```
-┌─────────────────┐        WS /ws/admin-eval?suite=..&token=..&limit=..        ┌──────────────────────┐
-│  packages/web    │ ─────────────────────────────────────────────────────────▶│  retrieval-api        │
-│  /admin route     │◀──── {type: progress|case|done|error} events ───────────  │  admin_eval/ module    │
-└─────────────────┘        GET /admin/api/eval-runs/{suite}  (cache read)      └──────────────────────┘
+┌─────────────────┐   WS /ws/admin-eval, 1st msg {suite,token,limit}   ┌──────────────────────┐
+│  packages/web    │ ──────────────────────────────────────────────────▶│  retrieval-api        │
+│  /admin route     │◀──── {type: progress|case|done|error} events ────  │  admin_eval/ module    │
+└─────────────────┘   GET /admin/api/eval-runs/{suite}  (cache read)   └──────────────────────┘
                                                                                         │
                                                                         calls existing  │
                                                                         load_cases /    ▼
@@ -73,9 +73,16 @@ def require_admin(token: str) -> None:
         raise HTTPException(403)  # or close the WS with code 4403
 ```
 
-Used by the WS route (token as a query param — WS handshakes can't carry
-custom headers from a browser `WebSocket` client) and the cache-read REST
-endpoint (token as `X-Admin-Token` header, since that's a normal fetch).
+Used by the cache-read REST endpoint (token as `X-Admin-Token` header, since
+that's a normal fetch) and the WS route — but the WS route validates it from
+the **first received JSON message**, not a URL query param: this repo's
+existing `/ws/search` route (`ws.py`) already establishes that convention
+(`await websocket.accept()`, then `receive_json()` for `query`/`mode`/
+`access_token`/etc. as the first message) precisely so secrets never end up
+in the URL — visible in server access logs, browser history, and `Referer`
+headers otherwise. The admin WS route follows the same shape: accept, then
+`{"suite": ..., "token": ..., "limit": ...}` as the first message, `4403`
+close if the token check fails.
 `admin_secret` unset (the default) disables the whole feature — both routes
 403 unconditionally — so no prod/staging deployment needs to think about it
 unless it opts in.
@@ -89,7 +96,7 @@ same shape:
 async def run(gateway_url: str, limit: int | None) -> AsyncIterator[dict]:
     cases = load_cases(...)  # the suite's own existing loader
     if limit:
-        cases = cases[:limit]
+        cases = cases[:limit]  # first-N slice, adapter-side - see retrieval_eval note below
     total = len(cases)
     for i, case in enumerate(cases, 1):
         result = await ...  # the suite's own existing per-case check logic
@@ -112,6 +119,29 @@ a single common per-case schema across suites; the frontend renders generic
 key/value detail for whatever comes back, keyed on `status` for the pass/fail
 pill.
 
+**`retrieval_eval` needs a materially different adapter than the other 3.**
+Confirmed by reading `retrieval_eval.py` directly:
+
+- Its own `--limit` CLI flag is *not* "first N cases" (that's `slm_intent_eval`
+  /`intent_eval`/`collection_routing_eval`'s meaning) — it's the per-stage
+  ES/Milvus top-K search depth (`default=50`), passed into `evaluate_case`.
+  The admin UI's "cap to first N cases" control must not reuse that name/flag;
+  the adapter does the `cases[:limit]` slice itself against the loaded list,
+  independent of `evaluate_case`'s own `limit` kwarg (left at its default).
+- `evaluate_case(case, gateway, es_client, milvus_client, ...)` needs real
+  `es_client`/`milvus_client` resources acquired and closed around the run
+  (`get_es_client`/`get_milvus_client`, `finally: await es_client.close();
+  milvus_client.close()`) — the other 3 suites only need a `GatewayClient`.
+  The `retrieval` adapter's `run()` sets these up itself, mirroring `_run()`'s
+  own resource lifecycle in `retrieval_eval.py`.
+- It's also far slower per case: real ES + dense/sparse Milvus + intent
+  rewrite + reranker + synthesis + (optionally) the full agentic pipeline —
+  seconds to tens of seconds per case, not the sub-second gateway-only calls
+  the other 3 suites make. The `retrieval` adapter defaults `skip_agentic=True,
+  skip_synthesis=True` (both already-existing `evaluate_case` kwargs) for a
+  reasonably fast admin-UI run; an "include synthesis/agentic" checkbox is
+  explicitly deferred (YAGNI) — full-depth runs stay a CLI job for now.
+
 ### Log noise
 
 The Langfuse SDK's own logger emits "Authentication error" / "Context error"
@@ -123,22 +153,33 @@ without touching the eval scripts or their CLI behavior.
 
 ### Backend — WS route (`retrieval_api/admin_eval/router.py`)
 
-`GET /ws/admin-eval?suite=<id>&token=<secret>&limit=<n>` (FastAPI
-`@router.websocket`). On connect:
+`@router.websocket("/ws/admin-eval")`. Follows `/ws/search`'s own shape
+exactly: `await websocket.accept()`, then `receive_json()` for the first
+message `{"suite": ..., "token": ..., "limit": ...}`. On that message:
 
-1. `require_admin(token)` — reject with close code 4403 if it fails.
-2. Look up `suite` in `SUITES` — reject with `unknown_suite` error event +
-   close if not found.
+1. `require_admin(token)` — send `{"type": "error", "reason":
+   "unauthorized"}` and close 4403 if it fails.
+2. Look up `suite` in `SUITES` — `{"type": "error", "reason":
+   "unknown_suite"}` and close if not found.
 3. If this suite already has a run in progress (tracked in a small
    `dict[str, bool]` on app state), send `{"type": "error", "reason":
    "already_running"}` and close.
-4. Otherwise, mark it running, iterate the adapter's `run(...)` generator,
-   sending each yielded event over the WS as JSON, updating an in-memory
-   `dict[str, dict]` cache (`app.state.admin_eval_cache[suite]`) with the
-   running tally as `case` events arrive and the final result on `done`.
-5. Mark the suite not-running in a `finally` block (covers client
-   disconnect mid-run too — the run itself still completes server-side and
-   populates the cache, only the live stream is cut).
+4. Otherwise, mark it running, iterate the adapter's `run(...)` generator
+   in the same coroutine handling this connection (no detached background
+   task — kept simple deliberately, see below), sending each yielded event
+   over the WS as JSON, updating an in-memory `dict[str, dict]` cache
+   (`app.state.admin_eval_cache[suite]`) with the running tally as `case`
+   events arrive and the final result on `done`.
+5. Mark the suite not-running in a `finally` block. A client disconnect
+   mid-run cancels the run at the next `await` (same as any other FastAPI
+   WS handler) — it does *not* keep running server-side to populate the
+   cache. This is a deliberate YAGNI cut consistent with "no queueing" above:
+   a local single-admin tool, re-running is one click, and decoupling the
+   run from the connection (a detached `asyncio.Task`, mirroring `ws.py`'s
+   `_background_tasks` pattern for the persona-signal write) adds real
+   complexity — shared-state coordination between the task and a possible
+   next connection for the same suite — for a case that's cheap to just
+   retry.
 
 ### Backend — cache-read endpoint
 
