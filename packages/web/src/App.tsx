@@ -109,7 +109,7 @@ export default function App() {
   const agentWsUrl = resolveAgentWsUrl()
   const apiBaseUrl = resolveApiBaseUrl(wsUrl)
   const auth = useAuth(apiBaseUrl)
-  const classicSearch = useSearch(wsUrl, auth.token)
+  const classicSearch = useSearch(wsUrl, auth.token, auth.logout)
   const agentSearch = useAgentSearch(agentWsUrl)
 
   const [conversations, setConversations] = useState<Conversation[]>(() => loadConversations(conversationsKey(auth.email)))

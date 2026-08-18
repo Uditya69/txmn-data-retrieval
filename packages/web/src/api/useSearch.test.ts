@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useSearch } from './useSearch'
 
@@ -179,5 +179,22 @@ describe('useSearch', () => {
       result.current.search('second query', true)
     })
     expect(result.current.traceSteps).toEqual([])
+  })
+
+  it('sets a wsError and calls onSessionExpired when the server reports session_expired', () => {
+    const onSessionExpired = vi.fn()
+    const { result } = renderHook(() => useSearch('ws://test', 'stale-token', onSessionExpired))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+      socket.emit('message', { data: JSON.stringify({ type: 'session_expired' }) })
+    })
+
+    expect(result.current.wsError).toBe('Your session expired — please sign in again.')
+    expect(onSessionExpired).toHaveBeenCalledOnce()
   })
 })

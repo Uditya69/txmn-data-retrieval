@@ -216,3 +216,45 @@ def test_ws_search_accepts_access_token_field_without_crashing(monkeypatch):
             websocket.send_json({"query": "test query", "mode": "instant", "access_token": token})
             response = websocket.receive_json()
             assert response["type"] == "instant_result"
+
+
+def test_ws_search_sends_session_expired_when_access_token_fails_to_decode(monkeypatch):
+    """A token that doesn't decode (expired, forged, wrong secret) must not be silently
+    treated as a guest with no signal to the client - the client needs to know its
+    stored session has gone stale so it can clear it and prompt re-login, instead of
+    persona/history quietly stopping with no visible cause."""
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+        raise AssertionError("ai_mode should not run in instant-only mode")
+
+    async def fake_get_persona(personas_collection, user_id):
+        raise AssertionError("get_persona should never be called - user_id must resolve to None")
+
+    _patch_common(monkeypatch, fake_run_ai_mode)
+    monkeypatch.setattr(ws_module, "get_persona", fake_get_persona)
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "test query", "mode": "instant", "access_token": "not-a-real-jwt"})
+        first = websocket.receive_json()
+        second = websocket.receive_json()
+
+    assert first == {"type": "session_expired"}
+    assert second["type"] == "instant_result"
+
+
+def test_ws_search_omits_session_expired_for_guest(monkeypatch):
+    """No access_token at all is a normal guest request, not a stale session -
+    session_expired must never fire when none was sent in the first place."""
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+        raise AssertionError("ai_mode should not run in instant-only mode")
+
+    _patch_common(monkeypatch, fake_run_ai_mode)
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "test query", "mode": "instant"})
+        response = websocket.receive_json()
+
+    assert response["type"] == "instant_result"

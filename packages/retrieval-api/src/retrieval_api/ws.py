@@ -69,7 +69,8 @@ async def search(websocket: WebSocket):
     mode = message.get("mode", "both")  # "instant" | "ai_mode" | "both"
     trace = message.get("trace", False)
     rerank = message.get("rerank", False)
-    user_id = _resolve_user_id(message.get("access_token"))
+    access_token = message.get("access_token")
+    user_id = _resolve_user_id(access_token)
 
     settings = get_settings()
     es_client = get_es_client(settings)
@@ -106,6 +107,13 @@ async def search(websocket: WebSocket):
 
     async def emit_trace_step(step: str, data: dict) -> None:
         await _emit_trace_step(send, step, data)
+
+    if access_token and user_id is None:
+        # A token was sent but didn't decode (see _resolve_user_id's log line) -
+        # surface it to the client instead of silently proceeding as guest, so a
+        # stale localStorage token (most commonly expired - JWT_EXPIRY_MINUTES)
+        # doesn't go unnoticed indefinitely.
+        await send({"type": "session_expired"})
 
     langfuse = get_client()
     try:
