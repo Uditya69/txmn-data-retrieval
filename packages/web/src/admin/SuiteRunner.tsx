@@ -3,7 +3,6 @@ import { useAdminEvalRun } from './useAdminEvalRun'
 
 const SUITES: { id: string; name: string }[] = [
   { id: 'slm_intent', name: 'SLM Intent, Filters & Rewrite' },
-  { id: 'intent', name: 'Intent + Filters (exact-match)' },
   { id: 'collection_routing', name: 'Collection Routing' },
   { id: 'retrieval', name: 'Retrieval Pipeline' },
 ]

@@ -92,7 +92,7 @@ describe('SuiteRunner', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /run/i }))
 
-    const otherSuiteButton = screen.getByRole('button', { name: /intent \+ filters/i })
+    const otherSuiteButton = screen.getByRole('button', { name: /collection routing/i })
     expect(otherSuiteButton).toBeDisabled()
 
     await userEvent.click(otherSuiteButton)
