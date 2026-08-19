@@ -37,6 +37,7 @@ class DeepInfraAdapter:
     async def chat(
         self, model: str, messages: list[dict], tools: list[dict] | None = None,
         tool_choice: str | None = None, response_format: dict | None = None,
+        temperature: float | None = None,
     ) -> tuple[str | None, dict[str, int], str | None, list[dict] | None]:
         payload = {"model": model, "messages": messages, "max_tokens": _CHAT_MAX_TOKENS}
         if tools:
@@ -44,6 +45,8 @@ class DeepInfraAdapter:
             payload["tool_choice"] = tool_choice or "auto"
         if response_format:
             payload["response_format"] = response_format
+        if temperature is not None:
+            payload["temperature"] = temperature
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{_BASE_URL}/openai/chat/completions",

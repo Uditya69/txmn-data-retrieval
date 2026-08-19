@@ -24,6 +24,7 @@ class LocalAdapter:
     async def chat(
         self, model: str, messages: list[dict], tools: list[dict] | None = None,
         tool_choice: str | None = None, response_format: dict | None = None,
+        temperature: float | None = None,
     ) -> tuple[str | None, dict[str, int], str | None, list[dict] | None]:
         payload = {"model": model, "messages": messages, "max_tokens": _CHAT_MAX_TOKENS}
         if tools:
@@ -31,6 +32,8 @@ class LocalAdapter:
             payload["tool_choice"] = tool_choice or "auto"
         if response_format:
             payload["response_format"] = response_format
+        if temperature is not None:
+            payload["temperature"] = temperature
         # Self-hosted qwen3 observed taking 30-70s even on a trivial 2-line prompt
         # (verified via Postman: 69.4s) - AI Mode's synthesis prompt is far larger, so
         # the old 60s timeout here raced the model's own response time and lost.

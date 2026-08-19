@@ -371,6 +371,14 @@ async def extract_intent(
         ],
         model=model,
         response_format=_RESPONSE_FORMAT,
+        # Pinned to near-zero: this is a classification call (intent tags, filters),
+        # not open-ended generation - the provider's default sampling temperature
+        # (unset = not 0) was observed producing a different "intent" list across
+        # identical calls for the same query, which flips which Milvus collections
+        # collections_for_intent() routes to. 0.0 exactly is avoided since some
+        # providers special-case it or reject it outright; 0.01 is effectively
+        # deterministic (argmax) without relying on that special-casing.
+        temperature=0.01,
     )
     try:
         result = json.loads(response)

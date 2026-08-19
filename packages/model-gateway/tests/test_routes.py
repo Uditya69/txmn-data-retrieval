@@ -17,7 +17,7 @@ def test_chat_route_resolves_role_and_calls_deepinfra_adapter(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"content": "the answer", "reasoning": None, "tool_calls": None}
-    fake_adapter.chat.assert_awaited_once_with("big-model", [{"role": "user", "content": "hi"}], None, None, None)
+    fake_adapter.chat.assert_awaited_once_with("big-model", [{"role": "user", "content": "hi"}], None, None, None, None)
 
 
 def test_chat_route_forwards_response_format_to_adapter(monkeypatch):
@@ -34,7 +34,7 @@ def test_chat_route_forwards_response_format_to_adapter(monkeypatch):
     })
 
     fake_adapter.chat.assert_awaited_once_with(
-        "small-model", [{"role": "user", "content": "hi"}], None, None, {"type": "json_object"},
+        "small-model", [{"role": "user", "content": "hi"}], None, None, {"type": "json_object"}, None,
     )
 
 
@@ -143,7 +143,7 @@ def test_chat_route_passes_tools_and_returns_tool_calls(monkeypatch):
     })
 
     assert response.json()["tool_calls"] == [{"id": "call_1", "type": "function", "function": {"name": "search_es", "arguments": "{}"}}]
-    fake_adapter.chat.assert_awaited_once_with("agent-model", [{"role": "user", "content": "hi"}], tools, "auto", None)
+    fake_adapter.chat.assert_awaited_once_with("agent-model", [{"role": "user", "content": "hi"}], tools, "auto", None, None)
 
 
 def test_chat_route_uses_override_model_when_provided(monkeypatch):
@@ -160,7 +160,7 @@ def test_chat_route_uses_override_model_when_provided(monkeypatch):
     )
 
     assert response.status_code == 200
-    fake_adapter.chat.assert_awaited_once_with("candidate-model", [{"role": "user", "content": "hi"}], None, None, None)
+    fake_adapter.chat.assert_awaited_once_with("candidate-model", [{"role": "user", "content": "hi"}], None, None, None, None)
 
 
 def test_chat_route_falls_back_to_role_default_when_model_omitted(monkeypatch):
@@ -173,7 +173,7 @@ def test_chat_route_falls_back_to_role_default_when_model_omitted(monkeypatch):
     client = TestClient(app)
     client.post("/v1/chat", json={"role": "slm", "messages": [{"role": "user", "content": "hi"}]})
 
-    fake_adapter.chat.assert_awaited_once_with("default-model", [{"role": "user", "content": "hi"}], None, None, None)
+    fake_adapter.chat.assert_awaited_once_with("default-model", [{"role": "user", "content": "hi"}], None, None, None, None)
 
 
 def test_rerank_route_uses_override_model_when_provided(monkeypatch):
