@@ -13,6 +13,7 @@ dependencies = [
   "auth",
   "persona",
   "chat",
+  "semantic-cache",
 ]
 
 [project.scripts]

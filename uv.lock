@@ -17,6 +17,7 @@ members = [
     "persona",
     "retrieval-api",
     "retrieval-system",
+    "semantic-cache",
 ]
 
 [[package]]
@@ -1127,6 +1128,7 @@ dependencies = [
     { name = "langchain-core" },
     { name = "langfuse" },
     { name = "persona" },
+    { name = "semantic-cache" },
     { name = "uvicorn" },
 ]
 
@@ -1141,6 +1143,7 @@ requires-dist = [
     { name = "langchain-core", specifier = ">=0.3" },
     { name = "langfuse", specifier = ">=4.14" },
     { name = "persona", editable = "packages/persona" },
+    { name = "semantic-cache", editable = "packages/semantic_cache" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]
 
@@ -1163,6 +1166,21 @@ dev = [
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "respx", specifier = ">=0.21" },
+]
+
+[[package]]
+name = "semantic-cache"
+version = "0.1.0"
+source = { editable = "packages/semantic_cache" }
+dependencies = [
+    { name = "motor" },
+    { name = "pydantic-settings" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "motor", specifier = ">=3.5" },
+    { name = "pydantic-settings", specifier = ">=2.5" },
 ]
 
 [[package]]
