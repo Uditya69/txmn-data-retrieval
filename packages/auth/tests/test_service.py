@@ -127,7 +127,7 @@ async def test_rotate_refresh_token_rejects_expired_token(fake_refresh_tokens_co
     refresh_tokens = fake_refresh_tokens_collection
     settings = get_auth_settings()
     token = await create_refresh_token(refresh_tokens, "user-123", settings)
-    refresh_tokens.documents[0]["expires_at"] = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    refresh_tokens.documents[0]["expires_at"] = datetime.now(timezone.utc) - timedelta(days=1)
 
     with pytest.raises(InvalidRefreshToken):
         await rotate_refresh_token(refresh_tokens, token, settings)

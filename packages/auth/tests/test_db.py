@@ -1,5 +1,19 @@
+from unittest.mock import AsyncMock
+
+import pytest
+
 from auth.config import get_auth_settings
-from auth.db import get_mongo_client, get_users_collection
+from auth.db import ensure_refresh_token_indexes, get_mongo_client, get_users_collection
+
+
+@pytest.mark.asyncio
+async def test_ensure_refresh_token_indexes_creates_unique_and_ttl_indexes():
+    refresh_tokens = AsyncMock()
+
+    await ensure_refresh_token_indexes(refresh_tokens)
+
+    refresh_tokens.create_index.assert_any_call("token_hash", unique=True)
+    refresh_tokens.create_index.assert_any_call("expires_at", expireAfterSeconds=0)
 
 
 def test_get_users_collection_selects_configured_db_and_collection_name():

@@ -47,7 +47,10 @@ async def create_refresh_token(refresh_tokens, user_id: str, settings: AuthSetti
     await refresh_tokens.insert_one({
         "token_hash": hash_refresh_token(token),
         "user_id": user_id,
-        "expires_at": expires_at.isoformat(),
+        # Stored as a real datetime (BSON Date), not .isoformat() - a Mongo TTL
+        # index (see db.py::ensure_indexes) only fires on a Date-typed field, so an
+        # ISO string here would silently never self-clean.
+        "expires_at": expires_at,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     return token
@@ -67,7 +70,7 @@ async def rotate_refresh_token(refresh_tokens, token: str, settings: AuthSetting
     if doc is None:
         raise InvalidRefreshToken(token)
     await refresh_tokens.delete_one({"token_hash": token_hash})
-    expires_at = datetime.fromisoformat(doc["expires_at"])
+    expires_at = doc["expires_at"]
     if expires_at < datetime.now(timezone.utc):
         raise InvalidRefreshToken(token)
     new_token = await create_refresh_token(refresh_tokens, doc["user_id"], settings)
