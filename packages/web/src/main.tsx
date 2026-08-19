@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import AdminApp from './admin/AdminApp'
+import HowItWorksApp from './how-it-works/HowItWorksApp'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import './index.css'
 
@@ -14,11 +15,18 @@ if (!container) {
 // dev-mode flag for precedent) - a plain pathname branch is enough for one
 // extra page.
 const isAdminRoute = window.location.pathname.startsWith('/admin')
+const isHowItWorksRoute = window.location.pathname.startsWith('/how-it-works')
+
+function Root() {
+  if (isAdminRoute) return <AdminApp />
+  if (isHowItWorksRoute) return <HowItWorksApp />
+  return <App />
+}
 
 createRoot(container).render(
   <StrictMode>
     <ErrorBoundary>
-      {isAdminRoute ? <AdminApp /> : <App />}
+      <Root />
     </ErrorBoundary>
   </StrictMode>,
 )
