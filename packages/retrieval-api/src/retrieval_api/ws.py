@@ -7,6 +7,8 @@ from langfuse import get_client
 from agents.pipeline import run_agentic_search
 from auth.config import get_auth_settings
 from auth.security import decode_access_token
+from chat.config import get_chat_settings
+from chat.db import get_conversations_collection, get_mongo_client as get_chat_mongo_client
 from common.config import get_settings
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
@@ -17,6 +19,7 @@ from persona.repository import get_persona
 from semantic_cache.config import get_semantic_cache_settings
 from semantic_cache.db import get_semantic_cache_collection, get_mongo_client as get_cache_mongo_client
 from semantic_cache.repository import lookup as cache_lookup, write as cache_write
+from retrieval_api.ai_mode.chat_signal import record_conversation_turn
 from retrieval_api.ai_mode.persona_signal import record_persona_signal
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.instant.search import run_instant
@@ -31,6 +34,16 @@ logger = logging.getLogger(__name__)
 # reference to a task, so an unreferenced task can be garbage-collected
 # mid-execution. Each task removes itself from this set via its done callback.
 _background_tasks: set[asyncio.Task] = set()
+
+# Mirrors the frontend's `titleFromQuestion` (packages/web/src/App.tsx) so a
+# persisted conversation's title doesn't visibly change (get longer) the
+# moment `remoteConversations.refresh()` swaps the locally-generated title
+# out for the server's stored one.
+_TITLE_MAX_LEN = 48
+
+
+def _title_from_query(query: str) -> str:
+    return f"{query[:_TITLE_MAX_LEN]}…" if len(query) > _TITLE_MAX_LEN else query
 
 
 def get_gateway_client(settings) -> GatewayClient:
@@ -87,6 +100,7 @@ async def search(websocket: WebSocket):
     rerank = message.get("rerank", False)
     access_token = message.get("access_token")
     user_id = _resolve_user_id(access_token)
+    conversation_id = message.get("conversation_id")
 
     settings = get_settings()
     es_client = get_es_client(settings)
@@ -254,6 +268,27 @@ async def search(websocket: WebSocket):
                         )
                         _background_tasks.add(task)
                         task.add_done_callback(_background_tasks.discard)
+
+                    if user_id is not None and conversation_id is not None:
+                        try:
+                            chat_settings = get_chat_settings()
+                            chat_mongo_client = get_chat_mongo_client(chat_settings)
+                            conversations_collection = get_conversations_collection(chat_mongo_client, chat_settings)
+                            chat_task = asyncio.create_task(
+                                record_conversation_turn(
+                                    conversations_collection, conversation_id, user_id, _title_from_query(query),
+                                    [
+                                        {"role": "user", "text": query},
+                                        {"role": "assistant", "text": ai_mode_result["answer"]},
+                                    ],
+                                )
+                            )
+                            _background_tasks.add(chat_task)
+                            chat_task.add_done_callback(_background_tasks.discard)
+                        except Exception:
+                            # A down/unreachable chat store must never crash the request -
+                            # mirrors the persona lookup's resilience pattern above.
+                            logger.exception("Failed to schedule conversation write for user %r", user_id)
                 else:
                     output["ai_mode_error"] = ai_mode_result["error"]
                     await send({"type": "ai_mode_error", "error": ai_mode_result["error"]})

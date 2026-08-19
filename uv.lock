@@ -11,6 +11,7 @@ resolution-markers = [
 members = [
     "agents",
     "auth",
+    "chat",
     "common",
     "model-gateway",
     "persona",
@@ -240,6 +241,25 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ed/a1/e29995109e455dc8eff8d0fac6ae509be39561318a7cfeac5d33ad029213/charset_normalizer-3.4.9-cp311-cp311-win_amd64.whl", hash = "sha256:6366a16e1a25018694d6a5d784d09b046edc9eac40ea2b54065c3052672516a1", size = 161410, upload-time = "2026-07-07T14:33:12.743Z" },
     { url = "https://files.pythonhosted.org/packages/4f/8d/1569f4d0032d6ba2a4fe4591c35bf87868c600c41a71eb5c2e1ffa8464c2/charset_normalizer-3.4.9-cp311-cp311-win_arm64.whl", hash = "sha256:1d22856ffbe153a602df38e4a5464f0b748a54002e0d69ac6d2ad0a197cc99ec", size = 152649, upload-time = "2026-07-07T14:33:14.173Z" },
     { url = "https://files.pythonhosted.org/packages/98/2b/f97f1c193fb855c345d678f5077d6926034db0722df74c8f057020e05a25/charset_normalizer-3.4.9-py3-none-any.whl", hash = "sha256:68e5f26a1ad57ded6d1cfb85331d1c1a195314756471d97758c48498bb4dcdf5", size = 64538, upload-time = "2026-07-07T14:34:56.993Z" },
+]
+
+[[package]]
+name = "chat"
+version = "0.1.0"
+source = { editable = "packages/chat" }
+dependencies = [
+    { name = "auth" },
+    { name = "fastapi" },
+    { name = "motor" },
+    { name = "pydantic-settings" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "auth", editable = "packages/auth" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "motor", specifier = ">=3.5" },
+    { name = "pydantic-settings", specifier = ">=2.5" },
 ]
 
 [[package]]
@@ -1101,6 +1121,7 @@ source = { editable = "packages/retrieval-api" }
 dependencies = [
     { name = "agents" },
     { name = "auth" },
+    { name = "chat" },
     { name = "common" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -1115,6 +1136,7 @@ dependencies = [
 requires-dist = [
     { name = "agents", editable = "packages/agents" },
     { name = "auth", editable = "packages/auth" },
+    { name = "chat", editable = "packages/chat" },
     { name = "common", editable = "packages/common" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },

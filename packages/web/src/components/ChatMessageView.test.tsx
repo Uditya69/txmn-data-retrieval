@@ -1,7 +1,25 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ChatMessageView } from './ChatMessageView'
+import { hydrateStoredMessages } from '../api/useConversations'
 import type { ChatMessage, ResultState } from '../types'
+
+describe('ChatMessageView with a reopened (server-hydrated) conversation', () => {
+  it('renders a hydrated assistant message without crashing', () => {
+    // Regression test: a reopened conversation's server response is flat
+    // {role, text} records with no `results` field - ChatMessageView does
+    // `message.results[message.activeMode]` unconditionally, which used to
+    // crash before loadConversation hydrated the shape.
+    const [, assistantMessage] = hydrateStoredMessages('conv-1', [
+      { role: 'user', text: 'what is section 80HH' },
+      { role: 'assistant', text: 'Section 80HH provides a deduction...' },
+    ])
+
+    render(<ChatMessageView message={assistantMessage} devMode={false} onOpenDocument={() => {}} />)
+
+    expect(screen.getByText(/Section 80HH provides a deduction/)).toBeInTheDocument()
+  })
+})
 
 function assistantMessage(instant: ResultState['instant']): ChatMessage {
   return {

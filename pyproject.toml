@@ -4,7 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.11,<3.12"
 
 [tool.uv.workspace]
-members = ["packages/common", "packages/model-gateway", "packages/retrieval-api", "packages/agents", "packages/auth", "packages/persona", "packages/semantic_cache"]
+members = ["packages/common", "packages/model-gateway", "packages/retrieval-api", "packages/agents", "packages/auth", "packages/persona", "packages/chat", "packages/semantic_cache"]
 
 [tool.uv.sources]
 common = { workspace = true }
@@ -13,6 +13,7 @@ retrieval-api = { workspace = true }
 agents = { workspace = true }
 auth = { workspace = true }
 persona = { workspace = true }
+chat = { workspace = true }
 semantic-cache = { workspace = true }
 
 [dependency-groups]

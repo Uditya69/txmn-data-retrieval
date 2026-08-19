@@ -193,6 +193,21 @@ Given a user query, return ONLY a JSON object with exactly these keys:
   may be omitted, but never output "date_range" as a plain string or year
   number, and never invent one when no date was mentioned.
 
+  "party" and "X vs. Y" case names: every case has two sides, but "party"
+  takes ONLY the specific, named side - never the whole "X vs. Y" string,
+  and never a bare government/office designation on its own. Concretely:
+  - "Priya Sharma vs. Commissioner of Income Tax" -> party: "Priya Sharma"
+    (the named individual/company), not "Priya Sharma vs. Commissioner of
+    Income Tax" and not "Commissioner of Income Tax" alone.
+  - The other side (Commissioner of Income Tax, Income-tax Officer, ACIT,
+    Union of India, State of X, etc.) is a generic office name that recurs
+    across thousands of unrelated cases - it does not usefully narrow a
+    search, so never output it as "party" by itself.
+  - If BOTH sides are specific named entities (e.g. two companies, or two
+    individuals in a partition/joint case) with no generic office on
+    either side, use the first-named side only - "party" holds one string,
+    not a list; do not concatenate both names into it.
+
 Example: query "case law for Ramesh Gupta vs. Income-tax Officer" mentions
 no court, act, section, or date - only a party name - so filters must be
 exactly {"party": "Ramesh Gupta"} and intent is ["caselaws"].

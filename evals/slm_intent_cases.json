@@ -402,5 +402,411 @@
     "expected_categories": ["acts"],
     "expected_filters": {},
     "rewrite_must_contain": ["92C"]
+  },
+  {
+    "id": "S51",
+    "query": "Madras High Court ruling on section 194C TDS on works contract payments",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {"court": "Madras High Court"},
+    "rewrite_must_contain": ["194C"]
+  },
+  {
+    "id": "S52",
+    "query": "Rule 11UA valuation of unquoted equity shares for angel tax",
+    "expect": "confident",
+    "expected_categories": ["rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["11UA"]
+  },
+  {
+    "id": "S53",
+    "query": "commentary on presumptive taxation scheme under section 44AD for small businesses",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["44AD"]
+  },
+  {
+    "id": "S54",
+    "query": "article analysing the impact of the new labour codes on payroll compliance",
+    "expect": "confident",
+    "expected_categories": ["articles"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S55",
+    "query": "customs duty rate and HSN classification for lithium-ion batteries",
+    "expect": "confident",
+    "expected_categories": ["tariff"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S56",
+    "query": "case law for Neha Kapoor vs. Assistant Commissioner of Income Tax",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"party": "Neha Kapoor"},
+    "rewrite_must_contain": ["Neha Kapoor"]
+  },
+  {
+    "id": "S57",
+    "query": "Punjab and Haryana High Court decision on GST refund of unutilised ITC",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"court": "Punjab and Haryana High Court"},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S58",
+    "query": "Rule 128 foreign tax credit claim procedure and Form 67",
+    "expect": "confident",
+    "expected_categories": ["rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["128"]
+  },
+  {
+    "id": "S59",
+    "query": "section 56(2)(x) taxability of gifts received without consideration",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["56(2)(x)"]
+  },
+  {
+    "id": "S60",
+    "query": "explain the concept of place of effective management under DTAA",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S61",
+    "query": "what is this",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S62",
+    "query": "give me an example",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S63",
+    "query": "not sure what to ask",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S64",
+    "query": "sounds good",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S65",
+    "query": "how do taxes work in general",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S66",
+    "query": "Ruling by the Chandigarh Bench of ITAT on bogus purchase additions",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"bench": "Chandigarh"},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S67",
+    "query": "Judgment authored by Justice B.V. Nagarathna on reassessment beyond limitation period",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"judge": "B.V. Nagarathna"},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S68",
+    "query": "rulings between 2015-04-01 and 2017-03-31 on excise duty valuation",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"date_range": {"gte": "2015-04-01", "lte": "2017-03-31"}},
+    "rewrite_must_contain": ["2015", "2017"]
+  },
+  {
+    "id": "S69",
+    "query": "SGST Act provisions on composition levy for small taxpayers",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {"act": "SGST Act"},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S70",
+    "query": "Anil Kumar Jain case on benami property attachment order",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"party": "Anil Kumar Jain"},
+    "rewrite_must_contain": ["Anil Kumar Jain"]
+  },
+  {
+    "id": "S71",
+    "query": "271AAB penalty scrap yard undisclosed stock survey addition",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["271AAB"],
+    "rewrite_must_not_contain": ["Bharatiya Nyaya Sanhita", "BNS"]
+  },
+  {
+    "id": "S72",
+    "query": "fixed place PE agency PE distinction under Article 5 of the DTAA",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["PE"],
+    "rewrite_must_not_contain": ["permanent establishment"]
+  },
+  {
+    "id": "S73",
+    "query": "153A search assessment six years block period cash seizure",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["153A"],
+    "rewrite_must_not_contain": ["Bharatiya Nagarik Suraksha Sanhita"]
+  },
+  {
+    "id": "S74",
+    "query": "36/2017-CT(Rate) exemption notification for handicraft exports",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["36/2017-CT(Rate)"],
+    "rewrite_must_not_contain": ["Customs Act"]
+  },
+  {
+    "id": "S75",
+    "query": "68 cash credit share application money bogus entry addition",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["68"],
+    "rewrite_must_not_contain": ["Bharatiya Sakshya Adhiniyam"]
+  },
+  {
+    "id": "S76",
+    "query": "Rule 46 tax invoice contents requirement under GST",
+    "expect": "confident",
+    "expected_categories": ["rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["46"]
+  },
+  {
+    "id": "S77",
+    "query": "commentary on slump sale taxation under section 50B post amendment",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["50B"]
+  },
+  {
+    "id": "S78",
+    "query": "article on the new faceless appeal scheme rollout timeline",
+    "expect": "confident",
+    "expected_categories": ["articles"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S79",
+    "query": "import duty and cess applicable on gold jewellery under customs tariff schedule",
+    "expect": "confident",
+    "expected_categories": ["tariff"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S80",
+    "query": "definition of 'associated enterprise' under section 92A",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["92A"]
+  },
+  {
+    "id": "S81",
+    "query": "Rajasthan High Court verdict on mining royalty as tax under MMDR Act",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"court": "Rajasthan High Court"},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S82",
+    "query": "case law on Vodafone Idea vs. Union of India retrospective taxation",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"party": "Vodafone Idea"},
+    "rewrite_must_contain": ["Vodafone Idea"]
+  },
+  {
+    "id": "S83",
+    "query": "IBC section 7 admission of insolvency application by financial creditor",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["7"]
+  },
+  {
+    "id": "S84",
+    "query": "Rule 21AD option for concessional tax regime under section 115BAA",
+    "expect": "confident",
+    "expected_categories": ["rules", "acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["21AD", "115BAA"]
+  },
+  {
+    "id": "S85",
+    "query": "cool thanks bye",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S86",
+    "query": "let's start over",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S87",
+    "query": "anything else I should know",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S88",
+    "query": "no idea honestly",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S89",
+    "query": "Karnataka High Court ruling on section 10AA SEZ deduction eligibility for the period between 2019-04-01 and 2020-03-31",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {"court": "Karnataka High Court", "date_range": {"gte": "2019-04-01", "lte": "2020-03-31"}},
+    "rewrite_must_contain": ["10AA", "2019", "2020"]
+  },
+  {
+    "id": "S90",
+    "query": "Ritu Malhotra and Deepak Malhotra family partition case decided by the Delhi Bench of ITAT",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"party": "Ritu Malhotra", "bench": "Delhi"},
+    "rewrite_must_contain": ["Ritu Malhotra"]
+  },
+  {
+    "id": "S91",
+    "query": "Rule 37BA credit for TDS deducted in the hands of another person",
+    "expect": "confident",
+    "expected_categories": ["rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["37BA"]
+  },
+  {
+    "id": "S92",
+    "query": "tariff heading for electric vehicle battery packs under GST rate schedule",
+    "expect": "confident",
+    "expected_categories": ["tariff"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S93",
+    "query": "commentary explaining the equalisation levy on digital advertising services",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S94",
+    "query": "article summarising key GST Council meeting decisions this quarter",
+    "expect": "confident",
+    "expected_categories": ["articles"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S95",
+    "query": "Allahabad High Court judgment on validity of reassessment under section 148A",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {"court": "Allahabad High Court"},
+    "rewrite_must_contain": ["148A"]
+  },
+  {
+    "id": "S96",
+    "query": "12AA registration cancellation charitable trust commercial activity",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["12AA"],
+    "rewrite_must_not_contain": ["Bharatiya Nyaya Sanhita"]
+  },
+  {
+    "id": "S97",
+    "query": "43B(h) disallowance delayed payment to micro and small enterprises",
+    "expect": "confident",
+    "expected_categories": ["acts", "commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["43B(h)"]
+  },
+  {
+    "id": "S98",
+    "query": "Rule 8AA manner of computation of capital gains for segregated portfolios",
+    "expect": "confident",
+    "expected_categories": ["rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["8AA"]
+  },
+  {
+    "id": "S99",
+    "query": "hmm okay makes sense",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S100",
+    "query": "Telangana High Court ruling on Rule 89(4) GST refund formula for zero-rated supplies decided between 2021-07-01 and 2022-06-30",
+    "expect": "confident",
+    "expected_categories": ["rules", "caselaws"],
+    "expected_filters": {"court": "Telangana High Court", "date_range": {"gte": "2021-07-01", "lte": "2022-06-30"}},
+    "rewrite_must_contain": ["89(4)", "2021", "2022"]
   }
 ]
