@@ -141,8 +141,9 @@ async def search(websocket: WebSocket):
     instant_cache_key = "instant_rerank" if rerank else "instant"
     try:
         cache_settings = get_semantic_cache_settings()
-        cache_mongo_client = get_cache_mongo_client(cache_settings)
-        cache_collection = get_semantic_cache_collection(cache_mongo_client, cache_settings)
+        if cache_settings.semantic_cache_enabled:
+            cache_mongo_client = get_cache_mongo_client(cache_settings)
+            cache_collection = get_semantic_cache_collection(cache_mongo_client, cache_settings)
     except Exception:
         logger.exception("Semantic cache setup failed; proceeding without cache")
         cache_collection = None
@@ -223,7 +224,11 @@ async def search(websocket: WebSocket):
                     instant_result = instant_cache_hit
                 else:
                     instant_result = await instant_task
-                    if instant_result["es_error"] is None and instant_result["milvus_error"] is None:
+                    if (
+                        cache_collection is not None
+                        and instant_result["es_error"] is None
+                        and instant_result["milvus_error"] is None
+                    ):
                         write_task = asyncio.create_task(
                             _safe_cache_write(
                                 cache_collection, instant_cache_key, query, query_embedding, instant_result,
@@ -243,7 +248,7 @@ async def search(websocket: WebSocket):
                     ai_mode_result = ai_mode_cache_hit
                 else:
                     ai_mode_result = await ai_mode_task
-                    if ai_mode_result["ok"]:
+                    if cache_collection is not None and ai_mode_result["ok"]:
                         write_task = asyncio.create_task(
                             _safe_cache_write(cache_collection, "ai_mode", query, query_embedding, ai_mode_result)
                         )

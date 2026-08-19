@@ -9,6 +9,7 @@ class SemanticCacheSettings(BaseSettings):
     mongo_uri: str
     mongo_db: str
     semantic_cache_threshold: float = 0.95
+    semantic_cache_enabled: bool = True
 
 
 @lru_cache
