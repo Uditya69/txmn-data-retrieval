@@ -79,6 +79,18 @@ def test_check_routing_case_wrong_nonempty_result_is_wrong():
     assert check_routing_case(["caselaws"], ["tariff"]) == "wrong"
 
 
+def test_check_routing_case_superset_is_a_pass():
+    # Actual contains every expected category plus extra - searching an extra
+    # collection is cheap; only DROPPING an expected one is the real defect.
+    assert check_routing_case(["caselaws"], ["acts", "caselaws"]) == "superset"
+
+
+def test_check_routing_case_missing_expected_category_is_still_wrong():
+    # Superset-tolerance must not swallow the case where an expected category is
+    # actually dropped from actual, even if actual has some overlap elsewhere.
+    assert check_routing_case(["acts", "caselaws"], ["caselaws", "tariff"]) == "wrong"
+
+
 def test_check_routing_case_nonempty_result_on_vague_case_is_wrong():
     # A confidently-tagged result on a genuinely vague query is the exact failure mode
     # this eval exists to catch - never treated as a pass just because it's "plausible."

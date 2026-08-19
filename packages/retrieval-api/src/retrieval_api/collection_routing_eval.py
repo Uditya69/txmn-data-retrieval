@@ -29,22 +29,40 @@ def load_routing_cases(path: str | Path) -> list[dict]:
 
 
 def check_routing_case(expected_categories: list[str], actual_categories: list[str]) -> str:
-    """Returns 'exact', 'safe-empty', or 'wrong'. An empty actual result is always a pass
-    (search-all is never a defect, whether the query was genuinely vague or one we expected
-    to classify confidently) - only a non-empty, mismatched result is a failure: a confidently
-    wrong category tag, which silently narrows the search to the wrong collections."""
+    """Returns 'exact', 'superset', 'safe-empty', or 'wrong'.
+
+    - empty actual is always a pass ('safe-empty') - search-all is never a defect,
+      whether the query was genuinely vague or one we expected to classify confidently.
+    - actual == expected is 'exact'.
+    - actual is a strict superset of expected (all expected categories present, plus
+      extra) is 'superset' - also a pass. Searching a couple of extra collections is
+      cheap; the only thing that actually hurts recall is DROPPING an expected
+      collection from the search, which is what 'wrong' below catches.
+    - anything missing at least one expected category is 'wrong' - a confidently
+      wrong/incomplete category tag, which silently narrows the search away from a
+      collection it should have covered."""
     if not actual_categories:
         return "safe-empty"
-    if set(actual_categories) == set(expected_categories):
+    expected_set, actual_set = set(expected_categories), set(actual_categories)
+    if actual_set == expected_set:
         return "exact"
+    # expected_set must be non-empty here too - an empty expected_set is trivially a
+    # subset of any actual_set, which would otherwise call a confidently-wrong tag on
+    # a genuinely vague query (expected_categories == []) a "superset" pass instead of
+    # the "wrong" this eval exists to catch.
+    if expected_set and expected_set.issubset(actual_set):
+        return "superset"
     return "wrong"
 
 
 async def run(gateway_url: str, model: str | None, dataset_path: str | Path) -> None:
     cases = load_routing_cases(dataset_path)
     gateway = GatewayClient(base_url=gateway_url, trace_enabled=False)
-    tally = {"exact": 0, "safe-empty": 0, "wrong": 0}
-    by_expect = {"confident": {"exact": 0, "safe-empty": 0, "wrong": 0}, "vague": {"exact": 0, "safe-empty": 0, "wrong": 0}}
+    tally = {"exact": 0, "superset": 0, "safe-empty": 0, "wrong": 0}
+    by_expect = {
+        "confident": {"exact": 0, "superset": 0, "safe-empty": 0, "wrong": 0},
+        "vague": {"exact": 0, "superset": 0, "safe-empty": 0, "wrong": 0},
+    }
 
     for case in cases:
         try:
@@ -64,16 +82,20 @@ async def run(gateway_url: str, model: str | None, dataset_path: str | Path) -> 
             f"searched_collections={len(searched)}"
         )
 
-    passed = tally["exact"] + tally["safe-empty"]
+    passed = tally["exact"] + tally["superset"] + tally["safe-empty"]
     total = sum(tally.values())
-    print(f"\n{passed}/{total} passed  (exact={tally['exact']} safe-empty={tally['safe-empty']} wrong={tally['wrong']})")
+    print(
+        f"\n{passed}/{total} passed  (exact={tally['exact']} superset={tally['superset']} "
+        f"safe-empty={tally['safe-empty']} wrong={tally['wrong']})"
+    )
     for expect_label, counts in by_expect.items():
         expect_total = sum(counts.values())
         if expect_total:
-            expect_passed = counts["exact"] + counts["safe-empty"]
+            expect_passed = counts["exact"] + counts["superset"] + counts["safe-empty"]
             print(
                 f"  {expect_label}: {expect_passed}/{expect_total} passed "
-                f"(exact={counts['exact']} safe-empty={counts['safe-empty']} wrong={counts['wrong']})"
+                f"(exact={counts['exact']} superset={counts['superset']} "
+                f"safe-empty={counts['safe-empty']} wrong={counts['wrong']})"
             )
 
 
