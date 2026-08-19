@@ -31,7 +31,14 @@ class LocalAdapter:
             payload["tool_choice"] = tool_choice or "auto"
         if response_format:
             payload["response_format"] = response_format
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        # Self-hosted qwen3 observed taking 30-70s even on a trivial 2-line prompt
+        # (verified via Postman: 69.4s) - AI Mode's synthesis prompt is far larger, so
+        # the old 60s timeout here raced the model's own response time and lost.
+        # Self-hosted, no rate-limit/cost pressure to bound this tightly like DeepInfra -
+        # set high (10 min) so slow generations aren't the failure mode; a genuinely dead
+        # server is still caught, just later. gateway_client.py's outer timeout must
+        # stay >= this.
+        async with httpx.AsyncClient(timeout=600.0) as client:
             response = await client.post(
                 f"{self._base_url}/chat/completions",
                 json=payload,

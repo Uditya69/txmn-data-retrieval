@@ -42,7 +42,10 @@ class GatewayClient:
             body["model"] = model
         if response_format is not None:
             body["response_format"] = response_format
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        # Must stay >= local.py's LocalAdapter timeout (600s) - this wraps that call over
+        # HTTP, so a shorter outer timeout would cut the request before the inner one
+        # ever gets to time out itself, defeating it.
+        async with httpx.AsyncClient(timeout=620.0) as client:
             response = await client.post(
                 f"{self._base_url}/v1/chat", json=body, headers=self._headers(),
             )

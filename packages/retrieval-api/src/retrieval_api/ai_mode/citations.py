@@ -71,6 +71,7 @@ async def rerank_and_prefetch(
             for c in top_chunks
         ]
         await on_step("rerank", {
+            "reranked": rerank_enabled,
             "total_candidates": len(candidates),
             "considered_count": len(rerank_candidates),
             "top_chunks": trace_chunks,

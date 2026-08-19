@@ -147,6 +147,7 @@ async def test_rerank_and_prefetch_emits_rerank_step(monkeypatch):
     )
 
     assert steps == [("rerank", {
+        "reranked": True,
         "total_candidates": 1,
         "considered_count": 1,
         "top_chunks": [{
@@ -154,6 +155,36 @@ async def test_rerank_and_prefetch_emits_rerank_step(monkeypatch):
             "origin": None, "collection": None,
         }],
     })]
+
+
+@pytest.mark.asyncio
+async def test_rerank_and_prefetch_marks_reranked_false_when_disabled(monkeypatch):
+    """`reranked` must reflect whether the gateway reranker actually ran, not just
+    whether this step fired - the step used to fire identically either way, making the
+    skip-vs-actual-rerank cases indistinguishable in the trace UI."""
+    import retrieval_api.ai_mode.citations as citations_module
+    import retrieval_api.ai_mode.rerank as rerank_module
+
+    async def fake_prefetch(es_client, candidates, top_n_docs=20):
+        return {"d1": {"masterinfo": {}}}
+
+    rerank_top_mock = AsyncMock()
+    monkeypatch.setattr(citations_module, "prefetch_citations", fake_prefetch)
+    monkeypatch.setattr(rerank_module, "rerank_top_chunks", rerank_top_mock)
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    await rerank_and_prefetch(
+        gateway=object(), es_client=object(), query="q",
+        candidates=[{"chunk_id": "a", "doc_id": "d1", "rrf_score": 0.5, "text": "chunk text"}],
+        on_step=on_step, rerank_enabled=False,
+    )
+
+    rerank_top_mock.assert_not_called()
+    assert steps[0][0] == "rerank"
+    assert steps[0][1]["reranked"] is False
 
 
 @pytest.mark.asyncio

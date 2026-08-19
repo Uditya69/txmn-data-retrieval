@@ -74,7 +74,7 @@ async def _emit_trace_step(send, step: str, data: dict) -> None:
     try:
         await send({"type": "ai_mode_trace", "step": step, "data": data})
     except Exception as exc:
-        logger.debug("trace step %r dropped: %s", step, exc)
+        logger.warning("trace step %r dropped: %s", step, exc)
 
 
 async def _safe_cache_write(collection, mode: str, query: str, query_embedding: list[float], result: dict) -> None:
@@ -306,6 +306,13 @@ async def search(websocket: WebSocket):
             root_span.set_trace_io(input={"query": query, "mode": mode}, output=output)
 
         await websocket.close()
+    except Exception as exc:
+        # A dead/closed connection (client gone before the final send) used to blow
+        # out of this function raw - uvicorn logged an unhandled traceback and the
+        # pipeline's own result was never recorded anywhere as "computed but
+        # undelivered". Log it explicitly so that failure mode is diagnosable
+        # instead of looking like nothing happened.
+        logger.warning("ws /ws/search failed for query %r: %s", query, exc, exc_info=True)
     finally:
         await es_client.close()
         if milvus_client is not None:
