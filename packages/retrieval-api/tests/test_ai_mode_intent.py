@@ -407,7 +407,7 @@ async def test_extract_intent_uses_llama_tuned_prompt_for_llama_model():
     await extract_intent(gateway, "q")
 
     system_message = gateway.chat.await_args.kwargs["messages"][0]
-    assert "Forbidden rewrites" in system_message["content"]
+    assert "CONSERVATIVE search normalization" in system_message["content"]
 
 
 @pytest.mark.asyncio
