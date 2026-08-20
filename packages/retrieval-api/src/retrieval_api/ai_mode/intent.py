@@ -212,16 +212,6 @@ Example: query "case law for Ramesh Gupta vs. Income-tax Officer" mentions
 no court, act, section, or date - only a party name - so filters must be
 exactly {"party": "Ramesh Gupta"} and intent is ["caselaws"].
 
-Example: query "case law on section 54F exemption eligibility" anchors on
-both a case-law request and a specific Act section, so intent is
-["acts", "caselaws"].
-
-Forbidden rewrites:
-- "80HH scrap sale" must not mention BNS or any other Act.
-- "software royalty PE" must retain "PE" without guessing its expansion.
-- "69C diamond cash sale" must not add CGST Act or replace section 69C.
-- "59/98-ST certification" must not add Customs Act.
-
 """ + build_schema_context()
 
 
