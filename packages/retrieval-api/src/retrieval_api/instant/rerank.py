@@ -1,4 +1,5 @@
 from common.es_client import fetch_fulltext_batch, trim_to_token_budget
+from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.score_cutoff import elbow_cutoff
 
@@ -59,6 +60,7 @@ async def rerank_instant_results(
     milvus_sparse: dict[str, list[dict]],
     rrf: bool = True,
     rerank: bool = True,
+    on_step: OnStep | None = None,
 ) -> list[dict]:
     """rrf and rerank are independent toggles, both defaulting to on (today's combined
     "rerank" toggle behavior) but each callable alone:
@@ -67,7 +69,9 @@ async def rerank_instant_results(
       Milvus isn't consulted at all.
     - rerank=False: skip the DeepInfra cross-encoder call - candidates keep whichever
       ranking (RRF or plain ES) selected them, just capped/exposed as "reranked" for the
-      UI's single-ranked-list display."""
+      UI's single-ranked-list display. Rows keep their own `rrf_score`/`score` field
+      rather than being relabeled as `rerank_score` - that field only appears once the
+      cross-encoder actually ran, so the UI/trace can tell which stage produced a score."""
     if rrf:
         weights = _SHAPE_RRF_WEIGHTS.get(shape, {"es": 1.0, "milvus_dense": 1.0, "milvus_sparse": 1.0})
         fused = rrf_merge_by_doc_id(
@@ -82,11 +86,13 @@ async def rerank_instant_results(
         fused = _collapse_to_doc_id(es_result)
 
     top_candidates = fused[:_TOP_N_CANDIDATES]
+    if on_step is not None and rrf:
+        await on_step("rrf_merge", {"candidate_count": len(top_candidates), "top_candidates": top_candidates})
     if not top_candidates:
         return []
 
     if not rerank:
-        return [{**row, "rerank_score": row.get("rrf_score", row.get("score", 0.0))} for row in top_candidates]
+        return top_candidates
 
     fulltext = await fetch_fulltext_batch(es_client, [row["doc_id"] for row in top_candidates])
     candidates = [row for row in top_candidates if fulltext.get(row["doc_id"])]
@@ -102,4 +108,11 @@ async def rerank_instant_results(
     scored = [{**row, "rerank_score": score} for row, score in zip(candidates, scores)]
     scored.sort(key=lambda row: row["rerank_score"], reverse=True)
     cutoff = elbow_cutoff([row["rerank_score"] for row in scored])
-    return scored[:cutoff]
+    top_chunks = scored[:cutoff]
+    if on_step is not None:
+        await on_step("rerank", {
+            "total_candidates": len(top_candidates),
+            "considered_count": len(candidates),
+            "top_chunks": top_chunks,
+        })
+    return top_chunks

@@ -142,7 +142,7 @@ async def run_instant(
                     reranked = await rerank_instant_results(
                         gateway, es_client, query, classify_query_shape(query),
                         es_result or [], milvus_dense or {}, milvus_sparse or {},
-                        rrf=rrf, rerank=rerank,
+                        rrf=rrf, rerank=rerank, on_step=on_step,
                     )
                     rerank_span.update(output={"num_reranked": len(reranked)})
                     if on_step is not None:
