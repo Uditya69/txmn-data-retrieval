@@ -4,7 +4,7 @@ from typing import Awaitable, Callable
 
 from langfuse import get_client
 
-from common.legal_lexicon import is_stopword
+from common.legal_lexicon import KNOWN_ACT_NAMES, is_stopword
 from common.query_tokenizer import chunk_query, classify_query_shape, expand_query_synonyms
 from common.schema_context import KNOWN_COURTS, build_schema_context
 from persona.prompt import RELEVANCE_INSTRUCTION
@@ -267,12 +267,7 @@ def _system_prompt_for_model(model: str) -> str:
 
 _ALLOWED_FILTERS = {"court", "act", "section", "date_range", "party", "bench", "judge"}
 _ALLOWED_CATEGORIES = {"acts", "rules", "caselaws", "articles", "commentary", "tariff"}
-_LEGAL_MARKERS = {
-    "bharatiya nyaya sanhita", "bharatiya nagarik suraksha sanhita",
-    "bharatiya sakshya adhiniyam", "indian penal code", "income-tax act",
-    "income tax act", "cgst act", "igst act", "customs act",
-    "code of criminal procedure", "indian evidence act",
-}
+_LEGAL_MARKERS = KNOWN_ACT_NAMES
 
 
 def _protected_identifiers(text: str) -> set[str]:

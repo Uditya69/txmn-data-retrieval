@@ -6205,5 +6205,16 @@
     "WORKMENSCOMPENSATIONVENUEPROCEEDINGSRULES": "WORKMEN S COMPENSATION VENUE PROCEEDINGS RULES",
     "WORKSCONTRACTCOMPOSITIONSCHEMEPAYMENTSERVICETAXRULES": "WORKS CONTRACT COMPOSITION SCHEME PAYMENT SERVICE TAX RULES",
     "WORLDNEWS": "WORLD NEWS"
-  }
+  },
+  "court_full_names": [
+    "Supreme Court", "Delhi High Court", "Bombay High Court", "Madras High Court",
+    "Calcutta High Court", "Karnataka High Court", "Gujarat High Court",
+    "Income Tax Appellate Tribunal", "Customs Excise and Service Tax Appellate Tribunal"
+  ],
+  "act_names": [
+    "bharatiya nyaya sanhita", "bharatiya nagarik suraksha sanhita",
+    "bharatiya sakshya adhiniyam", "indian penal code", "income-tax act",
+    "income tax act", "cgst act", "igst act", "customs act",
+    "code of criminal procedure", "indian evidence act"
+  ]
 }
