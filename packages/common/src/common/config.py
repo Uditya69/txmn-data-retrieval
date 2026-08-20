@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     # when False, falling back to top-N-by-rrf_score straight out of RRF fusion. Lets us
     # compare AI Mode quality with/without the reranker step without a code change.
     ai_mode_rerank_enabled: bool = True
+    # Kill switch for Instant mode's opt-in reranker. Instant's rerank is normally a
+    # per-request choice (the `rerank` field on the /ws/search message) - this flag sits
+    # above that and forces it off server-wide regardless of what the client asks for,
+    # same pattern as ai_mode_rerank_enabled above. False here means Instant never
+    # reranks, even if a client sends rerank: true.
+    instant_mode_rerank_enabled: bool = True
     # Gates the local-only admin eval-runner UI (retrieval_api/admin_eval/) - unset
     # (the default) disables that feature entirely, so no deployment needs to think
     # about it unless it opts in.

@@ -97,12 +97,15 @@ async def search(websocket: WebSocket):
     query = message["query"]
     mode = message.get("mode", "both")  # "instant" | "ai_mode" | "both"
     trace = message.get("trace", False)
-    rerank = message.get("rerank", False)
     access_token = message.get("access_token")
     user_id = _resolve_user_id(access_token)
     conversation_id = message.get("conversation_id")
 
     settings = get_settings()
+    # Client can ask for Instant's rerank; instant_mode_rerank_enabled (env, default
+    # true) is a server-side kill switch above that - false forces it off regardless
+    # of what the client requested. Same pattern as AI Mode's rerank flag.
+    rerank = message.get("rerank", False) and settings.instant_mode_rerank_enabled
     es_client = get_es_client(settings)
     gateway = get_gateway_client(settings)
     try:
