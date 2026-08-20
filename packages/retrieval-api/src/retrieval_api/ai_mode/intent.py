@@ -114,6 +114,7 @@ never treat a query as a request for private information about a person,
 and never refuse to classify it. You do not answer the legal question or
 look anything up yourself; you only ever output the JSON object below.
 Given a user query, return ONLY a JSON object with exactly these keys:
+
 - "search_query": a CONSERVATIVE search normalization. Correct obvious
   spelling and grammar only. Preserve every party, court, place, Act,
   section, rule, notification, date, number, citation, and acronym exactly
@@ -129,50 +130,80 @@ Given a user query, return ONLY a JSON object with exactly these keys:
   present in the query; if "commentary" alone is tagged, keep plain-language
   phrasing. This only reorders/reframes words already in the query - it must
   still obey every rule above (no invented Act/court/number).
-- "intent": a list of zero or more of the following six category labels -
-  output every category that genuinely applies, but don't over-list; only
-  tag a category the query actually anchors on:
-  - "acts": primary legislation itself (Income-tax Act 1961, CGST Act,
-    Customs Act, BNS, etc.) - sections, sub-sections, provisos, definitions,
-    schedules. Signal: "section", "as per the Act", "definition under", a
-    bare section+Act reference with no request for judicial interpretation.
-  - "rules": subordinate legislation notified under an Act (Income-tax
-    Rules 1962, CGST Rules, Customs Valuation Rules) - procedure,
-    computation mechanics, prescribed forms. Distinct from "acts" by
-    whether the query's number is a "rule" vs a "section"; a rules query
-    often co-occurs with "acts" since every Rule has a parent Act.
-  - "caselaws": judicial decisions (Supreme Court, High Courts, ITAT,
-    CESTAT, AAR) - what was decided for a dispute/fact pattern. Two
-    distinct signal types, either alone is sufficient:
-    (a) literal markers - party names ("X vs Y"), "held", "case law on",
-    "precedent for", a citation string, bench/judge name;
-    (b) a fact-pattern or scenario question with no literal markers at all
-    - "is X taxable when Y", "can a court order Z", "must an employer do
-    W", "should authorities take action A" - any query asking what the
-    legal outcome IS or WAS for a concrete situation, not what a
-    provision MEANS in the abstract. This second type is just as strong a
-    signal as the first and must not be missed for lacking a party name
-    or citation - real case-law queries are very often phrased this way,
-    asking about the outcome of a fact pattern without naming the case.
-  - "articles": expert-authored opinion/analysis published in a journal or
-    magazine - trend, controversy, recent development, practical impact.
-    Not the publisher's own explanation (that's "commentary") and not
-    binding law. Tag only on explicit signal ("article on...", "expert
-    opinion on...", a named author) - don't default here.
-  - "commentary": the publisher's own provision-by-provision plain-language
-    explanation of how a section/Act/rule works in practice, no author
-    byline. Distinct from "acts" (raw statutory text) and "articles" (named
-    author's opinion piece). Default landing spot only for queries asking
-    what a provision means or how it works in the abstract ("explain
-    section X", "how is Y computed", "what does clause Z cover") - NOT for
-    a concrete fact-pattern/scenario question ("is X taxable when Y"),
-    which is a "caselaws" signal even when phrased in plain language with
-    no case name. When a query could be read either way, tag both.
-  - "tariff": customs/GST tariff classification and rates - HSN code
-    lookups, duty rates, rate schedules, exemption notifications tied to a
-    specific tariff heading/good. Distinct from "acts"/"rules" even though
-    tariff notifications are issued under that law - if the ask is "what
-    HSN/duty rate for [a specific good]", it's "tariff".
+
+- "intent": Return one or more of the following categories only. Tag a
+  category only when the query genuinely anchors on it - don't over-list.
+
+  - "acts"
+      The law itself, as enacted by Parliament - the section, sub-section,
+      proviso, definition, or schedule text of an Act.
+      Select when:
+        - Query cites a section number alongside an Act name (Income-tax
+          Act, CGST Act, Customs Act, BNS, etc.)
+        - Query uses "section", "as per the Act", "definition under"
+      Example: "What does section 80C of the Income-tax Act cover?"
+
+  - "rules"
+      Subordinate rules issued under an Act - procedure, computation
+      mechanics, or prescribed forms that operationalize the Act.
+      Select when:
+        - Query cites a "rule" number
+        - Query asks about a prescribed form, procedure, or Rule-level
+          mechanics (Income-tax Rules, CGST Rules, Customs Valuation Rules)
+      Example: "Which form is prescribed under Rule 12 of the Income-tax
+      Rules?"
+
+  - "caselaws"
+      A judicial decision - what a court actually decided for a real
+      dispute or fact pattern.
+      Select when:
+        - Query names something concrete: parties ("X vs Y"), "held",
+          "case law on", "precedent for", a citation string, a bench/judge
+        - OR query describes a real-world situation and asks what would
+          legally happen ("is X taxable when Y", "can a court order Z")
+      Example: "Is compensation received for compulsory land acquisition
+      taxable?"
+
+  - "articles"
+      A named expert's own published opinion or analysis - not binding
+      law, not the publisher's own explanatory writing.
+      Select when:
+        - Query explicitly asks for "article on...", "expert opinion
+          on...", or names an author
+      Example: "Any recent articles on the impact of the new TDS rules on
+      freelancers?"
+
+  - "commentary"
+      The publisher's own plain-language, provision-by-provision
+      explanation of how a section/Act/rule works - unauthored.
+      Select when:
+        - Query asks what a provision means or how it works in the
+          abstract: "explain section X", "how is Y computed"
+      Example: "How is depreciation computed under the Income-tax Act?"
+
+  - "tariff"
+      Customs/GST tariff classification and rates for one specific good.
+      Select when:
+        - Query asks for an HSN code, duty rate, rate schedule, or
+          exemption notification tied to a specific good or tariff heading
+      Example: "What is the customs duty rate for imported solar panels?"
+
+  Boundary cases - when a query could match more than one category, use
+  these to decide:
+    - rules vs acts: if the query cites a Rule, also tag acts alongside
+      it - every Rule has a parent Act.
+    - commentary vs caselaws: if the query describes a real-world
+      situation and asks what would legally happen, tag caselaws, not
+      commentary - even in plain language with no case name.
+    - commentary vs articles: commentary has no named author; if the
+      query names an author or asks for a published opinion/analysis,
+      tag articles instead.
+    - commentary vs acts: commentary is the explanation of a provision;
+      acts is the provision's own statutory text.
+    - tariff vs acts/rules: if the actual ask is an HSN code or duty
+      rate for a specific good, tag tariff, even though the notification
+      is technically issued under an Act or Rules.
+
   Output an empty list when no category confidently applies. Never output
   any other value. If the user message below includes a "Lexicon check" note
   stating no legal term was recognized in the query, treat that as strong
