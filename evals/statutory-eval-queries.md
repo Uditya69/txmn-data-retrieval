@@ -9,7 +9,7 @@ direct lexical signals (act/rule/regulation name, section number, distinctive te
 art) and once through an indirect paraphrase of the same content with those identifiers
 stripped out. Five gold documents were picked from each of the four document types.
 
-Unlike the case-law eval (`docs/retrieval-eval-queries.md`), this set is **Milvus-only**.
+Unlike the case-law eval (`evals/retrieval-eval-queries.md`), this set is **Milvus-only**.
 `ES_INDEX` defaults to `taxmann_caselaw` (`packages/common/src/common/config.py`) — the
 Elasticsearch index holds case law, not statutory content, so there is no ES leg to
 evaluate here. Each gold document lives in exactly one Milvus collection determined by

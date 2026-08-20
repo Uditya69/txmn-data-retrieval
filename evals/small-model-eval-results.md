@@ -72,7 +72,7 @@ for the cached runs.
 ## Results
 
 Pass counts out of 12 queries, per stage (recall@pass_at: direct ≤5, indirect ≤10,
-adversarial ≤20 — see `docs/retrieval-eval-queries.md`):
+adversarial ≤20 — see `evals/retrieval-eval-queries.md`):
 
 | Run | es | raw_dense | raw_sparse | rewritten_dense | rewritten_sparse | rrf | reranker | citation_valid | gold_cited |
 |---|---|---|---|---|---|---|---|---|---|

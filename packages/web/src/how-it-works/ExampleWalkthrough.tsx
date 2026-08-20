@@ -6,7 +6,7 @@ interface ExampleStage {
   payload: string
 }
 
-// From the eval set (docs/retrieval-eval-queries.md, Q21) - a "Direct" class query with a
+// From the eval set (evals/retrieval-eval-queries.md, Q21) - a "Direct" class query with a
 // known gold doc_id, chosen so every step below could be checked against a real pass/fail
 // criterion instead of a made-up example. Every payload here came from actually running this
 // query end-to-end against this deployment (retrieve() live, then the full AI Mode pipeline

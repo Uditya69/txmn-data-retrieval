@@ -45,7 +45,7 @@ Notes:
 ## Methodology
 
 Run the eval set (`evals/retrieval_cases.json`, documented query-by-query in
-`docs/retrieval-eval-queries.md`) via:
+`evals/retrieval-eval-queries.md`) via:
 
 ```
 uv run python -m retrieval_api.retrieval_eval \
@@ -61,7 +61,7 @@ records the gold-document rank per method. Only the **`agentic`** column changes
 runs in this comparison — everything else is unaffected by the `agent_chat` model swap,
 so it acts as a built-in control **as long as Milvus stays up for the whole run** (see
 Results below — it didn't, for one of these runs). Pass criterion per query class
-(direct ≤5, indirect ≤10, adversarial ≤20) is defined in `docs/retrieval-eval-queries.md`.
+(direct ≤5, indirect ≤10, adversarial ≤20) is defined in `evals/retrieval-eval-queries.md`.
 
 The script only writes its result file at the very end of the full loop — killing a run
 partway through loses all of it, there's no incremental save. Scope with `--query` to
@@ -96,7 +96,7 @@ queries is good enough to validate").
 
 **Confound:** Milvus (`57.159.24.173:19530`) went down again mid-run during the Qwen
 run, starting at `Q07` (`MilvusException: ... Connection refused`, confirmed still down
-via direct `nc` check afterward) - see `docs/retrieval-eval-queries.md`'s existing note
+via direct `nc` check afterward) - see `evals/retrieval-eval-queries.md`'s existing note
 on this corpus-wide outage pattern. This knocked `raw_dense`/`raw_sparse`/`rrf`/
 `reranker` down to 5-6/20 for Qwen's run (versus 14-18/20 for V4-Flash's run, where
 Milvus stayed up throughout) - **those four columns are not comparable between runs**.
