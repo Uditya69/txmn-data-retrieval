@@ -27,15 +27,28 @@ def _get_snippet_tokenizer():
     return tiktoken.get_encoding("cl100k_base")
 
 
-def _trim_to_token_budget(text: str, target_tokens: int = _SNIPPET_TARGET_TOKENS) -> str:
-    """Trims text to at most target_tokens tokens, centered - never expands short text.
-    ES's own highlighter already centers a fragment on the best-scoring match; this only
-    caps an oversized fragment down to budget, trimming evenly from both ends so a match
-    positioned anywhere near the middle of the requested (oversized) fragment survives."""
+def trim_to_token_budget(text: str, target_tokens: int = _SNIPPET_TARGET_TOKENS, center: bool = True) -> str:
+    """Trims text to at most target_tokens tokens - never expands short text. Shared by
+    every reranker call site in this repo (ES sparse-fallback snippets here, Instant
+    mode's fulltext fetch in retrieval_api/instant/rerank.py) so a reranker never sees
+    more text than the ~1024-token budget tm-dp's own chunker targets - full documents
+    run tens of thousands of tokens, which otherwise made a single rerank call take
+    9-12s and, on at least one real query, 422 against DeepInfra's rerank endpoint.
+
+    center=True (default): trims evenly from both ends, for ES's own highlighted
+    fragment - the best-scoring match can be anywhere in the (oversized) fragment ES
+    returned, so centering keeps it regardless of where it landed.
+    center=False: keeps only the head - for full document text with no highlighted
+    match to center on, where per common/schemas.py's caselaws field order
+    (case_summary, digest, headnotes, facts, held, ruling, metadata) the opening is the
+    summary/headnote content most relevant to a reranker's judgment; centering would
+    risk cutting it to keep an arbitrary middle slice instead."""
     tokenizer = _get_snippet_tokenizer()
     ids = tokenizer.encode(text)
     if len(ids) <= target_tokens:
         return text
+    if not center:
+        return tokenizer.decode(ids[:target_tokens])
     excess = len(ids) - target_tokens
     start = excess // 2
     return tokenizer.decode(ids[start : start + target_tokens])
@@ -66,7 +79,7 @@ def _cap_group_shares(hits: list[dict], limit: int, group_cap: int) -> list[dict
 
 _ES_FALLBACK_LIMIT = 20
 _ES_FALLBACK_GROUP_CAP = 15
-_ES_HIGHLIGHT_FRAGMENT_CHARS = 6000  # oversized on purpose - _trim_to_token_budget cuts to ~1024 tokens after
+_ES_HIGHLIGHT_FRAGMENT_CHARS = 6000  # oversized on purpose - trim_to_token_budget cuts to ~1024 tokens after
 
 _COLLECTION_FOR_ES_GROUP = {group: collection for collection, group in ES_GROUP_FOR_COLLECTION.items()}
 
@@ -122,7 +135,7 @@ async def sparse_fallback_search(
         row = {
             "chunk_id": f"es:{hit['_doc_id']}:0",
             "doc_id": hit["_doc_id"],
-            "text": _trim_to_token_budget(hit["_snippet"]),
+            "text": trim_to_token_budget(hit["_snippet"]),
             "score": hit["_score"],
             "source": "es_fallback",
         }
@@ -432,7 +445,8 @@ async def fetch_document_metadata(client, doc_id: str) -> dict | None:
 async def fetch_fulltext_batch(client, doc_ids: list[str]) -> dict[str, str]:
     """Batched sibling of fetch_fullcontent for the Instant-mode reranker: one mget
     instead of N sequential searches, restricted to fullcontent (the field actually
-    fed to the reranker)."""
+    fed to the reranker). Returns full untrimmed text - trimming is the reranker call
+    site's job (see trim_to_token_budget), not this generic fetch's."""
     if not doc_ids:
         return {}
     response = await client.mget(index=client.index, ids=doc_ids, _source=["fullcontent"])

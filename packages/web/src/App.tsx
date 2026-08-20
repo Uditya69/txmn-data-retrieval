@@ -47,6 +47,8 @@ export default function App() {
   const [mode, setMode] = useState<ChatMode>('classic')
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
   const [rerank, setRerank] = useState(false)
+  const [rrf, setRrf] = useState(false)
+  const [showReasoning, setShowReasoning] = useState(false)
   const [openDocId, setOpenDocId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -134,7 +136,7 @@ export default function App() {
   function runQuery(conversationId: string, assistantId: string, question: string, targetMode: ChatMode) {
     if (targetMode === 'classic') {
       pendingClassicRef.current = { conversationId, assistantId }
-      classicSearch.search(question, true, 'both', rerank, auth.token ? conversationId : undefined)
+      classicSearch.search(question, true, 'both', rerank, rrf, auth.token ? conversationId : undefined)
     } else {
       pendingAgentRef.current = { conversationId, assistantId }
       agentSearch.search(question)
@@ -272,7 +274,9 @@ export default function App() {
             </div>
 
             <div className="ml-auto flex items-center gap-3">
-              <RerankToggle rerank={rerank} onToggle={setRerank} />
+              <RerankToggle label="RRF" checked={rrf} onToggle={setRrf} />
+              <RerankToggle label="Rerank" checked={rerank} onToggle={setRerank} />
+              <RerankToggle label="Reasoning" checked={showReasoning} onToggle={setShowReasoning} />
               <DevModeToggle devMode={devMode} onToggle={setDevMode} />
               <AuthMenu
                 email={auth.email}
@@ -296,7 +300,13 @@ export default function App() {
           ) : (
             <div className="flex-1 flex flex-col gap-4 py-6">
               {messages.map((m) => (
-                <ChatMessageView key={m.id} message={m} devMode={devMode} onOpenDocument={setOpenDocId} />
+                <ChatMessageView
+                  key={m.id}
+                  message={m}
+                  devMode={devMode}
+                  showReasoning={showReasoning}
+                  onOpenDocument={setOpenDocId}
+                />
               ))}
               <div ref={bottomRef} />
             </div>

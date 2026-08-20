@@ -31,7 +31,12 @@ export interface MergedCard {
 // the UI doesn't need to care which source contributed a given card.
 export interface RerankedHit {
   doc_id: string
-  rerank_score: number
+  // Only rows that went through the cross-encoder carry rerank_score - RRF-only
+  // (rerank toggle off) rows keep rrf_score, and RRF-off/rerank-off rows keep
+  // whichever `score` ES/Milvus gave them. See instant/rerank.py::rerank_instant_results.
+  rerank_score?: number
+  rrf_score?: number
+  score?: number
   heading?: string
   subheading?: string
   text?: string
@@ -41,7 +46,7 @@ export function mapRerankedResults(reranked: RerankedHit[] | null | undefined): 
   return (reranked ?? []).map((hit) => ({
     doc_id: hit.doc_id,
     source: 'reranked',
-    score: hit.rerank_score,
+    score: hit.rerank_score ?? hit.rrf_score ?? hit.score ?? 0,
     heading: hit.heading,
     snippet: hit.subheading ?? hit.text ?? '',
   }))

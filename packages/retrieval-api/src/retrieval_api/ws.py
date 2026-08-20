@@ -102,9 +102,13 @@ async def search(websocket: WebSocket):
     conversation_id = message.get("conversation_id")
 
     settings = get_settings()
-    # Client can ask for Instant's rerank; instant_mode_rerank_enabled (env, default
-    # true) is a server-side kill switch above that - false forces it off regardless
-    # of what the client requested. Same pattern as AI Mode's rerank flag.
+    # Client can independently ask for Instant's RRF fusion and/or cross-encoder rerank.
+    # instant_mode_rerank_enabled (env, default true) is a server-side kill switch on the
+    # cross-encoder call specifically (the costly/fragile external DeepInfra call) - false
+    # forces it off regardless of what the client requested. RRF is cheap local rank math
+    # with no external dependency, so it isn't gated by that switch. Same kill-switch
+    # pattern as AI Mode's rerank flag.
+    rrf = message.get("rrf", False)
     rerank = message.get("rerank", False) and settings.instant_mode_rerank_enabled
     es_client = get_es_client(settings)
     gateway = get_gateway_client(settings)
@@ -141,7 +145,15 @@ async def search(websocket: WebSocket):
     query_embedding = None
     instant_cache_hit = None
     ai_mode_cache_hit = None
-    instant_cache_key = "instant_rerank" if rerank else "instant"
+    # Each (rrf, rerank) combination produces different result content - a separate
+    # cache key per combination, same as the single "instant_rerank" key before this
+    # toggle was split in two.
+    instant_cache_key = (
+        "instant_rrf_rerank" if rrf and rerank
+        else "instant_rrf" if rrf
+        else "instant_rerank" if rerank
+        else "instant"
+    )
     try:
         cache_settings = get_semantic_cache_settings()
         if cache_settings.semantic_cache_enabled:
@@ -201,7 +213,7 @@ async def search(websocket: WebSocket):
                 asyncio.create_task(
                     run_instant(
                         gateway, es_client, milvus_client, query,
-                        on_step=emit_trace_step if trace else None, rerank=rerank,
+                        on_step=emit_trace_step if trace else None, rrf=rrf, rerank=rerank,
                     )
                 )
                 if mode in ("instant", "both") and instant_cache_hit is None else None

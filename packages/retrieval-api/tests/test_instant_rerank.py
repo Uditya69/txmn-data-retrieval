@@ -81,3 +81,120 @@ async def test_rerank_instant_results_drops_candidates_with_no_fulltext(monkeypa
 
     assert result == []
     gateway.rerank.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_rerank_instant_results_returns_top_candidates_as_is_when_rerank_false():
+    """rerank=False: rows keep whichever field selected them (rrf_score here,
+    since rrf=True) rather than being relabeled rerank_score - that field only
+    appears once the cross-encoder actually ran."""
+    gateway = AsyncMock()
+
+    es_result = [{"doc_id": "d1", "score": 10.0}]
+    milvus_dense = {"ruling": [{"doc_id": "d2", "score": 5.0, "chunk_id": "c1", "text": "t2"}]}
+
+    result = await rerank_instant_results(
+        gateway, es_client=object(), query="q", shape="plain",
+        es_result=es_result, milvus_dense=milvus_dense, milvus_sparse={},
+        rrf=True, rerank=False,
+    )
+
+    assert {row["doc_id"] for row in result} == {"d1", "d2"}
+    for row in result:
+        assert "rerank_score" not in row
+        assert "rrf_score" in row
+    gateway.rerank.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_rerank_instant_results_plain_es_candidates_keep_score_field_when_rrf_and_rerank_both_off():
+    gateway = AsyncMock()
+
+    es_result = [{"doc_id": "d1", "score": 10.0}]
+
+    result = await rerank_instant_results(
+        gateway, es_client=object(), query="q", shape="plain",
+        es_result=es_result, milvus_dense={}, milvus_sparse={},
+        rrf=False, rerank=False,
+    )
+
+    assert result == [{"doc_id": "d1", "score": 10.0}]
+    assert "rerank_score" not in result[0]
+    assert "rrf_score" not in result[0]
+    gateway.rerank.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_rerank_instant_results_emits_rrf_merge_step_with_candidates(monkeypatch):
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    gateway = AsyncMock()
+    es_result = [{"doc_id": "d1", "score": 10.0}]
+    milvus_dense = {"ruling": [{"doc_id": "d2", "score": 5.0, "chunk_id": "c1", "text": "t2"}]}
+
+    result = await rerank_instant_results(
+        gateway, es_client=object(), query="q", shape="plain",
+        es_result=es_result, milvus_dense=milvus_dense, milvus_sparse={},
+        rrf=True, rerank=False, on_step=on_step,
+    )
+
+    assert [s for s, _ in steps] == ["rrf_merge"]
+    rrf_step_data = steps[0][1]
+    assert rrf_step_data["candidate_count"] == len(result)
+    assert rrf_step_data["top_candidates"] == result
+
+
+@pytest.mark.asyncio
+async def test_rerank_instant_results_skips_rrf_merge_step_when_rrf_false():
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    gateway = AsyncMock()
+
+    await rerank_instant_results(
+        gateway, es_client=object(), query="q", shape="plain",
+        es_result=[{"doc_id": "d1", "score": 10.0}], milvus_dense={}, milvus_sparse={},
+        rrf=False, rerank=False, on_step=on_step,
+    )
+
+    assert steps == []
+
+
+@pytest.mark.asyncio
+async def test_rerank_instant_results_emits_rerank_step_when_cross_encoder_runs(monkeypatch):
+    import retrieval_api.instant.rerank as rerank_module
+
+    async def fake_fetch_fulltext_batch(client, doc_ids):
+        return {doc_id: f"fulltext for {doc_id}" for doc_id in doc_ids}
+
+    monkeypatch.setattr(rerank_module, "fetch_fulltext_batch", fake_fetch_fulltext_batch)
+
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    gateway = AsyncMock()
+    gateway.rerank.return_value = [0.9, 0.7]
+
+    es_result = [{"doc_id": "d1", "score": 10.0}]
+    milvus_dense = {"ruling": [{"doc_id": "d2", "score": 5.0, "chunk_id": "c1", "text": "t2"}]}
+
+    result = await rerank_instant_results(
+        gateway, es_client=object(), query="q", shape="plain",
+        es_result=es_result, milvus_dense=milvus_dense, milvus_sparse={},
+        rrf=True, rerank=True, on_step=on_step,
+    )
+
+    assert [s for s, _ in steps] == ["rrf_merge", "rerank"]
+    rerank_step_data = steps[1][1]
+    assert rerank_step_data["total_candidates"] == 2
+    assert rerank_step_data["considered_count"] == 2
+    assert rerank_step_data["top_chunks"] == result
+    for row in result:
+        assert "rerank_score" in row

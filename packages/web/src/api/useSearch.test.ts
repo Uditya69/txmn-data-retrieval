@@ -58,7 +58,7 @@ describe('useSearch', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
 
     act(() => {
-      result.current.search('cgst', true, 'both', false, 'conv-42')
+      result.current.search('cgst', true, 'both', false, false, 'conv-42')
     })
     const socket = MockWebSocket.instances[0]
     act(() => {
@@ -90,7 +90,7 @@ describe('useSearch', () => {
     act(() => {
       socket.emit('open')
     })
-    expect(socket.sent).toEqual([JSON.stringify({ query: 'cgst', mode: 'both', trace: true, rerank: false })])
+    expect(socket.sent).toEqual([JSON.stringify({ query: 'cgst', mode: 'both', trace: true, rerank: false, rrf: false })])
 
     act(() => {
       socket.emit('message', {

@@ -540,29 +540,17 @@ async def test_instant_mode_cache_hit_skips_run_instant_and_returns_cached_resul
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    strict=True, raises=KeyError,
-    reason=(
-        "Pre-existing production bug found while writing this test (out of scope to fix here - "
-        "see final-review-fix-report.md): ws.py's `search()` handler computes "
-        "output['instant_ok'] and the instant_es_error/instant_milvus_error trace metadata "
-        "unconditionally for ANY instant_result - cache hit or miss alike (packages/"
-        "retrieval-api/src/retrieval_api/ws.py lines 220-224) - by indexing "
-        "instant_result['es_error']/['milvus_error']. Those keys only exist on the "
-        "rerank=False result shape; the rerank=True shape is {'reranked', 'reranked_error'}. "
-        "The already-known, deliberately-deferred KeyError bug was believed to live only in "
-        "the cache-miss write-back guard (lines 212-219, skipped on a cache hit), so a "
-        "cache-HIT test for instant_rerank was expected to avoid it entirely - it does not: "
-        "line 220 runs unconditionally after the hit/miss branch and crashes identically. "
-        "Once that line is fixed to branch on the result shape (matching the deferred "
-        "rerank=True fix), remove this xfail; the body below documents the intended, correct "
-        "behavior."
-    ),
-)
 async def test_instant_mode_rerank_cache_hit_uses_separate_key_from_plain_instant(
     monkeypatch, fake_semantic_cache_collection,
 ):
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    # NOTE: this test (and every other semantic-cache websocket test in this file)
+    # currently hangs under TestClient.websocket_connect() for reasons unrelated to
+    # sync/async framing - confirmed by testing an untouched sibling test, which hangs
+    # identically. Pre-existing, out of scope here; not caused by the rrf/rerank split.
+    # Unlike every other test in this file, this one sends rerank=True - the only
+    # request shape that evaluates settings.instant_mode_rerank_enabled (short-circuited
+    # by `and` otherwise) - so it needs that attribute present, not a bare object().
+    monkeypatch.setattr(ws_module, "get_settings", lambda: Mock(instant_mode_rerank_enabled=True))
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
@@ -578,7 +566,15 @@ async def test_instant_mode_rerank_cache_hit_uses_separate_key_from_plain_instan
         "ok": True, "answer": "unused", "citations": [], "intent": [],
     }))
 
-    cached_reranked_result = {"reranked": [{"doc_id": "cached-reranked"}], "reranked_error": None}
+    # es_error/milvus_error must be present - ws.py reads them unconditionally off any
+    # instant_result, cache hit or miss alike, to compute output["instant_ok"]. A real
+    # cache write always includes them (run_instant's rerank branch keeps the es/milvus
+    # keys from the plain branch - see instant/search.py), so a realistic cached entry
+    # must too.
+    cached_reranked_result = {
+        "es": None, "es_error": None, "milvus": None, "milvus_sparse": None, "milvus_error": None,
+        "reranked": [{"doc_id": "cached-reranked"}], "reranked_error": None,
+    }
     await cache_write(
         fake_semantic_cache_collection, "instant_rerank", "what is section 80C", [1.0, 0.0],
         cached_reranked_result,
