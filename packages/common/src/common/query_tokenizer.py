@@ -1,6 +1,8 @@
 import re
 
-from common.legal_lexicon import expand_synonyms, is_known_journal, is_stopword
+from common.legal_lexicon import (
+    CITATION_PATTERN, PARTY_PATTERN, SECTION_PATTERN, expand_synonyms, is_known_journal, is_stopword,
+)
 
 _CITATION_SPACING_PATTERN = re.compile(r"(\d{4})([a-zA-Z])")
 
@@ -10,6 +12,22 @@ def normalize_citation_spacing(query: str) -> str:
     '2024 taxman.com'. A 4-digit year glued directly to a letter is always a citation-source
     boundary in this domain (no legitimate legal term starts with 4 digits then a letter)."""
     return _CITATION_SPACING_PATTERN.sub(r"\1 \2", query)
+
+
+def classify_query_shape(query: str) -> str:
+    """Generic no-LLM citation/provision/plain query-shape classifier. No longer drives
+    Instant mode's ES boost-profile selection (see common.instant_classifier.effective_label
+    and es_client.py) or backend routing - retired from that role only. Still a legitimate
+    generic utility with a real caller: retrieval_api.ai_mode.intent's anchor-detection floor
+    (_has_legal_anchor/build_lexicon_check), an unrelated AI Mode concern. Citation checked
+    first: a query naming both a citation and a section (e.g. "2024 ITR 123 on Section 54F")
+    is still fundamentally a lookup for that one citation, so citation wins ties."""
+    normalized = normalize_citation_spacing(query)
+    if CITATION_PATTERN.search(normalized) or PARTY_PATTERN.search(normalized):
+        return "citation"
+    if SECTION_PATTERN.search(normalized):
+        return "provision"
+    return "plain"
 
 
 def expand_query_synonyms(query: str) -> str:

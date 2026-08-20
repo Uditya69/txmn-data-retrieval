@@ -1,5 +1,5 @@
 from common.query_tokenizer import (
-    normalize_citation_spacing, merge_keyword_number,
+    classify_query_shape, normalize_citation_spacing, merge_keyword_number,
     merge_court_city, merge_citation_span, strip_stopwords, extract_quoted_phrases,
     expand_query_synonyms, extract_boost_phrases, chunk_query,
 )
@@ -11,6 +11,17 @@ def test_normalize_citation_spacing_splits_year_from_source():
 
 def test_normalize_citation_spacing_leaves_normal_text_unchanged():
     assert normalize_citation_spacing("Section 54F exemption") == "Section 54F exemption"
+
+
+def test_classify_query_shape_still_works_for_intent_py():
+    # classify_query_shape is retired from ES-boost-profile/routing duty (es_client.py now
+    # uses common.instant_classifier.effective_label instead) but stays live for AI Mode's
+    # anchor-detection floor (retrieval_api.ai_mode.intent._has_legal_anchor/
+    # build_lexicon_check) - this pins its original citation/provision/plain behavior so a
+    # regression there doesn't go untested now that the ES-boost tests no longer cover it.
+    assert classify_query_shape("2024 ITR 123 exemption") == "citation"
+    assert classify_query_shape("Section 54F exemption eligibility") == "provision"
+    assert classify_query_shape("can a company claim depreciation on goodwill") == "plain"
 
 
 def test_merge_keyword_number_merges_section_and_number():
