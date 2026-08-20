@@ -10,10 +10,11 @@ from retrieval_api.score_cutoff import elbow_cutoff
 # toggle - default (off) behavior is untouched.
 _TOP_N_CANDIDATES = 20
 
-_SHAPE_RRF_WEIGHTS: dict[str, dict[str, float]] = {
-    "citation": {"es": 1.5, "milvus_dense": 0.5, "milvus_sparse": 1.5},
-    "provision": {"es": 1.5, "milvus_dense": 0.5, "milvus_sparse": 1.5},
-    "plain": {"es": 1.0, "milvus_dense": 1.5, "milvus_sparse": 0.5},
+_LABEL_RRF_WEIGHTS: dict[str, dict[str, float]] = {
+    "KEYWORD": {"es": 1.5, "milvus_dense": 0.5, "milvus_sparse": 1.5},
+    "HYBRID": {"es": 1.5, "milvus_dense": 0.5, "milvus_sparse": 1.5},
+    "INTENT": {"es": 1.0, "milvus_dense": 1.5, "milvus_sparse": 0.5},
+    "FALLBACK": {"es": 1.5, "milvus_dense": 0.5, "milvus_sparse": 1.5},
 }
 
 
@@ -54,7 +55,7 @@ async def rerank_instant_results(
     gateway: GatewayClient,
     es_client,
     query: str,
-    shape: str,
+    label: str,
     es_result: list[dict],
     milvus_dense: dict[str, list[dict]],
     milvus_sparse: dict[str, list[dict]],
@@ -73,7 +74,7 @@ async def rerank_instant_results(
       rather than being relabeled as `rerank_score` - that field only appears once the
       cross-encoder actually ran, so the UI/trace can tell which stage produced a score."""
     if rrf:
-        weights = _SHAPE_RRF_WEIGHTS.get(shape, {"es": 1.0, "milvus_dense": 1.0, "milvus_sparse": 1.0})
+        weights = _LABEL_RRF_WEIGHTS.get(label, {"es": 1.0, "milvus_dense": 1.0, "milvus_sparse": 1.0})
         fused = rrf_merge_by_doc_id(
             {
                 "es": es_result,

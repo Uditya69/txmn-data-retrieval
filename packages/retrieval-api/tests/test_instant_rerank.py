@@ -47,7 +47,7 @@ async def test_rerank_instant_results_fetches_fulltext_and_sorts_by_rerank_score
     monkeypatch.setattr(rerank_module, "fetch_fulltext_batch", fake_fetch_fulltext_batch)
 
     gateway = AsyncMock()
-    # shape="plain" weights milvus_dense (1.5) over es (1.0), so d2 is the
+    # label="INTENT" weights milvus_dense (1.5) over es (1.0), so d2 is the
     # higher-ranked fused candidate and comes first in the documents list.
     gateway.rerank.return_value = [0.9, 0.7]  # both stay within elbow_cutoff's 0.6 ratio
 
@@ -55,7 +55,7 @@ async def test_rerank_instant_results_fetches_fulltext_and_sorts_by_rerank_score
     milvus_dense = {"ruling": [{"doc_id": "d2", "score": 5.0, "chunk_id": "c1", "text": "t2"}]}
 
     result = await rerank_instant_results(
-        gateway, es_client=object(), query="q", shape="plain",
+        gateway, es_client=object(), query="q", label="INTENT",
         es_result=es_result, milvus_dense=milvus_dense, milvus_sparse={},
     )
 
@@ -75,7 +75,7 @@ async def test_rerank_instant_results_drops_candidates_with_no_fulltext(monkeypa
     gateway = AsyncMock()
 
     result = await rerank_instant_results(
-        gateway, es_client=object(), query="q", shape="plain",
+        gateway, es_client=object(), query="q", label="INTENT",
         es_result=[{"doc_id": "d1", "score": 1.0}], milvus_dense={}, milvus_sparse={},
     )
 
@@ -94,7 +94,7 @@ async def test_rerank_instant_results_returns_top_candidates_as_is_when_rerank_f
     milvus_dense = {"ruling": [{"doc_id": "d2", "score": 5.0, "chunk_id": "c1", "text": "t2"}]}
 
     result = await rerank_instant_results(
-        gateway, es_client=object(), query="q", shape="plain",
+        gateway, es_client=object(), query="q", label="INTENT",
         es_result=es_result, milvus_dense=milvus_dense, milvus_sparse={},
         rrf=True, rerank=False,
     )
@@ -113,7 +113,7 @@ async def test_rerank_instant_results_plain_es_candidates_keep_score_field_when_
     es_result = [{"doc_id": "d1", "score": 10.0}]
 
     result = await rerank_instant_results(
-        gateway, es_client=object(), query="q", shape="plain",
+        gateway, es_client=object(), query="q", label="INTENT",
         es_result=es_result, milvus_dense={}, milvus_sparse={},
         rrf=False, rerank=False,
     )
@@ -136,7 +136,7 @@ async def test_rerank_instant_results_emits_rrf_merge_step_with_candidates(monke
     milvus_dense = {"ruling": [{"doc_id": "d2", "score": 5.0, "chunk_id": "c1", "text": "t2"}]}
 
     result = await rerank_instant_results(
-        gateway, es_client=object(), query="q", shape="plain",
+        gateway, es_client=object(), query="q", label="INTENT",
         es_result=es_result, milvus_dense=milvus_dense, milvus_sparse={},
         rrf=True, rerank=False, on_step=on_step,
     )
@@ -157,7 +157,7 @@ async def test_rerank_instant_results_skips_rrf_merge_step_when_rrf_false():
     gateway = AsyncMock()
 
     await rerank_instant_results(
-        gateway, es_client=object(), query="q", shape="plain",
+        gateway, es_client=object(), query="q", label="INTENT",
         es_result=[{"doc_id": "d1", "score": 10.0}], milvus_dense={}, milvus_sparse={},
         rrf=False, rerank=False, on_step=on_step,
     )
@@ -186,7 +186,7 @@ async def test_rerank_instant_results_emits_rerank_step_when_cross_encoder_runs(
     milvus_dense = {"ruling": [{"doc_id": "d2", "score": 5.0, "chunk_id": "c1", "text": "t2"}]}
 
     result = await rerank_instant_results(
-        gateway, es_client=object(), query="q", shape="plain",
+        gateway, es_client=object(), query="q", label="INTENT",
         es_result=es_result, milvus_dense=milvus_dense, milvus_sparse={},
         rrf=True, rerank=True, on_step=on_step,
     )
