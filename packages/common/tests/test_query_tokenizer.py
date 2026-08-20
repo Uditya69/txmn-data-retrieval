@@ -1,29 +1,8 @@
 from common.query_tokenizer import (
-    classify_query_shape, normalize_citation_spacing, merge_keyword_number,
+    normalize_citation_spacing, merge_keyword_number,
     merge_court_city, merge_citation_span, strip_stopwords, extract_quoted_phrases,
     expand_query_synonyms, extract_boost_phrases, chunk_query,
 )
-
-
-def test_classify_query_shape_detects_citation():
-    assert classify_query_shape("2024 ITR 123 exemption") == "citation"
-
-
-def test_classify_query_shape_detects_party_citation():
-    assert classify_query_shape("Krishana Goel vs. Principal Commissioner of Income-tax") == "citation"
-
-
-def test_classify_query_shape_detects_provision():
-    assert classify_query_shape("Section 54F exemption eligibility") == "provision"
-
-
-def test_classify_query_shape_defaults_to_plain():
-    assert classify_query_shape("can a company claim depreciation on goodwill") == "plain"
-
-
-def test_classify_query_shape_prefers_citation_when_both_patterns_present():
-    # a citation with a section number embedded is still primarily a citation lookup
-    assert classify_query_shape("2024 ITR 123 on Section 54F") == "citation"
 
 
 def test_normalize_citation_spacing_splits_year_from_source():

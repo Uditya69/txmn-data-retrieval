@@ -4,8 +4,10 @@ from typing import Awaitable, Callable
 
 from langfuse import get_client
 
-from common.legal_lexicon import KNOWN_ACT_NAMES, is_stopword
-from common.query_tokenizer import chunk_query, classify_query_shape, expand_query_synonyms
+from common.legal_lexicon import (
+    CITATION_PATTERN, KNOWN_ACT_NAMES, PARTY_PATTERN, SECTION_PATTERN, is_stopword,
+)
+from common.query_tokenizer import chunk_query, expand_query_synonyms, normalize_citation_spacing
 from common.schema_context import KNOWN_COURTS, build_schema_context
 from persona.prompt import RELEVANCE_INSTRUCTION
 from retrieval_api.gateway_client import GatewayClient
@@ -67,6 +69,24 @@ def _build_chunk_context(query: str) -> str | None:
     return json.dumps(spans, ensure_ascii=False)
 
 
+def _classify_query_shape(query: str) -> str:
+    """AI Mode's own anchor-detection concern - unrelated to Instant mode's ES boost-profile
+    selection (which now uses common.instant_classifier.effective_label; see
+    common/es_client.py). Inlined here (rather than imported) because the shared
+    query_tokenizer.classify_query_shape() this used to call was retired along with that
+    rewiring - the citation/provision/plain distinction it made is still exactly what
+    _has_legal_anchor/build_lexicon_check need, just no longer a shared symbol. Citation
+    checked first: a query naming both a citation and a section (e.g. "2024 ITR 123 on
+    Section 54F") is still fundamentally a lookup for that one citation, so citation wins
+    ties."""
+    normalized = normalize_citation_spacing(query)
+    if CITATION_PATTERN.search(normalized) or PARTY_PATTERN.search(normalized):
+        return "citation"
+    if SECTION_PATTERN.search(normalized):
+        return "provision"
+    return "plain"
+
+
 def _has_legal_anchor(query: str, chunk_context: str | None) -> bool:
     """True when any layer of the existing lexical pipeline (structural chunking, legal
     lexicon, shape classification) recognizes something in this query - a citation,
@@ -77,7 +97,7 @@ def _has_legal_anchor(query: str, chunk_context: str | None) -> bool:
         return True  # a structural span (citation/section/court/date/party) was found
     if expand_query_synonyms(query) != query:
         return True  # a legal-lexicon term/abbreviation was recognized
-    if classify_query_shape(query) != "plain":
+    if _classify_query_shape(query) != "plain":
         return True  # provision/citation shape implies an anchor
     return False
 
@@ -102,7 +122,7 @@ def build_lexicon_check(query: str) -> dict:
     chunk_context = _build_chunk_context(query)
     return {
         "has_anchor": _has_legal_anchor(query, chunk_context),
-        "shape": classify_query_shape(query),
+        "shape": _classify_query_shape(query),
         "chunks": json.loads(chunk_context) if chunk_context is not None else [],
     }
 

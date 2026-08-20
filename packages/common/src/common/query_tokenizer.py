@@ -1,8 +1,6 @@
 import re
 
-from common.legal_lexicon import (
-    CITATION_PATTERN, PARTY_PATTERN, SECTION_PATTERN, expand_synonyms, is_known_journal, is_stopword,
-)
+from common.legal_lexicon import expand_synonyms, is_known_journal, is_stopword
 
 _CITATION_SPACING_PATTERN = re.compile(r"(\d{4})([a-zA-Z])")
 
@@ -12,18 +10,6 @@ def normalize_citation_spacing(query: str) -> str:
     '2024 taxman.com'. A 4-digit year glued directly to a letter is always a citation-source
     boundary in this domain (no legitimate legal term starts with 4 digits then a letter)."""
     return _CITATION_SPACING_PATTERN.sub(r"\1 \2", query)
-
-
-def classify_query_shape(query: str) -> str:
-    """No-LLM query-shape classification for Instant mode boost selection. Citation checked
-    first: a query naming both a citation and a section (e.g. "2024 ITR 123 on Section 54F")
-    is still fundamentally a lookup for that one citation, so citation wins ties."""
-    normalized = normalize_citation_spacing(query)
-    if CITATION_PATTERN.search(normalized) or PARTY_PATTERN.search(normalized):
-        return "citation"
-    if SECTION_PATTERN.search(normalized):
-        return "provision"
-    return "plain"
 
 
 def expand_query_synonyms(query: str) -> str:

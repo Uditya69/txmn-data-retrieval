@@ -8,6 +8,7 @@ from common.es_client import (
     fetch_fullcontent,
     fetch_document_metadata,
     build_query_preview,
+    _build_field_query,
 )
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
@@ -179,9 +180,15 @@ def test_build_query_preview_matches_what_raw_search_actually_sends():
     preview = build_query_preview("Section 6 of Income Tax Act")
 
     assert preview["query"] == "Section 6 of Income Tax Act"
-    assert preview["shape"] == "provision"
+    assert preview["shape"] == "HYBRID"
     assert any(c["type"] == "section" and c["text"] == "Section 6" for c in preview["chunks"])
     assert "bool" in preview["es_query"]
+
+
+def test_build_field_query_accepts_new_taxonomy_labels():
+    for label in ("KEYWORD", "HYBRID", "INTENT", "FALLBACK"):
+        query = _build_field_query("test query", label)
+        assert "bool" in query
 
 
 def test_build_query_preview_omits_expanded_query_when_unchanged():
