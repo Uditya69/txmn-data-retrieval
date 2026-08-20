@@ -82,16 +82,31 @@ function CopyTraceButton({ traceSteps, disabled }: { traceSteps: ResultState['tr
   )
 }
 
-function TraceSection({ result, onOpenDocument }: { result: ResultState | undefined; onOpenDocument: (docId: string) => void }) {
-  if (!result || result.traceSteps.length === 0) return null
+// Instant and AI Mode share one traceSteps array off the wire (ws.py's
+// _emit_trace_step sends every step - both modes' - as the same "ai_mode_trace"
+// message type). Split by step name so each pane's Trace section only shows its
+// own steps, not the other mode's mixed in.
+const INSTANT_STEP_NAMES = new Set(['query_analysis', 'es_search', 'milvus_dense', 'milvus_sparse', 'instant_reranked'])
+
+function TraceSection({
+  result,
+  onOpenDocument,
+  filter,
+}: {
+  result: ResultState | undefined
+  onOpenDocument: (docId: string) => void
+  filter?: (step: { step: string }) => boolean
+}) {
+  const steps = filter ? (result?.traceSteps ?? []).filter(filter) : result?.traceSteps ?? []
+  if (!result || steps.length === 0) return null
   return (
     <details className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
       <summary className="text-xs font-medium uppercase tracking-wider cursor-pointer" style={{ color: 'var(--text-faint)' }}>
-        Trace ({result.traceSteps.length})
-        <CopyTraceButton traceSteps={result.traceSteps} disabled={result.status !== 'done'} />
+        Trace ({steps.length})
+        <CopyTraceButton traceSteps={steps} disabled={result.status !== 'done'} />
       </summary>
       <div className="mt-2">
-        <TracePanel steps={result.traceSteps} onOpenDocument={onOpenDocument} />
+        <TracePanel steps={steps} onOpenDocument={onOpenDocument} />
       </div>
     </details>
   )
@@ -293,6 +308,8 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
           </button>
         </div>
       )}
+
+      {devMode && <TraceSection result={result} onOpenDocument={onOpenDocument} filter={(step) => INSTANT_STEP_NAMES.has(step.step)} />}
     </div>
   )
 }
@@ -441,7 +458,13 @@ function AnswerPane({
         </div>
       )}
 
-      {devMode && <TraceSection result={result} onOpenDocument={onOpenDocument} />}
+      {devMode && (
+        <TraceSection
+          result={result}
+          onOpenDocument={onOpenDocument}
+          filter={mode === 'classic' ? (step) => !INSTANT_STEP_NAMES.has(step.step) : undefined}
+        />
+      )}
     </div>
   )
 }

@@ -101,7 +101,8 @@ async def _run_milvus(
 
 
 async def run_instant(
-    gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None, rerank: bool = False,
+    gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None,
+    rrf: bool = False, rerank: bool = False,
 ) -> dict:
     langfuse = get_client()
     with langfuse.start_as_current_observation(as_type="span", name="instant-search", input={"query": query}):
@@ -119,25 +120,36 @@ async def run_instant(
             _run_es(es_client, query, on_step),
             _run_milvus(gateway, milvus_client, query, on_step),
         )
-        if not rerank:
-            return {
-                "es": es_result,
-                "es_error": es_error,
-                "milvus": milvus_dense,
-                "milvus_sparse": milvus_sparse,
-                "milvus_error": milvus_error,
-            }
+        result = {
+            "es": es_result,
+            "es_error": es_error,
+            "milvus": milvus_dense,
+            "milvus_sparse": milvus_sparse,
+            "milvus_error": milvus_error,
+        }
+        if not rrf and not rerank:
+            return result
 
-        reranked_error = es_error or milvus_error
+        # Milvus isn't consulted at all when rrf is off (see rerank_instant_results),
+        # so a Milvus-side failure shouldn't block that path.
+        reranked_error = es_error or (milvus_error if rrf else None)
         reranked = []
         if reranked_error is None:
-            try:
-                reranked = await rerank_instant_results(
-                    gateway, es_client, query, classify_query_shape(query),
-                    es_result or [], milvus_dense or {}, milvus_sparse or {},
-                )
-                if on_step is not None:
-                    await on_step("instant_reranked", {"hits": reranked})
-            except Exception as exc:  # noqa: BLE001 - branch isolation is the point
-                reranked_error = str(exc)
-    return {"reranked": reranked, "reranked_error": reranked_error}
+            with langfuse.start_as_current_observation(
+                as_type="chain", name="rerank", input={"query": query, "rrf": rrf, "rerank": rerank},
+            ) as rerank_span:
+                try:
+                    reranked = await rerank_instant_results(
+                        gateway, es_client, query, classify_query_shape(query),
+                        es_result or [], milvus_dense or {}, milvus_sparse or {},
+                        rrf=rrf, rerank=rerank,
+                    )
+                    rerank_span.update(output={"num_reranked": len(reranked)})
+                    if on_step is not None:
+                        await on_step("instant_reranked", {"hits": reranked})
+                except Exception as exc:  # noqa: BLE001 - branch isolation is the point
+                    reranked_error = str(exc)
+                    rerank_span.update(level="ERROR", status_message=reranked_error)
+        result["reranked"] = reranked
+        result["reranked_error"] = reranked_error
+    return result

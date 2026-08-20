@@ -489,14 +489,14 @@ async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
 
 
 def test_trim_to_token_budget_returns_short_text_unchanged():
-    from common.es_client import _trim_to_token_budget
+    from common.es_client import trim_to_token_budget
 
     text = "short text well under budget"
-    assert _trim_to_token_budget(text, target_tokens=1024) == text
+    assert trim_to_token_budget(text, target_tokens=1024) == text
 
 
 def test_trim_to_token_budget_centers_and_trims_oversized_text():
-    from common.es_client import _trim_to_token_budget
+    from common.es_client import trim_to_token_budget
     import tiktoken
 
     tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -507,11 +507,25 @@ def test_trim_to_token_budget_centers_and_trims_oversized_text():
     after = " ".join(["filler"] * 2000)
     text = f"{before} MARKER {after}"
 
-    trimmed = _trim_to_token_budget(text, target_tokens=100)
+    trimmed = trim_to_token_budget(text, target_tokens=100)
 
     trimmed_tokens = tokenizer.encode(trimmed)
     assert len(trimmed_tokens) == 100
     assert "MARKER" in trimmed
+
+
+def test_trim_to_token_budget_keeps_head_when_center_is_false():
+    from common.es_client import trim_to_token_budget
+    import tiktoken
+
+    tokenizer = tiktoken.get_encoding("cl100k_base")
+    text = "HEAD " + " ".join(["filler"] * 2000) + " TAIL"
+
+    trimmed = trim_to_token_budget(text, target_tokens=100, center=False)
+
+    assert len(tokenizer.encode(trimmed)) == 100
+    assert "HEAD" in trimmed
+    assert "TAIL" not in trimmed
 
 
 def test_cap_group_shares_single_group_is_unaffected():
@@ -593,7 +607,7 @@ async def test_sparse_fallback_search_applies_doc_id_allowlist_and_highlight_con
 async def test_sparse_fallback_search_strips_highlight_markup_tags():
     """Default ES highlighting wraps matches in <em>...</em> - that raw markup must never
     reach the reranker/LLM as if it were clean document text, and unclosed/split tags could
-    eat into _trim_to_token_budget's centered cut. pre_tags/post_tags=[""] disables the
+    eat into trim_to_token_budget's centered cut. pre_tags/post_tags=[""] disables the
     wrapping while keeping fragment selection/centering."""
     client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
 

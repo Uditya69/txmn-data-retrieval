@@ -12,6 +12,7 @@ const STEP_LABELS: Record<string, string> = {
   milvus_sparse: 'Milvus sparse search',
   rrf_merge: 'RRF merge',
   rerank: 'Rerank',
+  instant_reranked: 'Instant rerank',
   synthesis_prompt: 'Synthesis prompt',
   agent_tool_call: 'Agent tool call',
   agent_tool_result: 'Agent tool result',
@@ -51,6 +52,8 @@ function summarize(step: TraceStep): string {
       const from = capped ? ` (capped from ${d.total_candidates})` : ''
       return `${d.considered_count} considered${from}, top ${d.top_chunks?.length ?? 0} kept`
     }
+    case 'instant_reranked':
+      return `${(d.hits ?? []).length} result(s)`
     case 'synthesis_prompt':
       return `${(d.prompt ?? '').length} chars`
     case 'agent_tool_call':
@@ -169,6 +172,9 @@ function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: 
   }
   if (step.step === 'rerank') {
     return <TruncatedHitList hits={d.top_chunks ?? []} onOpenDocument={onOpenDocument} />
+  }
+  if (step.step === 'instant_reranked') {
+    return <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
   }
   if (step.step === 'synthesis_prompt') {
     return <pre className={styles.promptBlock}>{d.prompt}</pre>

@@ -1,4 +1,4 @@
-from common.es_client import fetch_fulltext_batch
+from common.es_client import fetch_fulltext_batch, trim_to_token_budget
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.score_cutoff import elbow_cutoff
 
@@ -57,25 +57,47 @@ async def rerank_instant_results(
     es_result: list[dict],
     milvus_dense: dict[str, list[dict]],
     milvus_sparse: dict[str, list[dict]],
+    rrf: bool = True,
+    rerank: bool = True,
 ) -> list[dict]:
-    weights = _SHAPE_RRF_WEIGHTS.get(shape, {"es": 1.0, "milvus_dense": 1.0, "milvus_sparse": 1.0})
-    fused = rrf_merge_by_doc_id(
-        {
-            "es": es_result,
-            "milvus_dense": _flatten_by_score(milvus_dense),
-            "milvus_sparse": _flatten_by_score(milvus_sparse),
-        },
-        weights,
-    )
+    """rrf and rerank are independent toggles, both defaulting to on (today's combined
+    "rerank" toggle behavior) but each callable alone:
+    - rrf=False: skip fusion entirely rather than inventing a non-rank-based way to mix
+      ES and Milvus scores (CLAUDE.md hard rule 3) - candidates are ES's own top ranking,
+      Milvus isn't consulted at all.
+    - rerank=False: skip the DeepInfra cross-encoder call - candidates keep whichever
+      ranking (RRF or plain ES) selected them, just capped/exposed as "reranked" for the
+      UI's single-ranked-list display."""
+    if rrf:
+        weights = _SHAPE_RRF_WEIGHTS.get(shape, {"es": 1.0, "milvus_dense": 1.0, "milvus_sparse": 1.0})
+        fused = rrf_merge_by_doc_id(
+            {
+                "es": es_result,
+                "milvus_dense": _flatten_by_score(milvus_dense),
+                "milvus_sparse": _flatten_by_score(milvus_sparse),
+            },
+            weights,
+        )
+    else:
+        fused = _collapse_to_doc_id(es_result)
+
     top_candidates = fused[:_TOP_N_CANDIDATES]
+    if not top_candidates:
+        return []
+
+    if not rerank:
+        return [{**row, "rerank_score": row.get("rrf_score", row.get("score", 0.0))} for row in top_candidates]
 
     fulltext = await fetch_fulltext_batch(es_client, [row["doc_id"] for row in top_candidates])
     candidates = [row for row in top_candidates if fulltext.get(row["doc_id"])]
     if not candidates:
         return []
 
+    # center=False: full document text, not a highlighted snippet - see
+    # trim_to_token_budget's docstring for why the head (not the middle) is kept.
     scores = await gateway.rerank(
-        role="reranker", query=query, documents=[fulltext[row["doc_id"]] for row in candidates],
+        role="reranker", query=query,
+        documents=[trim_to_token_budget(fulltext[row["doc_id"]], center=False) for row in candidates],
     )
     scored = [{**row, "rerank_score": score} for row, score in zip(candidates, scores)]
     scored.sort(key=lambda row: row["rerank_score"], reverse=True)

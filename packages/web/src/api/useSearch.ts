@@ -40,13 +40,18 @@ export function useSearch(
   accessToken?: string | null,
   onSessionExpired?: () => void,
 ): SearchState & {
-  search: (query: string, trace: boolean, mode?: SearchMode, rerank?: boolean, conversationId?: string) => void
+  search: (
+    query: string, trace: boolean, mode?: SearchMode, rerank?: boolean, rrf?: boolean, conversationId?: string,
+  ) => void
 } {
   const [state, setState] = useState<SearchState>(INITIAL_STATE)
   const socketRef = useRef<WebSocket | null>(null)
 
   const search = useCallback(
-    (query: string, trace: boolean, mode: SearchMode = 'both', rerank: boolean = false, conversationId?: string) => {
+    (
+      query: string, trace: boolean, mode: SearchMode = 'both', rerank: boolean = false, rrf: boolean = false,
+      conversationId?: string,
+    ) => {
       socketRef.current?.close()
       setState({ loading: true, instant: null, aiMode: null, traceSteps: [], wsError: null })
 
@@ -63,7 +68,7 @@ export function useSearch(
         // access_token is only included when a user is signed in - the backend
         // treats it as fully optional (see ws.py's _resolve_user_id) and this
         // keeps guest requests byte-identical to before persona existed.
-        const payload: Record<string, unknown> = { query, mode, trace, rerank }
+        const payload: Record<string, unknown> = { query, mode, trace, rerank, rrf }
         if (accessToken) payload.access_token = accessToken
         if (conversationId) payload.conversation_id = conversationId
         socket.send(JSON.stringify(payload))
