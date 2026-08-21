@@ -43,7 +43,8 @@ function summarize(step: TraceStep): string {
     case 'classifier': {
       const skipped = [!d.plan?.es && 'ES', !d.plan?.milvus && 'Milvus'].filter(Boolean)
       const skippedText = skipped.length ? `, skipped: ${skipped.join(', ')}` : ''
-      return `${d.label} (${(d.confidence * 100).toFixed(1)}% confidence)${skippedText}`
+      // return `${d.label} (${(d.confidence * 100).toFixed(1)}% confidence)${skippedText}`
+      return `${d.label} ${skippedText}`
     }
     case 'intent':
       return `"${d.query}" -> "${d.search_query}" (${(d.intent ?? []).join(', ')})`
