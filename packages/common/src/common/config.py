@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     # (the default) disables that feature entirely, so no deployment needs to think
     # about it unless it opts in.
     admin_secret: str | None = None
+    # Dev-only visibility switch: when True, AI Mode's synthesis-step model reasoning
+    # (already captured via gateway_client.chat_with_reasoning / synthesize.py, and
+    # always logged to Langfuse regardless of this flag) is also included in the
+    # ai_mode_done websocket message sent to the client. False in production so raw
+    # chain-of-thought never reaches an end user; flip true in .env for local/dev only.
+    expose_reasoning: bool = False
 
 
 @lru_cache

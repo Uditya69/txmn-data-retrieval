@@ -56,6 +56,8 @@ async def get_intent_analysis(req: IntentAnalysisRequest):
             query_count = None
 
     result = await extract_intent(gateway, req.query, persona_context=persona_context)
+    if not settings.expose_reasoning:
+        result.pop("reasoning", None)
 
     return {
         **result,

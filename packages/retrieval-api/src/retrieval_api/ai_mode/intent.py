@@ -384,7 +384,7 @@ async def extract_intent(
         )
     if persona_context:
         user_message += f"\n\n{persona_context}\n{RELEVANCE_INSTRUCTION}"
-    response = await gateway.chat(
+    response, reasoning = await gateway.chat_with_reasoning(
         role="slm",
         messages=[
             {"role": "system", "content": _system_prompt_for_model(resolved_model)},
@@ -410,6 +410,8 @@ async def extract_intent(
         result = _fallback_intent(query)
     else:
         result = _validate_result(query, result, chunk_context)
+
+    result["reasoning"] = reasoning
 
     if on_step is not None:
         await on_step("intent", {"query": query, **result})

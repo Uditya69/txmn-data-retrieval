@@ -275,7 +275,7 @@ async def search(websocket: WebSocket):
                     ai_mode_message = {
                         "type": "ai_mode_done", "answer": ai_mode_result["answer"], "citations": ai_mode_result["citations"],
                     }
-                    if ai_mode_result.get("reasoning"):
+                    if get_settings().expose_reasoning and ai_mode_result.get("reasoning"):
                         ai_mode_message["reasoning"] = ai_mode_result["reasoning"]
                     await send(ai_mode_message)
 
