@@ -1,4 +1,5 @@
 from common.es_client import fetch_fulltext_batch, trim_to_token_budget
+from common.instant_classifier.labels import boost_profile_key
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.score_cutoff import elbow_cutoff
@@ -14,7 +15,6 @@ _LABEL_RRF_WEIGHTS: dict[str, dict[str, float]] = {
     "KEYWORD": {"es": 1.5, "milvus_dense": 0.5, "milvus_sparse": 1.5},
     "HYBRID": {"es": 1.5, "milvus_dense": 0.5, "milvus_sparse": 1.5},
     "INTENT": {"es": 1.0, "milvus_dense": 1.5, "milvus_sparse": 0.5},
-    "FALLBACK": {"es": 1.5, "milvus_dense": 0.5, "milvus_sparse": 1.5},
 }
 
 
@@ -74,7 +74,9 @@ async def rerank_instant_results(
       rather than being relabeled as `rerank_score` - that field only appears once the
       cross-encoder actually ran, so the UI/trace can tell which stage produced a score."""
     if rrf:
-        weights = _LABEL_RRF_WEIGHTS.get(label, {"es": 1.0, "milvus_dense": 1.0, "milvus_sparse": 1.0})
+        weights = _LABEL_RRF_WEIGHTS.get(
+            boost_profile_key(label), {"es": 1.0, "milvus_dense": 1.0, "milvus_sparse": 1.0},
+        )
         fused = rrf_merge_by_doc_id(
             {
                 "es": es_result,

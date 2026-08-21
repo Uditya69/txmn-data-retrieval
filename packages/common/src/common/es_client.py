@@ -4,6 +4,7 @@ from elasticsearch import AsyncElasticsearch
 
 from common.config import Settings
 from common.instant_classifier import effective_label
+from common.instant_classifier.labels import boost_profile_key
 from common.query_tokenizer import chunk_query, expand_query_synonyms
 from common.schemas import ES_GROUP_FOR_COLLECTION, MASTERINFO_CITATION_FIELDS
 
@@ -151,8 +152,6 @@ _BOOST_PROFILES = {
                "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 2.5},
     "INTENT": {"heading": 2.0, "subheading": 2.0, "fullcontent": 1.5,
                "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 1.0},
-    "FALLBACK": {"heading": 2.0, "subheading": 3.0, "fullcontent": 1.0,
-                 "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 2.5},
 }
 
 
@@ -194,7 +193,7 @@ def _build_field_query(query: str, shape: str, chunks: list[dict] = ()) -> dict:
     phrase-boosted the few explicitly-recognized merges - Section+number, court+city, citation
     triple, quotes - and left every other word, including an unrecognized party name, to compete
     as independent OR terms with no phrase treatment at all)."""
-    boosts = _BOOST_PROFILES[shape]
+    boosts = _BOOST_PROFILES[boost_profile_key(shape)]
     should = [
         {"multi_match": {"query": query, "fields": [field], "boost": boost, "fuzziness": "AUTO"}}
         for field, boost in boosts.items()
