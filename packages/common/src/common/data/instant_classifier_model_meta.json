@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "train_examples": 60,
+  "eval_examples": 24,
+  "overall_eval_accuracy": 0.875,
+  "confidence_threshold": 0.9,
+  "accuracy_at_threshold": 1.0,
+  "labels": [
+    "HYBRID",
+    "INTENT",
+    "KEYWORD"
+  ]
+}

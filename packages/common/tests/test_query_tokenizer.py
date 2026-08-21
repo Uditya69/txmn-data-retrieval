@@ -5,33 +5,23 @@ from common.query_tokenizer import (
 )
 
 
-def test_classify_query_shape_detects_citation():
-    assert classify_query_shape("2024 ITR 123 exemption") == "citation"
-
-
-def test_classify_query_shape_detects_party_citation():
-    assert classify_query_shape("Krishana Goel vs. Principal Commissioner of Income-tax") == "citation"
-
-
-def test_classify_query_shape_detects_provision():
-    assert classify_query_shape("Section 54F exemption eligibility") == "provision"
-
-
-def test_classify_query_shape_defaults_to_plain():
-    assert classify_query_shape("can a company claim depreciation on goodwill") == "plain"
-
-
-def test_classify_query_shape_prefers_citation_when_both_patterns_present():
-    # a citation with a section number embedded is still primarily a citation lookup
-    assert classify_query_shape("2024 ITR 123 on Section 54F") == "citation"
-
-
 def test_normalize_citation_spacing_splits_year_from_source():
     assert normalize_citation_spacing("2024taxman.com 123") == "2024 taxman.com 123"
 
 
 def test_normalize_citation_spacing_leaves_normal_text_unchanged():
     assert normalize_citation_spacing("Section 54F exemption") == "Section 54F exemption"
+
+
+def test_classify_query_shape_still_works_for_intent_py():
+    # classify_query_shape is retired from ES-boost-profile/routing duty (es_client.py now
+    # uses common.instant_classifier.effective_label instead) but stays live for AI Mode's
+    # anchor-detection floor (retrieval_api.ai_mode.intent._has_legal_anchor/
+    # build_lexicon_check) - this pins its original citation/provision/plain behavior so a
+    # regression there doesn't go untested now that the ES-boost tests no longer cover it.
+    assert classify_query_shape("2024 ITR 123 exemption") == "citation"
+    assert classify_query_shape("Section 54F exemption eligibility") == "provision"
+    assert classify_query_shape("can a company claim depreciation on goodwill") == "plain"
 
 
 def test_merge_keyword_number_merges_section_and_number():

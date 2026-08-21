@@ -63,3 +63,25 @@ def test_citation_pattern_matches_known_citation_formats(text):
 @pytest.mark.parametrize("text", ["Krishana Goel vs. Principal Commissioner", "State v. Doe", "X versus Y"])
 def test_party_pattern_matches_vs_variants(text):
     assert PARTY_PATTERN.search(text) is not None
+
+
+from common.legal_lexicon import KNOWN_ACT_NAMES, KNOWN_COURT_FULL_NAMES
+
+
+def test_known_court_full_names_includes_original_nine():
+    for name in [
+        "Supreme Court", "Delhi High Court", "Bombay High Court", "Madras High Court",
+        "Calcutta High Court", "Karnataka High Court", "Gujarat High Court",
+        "Income Tax Appellate Tribunal", "Customs Excise and Service Tax Appellate Tribunal",
+    ]:
+        assert name in KNOWN_COURT_FULL_NAMES
+
+
+def test_known_act_names_includes_original_ten():
+    for name in [
+        "bharatiya nyaya sanhita", "bharatiya nagarik suraksha sanhita",
+        "bharatiya sakshya adhiniyam", "indian penal code", "income-tax act",
+        "income tax act", "cgst act", "igst act", "customs act",
+        "code of criminal procedure", "indian evidence act",
+    ]:
+        assert name in KNOWN_ACT_NAMES

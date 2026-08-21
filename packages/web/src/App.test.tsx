@@ -75,7 +75,7 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText('Search query'), { target: { value: 'what is section 80HH' } })
     fireEvent.click(screen.getByLabelText('Send'))
 
-    expect(search).toHaveBeenCalledWith('what is section 80HH', true, 'both', false, false, undefined)
+    expect(search).toHaveBeenCalledWith('what is section 80HH', true, 'both', false, false, false, undefined)
     expect(screen.getAllByText('what is section 80HH').length).toBeGreaterThan(0)
   })
 

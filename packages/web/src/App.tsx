@@ -48,6 +48,7 @@ export default function App() {
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
   const [rerank, setRerank] = useState(false)
   const [rrf, setRrf] = useState(false)
+  const [autoRoute, setAutoRoute] = useState(false)
   const [showReasoning, setShowReasoning] = useState(false)
   const [openDocId, setOpenDocId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -136,7 +137,7 @@ export default function App() {
   function runQuery(conversationId: string, assistantId: string, question: string, targetMode: ChatMode) {
     if (targetMode === 'classic') {
       pendingClassicRef.current = { conversationId, assistantId }
-      classicSearch.search(question, true, 'both', rerank, rrf, auth.token ? conversationId : undefined)
+      classicSearch.search(question, true, 'both', rerank, rrf, autoRoute, auth.token ? conversationId : undefined)
     } else {
       pendingAgentRef.current = { conversationId, assistantId }
       agentSearch.search(question)
@@ -276,6 +277,7 @@ export default function App() {
             <div className="ml-auto flex items-center gap-3">
               <RerankToggle label="RRF" checked={rrf} onToggle={setRrf} />
               <RerankToggle label="Rerank" checked={rerank} onToggle={setRerank} />
+              <RerankToggle label="Auto-Route" checked={autoRoute} onToggle={setAutoRoute} />
               <RerankToggle label="Reasoning" checked={showReasoning} onToggle={setShowReasoning} />
               <DevModeToggle devMode={devMode} onToggle={setDevMode} />
               <AuthMenu

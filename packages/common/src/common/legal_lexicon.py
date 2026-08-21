@@ -11,6 +11,9 @@ _STOPWORDS = set(_LEXICON["stopwords"])
 _SYNONYMS = _LEXICON["synonyms"]
 _NORMALIZATIONS = _LEXICON["normalizations"]
 
+KNOWN_COURT_FULL_NAMES: list[str] = _LEXICON["court_full_names"]
+KNOWN_ACT_NAMES: set[str] = set(_LEXICON["act_names"])
+
 
 def is_known_court(token: str) -> bool:
     return token.upper() in _COURTS

@@ -1,3 +1,4 @@
+from common.legal_lexicon import KNOWN_COURT_FULL_NAMES
 from common.schemas import MILVUS_COLLECTIONS
 
 COLLECTION_DESCRIPTIONS = {
@@ -16,11 +17,7 @@ COLLECTION_DESCRIPTIONS = {
 
 KNOWN_FILTER_FIELDS = ["court", "act", "section", "party", "date_range", "bench", "judge"]
 
-KNOWN_COURTS = [
-    "Supreme Court", "Delhi High Court", "Bombay High Court", "Madras High Court",
-    "Calcutta High Court", "Karnataka High Court", "Gujarat High Court",
-    "Income Tax Appellate Tribunal", "Customs Excise and Service Tax Appellate Tribunal",
-]
+KNOWN_COURTS = KNOWN_COURT_FULL_NAMES
 
 def build_schema_context() -> str:
     collection_lines = "\n".join(
