@@ -49,6 +49,37 @@ def expand_query_synonyms(query: str) -> str:
 
 _SECTION_KEYWORDS = {"section", "sec", "sec.", "u/s", "rule", "article"}
 _SECTION_NUMBER_PATTERN = re.compile(r"^\d+[A-Za-z]*(\(\w+\))*$")
+# Normalizes EVERY separator variant between a section-type keyword and its number into a
+# single space, BEFORE tokenization ever runs: "Section52" (fully glued, zero separator),
+# "Section-52" (dash, zero space), "Section - 52" (spaced dash), "Section- 52"/"Section -52"
+# (asymmetric spacing), en/em dash - all become "Section 52". This corpus's own `heading` field
+# is literally formatted "Section - 52" (see es_client.py's _SECTION_PHRASE_BOOSTS comment) -
+# a user copy-pasting a heading, a citation, or just typing fast hits one of these shapes
+# constantly, and .split() handles none of them consistently on its own (a glued token like
+# "Section52"/"Section-52" never gets split at all; a spaced dash becomes its own token that
+# breaks the plain two-token adjacency check merge_keyword_number does below). Both the
+# whitespace (\s*) and the dash ([-–—]?) are optional and independent of each other, so this one
+# pattern covers all five shapes above with no separate branch per shape - including the
+# zero-separator case (\s* and the dash class both match empty, leaving only the (?=\d)
+# lookahead to require a digit immediately follows). It's also idempotent on an
+# already-clean "Section 52": \s* consumes the existing single space, the substitution puts
+# an equivalent single space back. Normalizing once, upstream, at the string level - rather
+# than teaching every downstream token-matching branch to also tolerate a separator - means
+# merge_keyword_number only ever needs to handle the single already-clean "keyword number"
+# shape, same as it always did. (?=\d) keeps this scoped to what precedes an actual
+# section-number-shaped token, so it never touches an unrelated word that happens to start
+# with one of these keywords but isn't followed by a number (e.g. "sectional").
+_SECTION_KEYWORD_SEPARATOR_PATTERN = re.compile(
+    r"(?i)\b(" + "|".join(re.escape(k) for k in _SECTION_KEYWORDS) + r")\s*[-–—]?\s*(?=\d)"
+)
+
+
+def normalize_section_dash(query: str) -> str:
+    """'Section52' / 'Section-52' / 'Section - 52' / 'Section- 52' / 'Section -52' ->
+    'Section 52' - every separator shape (glued, dash, spaced dash, asymmetric spacing)
+    collapses to one space before tokenization, so they all produce the same merged chunk and
+    hit the same match_phrase boost as the plain space-separated form."""
+    return _SECTION_KEYWORD_SEPARATOR_PATTERN.sub(r"\1 ", query)
 
 
 def merge_keyword_number(tokens: list[str]) -> list[str]:
@@ -61,7 +92,9 @@ def merge_keyword_number(tokens: list[str]) -> list[str]:
     "Spa 175"), producing boost phrases that don't exist verbatim in any document and
     shredding real citations like "175 taxmann.com 251" into unrelated fragments; without
     the letter/subsection allowance, genuine refs like "Section 5(8)" or "Section 69C"
-    never merged at all since "5(8)"/"69C" aren't pure digits."""
+    never merged at all since "5(8)"/"69C" aren't pure digits. Assumes normalize_section_dash
+    already ran (see extract_quoted_phrases) - by the time tokens reach here, every dash
+    variant is already collapsed to a plain space, so this only needs the one clean shape."""
     result = []
     i = 0
     while i < len(tokens):
@@ -140,7 +173,11 @@ _QUOTED_PHRASE_PATTERN = re.compile(r'"([^"]+)"')
 
 def extract_quoted_phrases(query: str) -> list[str]:
     """Ports queryAnalyzer.js's quoted-phrase extraction: a double-quoted substring becomes
-    one token; the remaining unquoted text is split into individual word tokens."""
+    one token; the remaining unquoted text is split into individual word tokens. Runs
+    normalize_section_dash() first (entry point shared by chunk_query and extract_boost_phrases)
+    so a glued "Section-52" is already "Section 52" - two tokens - by the time .split() runs,
+    the same as it would be for a quoted span containing that shape."""
+    query = normalize_section_dash(query)
     phrases = _QUOTED_PHRASE_PATTERN.findall(query)
     remainder = _QUOTED_PHRASE_PATTERN.sub(" ", query)
     words = [w for w in remainder.split() if w]

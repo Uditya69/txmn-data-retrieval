@@ -154,6 +154,29 @@ _BOOST_PROFILES = {
                "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 1.0},
 }
 
+# Boost magnitudes for the exact section-number phrase match only (chunk type "section"),
+# ported from centax-node's legacy query (query_legacy.json) - confirmed live on the old
+# platform to correctly rank a canonical "Section - 52" doc above every judgment that merely
+# mentions "section 52" in its own body text. The gap between fields spans orders of
+# magnitude, not the small 1-3x multipliers _BOOST_PROFILES uses for loose/fuzzy recall -
+# that gap is the actual fix: it makes an exact heading match structurally undefeatable by
+# BM25 term-frequency in a long document (a judgment repeating "section 52" 30+ times still
+# can't outscore one exact heading hit). Deliberately excludes documenttypeboost/court_boost/
+# landmarkruling - CLAUDE.md's hard-earned lesson is that boost_mode:"multiply" on those
+# fields regresses eval pass rate even when patched; this only touches match_phrase boost
+# weights on text fields already present in every doc, so there's no missing/zero-value
+# fragility to inherit. Only applied to "section" chunks - the identity signal is meaningless
+# for a court_city/citation/quoted chunk, where firing at this magnitude would misrank on any
+# incidental heading match.
+_SECTION_PHRASE_BOOSTS = {
+    "heading": 100000.0,
+    "subheading": 50000.0,
+    "headnotes_text": 40000.0,
+    "fullcontent": 1.0,
+    "facts_text": 1.0,
+    "held_text": 1.0,
+}
+
 
 class IndexedESClient:
     """Wraps a real ES client with the index name it should query, sourced
@@ -199,7 +222,8 @@ def _build_field_query(query: str, shape: str, chunks: list[dict] = ()) -> dict:
         for field, boost in boosts.items()
     ]
     for chunk in chunks:
-        for field, boost in boosts.items():
+        chunk_boosts = _SECTION_PHRASE_BOOSTS if chunk["type"] == "section" else boosts
+        for field, boost in chunk_boosts.items():
             should.append({
                 "match_phrase": {field: {"query": chunk["text"], "slop": chunk["proximity"], "boost": boost}},
             })

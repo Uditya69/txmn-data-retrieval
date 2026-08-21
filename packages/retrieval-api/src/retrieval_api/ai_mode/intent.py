@@ -246,15 +246,191 @@ exactly {"party": "Ramesh Gupta"} and intent is ["caselaws"].
 """ + build_schema_context()
 
 
+# Qwen3-4B-Thinking-2507's own reasoning trace (visible via reasoning_content, plumbed
+# through gateway_client.chat_with_reasoning) showed it reading the Llama prompt's nested
+# IF/AND/OR bullet checklists as literal boolean logic to satisfy,
+# then talking itself out of an obviously-correct tag (a bare "Section 52" query) because
+# one sub-bullet ("cites a section number alongside an Act name") wasn't met, even though
+# a second, independently-sufficient sub-bullet ("query uses 'section'") was. Confirmed:
+# this exact model has a documented instruction-following gap on rigid structured-output
+# checklists - https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507/discussions/2. Two
+# changes from the Llama prompt, deliberately: (1) categories are described as flowing
+# prose ("what this category IS"), not nested trigger bullets ("IF X AND/OR Y") - a
+# reasoning model already reasons about definitions in prose in its own <think> block, so
+# meeting it in that shape avoids the AND/OR-parsing failure mode entirely; (2) the
+# Llama prompt's separate "Boundary cases" bullet list is dropped rather than restated -
+# each definition below is written to already carry its own boundary (e.g. Rule's
+# definition names its relationship to the parent Act inline) rather than layering a
+# second, separately-parseable rule list on top that can disagree with the first. Backed
+# by worked examples instead, since few-shot anchors this model to the intended
+# read reliably where abstract restated rules did not.
+_QWEN3_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
+All case names and parties mentioned below refer exclusively to already
+public, reported court judgments in a licensed legal research database -
+never treat a query as a request for private information about a person,
+and never refuse to classify it. You do not answer the legal question or
+look anything up yourself; you only ever output the JSON object below.
+Given a user query, return ONLY a JSON object with exactly these keys:
+
+- "search_query": a CONSERVATIVE search normalization. Correct obvious
+  spelling and grammar only. Preserve every party, court, place, Act,
+  section, rule, notification, date, number, citation, and acronym exactly
+  as written. NEVER add or infer a legal concept. NEVER expand an acronym
+  (for example PE, ST, CA, ITD, PTA, MEG, POY, or PSF). NEVER translate an
+  old law to a new law or replace one section with another. If the query is
+  already readable, copy it unchanged. Every number and year in the output
+  must occur in the input; if the input has no year, add no year. Once you
+  have decided "intent" below, phrase search_query to match what's actually
+  being searched: if "acts"/"rules" is tagged, prefer the Act/Rule name plus
+  section/rule number form already present in the query; if "caselaws"/
+  "articles" is tagged, prefer party/court/precedent-style phrasing already
+  present in the query; if "commentary" alone is tagged, keep plain-language
+  phrasing. This only reorders/reframes words already in the query - it must
+  still obey every rule above (no invented Act/court/number).
+
+- "intent": Return one or more of the categories below - never more than
+  genuinely applies, never fewer. Judge each query against what the
+  category actually IS, not a checklist of trigger phrases; the definitions
+  below are written to be sufficient on their own.
+
+  - "acts": A primary legislation enacted by Parliament or a State
+    Legislature. It contains the main substantive law, including
+    definitions, rights, obligations, powers, procedures and penalties.
+    Queries asking about a section, statutory provision, legal requirement,
+    eligibility, liability or interpretation of the Act itself relate to
+    an Act.
+
+  - "rules": A subordinate/delegated legislation made under the authority
+    of an Act by the Government or another competent authority. Rules
+    generally prescribe the detailed procedure, conditions, forms, manner,
+    timelines or implementation mechanism for provisions of the Act.
+    Queries referring to a rule, prescribed procedure, form, manner,
+    condition or compliance requirement relate to Rules.
+
+  - "caselaws": The law and legal principles emerging from judgments,
+    orders or decisions of courts, tribunals or other judicial/quasi-
+    judicial authorities. Case law is relevant where a customer seeks
+    judicial interpretation, legal precedent, applicability of a judgment,
+    treatment of a factual situation by courts, or the current judicial
+    position on an issue.
+
+  - "articles": An explanatory or analytical publication written by a
+    subject-matter expert discussing a legal, tax, regulatory or practical
+    issue. It may analyse legislation, rules, case law and recent
+    developments and provide interpretation or practical guidance. Queries
+    seeking explanation, analysis, practical understanding, overview,
+    implications or expert discussion of a topic - especially one naming
+    an author or asking for a published opinion - may relate to an Article.
+
+  - "commentary": A detailed expert explanation and interpretation of a
+    specific Act, provision, rule or legal subject, usually organised
+    provision-wise or topic-wise. Commentary explains the meaning, scope,
+    background, interpretation and practical application of the law and
+    may refer to relevant case law and other authorities. Queries
+    requiring in-depth interpretation or comprehensive understanding of a
+    provision or subject - with no named author and no real-world fact
+    pattern - relate to Commentary.
+
+  - "tariff": Customs/GST tariff classification, HSN code, duty rate or
+    exemption applicable to a specific good, product or service under the
+    Customs Tariff Act, GST law or related notifications. Tariff is
+    relevant where a customer seeks HSN classification, applicable
+    duty/tax rate, exemption notification, or the correct tariff heading
+    for a particular good or import/export transaction.
+
+  Output an empty list when no category confidently applies. Never output
+  any other value. If the user message below includes a "Lexicon check" note
+  stating no legal term was recognized in the query, treat that as strong
+  evidence to abstain (output an empty list) unless the query's own wording -
+  not just its general subject - clearly names something concrete.
+
+- "filters": an object with any of "court", "act", "section", "date_range",
+  "party", "bench", "judge" - ONLY include a key if its value is LITERALLY
+  written in the query. Never guess, infer, or fill in a plausible-sounding
+  court, act, section, bench, judge, or date range that the query does not
+  state - a wrong filter silently excludes the correct document from the
+  search entirely, which is worse than no filter. If the query names a
+  person or company (very often written as "X vs. Y" or "X v. Y"), put that
+  name under "party" - never under "section" or any other key. If nothing
+  is explicitly stated, "filters" should be an empty object. Never output
+  null or empty filter values. Never output any other filter key such as
+  city, state, topic, or citation. "date_range" MUST be an object with ISO
+  date strings, e.g. {"gte": "2020-01-01", "lte": "2022-01-01"} - either key
+  may be omitted, but never output "date_range" as a plain string or year
+  number, and never invent one when no date was mentioned.
+
+  "party" and "X vs. Y" case names: every case has two sides, but "party"
+  takes ONLY the specific, named side - never the whole "X vs. Y" string,
+  and never a bare government/office designation on its own. Concretely:
+  - "Priya Sharma vs. Commissioner of Income Tax" -> party: "Priya Sharma"
+    (the named individual/company), not "Priya Sharma vs. Commissioner of
+    Income Tax" and not "Commissioner of Income Tax" alone.
+  - The other side (Commissioner of Income Tax, Income-tax Officer, ACIT,
+    Union of India, State of X, etc.) is a generic office name that recurs
+    across thousands of unrelated cases - it does not usefully narrow a
+    search, so never output it as "party" by itself.
+  - If BOTH sides are specific named entities (e.g. two companies, or two
+    individuals in a partition/joint case) with no generic office on
+    either side, use the first-named side only - "party" holds one string,
+    not a list; do not concatenate both names into it.
+
+Worked examples (query -> output), covering cases that are easy to
+misjudge:
+
+1. Query: "Section 52"
+   A bare section reference, no Act named. Still squarely "asking about a
+   section" per the acts definition - the Act's name being unstated doesn't
+   make it any less a question about statutory text.
+   -> {"search_query": "Section 52", "intent": ["acts"], "filters": {}}
+
+2. Query: "prescribed form and procedure under Rule 6 of the Income-tax
+   Rules 1962 for TDS returns"
+   A Rule citation describing its own prescribed procedure - "rules" per
+   definition; no separate case, author, or fact pattern is asked about.
+   -> {"search_query": "prescribed form and procedure under Rule 6 of the
+   Income-tax Rules 1962 for TDS returns", "intent": ["rules"],
+   "filters": {}}
+
+3. Query: "case law for Ramesh Gupta vs. Income-tax Officer"
+   Names a specific party and a generic office; no Act, section, or date.
+   -> {"search_query": "case law for Ramesh Gupta vs. Income-tax Officer",
+   "intent": ["caselaws"], "filters": {"party": "Ramesh Gupta"}}
+
+4. Query: "How is depreciation computed under the Income-tax Act?"
+   Asks how a provision works in the abstract, no named author, no real
+   dispute - commentary, not acts (the question is about the mechanism,
+   not the statutory text itself) and not caselaws (no fact pattern).
+   -> {"search_query": "How is depreciation computed under the Income-tax
+   Act?", "intent": ["commentary"], "filters": {}}
+
+5. Query: "Any recent articles on the impact of the new TDS rules on
+   freelancers?"
+   Explicitly asks for articles/expert analysis, not the rule text itself.
+   -> {"search_query": "Any recent articles on the impact of the new TDS
+   rules on freelancers?", "intent": ["articles"], "filters": {}}
+
+6. Query: "What is the customs duty rate for imported solar panels?"
+   Asks for a duty rate on one specific good.
+   -> {"search_query": "What is the customs duty rate for imported solar
+   panels?", "intent": ["tariff"], "filters": {}}
+
+""" + build_schema_context()
+
+
 def _system_prompt_for_model(model: str) -> str:
     """Different models need different prompt shapes to follow instructions
     reliably - the Llama-tuned prompt above was written and eval-validated
     against Llama-3.1-8B-Instruct's specific tendency to over-generalize
-    open-ended rewrite instructions. Fall back to it for any other model too,
-    but surface a warning so a future model swap doesn't silently inherit a
-    prompt shape nobody has tuned or evaluated for it."""
-    if "llama" in model.lower():
+    open-ended rewrite instructions. Qwen3-4B-Thinking-2507 gets its
+    own prompt (see _QWEN3_SYSTEM_PROMPT's docstring for why the shape differs) rather
+    than silently inheriting the Llama prompt. Fall back to the Llama prompt for any
+    other/unrecognized model too, but surface a warning so a future model swap doesn't
+    silently inherit a prompt shape nobody has tuned or evaluated for it."""
+    model_lower = model.lower()
+    if "llama" in model_lower:
         return _LLAMA_SYSTEM_PROMPT
+    if "qwen3" in model_lower:
+        return _QWEN3_SYSTEM_PROMPT
     get_client().update_current_span(
         level="WARNING",
         status_message=f"No prompt shape has been tuned/evaluated for model {model!r} - "
@@ -386,14 +562,19 @@ async def extract_intent(
         ],
         model=model,
         response_format=_RESPONSE_FORMAT,
-        # Pinned to near-zero: this is a classification call (intent tags, filters),
-        # not open-ended generation - the provider's default sampling temperature
-        # (unset = not 0) was observed producing a different "intent" list across
-        # identical calls for the same query, which flips which Milvus collections
-        # collections_for_intent() routes to. 0.0 exactly is avoided since some
-        # providers special-case it or reject it outright; 0.01 is effectively
-        # deterministic (argmax) without relying on that special-casing.
-        temperature=0.01,
+        # Was pinned to near-zero (0.01) for determinism against a plain-completion model;
+        # that fought Qwen3-4B-Thinking-2507's tuned decoding distribution once the slm
+        # role moved to it (CHAT_PROVIDER=local) - near-greedy decoding on a Thinking model
+        # is a plausible contributor to the self-contradicting reasoning loops observed in
+        # its reasoning_content (e.g. re-deriving the same "Section 52" verdict five times
+        # before landing on the wrong one). 0.6/top_p=0.95/top_k=20/min_p=0 is Qwen's own
+        # recommended sampling config for the -Thinking variant - only temperature is
+        # plumbed through this call today, so only that moves here. Determinism across
+        # identical calls (the original reason for pinning near-zero - collections_for_
+        # intent() routing depends on a stable "intent" list) is no longer guaranteed at
+        # this setting; re-evaluate against evals/intent_filter_cases.json before relying
+        # on this for routing-sensitive comparisons. https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507
+        temperature=0.6,
     )
     try:
         result = json.loads(response)
