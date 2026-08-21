@@ -5,6 +5,7 @@ import styles from './TracePanel.module.css'
 
 const STEP_LABELS: Record<string, string> = {
   query_analysis: 'Query analysis',
+  classifier: 'Classifier',
   intent: 'Intent',
   filters_resolved: 'Filters resolved',
   es_search: 'ES search',
@@ -32,6 +33,11 @@ function summarize(step: TraceStep): string {
     case 'query_analysis': {
       const chunkCount = (d.chunks ?? []).length
       return `shape: ${d.shape} — ${chunkCount} chunk${chunkCount === 1 ? '' : 's'}`
+    }
+    case 'classifier': {
+      const skipped = [!d.plan?.es && 'ES', !d.plan?.milvus && 'Milvus'].filter(Boolean)
+      const skippedText = skipped.length ? `, skipped: ${skipped.join(', ')}` : ''
+      return `${d.label} (${(d.confidence * 100).toFixed(1)}% confidence)${skippedText}`
     }
     case 'intent':
       return `"${d.query}" -> "${d.search_query}" (${(d.intent ?? []).join(', ')})`

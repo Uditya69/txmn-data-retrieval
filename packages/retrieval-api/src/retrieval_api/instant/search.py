@@ -4,7 +4,7 @@ import asyncio
 from langfuse import get_client
 
 from common.es_client import build_query_preview, raw_search
-from common.instant_classifier import effective_label
+from common.instant_classifier import effective_label_with_confidence
 from common.instant_classifier.labels import routing_plan
 from common.milvus_client import hybrid_search
 from common.schemas import MILVUS_COLLECTIONS
@@ -105,7 +105,9 @@ async def run_instant(
     rrf: bool = False, rerank: bool = False, auto_route: bool = False,
 ) -> dict:
     langfuse = get_client()
-    with langfuse.start_as_current_observation(as_type="span", name="instant-search", input={"query": query}):
+    with langfuse.start_as_current_observation(
+        as_type="span", name="instant-search", input={"query": query},
+    ) as instant_span:
         # build_query_preview is the same function raw_search() calls internally (and that
         # backs the standalone /v1/query-analysis endpoint) - using it here rather than
         # independently recomputing shape/chunks means this trace step can never drift from
@@ -116,8 +118,18 @@ async def run_instant(
         if on_step is not None:
             await on_step("query_analysis", build_query_preview(query))
 
-        label = effective_label(query)
+        label, confidence = effective_label_with_confidence(query)
         plan = routing_plan(label) if auto_route else {"es": True, "milvus": True, "fuse": False}
+        # Surfaced in both trace systems - without this, a skipped ES/Milvus call (auto_route)
+        # is indistinguishable from one that ran and legitimately found nothing, and the raw
+        # model confidence (as opposed to the post-threshold label) is otherwise unobservable
+        # anywhere, since effective_label() alone discards it.
+        classifier_trace = {
+            "label": label, "confidence": confidence, "auto_route": auto_route, "plan": plan,
+        }
+        instant_span.update(metadata={"classifier": classifier_trace})
+        if on_step is not None:
+            await on_step("classifier", classifier_trace)
 
         es_task = _run_es(es_client, query, on_step) if plan["es"] else None
         milvus_task = _run_milvus(gateway, milvus_client, query, on_step) if plan["milvus"] else None

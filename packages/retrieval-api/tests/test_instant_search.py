@@ -276,11 +276,45 @@ async def test_run_instant_emits_es_and_milvus_trace_steps(monkeypatch):
 
     # es_search runs on an independent branch (asyncio.gather with _run_milvus)
     # so its relative order vs. the milvus steps isn't guaranteed - only that
-    # dense precedes sparse within the milvus branch, and query_analysis (emitted
-    # synchronously before the gather) comes first.
-    assert set(steps) == {"query_analysis", "es_search", "milvus_dense", "milvus_sparse"}
+    # dense precedes sparse within the milvus branch, and query_analysis/classifier
+    # (emitted synchronously before the gather) come first, in that order.
+    assert set(steps) == {"query_analysis", "classifier", "es_search", "milvus_dense", "milvus_sparse"}
     assert steps[0] == "query_analysis"
+    assert steps[1] == "classifier"
     assert steps.index("milvus_dense") < steps.index("milvus_sparse")
+
+
+@pytest.mark.asyncio
+async def test_run_instant_emits_classifier_trace_step_with_label_confidence_and_plan(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20):
+        return []
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(search_module, "effective_label_with_confidence", lambda query: ("KEYWORD", 0.987))
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    steps = {}
+
+    async def on_step(step, data):
+        steps[step] = data
+
+    await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="Section 52",
+        auto_route=True, on_step=on_step,
+    )
+
+    assert steps["classifier"] == {
+        "label": "KEYWORD", "confidence": 0.987, "auto_route": True,
+        "plan": {"es": True, "milvus": False, "fuse": False},
+    }
 
 
 @pytest.mark.asyncio
@@ -339,7 +373,7 @@ async def test_run_instant_auto_route_keyword_skips_milvus(monkeypatch):
 
     monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
     monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
-    monkeypatch.setattr(search_module, "effective_label", lambda query: "KEYWORD")
+    monkeypatch.setattr(search_module, "effective_label_with_confidence", lambda query: ("KEYWORD", 0.99))
 
     gateway = AsyncMock()
     result = await run_instant(
@@ -368,7 +402,7 @@ async def test_run_instant_auto_route_intent_skips_es(monkeypatch):
 
     monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
     monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
-    monkeypatch.setattr(search_module, "effective_label", lambda query: "INTENT")
+    monkeypatch.setattr(search_module, "effective_label_with_confidence", lambda query: ("INTENT", 0.95))
 
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]
@@ -393,7 +427,7 @@ async def test_run_instant_auto_route_hybrid_forces_rrf_fusion(monkeypatch):
 
     monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
     monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
-    monkeypatch.setattr(search_module, "effective_label", lambda query: "HYBRID")
+    monkeypatch.setattr(search_module, "effective_label_with_confidence", lambda query: ("HYBRID", 0.97))
 
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]

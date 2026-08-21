@@ -1,4 +1,4 @@
-from common.instant_classifier import classify, confidence_threshold, effective_label
+from common.instant_classifier import classify, confidence_threshold, effective_label, effective_label_with_confidence
 from common.instant_classifier.labels import FALLBACK, HYBRID, INTENT, KEYWORD
 
 
@@ -38,3 +38,27 @@ def test_effective_label_falls_back_below_threshold(monkeypatch):
 def test_effective_label_short_circuits_on_empty_query():
     assert effective_label("") == FALLBACK
     assert effective_label("   ") == FALLBACK
+
+
+def test_effective_label_with_confidence_returns_real_confidence_for_confident_query():
+    label, confidence = effective_label_with_confidence("Section 52")
+    assert label == KEYWORD
+    assert confidence > 0.5
+
+
+def test_effective_label_with_confidence_returns_zero_confidence_for_empty_query():
+    assert effective_label_with_confidence("") == (FALLBACK, 0.0)
+    assert effective_label_with_confidence("   ") == (FALLBACK, 0.0)
+
+
+def test_effective_label_with_confidence_reports_raw_confidence_even_when_it_falls_back(monkeypatch):
+    import common.instant_classifier as module
+
+    monkeypatch.setattr(module, "classify", lambda query: module.ClassifierResult(label=KEYWORD, confidence=0.2))
+    label, confidence = module.effective_label_with_confidence("anything")
+    assert label == FALLBACK
+    assert confidence == 0.2  # the raw model confidence, not clamped/zeroed by the fallback
+
+
+def test_effective_label_delegates_to_effective_label_with_confidence():
+    assert effective_label("Section 52") == effective_label_with_confidence("Section 52")[0]
