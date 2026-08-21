@@ -84,17 +84,21 @@ def normalize_section_dash(query: str) -> str:
 
 def merge_keyword_number(tokens: list[str]) -> list[str]:
     """Ports queryAnalyzer.js's KEYWORD-type merge rule: a keyword (section/sec/u/s/rule/
-    article - the same set SECTION_PATTERN recognizes) followed by a section-number-shaped
-    token merges into one token ("Section" + "6" -> "Section 6", "Section" + "5(8)" ->
-    "Section 5(8)"); if tokens[i] isn't a recognized keyword or the next token isn't
-    section-number-shaped, backtrack by leaving both tokens as they were. Without the
-    keyword check, this used to merge ANY word followed by a bare number ("Spa" + "175" ->
-    "Spa 175"), producing boost phrases that don't exist verbatim in any document and
-    shredding real citations like "175 taxmann.com 251" into unrelated fragments; without
-    the letter/subsection allowance, genuine refs like "Section 5(8)" or "Section 69C"
-    never merged at all since "5(8)"/"69C" aren't pure digits. Assumes normalize_section_dash
-    already ran (see extract_quoted_phrases) - by the time tokens reach here, every dash
-    variant is already collapsed to a plain space, so this only needs the one clean shape."""
+    article - the same set SECTION_PATTERN recognizes) adjacent to a section-number-shaped
+    token merges into one token, canonicalized to "keyword number" order regardless of which
+    order the user typed them in ("Section" + "6" -> "Section 6", "6" + "Section" -> "Section
+    6", "Section" + "5(8)" -> "Section 5(8)"); if neither adjacent pair matches, backtrack by
+    leaving both tokens as they were. Without the keyword check, this used to merge ANY word
+    followed by a bare number ("Spa" + "175" -> "Spa 175"), producing boost phrases that don't
+    exist verbatim in any document and shredding real citations like "175 taxmann.com 251"
+    into unrelated fragments; without the letter/subsection allowance, genuine refs like
+    "Section 5(8)" or "Section 69C" never merged at all since "5(8)"/"69C" aren't pure digits.
+    The reversed "number keyword" order (e.g. "55 section") must canonicalize to "keyword
+    number" too, not just merge in place - downstream chunk-type detection only recognizes a
+    merged phrase as a section reference when the keyword is its first word. Assumes
+    normalize_section_dash already ran (see extract_quoted_phrases) - by the time tokens reach
+    here, every dash variant is already collapsed to a plain space, so this only needs the two
+    clean adjacency shapes."""
     result = []
     i = 0
     while i < len(tokens):
@@ -104,6 +108,13 @@ def merge_keyword_number(tokens: list[str]) -> list[str]:
             and _SECTION_NUMBER_PATTERN.match(tokens[i + 1])
         ):
             result.append(f"{tokens[i]} {tokens[i + 1]}")
+            i += 2
+        elif (
+            i + 1 < len(tokens)
+            and tokens[i + 1].lower() in _SECTION_KEYWORDS
+            and _SECTION_NUMBER_PATTERN.match(tokens[i])
+        ):
+            result.append(f"{tokens[i + 1]} {tokens[i]}")
             i += 2
         else:
             result.append(tokens[i])

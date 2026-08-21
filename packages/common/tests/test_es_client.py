@@ -182,16 +182,15 @@ def test_build_query_preview_matches_what_raw_search_actually_sends():
     assert preview["query"] == "Section 6 of Income Tax Act"
     # This query's classifier confidence (~0.69) sits below the confidence_threshold
     # trained by the fixed threshold sweep (0.9 - see train_instant_classifier.py's
-    # _sweep_threshold), so effective_label() correctly falls back rather than trusting
-    # a genuinely uncertain HYBRID-vs-INTENT call. FALLBACK's boost profile is HYBRID's
-    # (see labels.boost_profile_key), so this doesn't change the actual ES query shape.
-    assert preview["shape"] == "FALLBACK"
+    # _sweep_threshold), so effective_label() correctly defaults to HYBRID rather than
+    # trusting a genuinely uncertain HYBRID-vs-INTENT call.
+    assert preview["shape"] == "HYBRID"
     assert any(c["type"] == "section" and c["text"] == "Section 6" for c in preview["chunks"])
     assert "bool" in preview["es_query"]
 
 
 def test_build_field_query_accepts_new_taxonomy_labels():
-    for label in ("KEYWORD", "HYBRID", "INTENT", "FALLBACK"):
+    for label in ("KEYWORD", "HYBRID", "INTENT"):
         query = _build_field_query("test query", label)
         assert "bool" in query
 

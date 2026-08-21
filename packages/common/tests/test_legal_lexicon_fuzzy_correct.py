@@ -70,3 +70,26 @@ def test_fuzzy_correct_query_does_not_catch_heavily_garbled_spelling():
     corrected, corrections = fuzzy_correct_query("sexan 55")
     assert corrected == "sexan 55"
     assert corrections == []
+
+
+def test_fuzzy_correct_query_fixes_misspelled_income():
+    corrected, corrections = fuzzy_correct_query("incomeee tax computation")
+    assert "INCOME" in corrected.split()
+    assert corrections == [{"original": "incomeee", "corrected": "INCOME", "score": corrections[0]["score"]}]
+
+
+def test_fuzzy_correct_query_does_not_touch_bare_tax():
+    # "tax" is deliberately not in the lexicon at all - at 3 chars it's too short to be a
+    # safe fuzzy-correction target (a genuine word like "taxi" scores 85.7 against it,
+    # above the cutoff), so typos of "tax" itself stay uncorrected rather than risk
+    # mangling unrelated short words.
+    corrected, corrections = fuzzy_correct_query("taxi fare dispute")
+    assert corrected == "taxi fare dispute"
+    assert corrections == []
+
+
+def test_fuzzy_correct_query_does_not_collapse_station_into_taxation():
+    # "station" scores 80 against TAXATION - below the 82 cutoff, so it must stay untouched.
+    corrected, corrections = fuzzy_correct_query("police station report")
+    assert corrected == "police station report"
+    assert corrections == []

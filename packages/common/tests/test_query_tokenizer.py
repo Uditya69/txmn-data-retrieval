@@ -44,6 +44,14 @@ def test_merge_keyword_number_does_not_merge_non_keyword_word_before_number():
     assert merge_keyword_number(["Spa", "175", "taxmann.com", "251"]) == ["Spa", "175", "taxmann.com", "251"]
 
 
+def test_merge_keyword_number_merges_reversed_number_then_keyword_order():
+    # a user typing the number before the keyword ("55 section" instead of "section 55")
+    # must still be recognized as a section reference, canonicalized to "Section 55" so
+    # downstream chunk-type detection (which checks the merged phrase's first word) works.
+    assert merge_keyword_number(["Income", "55", "Section"]) == ["Income", "Section 55"]
+    assert merge_keyword_number(["5(8)", "Section", "Income"]) == ["Section 5(8)", "Income"]
+
+
 def test_merge_citation_span_merges_number_journal_number():
     assert merge_citation_span(["133", "taxmann.com", "196", "article"]) == ["133 taxmann.com 196", "article"]
     assert merge_citation_span(["97", "ITR", "660", "section"]) == ["97 ITR 660", "section"]

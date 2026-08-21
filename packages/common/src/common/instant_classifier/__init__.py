@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from common.instant_classifier.labels import ClassifierResult, FALLBACK, resolve_routing
+from common.instant_classifier.labels import ClassifierResult, HYBRID, resolve_routing
 from common.instant_classifier.pipeline import load_artifact
 
 __all__ = [
@@ -29,9 +29,9 @@ def confidence_threshold() -> float:
 def effective_label_with_confidence(query: str) -> tuple[str, float]:
     """Like effective_label(), but also surfaces the raw model confidence for
     observability (Langfuse spans, WS trace steps) - effective_label() alone can't
-    distinguish "model was confident" from "model was unsure and this is a fallback"."""
+    distinguish "model was confident" from "model was unsure and this defaulted to HYBRID"."""
     if not query.strip():
-        return FALLBACK, 0.0
+        return HYBRID, 0.0
     result = classify(query)
     return resolve_routing(result, confidence_threshold()), result.confidence
 

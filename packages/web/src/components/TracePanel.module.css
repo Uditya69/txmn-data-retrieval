@@ -22,10 +22,32 @@
   font-size: 14px;
 }
 
+.description {
+  color: #8a8a8a;
+  font-size: 12px;
+  font-style: italic;
+  margin: 0 0 6px;
+}
+
 .summary {
   color: #555;
   font-size: 13px;
   margin: 0 0 8px;
+}
+
+.details {
+  margin-top: 4px;
+}
+
+.detailsSummary {
+  cursor: pointer;
+  color: #1a56db;
+  font-size: 12px;
+  user-select: none;
+}
+
+.details[open] .detailsSummary {
+  margin-bottom: 8px;
 }
 
 .hitList {

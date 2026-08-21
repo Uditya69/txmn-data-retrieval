@@ -23,7 +23,7 @@ def _load_jsonl(path: Path) -> tuple[list[str], list[str]]:
 
 def _sweep_threshold(pipeline, eval_texts: list[str], eval_labels: list[str]) -> tuple[float, float]:
     """Picks the confidence cutoff (0.1-0.9) that determines when resolve_routing()'s
-    fallback branch fires (confidence < threshold -> FALLBACK).
+    fallback branch fires (confidence < threshold -> defaults to HYBRID).
 
     Accuracy at each threshold is computed over KEPT predictions only
     (kept_correct / kept_total, NOT the fixed eval-set size) - otherwise raising the

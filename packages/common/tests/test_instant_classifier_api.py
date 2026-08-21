@@ -1,5 +1,5 @@
 from common.instant_classifier import classify, confidence_threshold, effective_label, effective_label_with_confidence
-from common.instant_classifier.labels import FALLBACK, HYBRID, INTENT, KEYWORD
+from common.instant_classifier.labels import HYBRID, INTENT, KEYWORD
 
 
 def test_classify_returns_confident_keyword_for_bare_section_ref():
@@ -28,16 +28,16 @@ def test_effective_label_matches_classify_when_confident():
     assert effective_label("Section 52") == KEYWORD
 
 
-def test_effective_label_falls_back_below_threshold(monkeypatch):
+def test_effective_label_defaults_to_hybrid_below_threshold(monkeypatch):
     import common.instant_classifier as module
 
     monkeypatch.setattr(module, "classify", lambda query: module.ClassifierResult(label=KEYWORD, confidence=0.0))
-    assert module.effective_label("anything") == FALLBACK
+    assert module.effective_label("anything") == HYBRID
 
 
 def test_effective_label_short_circuits_on_empty_query():
-    assert effective_label("") == FALLBACK
-    assert effective_label("   ") == FALLBACK
+    assert effective_label("") == HYBRID
+    assert effective_label("   ") == HYBRID
 
 
 def test_effective_label_with_confidence_returns_real_confidence_for_confident_query():
@@ -47,17 +47,17 @@ def test_effective_label_with_confidence_returns_real_confidence_for_confident_q
 
 
 def test_effective_label_with_confidence_returns_zero_confidence_for_empty_query():
-    assert effective_label_with_confidence("") == (FALLBACK, 0.0)
-    assert effective_label_with_confidence("   ") == (FALLBACK, 0.0)
+    assert effective_label_with_confidence("") == (HYBRID, 0.0)
+    assert effective_label_with_confidence("   ") == (HYBRID, 0.0)
 
 
-def test_effective_label_with_confidence_reports_raw_confidence_even_when_it_falls_back(monkeypatch):
+def test_effective_label_with_confidence_reports_raw_confidence_even_when_below_threshold(monkeypatch):
     import common.instant_classifier as module
 
     monkeypatch.setattr(module, "classify", lambda query: module.ClassifierResult(label=KEYWORD, confidence=0.2))
     label, confidence = module.effective_label_with_confidence("anything")
-    assert label == FALLBACK
-    assert confidence == 0.2  # the raw model confidence, not clamped/zeroed by the fallback
+    assert label == HYBRID
+    assert confidence == 0.2  # the raw model confidence, not clamped/zeroed by the default
 
 
 def test_effective_label_delegates_to_effective_label_with_confidence():

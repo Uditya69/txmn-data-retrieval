@@ -1,5 +1,6 @@
 // src/components/TracePanel.tsx
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import type { TraceStep } from '../api/useSearch'
 import styles from './TracePanel.module.css'
 
@@ -25,6 +26,24 @@ const ORIGIN_LABELS: Record<string, string> = {
   es: 'ES',
   milvus_dense: 'Milvus dense',
   milvus_sparse: 'Milvus sparse',
+}
+
+const STEP_DESCRIPTIONS: Record<string, string> = {
+  query_correction: 'Fixes likely typos in court/journal/legal-term names before anything else runs.',
+  query_analysis: 'Breaks the query into the chunks actually sent to Elasticsearch (sections, citations, free text).',
+  classifier: 'Picks KEYWORD (structural, ES only), INTENT (semantic, Milvus only), or HYBRID (both, RRF-fused).',
+  intent: 'Classifies which legal categories the query is about, used to pick which Milvus collections get searched.',
+  filters_resolved: 'Resolves any doc_id filters requested by the query.',
+  es_search: 'Elasticsearch lexical (keyword) search results.',
+  milvus_dense: 'Milvus dense (semantic embedding) search results.',
+  milvus_sparse: 'Milvus BM25 sparse search results.',
+  ai_milvus_dense: 'Milvus dense (semantic embedding) search results.',
+  ai_milvus_sparse: 'Milvus BM25 sparse search results.',
+  rrf_merge: 'Merges ES + Milvus results by rank position (RRF) — never by comparing raw scores.',
+  ai_rrf_merge: 'Merges ES + Milvus results by rank position (RRF) — never by comparing raw scores.',
+  rerank: 'Cross-encoder reranking of the merged candidates.',
+  instant_reranked: 'Final result list for Instant mode after fusion/reranking.',
+  synthesis_prompt: 'The prompt sent to the LLM to synthesize the final answer.',
 }
 
 function summarize(step: TraceStep): string {
@@ -121,11 +140,26 @@ function TruncatedHitList({
   )
 }
 
+type QueryChunk = { text: string; proximity: number; type: string; alt_text: string | null }
+
+function ChunkList({ chunks }: { chunks: QueryChunk[] }) {
+  return (
+    <ul className={styles.hitList}>
+      {chunks.map((c, i) => (
+        <li key={`${c.text}-${i}`}>
+          <strong>"{c.text}"</strong> <em>({c.type}, slop {c.proximity})</em>
+          {c.alt_text && <> — alt: <code>"{c.alt_text}"</code></>}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function QueryAnalysisBody({ data }: { data: Record<string, any> }) {
   // Same build_query_preview() output the /v1/query-analysis endpoint returns - see its
   // own docstring (common/es_client.py) - so this must never show a different breakdown
   // than what raw_search actually sent to ES.
-  const chunks: Array<{ text: string; proximity: number; type: string; alt_text: string | null }> = data.chunks ?? []
+  const chunks: QueryChunk[] = data.chunks ?? []
   return (
     <>
       {data.expanded_query && (
@@ -133,37 +167,61 @@ function QueryAnalysisBody({ data }: { data: Record<string, any> }) {
           Synonym-expanded: <code>{data.expanded_query}</code>
         </p>
       )}
-      <ul className={styles.hitList}>
-        {chunks.map((c, i) => (
-          <li key={`${c.text}-${i}`}>
-            <strong>"{c.text}"</strong> <em>({c.type}, slop {c.proximity})</em>
-            {c.alt_text && <> — alt: <code>"{c.alt_text}"</code></>}
-          </li>
-        ))}
-      </ul>
-      {/* {data.es_query && (
-        <details>
-          <summary className={styles.summary} style={{ cursor: 'pointer' }}>Raw ES query</summary>
-          <pre className={styles.hitList}>{JSON.stringify(data.es_query, null, 2)}</pre>
-        </details>
-      )} */}
+      <ChunkList chunks={chunks} />
     </>
   )
 }
 
-function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: (docId: string) => void }) {
+function ClassifierBody({ data, chunks }: { data: Record<string, any>; chunks: QueryChunk[] | null }) {
+  return (
+    <>
+      <p className={styles.summary}>
+        Boost profile: <code>{data.label}</code>
+        {data.auto_route && (
+          <> — routed: ES {data.plan?.es ? 'yes' : 'no'}, Milvus {data.plan?.milvus ? 'yes' : 'no'}, fuse {data.plan?.fuse ? 'yes' : 'no'}</>
+        )}
+      </p>
+      {chunks && chunks.length > 0 && (
+        <>
+          <p className={styles.summary}>Terms this decision was based on:</p>
+          <ChunkList chunks={chunks} />
+        </>
+      )}
+    </>
+  )
+}
+
+const COLLAPSIBLE_LABELS: Record<string, string> = {
+  synthesis_prompt: 'Show prompt',
+}
+
+function collapsibleLabel(step: string): string {
+  return COLLAPSIBLE_LABELS[step] ?? 'Show results'
+}
+
+function StepBody({
+  step, onOpenDocument, precedingChunks,
+}: {
+  step: TraceStep
+  onOpenDocument?: (docId: string) => void
+  precedingChunks: QueryChunk[] | null
+}) {
   const d = step.data as Record<string, any>
   if (step.step === 'query_analysis') {
     return <QueryAnalysisBody data={d} />
   }
-  if (step.step === 'es_search') {
-    return <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
+  if (step.step === 'classifier') {
+    return <ClassifierBody data={d} chunks={precedingChunks} />
   }
-  if (
+
+  let body: ReactNode = null
+  if (step.step === 'es_search') {
+    body = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
+  } else if (
     step.step === 'milvus_dense' || step.step === 'milvus_sparse' ||
     step.step === 'ai_milvus_dense' || step.step === 'ai_milvus_sparse'
   ) {
-    return (
+    body = (
       <>
         {(d.collections ?? []).map((c: any) => (
           <div key={c.name}>
@@ -173,20 +231,24 @@ function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: 
         ))}
       </>
     )
+  } else if (step.step === 'rrf_merge' || step.step === 'ai_rrf_merge') {
+    body = <TruncatedHitList hits={d.top_candidates ?? []} onOpenDocument={onOpenDocument} />
+  } else if (step.step === 'rerank') {
+    body = <TruncatedHitList hits={d.top_chunks ?? []} onOpenDocument={onOpenDocument} />
+  } else if (step.step === 'instant_reranked') {
+    body = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
+  } else if (step.step === 'synthesis_prompt') {
+    body = <pre className={styles.promptBlock}>{d.prompt}</pre>
   }
-  if (step.step === 'rrf_merge' || step.step === 'ai_rrf_merge') {
-    return <TruncatedHitList hits={d.top_candidates ?? []} onOpenDocument={onOpenDocument} />
-  }
-  if (step.step === 'rerank') {
-    return <TruncatedHitList hits={d.top_chunks ?? []} onOpenDocument={onOpenDocument} />
-  }
-  if (step.step === 'instant_reranked') {
-    return <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
-  }
-  if (step.step === 'synthesis_prompt') {
-    return <pre className={styles.promptBlock}>{d.prompt}</pre>
-  }
-  return null
+
+  if (body === null) return null
+
+  return (
+    <details className={styles.details}>
+      <summary className={styles.detailsSummary}>{collapsibleLabel(step.step)}</summary>
+      {body}
+    </details>
+  )
 }
 
 export interface TracePanelProps {
@@ -199,15 +261,25 @@ export default function TracePanel({ steps, onOpenDocument }: TracePanelProps) {
     return <p className={styles.placeholder}>No trace yet — run a query to see it here.</p>
   }
 
+  let lastChunks: QueryChunk[] | null = null
+
   return (
     <div className={styles.panel}>
-      {steps.map((step, index) => (
-        <section key={`${step.step}-${index}`} className={styles.card}>
-          <h3>{STEP_LABELS[step.step] ?? step.step}</h3>
-          <p className={styles.summary}>{summarize(step)}</p>
-          <StepBody step={step} onOpenDocument={onOpenDocument} />
-        </section>
-      ))}
+      {steps.map((step, index) => {
+        if (step.step === 'query_analysis') {
+          lastChunks = (step.data as Record<string, any>).chunks ?? null
+        }
+        return (
+          <section key={`${step.step}-${index}`} className={styles.card}>
+            <h3>{STEP_LABELS[step.step] ?? step.step}</h3>
+            {STEP_DESCRIPTIONS[step.step] && (
+              <p className={styles.description}>{STEP_DESCRIPTIONS[step.step]}</p>
+            )}
+            <p className={styles.summary}>{summarize(step)}</p>
+            <StepBody step={step} onOpenDocument={onOpenDocument} precedingChunks={lastChunks} />
+          </section>
+        )
+      })}
     </div>
   )
 }

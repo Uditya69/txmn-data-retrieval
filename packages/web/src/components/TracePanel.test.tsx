@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TracePanel from './TracePanel'
 import type { TraceStep } from '../api/useSearch'
@@ -86,6 +86,28 @@ describe('TracePanel', () => {
     expect(screen.getByText('"section 92C"')).toBeInTheDocument()
     expect(screen.getByText(/section, slop 0/)).toBeInTheDocument()
     expect(screen.getByText('"section 092C"')).toBeInTheDocument()
+  })
+
+  it('shows the query_analysis chunks feeding the classifier decision on the classifier card', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'query_analysis',
+        data: {
+          query: 'Section 54',
+          shape: 'HYBRID',
+          chunks: [{ text: 'Section 54', proximity: 0, type: 'section', alt_text: null }],
+        },
+      },
+      {
+        step: 'classifier',
+        data: { label: 'HYBRID', confidence: 0.6, auto_route: true, plan: { es: true, milvus: true, fuse: true } },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    const classifierCard = screen.getByRole('heading', { level: 3, name: 'Classifier' }).closest('section')!
+    expect(within(classifierCard).getByText('"Section 54"')).toBeInTheDocument()
+    expect(within(classifierCard).getByText(/section, slop 0/)).toBeInTheDocument()
   })
 
   it('truncates long lists to 5 with a Show more button that reveals the rest locally', async () => {
