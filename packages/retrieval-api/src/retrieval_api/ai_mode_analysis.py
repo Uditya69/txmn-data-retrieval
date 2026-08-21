@@ -66,6 +66,8 @@ async def get_ai_mode_analysis(req: AiModeAnalysisRequest):
 
     try:
         result = await run_ai_mode(gateway, es_client, milvus_client, req.query, persona_context=persona_context)
+        if not settings.expose_reasoning:
+            result.pop("reasoning", None)
         return {
             **result,
             "persona_found": persona_found,
