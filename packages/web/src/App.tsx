@@ -45,7 +45,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
   const [rrf, setRrf] = useState(false)
-  const [autoRoute, setAutoRoute] = useState(false)
+  const [autoRoute, setAutoRoute] = useState(true)
   const [showReasoning, setShowReasoning] = useState(false)
   const [openDocId, setOpenDocId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
