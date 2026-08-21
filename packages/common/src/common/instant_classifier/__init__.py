@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from common.instant_classifier.labels import ClassifierResult, resolve_routing
+from common.instant_classifier.labels import ClassifierResult, FALLBACK, resolve_routing
 from common.instant_classifier.pipeline import load_artifact
 
 __all__ = ["classify", "confidence_threshold", "effective_label", "ClassifierResult"]
@@ -25,4 +25,6 @@ def confidence_threshold() -> float:
 
 
 def effective_label(query: str) -> str:
+    if not query.strip():
+        return FALLBACK
     return resolve_routing(classify(query), confidence_threshold())

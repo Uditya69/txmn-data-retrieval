@@ -33,3 +33,8 @@ def test_effective_label_falls_back_below_threshold(monkeypatch):
 
     monkeypatch.setattr(module, "classify", lambda query: module.ClassifierResult(label=KEYWORD, confidence=0.0))
     assert module.effective_label("anything") == FALLBACK
+
+
+def test_effective_label_short_circuits_on_empty_query():
+    assert effective_label("") == FALLBACK
+    assert effective_label("   ") == FALLBACK
