@@ -568,8 +568,9 @@ async def extract_intent(
     chunk_context = _build_chunk_context(query)
     user_message = query if chunk_context is None else (
         f"{query}\n\n"
-        "Structural spans already present in the query above (for reference "
-        f"only — do not add anything not already in the query text):\n{chunk_context}"
+        "Structural spans already present in the query above (for reference, to help "
+        "judge what's already there and how confident an expansion would be - "
+        f"search_query may still expand per the system instructions above):\n{chunk_context}"
     )
     has_anchor = _has_legal_anchor(query, chunk_context)
     if not has_anchor:
