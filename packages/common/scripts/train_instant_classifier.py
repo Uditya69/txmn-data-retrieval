@@ -22,23 +22,46 @@ def _load_jsonl(path: Path) -> tuple[list[str], list[str]]:
 
 
 def _sweep_threshold(pipeline, eval_texts: list[str], eval_labels: list[str]) -> tuple[float, float]:
-    """Picks the confidence cutoff (0.1-0.9) maximizing eval accuracy among kept
-    predictions, ties broken toward the lower threshold - that keeps more queries on
-    the automatic-routing path instead of falling back unnecessarily."""
+    """Picks the confidence cutoff (0.1-0.9) that determines when resolve_routing()'s
+    fallback branch fires (confidence < threshold -> FALLBACK).
+
+    Accuracy at each threshold is computed over KEPT predictions only
+    (kept_correct / kept_total, NOT the fixed eval-set size) - otherwise raising the
+    threshold can only remove examples from the numerator, never add any, which makes
+    the metric non-increasing in threshold and guarantees the sweep always "wins" at
+    the lowest threshold tried regardless of the data. That also matters because a
+    3-class softmax's predict_proba().max() is never below ~1/3 - a threshold near 0.1
+    would then never actually gate anything, leaving resolve_routing()'s fallback branch
+    dead code.
+
+    Among thresholds whose kept-set accuracy is at least as good as the unfiltered
+    (overall) accuracy, picks the HIGHEST one - being more selective should never come
+    at the cost of the kept predictions being less reliable than just trusting every
+    prediction. If no threshold clears that bar (possible on a small/noisy eval set),
+    falls back to whichever threshold has the best kept-set accuracy, ties broken
+    toward the lower threshold so more queries stay on the automatic-routing path
+    instead of falling back unnecessarily. Thresholds that would keep zero predictions
+    are skipped (undefined accuracy)."""
     proba = pipeline.predict_proba(eval_texts)
     classes = pipeline.classes_
-    best_threshold, best_accuracy = 0.1, -1.0
+    predicted = [classes[row.argmax()] for row in proba]
+    confidences = [row.max() for row in proba]
+    overall_accuracy = accuracy_score(eval_labels, predicted)
+
+    candidates: list[tuple[float, float]] = []  # (threshold, kept_accuracy)
     for threshold in [i / 10 for i in range(1, 10)]:
-        kept_correct = 0
-        for row_proba, true_label in zip(proba, eval_labels):
-            predicted = classes[row_proba.argmax()]
-            confidence = row_proba.max()
-            if confidence >= threshold and predicted == true_label:
-                kept_correct += 1
-        accuracy = kept_correct / len(eval_labels)
-        if accuracy > best_accuracy:
-            best_accuracy, best_threshold = accuracy, threshold
-    return best_threshold, best_accuracy
+        kept_pairs = [
+            (p, t) for p, t, c in zip(predicted, eval_labels, confidences) if c >= threshold
+        ]
+        if not kept_pairs:
+            continue  # nothing survives this threshold - accuracy undefined, skip it
+        kept_correct = sum(p == t for p, t in kept_pairs)
+        candidates.append((threshold, kept_correct / len(kept_pairs)))
+
+    qualifying = [c for c in candidates if c[1] >= overall_accuracy]
+    if qualifying:
+        return max(qualifying, key=lambda c: c[0])
+    return max(candidates, key=lambda c: (c[1], -c[0]))
 
 
 def main() -> None:
