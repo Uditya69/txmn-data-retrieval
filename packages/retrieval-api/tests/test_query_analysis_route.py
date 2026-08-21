@@ -11,7 +11,7 @@ def test_query_analysis_route_returns_shape_chunks_and_es_query():
     assert response.status_code == 200
     body = response.json()
     assert body["query"] == "Section 6 of Income Tax Act"
-    assert body["shape"] == "provision"
+    assert body["shape"] == "HYBRID"
     assert any(c["type"] == "section" and c["text"] == "Section 6" for c in body["chunks"])
     assert "bool" in body["es_query"]
 
