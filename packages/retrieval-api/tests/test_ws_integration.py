@@ -148,6 +148,99 @@ def test_ws_search_passes_on_step_when_trace_flag_is_true(monkeypatch):
     assert callable(captured_on_step)
 
 
+def test_ws_search_auto_route_defaults_to_false_when_absent(monkeypatch):
+    captured_auto_route = "unset"
+
+    async def fake_run_instant(
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, rerank=False, auto_route=False,
+    ):
+        nonlocal captured_auto_route
+        captured_auto_route = auto_route
+        return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+        return {"ok": True, "answer": "final answer", "citations": {}}
+
+    monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
+    monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "q"})  # no "auto_route" field
+        websocket.receive_json()
+        websocket.receive_json()
+
+    assert captured_auto_route is False
+
+
+def test_ws_search_forwards_auto_route_to_run_instant_when_enabled(monkeypatch):
+    captured_auto_route = "unset"
+
+    async def fake_run_instant(
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, rerank=False, auto_route=False,
+    ):
+        nonlocal captured_auto_route
+        captured_auto_route = auto_route
+        return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+        return {"ok": True, "answer": "final answer", "citations": {}}
+
+    monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
+    monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
+    monkeypatch.setattr(
+        ws_module, "get_settings",
+        lambda: Mock(instant_mode_rerank_enabled=True, instant_mode_auto_route_enabled=True),
+    )
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "q", "auto_route": True})
+        websocket.receive_json()
+        websocket.receive_json()
+
+    assert captured_auto_route is True
+
+
+def test_ws_search_kill_switch_forces_auto_route_off_even_when_requested(monkeypatch):
+    captured_auto_route = "unset"
+
+    async def fake_run_instant(
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, rerank=False, auto_route=False,
+    ):
+        nonlocal captured_auto_route
+        captured_auto_route = auto_route
+        return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+        return {"ok": True, "answer": "final answer", "citations": {}}
+
+    monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
+    monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
+    monkeypatch.setattr(
+        ws_module, "get_settings",
+        lambda: Mock(instant_mode_rerank_enabled=True, instant_mode_auto_route_enabled=False),
+    )
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "q", "auto_route": True})
+        websocket.receive_json()
+        websocket.receive_json()
+
+    assert captured_auto_route is False
+
+
 def test_ws_search_instant_mode_does_not_emit_trace_steps(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, rerank=False):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
@@ -527,7 +620,8 @@ async def test_instant_mode_cache_hit_skips_run_instant_and_returns_cached_resul
         "milvus": [], "milvus_sparse": [], "milvus_error": None,
     }
     await cache_write(
-        fake_semantic_cache_collection, "instant", "what is section 80C", [1.0, 0.0],
+        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False_rerank_False",
+        "what is section 80C", [1.0, 0.0],
         cached_instant_result,
     )
 
@@ -550,7 +644,10 @@ async def test_instant_mode_rerank_cache_hit_uses_separate_key_from_plain_instan
     # Unlike every other test in this file, this one sends rerank=True - the only
     # request shape that evaluates settings.instant_mode_rerank_enabled (short-circuited
     # by `and` otherwise) - so it needs that attribute present, not a bare object().
-    monkeypatch.setattr(ws_module, "get_settings", lambda: Mock(instant_mode_rerank_enabled=True))
+    monkeypatch.setattr(
+        ws_module, "get_settings",
+        lambda: Mock(instant_mode_rerank_enabled=True, instant_mode_auto_route_enabled=True),
+    )
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
@@ -576,7 +673,8 @@ async def test_instant_mode_rerank_cache_hit_uses_separate_key_from_plain_instan
         "reranked": [{"doc_id": "cached-reranked"}], "reranked_error": None,
     }
     await cache_write(
-        fake_semantic_cache_collection, "instant_rerank", "what is section 80C", [1.0, 0.0],
+        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False_rerank_True",
+        "what is section 80C", [1.0, 0.0],
         cached_reranked_result,
     )
 

@@ -110,6 +110,7 @@ async def search(websocket: WebSocket):
     # pattern as AI Mode's rerank flag.
     rrf = message.get("rrf", False)
     rerank = message.get("rerank", False) and settings.instant_mode_rerank_enabled
+    auto_route = message.get("auto_route", False) and settings.instant_mode_auto_route_enabled
     es_client = get_es_client(settings)
     gateway = get_gateway_client(settings)
     try:
@@ -145,14 +146,11 @@ async def search(websocket: WebSocket):
     query_embedding = None
     instant_cache_hit = None
     ai_mode_cache_hit = None
-    # Each (rrf, rerank) combination produces different result content - a separate
-    # cache key per combination, same as the single "instant_rerank" key before this
-    # toggle was split in two.
+    # Each (auto_route, rrf, rerank) combination produces different result content - a
+    # separate cache key per combination, same as the single "instant_rerank" key before
+    # rrf/rerank were split, now extended with a third toggle.
     instant_cache_key = (
-        "instant_rrf_rerank" if rrf and rerank
-        else "instant_rrf" if rrf
-        else "instant_rerank" if rerank
-        else "instant"
+        f"instant_auto_route_{auto_route}_rrf_{rrf}_rerank_{rerank}"
     )
     try:
         cache_settings = get_semantic_cache_settings()
@@ -214,6 +212,7 @@ async def search(websocket: WebSocket):
                     run_instant(
                         gateway, es_client, milvus_client, query,
                         on_step=emit_trace_step if trace else None, rrf=rrf, rerank=rerank,
+                        auto_route=auto_route,
                     )
                 )
                 if mode in ("instant", "both") and instant_cache_hit is None else None
