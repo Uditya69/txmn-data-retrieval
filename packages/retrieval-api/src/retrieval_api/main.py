@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from auth.config import get_auth_settings
 from auth.db import ensure_refresh_token_indexes, get_mongo_client, get_refresh_tokens_collection
 from auth.router import router as auth_router
+from common.instant_classifier import classify
 from chat.router import router as chat_router
 from retrieval_api.admin_eval.router import router as admin_eval_router
 from retrieval_api.ws import router
@@ -20,6 +21,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Fail loud: a missing/corrupt Instant-mode classifier artifact must crash
+    # startup, not silently degrade every request to fallback routing forever -
+    # unlike the Mongo/Milvus/persona degrade-don't-crash patterns below, a broken
+    # classifier is a deployment bug, not a transient dependency outage.
+    classify("startup warmup query")
     # create_index is idempotent - cheap no-op on every restart once the indexes
     # already exist. See auth/db.py::ensure_refresh_token_indexes for what/why.
     # A down/unreachable Mongo at startup must never crash the app (mirrors the
