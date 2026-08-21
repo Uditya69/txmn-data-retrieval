@@ -51,8 +51,6 @@ async def get_model(role: str):
 class ChatRequest(BaseModel):
     role: str
     messages: list[dict]
-    tools: list[dict] | None = None
-    tool_choice: str | None = None
     model: str | None = None
     response_format: dict | None = None
     temperature: float | None = None
@@ -81,16 +79,16 @@ async def chat(req: ChatRequest, request: Request):
         name=f"chat:{req.role}",
         model=model,
         input=req.messages,
-        metadata={"provider": provider, "has_tools": bool(req.tools)},
+        metadata={"provider": provider},
         trace_context=_trace_context_from_headers(request),
     ) as generation:
-        content, usage_details, reasoning, tool_calls = await get_adapter(provider).chat(
-            model, req.messages, req.tools, req.tool_choice, req.response_format, req.temperature,
+        content, usage_details, reasoning = await get_adapter(provider).chat(
+            model, req.messages, req.response_format, req.temperature,
         )
-        generation.update(output=content if content is not None else {"tool_calls": tool_calls}, usage_details=usage_details)
+        generation.update(output=content, usage_details=usage_details)
         if reasoning:
             generation.update(metadata={"reasoning": reasoning})
-    return {"content": content, "reasoning": reasoning, "tool_calls": tool_calls}
+    return {"content": content, "reasoning": reasoning}
 
 
 @router.post("/v1/embed")

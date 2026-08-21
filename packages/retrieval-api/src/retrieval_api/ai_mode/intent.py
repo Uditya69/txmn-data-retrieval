@@ -248,12 +248,11 @@ exactly {"party": "Ramesh Gupta"} and intent is ["caselaws"].
 
 def _system_prompt_for_model(model: str) -> str:
     """Different models need different prompt shapes to follow instructions
-    reliably (see docs/superpowers/specs/2026-08-06-agentic-search-pipeline-design.md's
-    note on agent_chat) - the Llama-tuned prompt above was written and
-    eval-validated against Llama-3.1-8B-Instruct's specific tendency to
-    over-generalize open-ended rewrite instructions. Fall back to it for any
-    other model too, but surface a warning so a future model swap doesn't
-    silently inherit a prompt shape nobody has tuned or evaluated for it."""
+    reliably - the Llama-tuned prompt above was written and eval-validated
+    against Llama-3.1-8B-Instruct's specific tendency to over-generalize
+    open-ended rewrite instructions. Fall back to it for any other model too,
+    but surface a warning so a future model swap doesn't silently inherit a
+    prompt shape nobody has tuned or evaluated for it."""
     if "llama" in model.lower():
         return _LLAMA_SYSTEM_PROMPT
     get_client().update_current_span(

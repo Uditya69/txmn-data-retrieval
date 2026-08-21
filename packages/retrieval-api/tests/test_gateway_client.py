@@ -82,30 +82,6 @@ async def test_get_model_returns_model_for_role():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_chat_with_tools_posts_tools_and_returns_tool_calls():
-    route = respx.post("http://gateway/v1/chat").mock(
-        return_value=httpx.Response(200, json={
-            "content": None,
-            "reasoning": None,
-            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "search_es", "arguments": "{\"query\": \"gst\"}"}}],
-        })
-    )
-    client = GatewayClient(base_url="http://gateway")
-    tools = [{"type": "function", "function": {"name": "search_es", "description": "d", "parameters": {"type": "object", "properties": {}}}}]
-
-    result = await client.chat_with_tools("agent_chat", [{"role": "user", "content": "hi"}], tools, tool_choice="auto")
-
-    assert result == {
-        "content": None,
-        "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "search_es", "arguments": "{\"query\": \"gst\"}"}}],
-        "reasoning": None,
-    }
-    sent = json.loads(route.calls.last.request.content)
-    assert sent == {"role": "agent_chat", "messages": [{"role": "user", "content": "hi"}], "tools": tools, "tool_choice": "auto"}
-
-
-@pytest.mark.asyncio
-@respx.mock
 async def test_trace_enabled_false_sends_no_trace_headers():
     route = respx.post("http://gateway/v1/chat").mock(
         return_value=httpx.Response(200, json={"content": "hi there"})

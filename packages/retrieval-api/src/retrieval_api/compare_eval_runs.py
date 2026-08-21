@@ -4,7 +4,7 @@ from pathlib import Path
 
 _STAGES = [
     "es", "raw_dense", "raw_sparse", "rewritten_dense", "rewritten_sparse",
-    "rrf", "reranker", "agentic",
+    "rrf", "reranker",
 ]
 
 
@@ -37,17 +37,10 @@ def build_comparison_table(baseline: dict, candidates: list[dict]) -> list[dict]
             for stage in _STAGES
         }
         citation_delta = citation_pass_rate(candidate)[0] - baseline_citation_passed
-        # If one run skipped the agentic stage (--skip-agentic) and the other
-        # didn't, the "agentic" column would compare "did not run" against
-        # "ran" - a meaningless numeric delta - so flag it instead of printing it.
-        baseline_skip_agentic = baseline.get("parameters", {}).get("skip_agentic")
-        candidate_skip_agentic = candidate.get("parameters", {}).get("skip_agentic")
-        agentic_comparable = baseline_skip_agentic == candidate_skip_agentic
         table.append({
             "run_name": candidate["run_name"],
             "stage_deltas": stage_deltas,
             "citation_pass_delta": citation_delta,
-            "agentic_comparable": agentic_comparable,
         })
     return table
 
@@ -58,17 +51,8 @@ def _print_table(baseline: dict, table: list[dict]) -> None:
     header = "run_name".ljust(28) + "".join(s[:10].rjust(12) for s in _STAGES) + "citation".rjust(12)
     print(header)
     for row in table:
-        cells = "".join(
-            (f"{row['stage_deltas'][s]:+d}" if s != "agentic" or row["agentic_comparable"] else "N/A").rjust(12)
-            for s in _STAGES
-        )
+        cells = "".join(f"{row['stage_deltas'][s]:+d}".rjust(12) for s in _STAGES)
         print(row["run_name"].ljust(28) + cells + f"{row['citation_pass_delta']:+d}".rjust(12))
-        if not row["agentic_comparable"]:
-            print(
-                f"  WARNING: {row['run_name']}: baseline and candidate used different "
-                f"--skip-agentic settings - the agentic column is not comparable "
-                f"(one run skipped the agentic stage, the other did not)."
-            )
 
 
 def main() -> None:

@@ -17,7 +17,7 @@ export interface ParsedAnswer {
 const CITATION_PATTERN = /\[(\w+(?:\s*,\s*\w+)*)\]/g
 
 // knownDocIds is the DB-sourced allowlist (ES/Milvus doc_ids the backend actually
-// retrieved for this answer - see AiModeResult.citations / AgentResult.docIds).
+// retrieved for this answer - see AiModeResult.citations).
 // A bracket is only linkified when every token inside it is in that set. This is
 // what stops legal citation years - e.g. "[1957] 32 ITR 466 (SC)", standard Indian
 // case-report notation - from being mistaken for a [doc_id] reference: "1957" is

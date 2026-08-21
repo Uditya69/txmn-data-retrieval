@@ -4,7 +4,6 @@ import logging
 from fastapi import APIRouter, WebSocket
 from langfuse import get_client
 
-from agents.pipeline import run_agentic_search
 from auth.config import get_auth_settings
 from auth.security import decode_access_token
 from chat.config import get_chat_settings
@@ -324,43 +323,3 @@ async def search(websocket: WebSocket):
         if milvus_client is not None:
             milvus_client.close()
         langfuse.flush()
-
-
-@router.websocket("/ws/agent")
-async def agent_search(websocket: WebSocket):
-    await websocket.accept()
-    message = await websocket.receive_json()
-    query = message["query"]
-
-    settings = get_settings()
-    es_client = get_es_client(settings)
-    gateway = get_gateway_client(settings)
-    try:
-        milvus_client = get_milvus_client(settings)
-    except Exception:
-        logger.exception("Milvus connection failed; proceeding without Milvus for this request")
-        milvus_client = None
-
-    send_lock = asyncio.Lock()
-
-    async def send(payload: dict) -> None:
-        async with send_lock:
-            await websocket.send_json(payload)
-
-    async def emit_trace_step(step: str, data: dict) -> None:
-        await _emit_trace_step(send, step, data)
-
-    try:
-        result = await run_agentic_search(gateway, es_client, milvus_client, query, on_step=emit_trace_step)
-        if result["ok"]:
-            await send({"type": "agent_done", "answer": result["answer"], "doc_ids": result["doc_ids"]})
-        else:
-            await send({"type": "agent_unverifiable", "invalid_doc_ids": result["invalid_doc_ids"]})
-        await websocket.close()
-    except Exception as exc:
-        await send({"type": "agent_error", "error": f"{type(exc).__name__}: {exc}"})
-        await websocket.close()
-    finally:
-        await es_client.close()
-        if milvus_client is not None:
-            milvus_client.close()

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { ChatMessageView } from './ChatMessageView'
 import { hydrateStoredMessages } from '../api/useConversations'
 import type { ChatMessage, ResultState } from '../types'
@@ -88,6 +88,42 @@ describe('ChatMessageView doc_id rank lookup (dev mode only)', () => {
     fireEvent.change(screen.getByLabelText('Check doc_id rank'), { target: { value: 'd3' } })
 
     expect(screen.getByText('rank #2')).toBeInTheDocument()
+  })
+})
+
+describe('TraceSection routes query_correction to the Instant pane, not the Answer pane', () => {
+  function messageWithBothPaneSteps(): ChatMessage {
+    return {
+      id: 'm3',
+      role: 'assistant',
+      question: 'q',
+      activeMode: 'classic',
+      results: {
+        classic: {
+          status: 'done',
+          instant: null,
+          aiMode: null,
+          traceSteps: [
+            { step: 'query_correction', data: { original: 'q', corrected: 'q', corrections: [] } },
+            { step: 'intent', data: { query: 'q', search_query: 'q', intent: ['acts'] } },
+          ],
+        },
+      },
+    }
+  }
+
+  it('shows the Query correction card inside the Instant pane, not the Answer pane', () => {
+    render(<ChatMessageView message={messageWithBothPaneSteps()} devMode={true} onOpenDocument={() => {}} />)
+
+    for (const summary of screen.getAllByText(/^Trace \(/)) {
+      fireEvent.click(summary)
+    }
+
+    const instantPane = screen.getByText('Instant matches').closest('div')!.parentElement!
+    const answerPane = screen.getByText('Answer').closest('div')!.parentElement!
+
+    expect(within(instantPane).getByRole('heading', { level: 3, name: 'Query correction' })).toBeInTheDocument()
+    expect(within(answerPane).queryByRole('heading', { level: 3, name: 'Query correction' })).not.toBeInTheDocument()
   })
 })
 

@@ -87,16 +87,12 @@ async def test_evaluate_case_reports_each_retrieval_stage(monkeypatch):
     async def fake_synthesize(gateway, es_client, query, top_chunks, citations, model=None):
         return {"answer": "See [gold1].", "citations": {}, "reasoning": None}
 
-    async def fake_agentic(gateway, es_client, milvus_client, query):
-        return {"ok": False, "error": "unverifiable_answer", "invalid_doc_ids": []}
-
     monkeypatch.setattr(module, "raw_search", fake_raw_search)
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
     monkeypatch.setattr(module, "extract_intent", fake_intent)
     monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
     monkeypatch.setattr(module, "rerank_top_chunks", fake_rerank)
     monkeypatch.setattr(module, "synthesize", fake_synthesize)
-    monkeypatch.setattr(module, "run_agentic_search", fake_agentic)
 
     class Gateway:
         async def embed(self, role, text):
@@ -112,7 +108,6 @@ async def test_evaluate_case_reports_each_retrieval_stage(monkeypatch):
     assert result["ranks"] == {
         "es": 1, "raw_dense": 1, "raw_sparse": 1,
         "rewritten_dense": 1, "rewritten_sparse": 1, "rrf": 1, "reranker": 1,
-        "agentic": None,
     }
     assert result["collection_ranks"]["raw_dense"]["facts"] == 1
     assert result["rewritten_query"] == "rewritten"
@@ -152,10 +147,9 @@ async def test_evaluate_case_always_uses_neutral_rrf_weighting(monkeypatch):
     monkeypatch.setattr(module, "extract_intent", fake_intent)
     monkeypatch.setattr(module, "resolve_allowlist", AsyncMock(return_value=None))
     monkeypatch.setattr(module, "rerank_top_chunks", AsyncMock(return_value=[]))
-    monkeypatch.setattr(module, "run_agentic_search", AsyncMock(return_value=None))
 
     result = await module.evaluate_case(
-        case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False, skip_agentic=True,
+        case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False,
     )
 
     # dense-only chunk "a" and sparse-only chunk "c" are both rank-1 in their
@@ -164,56 +158,6 @@ async def test_evaluate_case_always_uses_neutral_rrf_weighting(monkeypatch):
     # rather than asserting a specific winner (a tie's iteration order isn't
     # this test's subject).
     assert result["ranks"]["rrf"] in (1, 2)
-
-
-@pytest.mark.asyncio
-async def test_evaluate_case_records_agentic_hit_when_gold_doc_cited(monkeypatch):
-    import retrieval_api.retrieval_eval as eval_module
-
-    async def fake_run_agentic_search(gateway, es_client, milvus_client, query, on_step=None):
-        return {"ok": True, "answer": "See [gold-doc].", "doc_ids": ["gold-doc", "other-doc"]}
-
-    monkeypatch.setattr(eval_module, "run_agentic_search", fake_run_agentic_search)
-
-    class Gateway:
-        async def embed(self, role, text):
-            return [0.1]
-
-    case = {
-        "id": "Q1", "class": "direct", "query": "q", "gold_doc_ids": ["gold-doc"],
-        "expected_collections": ["metadata"], "pass_at": 5,
-    }
-    result = await eval_module.evaluate_case(
-        case, Gateway(), object(), object(), langfuse_enabled=False,
-    )
-
-    assert result["ranks"]["agentic"] == 1
-    assert "agentic" not in result["errors"]
-
-
-@pytest.mark.asyncio
-async def test_evaluate_case_records_agentic_miss_when_unverifiable(monkeypatch):
-    import retrieval_api.retrieval_eval as eval_module
-
-    async def fake_run_agentic_search(gateway, es_client, milvus_client, query, on_step=None):
-        return {"ok": False, "error": "unverifiable_answer", "invalid_doc_ids": ["bad-doc"]}
-
-    monkeypatch.setattr(eval_module, "run_agentic_search", fake_run_agentic_search)
-
-    class Gateway:
-        async def embed(self, role, text):
-            return [0.1]
-
-    case = {
-        "id": "Q2", "class": "direct", "query": "q", "gold_doc_ids": ["gold-doc"],
-        "expected_collections": ["metadata"], "pass_at": 5,
-    }
-    result = await eval_module.evaluate_case(
-        case, Gateway(), object(), object(), langfuse_enabled=False,
-    )
-
-    assert result["ranks"]["agentic"] is None
-    assert "unverifiable_answer" in result["errors"]["agentic"]
 
 
 def test_sample_12_query_ids_are_a_subset_of_the_full_dataset():
@@ -239,8 +183,8 @@ async def test_evaluate_case_records_citation_validity_against_reranked_chunks(m
     async def fake_hybrid(client, collections, dense_vector, sparse_query_text,
                           doc_id_allowlist=None, limit=50):
         suffix = "dense" if dense_vector is not None else "sparse"
-        # doc_id "gold1" (not "gold") because agents.citations.extract_cited_doc_ids
-        # only recognizes tokens containing at least one digit as doc_ids.
+        # doc_id "gold1" (not "gold") because extract_cited_doc_ids only
+        # recognizes tokens containing at least one digit as doc_ids.
         return {name: [{"doc_id": "gold1", "chunk_id": f"gold1-{name}-{suffix}",
                         "text": "gold text", "score": 1.0}] for name in collections}
 
@@ -256,16 +200,12 @@ async def test_evaluate_case_records_citation_validity_against_reranked_chunks(m
     async def fake_synthesize(gateway, es_client, query, top_chunks, citations, model=None):
         return {"answer": "The point is settled [gold1] and also [not-retrieved2].", "citations": {}, "reasoning": None}
 
-    async def fake_agentic(gateway, es_client, milvus_client, query):
-        return {"ok": True, "doc_ids": ["gold1"]}
-
     monkeypatch.setattr(module, "raw_search", fake_raw_search)
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
     monkeypatch.setattr(module, "extract_intent", fake_intent)
     monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
     monkeypatch.setattr(module, "rerank_top_chunks", fake_rerank)
     monkeypatch.setattr(module, "synthesize", fake_synthesize)
-    monkeypatch.setattr(module, "run_agentic_search", fake_agentic)
 
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]
@@ -310,16 +250,12 @@ async def test_evaluate_case_citation_valid_is_false_for_empty_synthesis_answer(
         # invalid citation ids to complain about.
         return {"answer": "", "citations": {}, "reasoning": None}
 
-    async def fake_agentic(gateway, es_client, milvus_client, query):
-        return {"ok": True, "doc_ids": ["gold1"]}
-
     monkeypatch.setattr(module, "raw_search", fake_raw_search)
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
     monkeypatch.setattr(module, "extract_intent", fake_intent)
     monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
     monkeypatch.setattr(module, "rerank_top_chunks", fake_rerank)
     monkeypatch.setattr(module, "synthesize", fake_synthesize)
-    monkeypatch.setattr(module, "run_agentic_search", fake_agentic)
 
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]
@@ -332,47 +268,6 @@ async def test_evaluate_case_citation_valid_is_false_for_empty_synthesis_answer(
     assert result["synthesis_answer"] == ""
     assert result["citation_invalid_ids"] == []
     assert result["citation_valid"] is False
-
-
-@pytest.mark.asyncio
-async def test_evaluate_case_skip_agentic_never_calls_run_agentic_search(monkeypatch):
-    import retrieval_api.retrieval_eval as module
-
-    async def fake_raw_search(client, query, limit=50):
-        return []
-
-    async def fake_hybrid(client, collections, dense_vector, sparse_query_text,
-                          doc_id_allowlist=None, limit=50):
-        return {name: [] for name in collections}
-
-    async def fake_intent(gateway, query, model=None):
-        return {"search_query": query, "filters": {}, "intent": ["caselaws"]}
-
-    async def fake_allowlist(es_client, filters):
-        return None
-
-    async def fail_if_called(*args, **kwargs):
-        raise AssertionError("run_agentic_search must not be called when skip_agentic=True")
-
-    monkeypatch.setattr(module, "raw_search", fake_raw_search)
-    monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
-    monkeypatch.setattr(module, "extract_intent", fake_intent)
-    monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
-    monkeypatch.setattr(module, "run_agentic_search", fail_if_called)
-
-    gateway = AsyncMock()
-    gateway.embed.return_value = [0.1, 0.2]
-
-    case = {"id": "Q01", "class": "direct", "query": "q", "gold_doc_ids": ["gold1"],
-            "expected_collections": ["facts"], "pass_at": 5}
-
-    result = await evaluate_case(
-        case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False, skip_agentic=True,
-    )
-
-    assert result["ranks"]["agentic"] is None
-    assert "agentic" not in result["errors"]
-    assert "agentic" not in result["timings_ms"]
 
 
 def _stage_fakes(monkeypatch, module, synthesize_answer="See [gold1]."):
@@ -404,16 +299,12 @@ def _stage_fakes(monkeypatch, module, synthesize_answer="See [gold1]."):
         calls["synthesize"] += 1
         return {"answer": synthesize_answer, "citations": {}, "reasoning": None}
 
-    async def fake_agentic(gateway, es_client, milvus_client, query):
-        return {"ok": False, "error": "unverifiable_answer", "invalid_doc_ids": []}
-
     monkeypatch.setattr(module, "raw_search", fake_raw_search)
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
     monkeypatch.setattr(module, "extract_intent", fake_intent)
     monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
     monkeypatch.setattr(module, "rerank_top_chunks", fake_rerank)
     monkeypatch.setattr(module, "synthesize", fake_synthesize)
-    monkeypatch.setattr(module, "run_agentic_search", fake_agentic)
     return calls
 
 
@@ -429,7 +320,7 @@ async def test_evaluate_case_writes_stage_cache_on_miss(tmp_path, monkeypatch):
 
     await evaluate_case(
         case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False,
-        skip_agentic=True, cache_dir=tmp_path,
+        cache_dir=tmp_path,
     )
 
     from retrieval_api.retrieval_eval import stage_cache_path
@@ -452,7 +343,7 @@ async def test_evaluate_case_reuses_stage_cache_and_skips_retrieval_calls(tmp_pa
 
     first = await evaluate_case(
         case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False,
-        skip_agentic=True, cache_dir=tmp_path,
+        cache_dir=tmp_path,
     )
     assert calls["raw_search"] == 1 and calls["hybrid_search"] == 4 and calls["extract_intent"] == 1
     assert calls["rerank_top_chunks"] == 1 and calls["synthesize"] == 1
@@ -462,7 +353,7 @@ async def test_evaluate_case_reuses_stage_cache_and_skips_retrieval_calls(tmp_pa
     # calls, but synthesize IS called again (that's the whole point).
     second = await evaluate_case(
         case, gateway, es_client=object(), milvus_client=object(), langfuse_enabled=False,
-        skip_agentic=True, cache_dir=tmp_path, synthesis_model="candidate-model",
+        cache_dir=tmp_path, synthesis_model="candidate-model",
     )
 
     assert calls["raw_search"] == 1 and calls["hybrid_search"] == 4 and calls["extract_intent"] == 1

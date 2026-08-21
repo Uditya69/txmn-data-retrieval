@@ -9,14 +9,10 @@ _BASE_URL = "https://api.deepinfra.com/v1"
 # 32768 is sized to stay under the smallest context limit among currently
 # configured models (40960, shared by Qwen3-235B-A22B and Qwen3-30B-A3B; the
 # Llama-3.1 8B/70B roles allow 131072). It is NOT a "safe for every role"
-# constant: reasoning-heavy models (e.g. the deployed agent_chat role,
-# Qwen3-235B-A22B, which always emits reasoning_content) count reasoning
-# tokens against this budget, and this branch's own eval runs all used
-# --skip-agentic, so agent_chat was never exercised against this cap. A
-# reasoning turn that burns through the budget yields empty content, which
-# agents/loop.py silently treats as "the model is done" - no error raised.
-# Treat this as a conservative headroom increase over the old 4096, not a
-# proven-safe value for arbitrarily long reasoning traces.
+# constant: reasoning-heavy models that always emit reasoning_content count
+# reasoning tokens against this budget too. Treat this as a conservative
+# headroom increase over the old 4096, not a proven-safe value for
+# arbitrarily long reasoning traces.
 _CHAT_MAX_TOKENS = 32768
 
 
@@ -35,14 +31,10 @@ class DeepInfraAdapter:
         self._headers = {"Authorization": f"Bearer {api_key}"}
 
     async def chat(
-        self, model: str, messages: list[dict], tools: list[dict] | None = None,
-        tool_choice: str | None = None, response_format: dict | None = None,
+        self, model: str, messages: list[dict], response_format: dict | None = None,
         temperature: float | None = None,
-    ) -> tuple[str | None, dict[str, int], str | None, list[dict] | None]:
+    ) -> tuple[str | None, dict[str, int], str | None]:
         payload = {"model": model, "messages": messages, "max_tokens": _CHAT_MAX_TOKENS}
-        if tools:
-            payload["tools"] = tools
-            payload["tool_choice"] = tool_choice or "auto"
         if response_format:
             payload["response_format"] = response_format
         if temperature is not None:
@@ -61,7 +53,6 @@ class DeepInfraAdapter:
                 message.get("content"),
                 _openai_usage_details(usage),
                 message.get("reasoning_content"),
-                message.get("tool_calls"),
             )
 
     async def embed(self, model: str, text: str) -> tuple[list[float], dict[str, int]]:

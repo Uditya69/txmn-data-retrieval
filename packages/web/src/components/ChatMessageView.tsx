@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react'
-import type { ChatMessage, ChatMode, ResultState } from '../types'
+import type { ChatMessage, ResultState } from '../types'
 import { mergeResults, mapRerankedResults, type CardSource, type MilvusByCollection } from '../lib/mergeResults'
 import { parseCitations } from '../lib/citations'
 import { groupIntoParagraphs, renderInlineText } from '../lib/richText'
@@ -88,7 +88,7 @@ function CopyTraceButton({ traceSteps, disabled }: { traceSteps: ResultState['tr
 // message type). Split by step name so each pane's Trace section only shows its
 // own steps, not the other mode's mixed in.
 const INSTANT_STEP_NAMES = new Set([
-  'query_analysis', 'classifier', 'es_search', 'milvus_dense', 'milvus_sparse', 'rrf_merge',
+  'query_correction', 'query_analysis', 'classifier', 'es_search', 'milvus_dense', 'milvus_sparse', 'rrf_merge',
   'instant_reranked',
 ])
 
@@ -324,10 +324,8 @@ function renderAnswer(answer: string, knownDocIds: Set<string>) {
   return { paragraphs, citations: parsed.citations }
 }
 
-// heading/subheading come from the citations dict the backend sends (classic mode
-// only - AI Mode's fetch_citations pulls them straight from ES, see schemas.py's
-// MASTERINFO_CITATION_FIELDS). Agent mode has no per-doc metadata, only doc_ids, so
-// cards there fall back to showing the doc_id itself.
+// heading/subheading come from the citations dict the backend sends - AI Mode's
+// fetch_citations pulls them straight from ES, see schemas.py's MASTERINFO_CITATION_FIELDS.
 type CitationMeta = { heading?: string; subheading?: string }
 
 function CitedDocsStrip({
@@ -390,30 +388,26 @@ function ReasoningSection({ reasoning }: { reasoning: string }) {
 }
 
 function AnswerPane({
-  mode,
   result,
   devMode,
   showReasoning,
   onOpenDocument,
 }: {
-  mode: ChatMode
   result: ResultState | undefined
   devMode: boolean
   showReasoning?: boolean
   onOpenDocument: (docId: string) => void
 }) {
   const status = result?.status ?? 'loading'
-  const answerText = mode === 'classic' ? (result?.aiMode?.ok ? result.aiMode.answer : '') : result?.agent?.ok ? result.agent.answer : ''
-  const errorText = mode === 'classic' ? (result?.aiMode && !result.aiMode.ok ? result.aiMode.error : null) : result?.agent && !result.agent.ok ? result.agent.error : null
-  const docIds = mode === 'agent' && result?.agent?.ok ? result.agent.docIds : []
-  // DB-sourced doc_id allowlist for this answer - citations dict (classic) and
-  // docIds (agent) both come from ES/Milvus fetches, never from the LLM's own text.
+  const answerText = result?.aiMode?.ok ? result.aiMode.answer : ''
+  const errorText = result?.aiMode && !result.aiMode.ok ? result.aiMode.error : null
+  // DB-sourced doc_id allowlist for this answer - the citations dict comes from
+  // ES/Milvus fetches, never from the LLM's own text.
   const knownDocIds = useMemo(() => {
-    if (mode === 'agent') return new Set(docIds)
     return new Set(result?.aiMode?.ok ? Object.keys(result.aiMode.citations) : [])
-  }, [mode, docIds, result])
+  }, [result])
   const metaByDocId = useMemo(() => {
-    if (mode === 'agent' || !result?.aiMode?.ok) return {}
+    if (!result?.aiMode?.ok) return {}
     const citations = result.aiMode.citations
     return Object.fromEntries(
       Object.keys(citations).map((docId) => {
@@ -421,7 +415,7 @@ function AnswerPane({
         return [docId, { heading: meta?.heading, subheading: meta?.subheading }]
       }),
     )
-  }, [mode, result])
+  }, [result])
   const { paragraphs, citations } = answerText ? renderAnswer(answerText, knownDocIds) : { paragraphs: [], citations: [] }
 
   return (
@@ -432,7 +426,7 @@ function AnswerPane({
           style={{ background: 'var(--accent)', boxShadow: status === 'loading' ? '0 0 8px var(--accent)' : 'none' }}
         />
         <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
-          {mode === 'agent' ? 'Agent' : 'Answer'}
+          Answer
         </span>
       </div>
 
@@ -475,7 +469,7 @@ function AnswerPane({
         </div>
       )}
 
-      {showReasoning && mode === 'classic' && result?.aiMode?.ok && result.aiMode.reasoning && (
+      {showReasoning && result?.aiMode?.ok && result.aiMode.reasoning && (
         <ReasoningSection reasoning={result.aiMode.reasoning} />
       )}
 
@@ -483,7 +477,7 @@ function AnswerPane({
         <TraceSection
           result={result}
           onOpenDocument={onOpenDocument}
-          filter={mode === 'classic' ? (step) => !INSTANT_STEP_NAMES.has(step.step) : undefined}
+          filter={(step) => !INSTANT_STEP_NAMES.has(step.step)}
         />
       )}
     </div>
@@ -503,21 +497,11 @@ export function ChatMessageView({ message, devMode, showReasoning, onOpenDocumen
 
   const result = message.results[message.activeMode]
 
-  if (message.activeMode === 'classic') {
-    return (
-      <div className="flex justify-start w-full">
-        <div className="w-full flex gap-4 min-w-0">
-          <InstantPane result={result} devMode={devMode} onOpenDocument={onOpenDocument} query={message.question} />
-          <AnswerPane mode="classic" result={result} devMode={devMode} showReasoning={showReasoning} onOpenDocument={onOpenDocument} />
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[85%] w-full">
-        <AnswerPane mode="agent" result={result} devMode={devMode} onOpenDocument={onOpenDocument} />
+    <div className="flex justify-start w-full">
+      <div className="w-full flex gap-4 min-w-0">
+        <InstantPane result={result} devMode={devMode} onOpenDocument={onOpenDocument} query={message.question} />
+        <AnswerPane result={result} devMode={devMode} showReasoning={showReasoning} onOpenDocument={onOpenDocument} />
       </div>
     </div>
   )

@@ -2,21 +2,15 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import App from './App'
 import { useSearch } from './api/useSearch'
-import { useAgentSearch } from './api/useAgentSearch'
 import { useConversations } from './api/useConversations'
 import { useAuth } from './api/useAuth'
 
 vi.mock('./api/useSearch', () => ({ useSearch: vi.fn() }))
-vi.mock('./api/useAgentSearch', () => ({ useAgentSearch: vi.fn() }))
 vi.mock('./api/useConversations', () => ({ useConversations: vi.fn() }))
 vi.mock('./api/useAuth', () => ({ useAuth: vi.fn() }))
 
 function baseSearchState() {
   return { loading: false, instant: null, aiMode: null, traceSteps: [], wsError: null, search: vi.fn() }
-}
-
-function baseAgentState() {
-  return { loading: false, traceSteps: [], result: null, wsError: null, search: vi.fn() }
 }
 
 function baseConversationsState() {
@@ -39,7 +33,6 @@ function baseAuthState() {
 describe('App', () => {
   beforeEach(() => {
     vi.mocked(useSearch).mockReturnValue(baseSearchState())
-    vi.mocked(useAgentSearch).mockReturnValue(baseAgentState())
     vi.mocked(useConversations).mockReturnValue(baseConversationsState())
     vi.mocked(useAuth).mockReturnValue(baseAuthState())
   })
@@ -47,12 +40,6 @@ describe('App', () => {
   it('renders the page title', () => {
     render(<App />)
     expect(screen.getByText('Taxmann Retrieval')).toBeInTheDocument()
-  })
-
-  it('renders the Classic/Agent mode toggle', () => {
-    render(<App />)
-    expect(screen.getByText('classic')).toBeInTheDocument()
-    expect(screen.getByText('agent')).toBeInTheDocument()
   })
 
   it('defaults dev mode on with no ?dev URL param', () => {
@@ -106,21 +93,5 @@ describe('App', () => {
     vi.mocked(useAuth).mockReturnValue({ ...baseAuthState(), token: null, email: null })
     rerender(<App />)
     expect(clear).toHaveBeenCalledTimes(3)
-  })
-
-  it('keeps a not-yet-persisted agent-mode conversation visible in the sidebar for a logged-in user', () => {
-    // /ws/agent doesn't wire conversation_id through (out of scope for this
-    // fix wave), so an agent-mode conversation never appears in the remote
-    // list. The sidebar must still source it from local state so it isn't
-    // unreachable once "New chat" is clicked.
-    vi.mocked(useAuth).mockReturnValue({ ...baseAuthState(), token: 'token-a', email: 'a@example.com' })
-    vi.mocked(useConversations).mockReturnValue(baseConversationsState())
-    render(<App />)
-
-    fireEvent.click(screen.getByText('agent'))
-    fireEvent.change(screen.getByLabelText('Search query'), { target: { value: 'agent mode question' } })
-    fireEvent.click(screen.getByLabelText('Send'))
-
-    expect(screen.getByRole('button', { name: 'agent mode question' })).toBeInTheDocument()
   })
 })

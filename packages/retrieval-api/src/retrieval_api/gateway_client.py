@@ -57,19 +57,6 @@ class GatewayClient:
             data = response.json()
             return data["content"], data.get("reasoning")
 
-    async def chat_with_tools(
-        self, role: str, messages: list[dict], tools: list[dict], tool_choice: str | None = None,
-    ) -> dict:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{self._base_url}/v1/chat",
-                json={"role": role, "messages": messages, "tools": tools, "tool_choice": tool_choice},
-                headers=_trace_headers(),
-            )
-            response.raise_for_status()
-            data = response.json()
-            return {"content": data.get("content"), "tool_calls": data.get("tool_calls"), "reasoning": data.get("reasoning")}
-
     async def get_model(self, role: str) -> str:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(f"{self._base_url}/v1/models/{role}")

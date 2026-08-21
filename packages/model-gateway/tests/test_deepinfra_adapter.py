@@ -18,12 +18,11 @@ async def test_chat_posts_openai_shape_and_returns_content():
     )
     adapter = DeepInfraAdapter(api_key="k")
 
-    content, usage, reasoning, tool_calls = await adapter.chat("some-model", [{"role": "user", "content": "hi"}])
+    content, usage, reasoning = await adapter.chat("some-model", [{"role": "user", "content": "hi"}])
 
     assert content == "hello"
     assert usage == {"input": 10, "output": 5}
     assert reasoning is None
-    assert tool_calls is None
 
 
 @pytest.mark.asyncio
@@ -36,7 +35,7 @@ async def test_chat_extracts_reasoning_content_when_present():
     )
     adapter = DeepInfraAdapter(api_key="k")
 
-    _content, _usage, reasoning, _tool_calls = await adapter.chat("reasoning-model", [{"role": "user", "content": "hi"}])
+    _content, _usage, reasoning = await adapter.chat("reasoning-model", [{"role": "user", "content": "hi"}])
 
     assert reasoning == "thinking it through..."
 
@@ -74,46 +73,6 @@ async def test_rerank_returns_scores_in_input_order():
     assert json.loads(route.calls.last.request.content) == {
         "queries": ["query"], "documents": ["doc a", "doc b"],
     }
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_chat_passes_tools_and_returns_tool_calls():
-    route = respx.post("https://api.deepinfra.com/v1/openai/chat/completions").mock(
-        return_value=httpx.Response(200, json={
-            "choices": [{"message": {
-                "content": None,
-                "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "search_es", "arguments": "{\"query\": \"gst\"}"}}],
-            }}],
-        })
-    )
-    adapter = DeepInfraAdapter(api_key="k")
-    tools = [{"type": "function", "function": {"name": "search_es", "description": "d", "parameters": {"type": "object", "properties": {}}}}]
-
-    content, _usage, _reasoning, tool_calls = await adapter.chat(
-        "some-model", [{"role": "user", "content": "hi"}], tools=tools, tool_choice="auto",
-    )
-
-    assert content is None
-    assert tool_calls == [{"id": "call_1", "type": "function", "function": {"name": "search_es", "arguments": "{\"query\": \"gst\"}"}}]
-    sent = json.loads(route.calls.last.request.content)
-    assert sent["tools"] == tools
-    assert sent["tool_choice"] == "auto"
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_chat_omits_tools_key_when_not_given():
-    route = respx.post("https://api.deepinfra.com/v1/openai/chat/completions").mock(
-        return_value=httpx.Response(200, json={"choices": [{"message": {"content": "hi"}}]})
-    )
-    adapter = DeepInfraAdapter(api_key="k")
-
-    await adapter.chat("some-model", [{"role": "user", "content": "hi"}])
-
-    sent = json.loads(route.calls.last.request.content)
-    assert "tools" not in sent
-    assert "tool_choice" not in sent
 
 
 @pytest.mark.asyncio

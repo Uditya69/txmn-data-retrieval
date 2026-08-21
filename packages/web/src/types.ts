@@ -1,13 +1,11 @@
 import type { InstantResult, AiModeResult, TraceStep } from './api/useSearch'
-import type { AgentResult } from './api/useAgentSearch'
 
-export type ChatMode = 'classic' | 'agent'
+export type ChatMode = 'classic'
 
 export type ResultState = {
   status: 'loading' | 'done' | 'error'
   instant?: InstantResult | null
   aiMode?: AiModeResult | null
-  agent?: AgentResult | null
   traceSteps: TraceStep[]
 }
 

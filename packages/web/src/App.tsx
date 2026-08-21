@@ -7,11 +7,12 @@ import DevModeToggle from './components/DevModeToggle'
 import RerankToggle from './components/RerankToggle'
 import AuthMenu from './components/AuthMenu'
 import { useSearch } from './api/useSearch'
-import { useAgentSearch } from './api/useAgentSearch'
 import { useAuth } from './api/useAuth'
 import { useConversations } from './api/useConversations'
-import { resolveWsUrl, resolveAgentWsUrl, resolveApiBaseUrl } from './lib/config'
+import { resolveWsUrl, resolveApiBaseUrl } from './lib/config'
 import type { ChatMessage, ChatMode, Conversation, ResultState } from './types'
+
+const MODE: ChatMode = 'classic'
 
 let nextId = 0
 function genId(prefix: string) {
@@ -34,17 +35,14 @@ function readDevModeFromUrl(): boolean {
 
 export default function App() {
   const wsUrl = resolveWsUrl()
-  const agentWsUrl = resolveAgentWsUrl()
   const apiBaseUrl = resolveApiBaseUrl(wsUrl)
   const auth = useAuth(apiBaseUrl)
   const classicSearch = useSearch(wsUrl, auth.token, auth.refresh)
-  const agentSearch = useAgentSearch(agentWsUrl)
 
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const remoteConversations = useConversations(apiBaseUrl, auth.token)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [mode, setMode] = useState<ChatMode>('classic')
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
   const [rrf, setRrf] = useState(false)
   const [autoRoute, setAutoRoute] = useState(false)
@@ -53,7 +51,6 @@ export default function App() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const pendingClassicRef = useRef<{ conversationId: string; assistantId: string } | null>(null)
-  const pendingAgentRef = useRef<{ conversationId: string; assistantId: string } | null>(null)
 
   const activeConversation = conversations.find((c) => c.id === activeId) ?? null
   const messages = activeConversation?.messages ?? []
@@ -122,25 +119,9 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classicSearch.instant, classicSearch.aiMode, classicSearch.traceSteps, classicSearch.loading])
 
-  useEffect(() => {
-    const pending = pendingAgentRef.current
-    if (!pending) return
-    patchResult(pending.conversationId, pending.assistantId, 'agent', () => ({
-      status: agentSearch.loading ? 'loading' : agentSearch.result ? 'done' : 'loading',
-      agent: agentSearch.result,
-      traceSteps: agentSearch.traceSteps,
-    }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentSearch.result, agentSearch.traceSteps, agentSearch.loading])
-
-  function runQuery(conversationId: string, assistantId: string, question: string, targetMode: ChatMode) {
-    if (targetMode === 'classic') {
-      pendingClassicRef.current = { conversationId, assistantId }
-      classicSearch.search(question, true, 'both', rrf, autoRoute, auth.token ? conversationId : undefined)
-    } else {
-      pendingAgentRef.current = { conversationId, assistantId }
-      agentSearch.search(question)
-    }
+  function runQuery(conversationId: string, assistantId: string, question: string) {
+    pendingClassicRef.current = { conversationId, assistantId }
+    classicSearch.search(question, true, 'both', rrf, autoRoute, auth.token ? conversationId : undefined)
   }
 
   function handleNewChat() {
@@ -166,8 +147,8 @@ export default function App() {
       id: assistantId,
       role: 'assistant',
       question,
-      activeMode: mode,
-      results: { [mode]: loadingResult() },
+      activeMode: MODE,
+      results: { [MODE]: loadingResult() },
     }
 
     let conversationId = activeId
@@ -187,41 +168,14 @@ export default function App() {
       updateConversationMessages(conversationId, (msgs) => [...msgs, userMsg, assistantMsg])
     }
 
-    runQuery(conversationId, assistantId, question, mode)
+    runQuery(conversationId, assistantId, question)
   }
 
-  function switchMode(m: ChatMode) {
-    setMode(m)
-    if (!activeId) return
+  const pending = classicSearch.loading
+  const wsError = classicSearch.wsError
 
-    const conv = conversations.find((c) => c.id === activeId)
-    const last = conv?.messages[conv.messages.length - 1]
-    if (!last || last.role !== 'assistant') return
-
-    const alreadyFetched = Boolean(last.results[m])
-    updateConversationMessages(activeId, (msgs) =>
-      msgs.map((msg, i) =>
-        i === msgs.length - 1 && msg.role === 'assistant'
-          ? { ...msg, activeMode: m, results: alreadyFetched ? msg.results : { ...msg.results, [m]: loadingResult() } }
-          : msg,
-      ),
-    )
-
-    if (!alreadyFetched) {
-      runQuery(activeId, last.id, last.question, m)
-    }
-  }
-
-  const pending = classicSearch.loading || agentSearch.loading
-  const wsError = classicSearch.wsError || agentSearch.wsError
-
-  // Agent-mode conversations never get a conversation_id wired through /ws/agent
-  // (out of scope for this fix wave - see design spec), so they're never
-  // persisted server-side and never show up in remoteConversations. Without
-  // this merge, a logged-in user's agent-mode chat would vanish from the
-  // sidebar (and become unreachable) the moment they start a new chat, since
-  // the sidebar for logged-in users otherwise sources ONLY the remote list.
-  // Merge in any local conversation not already represented remotely (by id).
+  // Merge in any local conversation not already represented remotely (by id) -
+  // a brand-new chat isn't in remoteConversations until the next refresh().
   const sidebarConversations = auth.token
     ? [
         ...conversations.filter((c) => !remoteConversations.conversations.some((rc) => rc.id === c.id)),
@@ -251,27 +205,6 @@ export default function App() {
             >
               Taxmann Retrieval
             </button>
-
-            <div
-              className="absolute left-1/2 -translate-x-1/2 inline-flex gap-1 p-1 rounded-full"
-              style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-soft)' }}
-            >
-              {(['classic', 'agent'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => switchMode(m)}
-                  className="text-xs px-4 py-1.5 rounded-full font-medium cursor-pointer capitalize"
-                  style={{
-                    background: mode === m ? 'var(--surface)' : 'transparent',
-                    color: mode === m ? 'var(--text)' : 'var(--text-faint)',
-                    boxShadow: mode === m ? '0 1px 2px oklch(0 0 0 / 0.06)' : 'none',
-                  }}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
 
             <div className="ml-auto flex items-center gap-3">
               <RerankToggle label="RRF" checked={rrf} onToggle={setRrf} />

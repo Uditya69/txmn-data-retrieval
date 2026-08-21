@@ -6,12 +6,8 @@ describe('resolveApiBaseUrl', () => {
     expect(resolveApiBaseUrl('ws://localhost:8010/ws/search')).toBe('http://localhost:8010')
   })
 
-  it('strips the /ws/agent suffix and swaps ws for http', () => {
-    expect(resolveApiBaseUrl('ws://localhost:8010/ws/agent')).toBe('http://localhost:8010')
-  })
-
   it('swaps wss for https', () => {
-    expect(resolveApiBaseUrl('wss://example.com/ws/agent')).toBe('https://example.com')
+    expect(resolveApiBaseUrl('wss://example.com/ws/search')).toBe('https://example.com')
   })
 })
 
