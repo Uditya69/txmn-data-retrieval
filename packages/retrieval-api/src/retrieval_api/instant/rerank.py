@@ -1,13 +1,10 @@
-from common.es_client import fetch_fulltext_batch, trim_to_token_budget
 from common.instant_classifier.labels import boost_profile_key
 from retrieval_api.ai_mode.intent import OnStep
-from retrieval_api.gateway_client import GatewayClient
-from retrieval_api.score_cutoff import elbow_cutoff
 
 # Opt-in override of CLAUDE.md hard rule 3 ("no ranking fusion between ES and
 # Milvus"): RRF fuses by *rank position*, not raw score, so it never blends
 # the incomparable ES-lexical-score and Milvus-cosine/BM25-distance scales
-# the original rule guards against. Only reachable behind the `rerank`
+# the original rule guards against. Only reachable behind the `rrf`
 # toggle - default (off) behavior is untouched.
 _TOP_N_CANDIDATES = 20
 
@@ -51,28 +48,37 @@ def rrf_merge_by_doc_id(sources: dict[str, list[dict]], weights: dict[str, float
     return [{**rows[doc_id], "rrf_score": score} for doc_id, score in ordered]
 
 
+def _fallback_fused(
+    plan: dict | None,
+    es_result: list[dict],
+    milvus_dense: dict[str, list[dict]],
+    milvus_sparse: dict[str, list[dict]],
+) -> list[dict]:
+    """Single-source ranking used when rrf is off. Manual mode (plan=None, or any plan that
+    searched ES) keeps the long-standing ES-only fallback. A plan that skipped ES entirely
+    ({"es": False, "milvus": True}, e.g. the INTENT label) would always fall back to an
+    empty list there even though Milvus found matches - instead rank-fuse Milvus
+    dense+sparse, the same sanctioned rank-based fusion the rrf=True path already performs
+    between those two sources."""
+    if plan is not None and not plan.get("es", True) and plan.get("milvus", False):
+        return rrf_merge_by_doc_id(
+            {"milvus_dense": _flatten_by_score(milvus_dense), "milvus_sparse": _flatten_by_score(milvus_sparse)},
+            {"milvus_dense": 1.0, "milvus_sparse": 1.0},
+        )
+    return _collapse_to_doc_id(es_result)
+
+
 async def rerank_instant_results(
-    gateway: GatewayClient,
-    es_client,
-    query: str,
     label: str,
     es_result: list[dict],
     milvus_dense: dict[str, list[dict]],
     milvus_sparse: dict[str, list[dict]],
     rrf: bool = True,
-    rerank: bool = True,
+    plan: dict | None = None,
     on_step: OnStep | None = None,
 ) -> list[dict]:
-    """rrf and rerank are independent toggles, both defaulting to on (today's combined
-    "rerank" toggle behavior) but each callable alone:
-    - rrf=False: skip fusion entirely rather than inventing a non-rank-based way to mix
-      ES and Milvus scores (CLAUDE.md hard rule 3) - candidates are ES's own top ranking,
-      Milvus isn't consulted at all.
-    - rerank=False: skip the DeepInfra cross-encoder call - candidates keep whichever
-      ranking (RRF or plain ES) selected them, just capped/exposed as "reranked" for the
-      UI's single-ranked-list display. Rows keep their own `rrf_score`/`score` field
-      rather than being relabeled as `rerank_score` - that field only appears once the
-      cross-encoder actually ran, so the UI/trace can tell which stage produced a score."""
+    """Instant mode's only fusion stage - rank-based RRF (or, with rrf=False, a plain
+    single-source ranking via _fallback_fused). No AI/cross-encoder call is involved."""
     if rrf:
         weights = _LABEL_RRF_WEIGHTS.get(
             boost_profile_key(label), {"es": 1.0, "milvus_dense": 1.0, "milvus_sparse": 1.0},
@@ -86,36 +92,9 @@ async def rerank_instant_results(
             weights,
         )
     else:
-        fused = _collapse_to_doc_id(es_result)
+        fused = _fallback_fused(plan, es_result, milvus_dense, milvus_sparse)
 
     top_candidates = fused[:_TOP_N_CANDIDATES]
-    if on_step is not None and rrf:
-        await on_step("rrf_merge", {"candidate_count": len(top_candidates), "top_candidates": top_candidates})
-    if not top_candidates:
-        return []
-
-    if not rerank:
-        return top_candidates
-
-    fulltext = await fetch_fulltext_batch(es_client, [row["doc_id"] for row in top_candidates])
-    candidates = [row for row in top_candidates if fulltext.get(row["doc_id"])]
-    if not candidates:
-        return []
-
-    # center=False: full document text, not a highlighted snippet - see
-    # trim_to_token_budget's docstring for why the head (not the middle) is kept.
-    scores = await gateway.rerank(
-        role="reranker", query=query,
-        documents=[trim_to_token_budget(fulltext[row["doc_id"]], center=False) for row in candidates],
-    )
-    scored = [{**row, "rerank_score": score} for row, score in zip(candidates, scores)]
-    scored.sort(key=lambda row: row["rerank_score"], reverse=True)
-    cutoff = elbow_cutoff([row["rerank_score"] for row in scored])
-    top_chunks = scored[:cutoff]
     if on_step is not None:
-        await on_step("rerank", {
-            "total_candidates": len(top_candidates),
-            "considered_count": len(candidates),
-            "top_chunks": top_chunks,
-        })
-    return top_chunks
+        await on_step("rrf_merge", {"candidate_count": len(top_candidates), "top_candidates": top_candidates})
+    return top_candidates

@@ -102,14 +102,9 @@ async def search(websocket: WebSocket):
     conversation_id = message.get("conversation_id")
 
     settings = get_settings()
-    # Client can independently ask for Instant's RRF fusion and/or cross-encoder rerank.
-    # instant_mode_rerank_enabled (env, default true) is a server-side kill switch on the
-    # cross-encoder call specifically (the costly/fragile external DeepInfra call) - false
-    # forces it off regardless of what the client requested. RRF is cheap local rank math
-    # with no external dependency, so it isn't gated by that switch. Same kill-switch
-    # pattern as AI Mode's rerank flag.
+    # Instant mode's only fusion knob - RRF is cheap local rank math with no external
+    # dependency (no cross-encoder/AI call in Instant mode at all).
     rrf = message.get("rrf", False)
-    rerank = message.get("rerank", False) and settings.instant_mode_rerank_enabled
     auto_route = message.get("auto_route", False) and settings.instant_mode_auto_route_enabled
     es_client = get_es_client(settings)
     gateway = get_gateway_client(settings)
@@ -146,12 +141,9 @@ async def search(websocket: WebSocket):
     query_embedding = None
     instant_cache_hit = None
     ai_mode_cache_hit = None
-    # Each (auto_route, rrf, rerank) combination produces different result content - a
-    # separate cache key per combination, same as the single "instant_rerank" key before
-    # rrf/rerank were split, now extended with a third toggle.
-    instant_cache_key = (
-        f"instant_auto_route_{auto_route}_rrf_{rrf}_rerank_{rerank}"
-    )
+    # Each (auto_route, rrf) combination produces different result content - a
+    # separate cache key per combination.
+    instant_cache_key = f"instant_auto_route_{auto_route}_rrf_{rrf}"
     try:
         cache_settings = get_semantic_cache_settings()
         if cache_settings.semantic_cache_enabled:
@@ -211,7 +203,7 @@ async def search(websocket: WebSocket):
                 asyncio.create_task(
                     run_instant(
                         gateway, es_client, milvus_client, query,
-                        on_step=emit_trace_step if trace else None, rrf=rrf, rerank=rerank,
+                        on_step=emit_trace_step if trace else None, rrf=rrf,
                         auto_route=auto_route,
                     )
                 )

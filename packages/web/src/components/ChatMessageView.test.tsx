@@ -75,12 +75,12 @@ describe('ChatMessageView doc_id rank lookup (dev mode only)', () => {
     expect(screen.queryByText(/ES: /)).not.toBeInTheDocument()
   })
 
-  it('reports a single reranked rank when the rerank toggle is on', () => {
+  it('reports a single reranked rank when the RRF toggle is on', () => {
     const reranked: ResultState['instant'] = {
       ...instant,
       reranked: [
-        { doc_id: 'd2', rerank_score: 0.99, heading: 'h2' },
-        { doc_id: 'd3', rerank_score: 0.5, heading: 'h3' },
+        { doc_id: 'd2', rrf_score: 0.99, heading: 'h2' },
+        { doc_id: 'd3', rrf_score: 0.5, heading: 'h3' },
       ],
     }
     render(<ChatMessageView message={assistantMessage(reranked)} devMode={true} onOpenDocument={() => {}} />)

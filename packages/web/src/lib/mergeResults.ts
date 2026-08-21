@@ -25,16 +25,14 @@ export interface MergedCard {
   heading?: string
 }
 
-// Backend rows in the rerank toggle's fused list keep whichever source's row shape
-// won the doc_id (es_client.raw_search's heading/subheading, or milvus_client's
-// chunk_id/text) - see instant/rerank.py::rrf_merge_by_doc_id. Normalized here so
-// the UI doesn't need to care which source contributed a given card.
+// Backend rows in the RRF-fused list keep whichever source's row shape won the doc_id
+// (es_client.raw_search's heading/subheading, or milvus_client's chunk_id/text) - see
+// instant/rerank.py::rrf_merge_by_doc_id. Normalized here so the UI doesn't need to
+// care which source contributed a given card.
 export interface RerankedHit {
   doc_id: string
-  // Only rows that went through the cross-encoder carry rerank_score - RRF-only
-  // (rerank toggle off) rows keep rrf_score, and RRF-off/rerank-off rows keep
-  // whichever `score` ES/Milvus gave them. See instant/rerank.py::rerank_instant_results.
-  rerank_score?: number
+  // RRF-merged rows carry rrf_score; rows from the single-source fallback (rrf off)
+  // keep whichever `score` ES/Milvus gave them. See instant/rerank.py::rerank_instant_results.
   rrf_score?: number
   score?: number
   heading?: string
@@ -46,7 +44,7 @@ export function mapRerankedResults(reranked: RerankedHit[] | null | undefined): 
   return (reranked ?? []).map((hit) => ({
     doc_id: hit.doc_id,
     source: 'reranked',
-    score: hit.rerank_score ?? hit.rrf_score ?? hit.score ?? 0,
+    score: hit.rrf_score ?? hit.score ?? 0,
     heading: hit.heading,
     snippet: hit.subheading ?? hit.text ?? '',
   }))

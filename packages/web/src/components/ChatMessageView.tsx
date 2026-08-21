@@ -88,7 +88,7 @@ function CopyTraceButton({ traceSteps, disabled }: { traceSteps: ResultState['tr
 // message type). Split by step name so each pane's Trace section only shows its
 // own steps, not the other mode's mixed in.
 const INSTANT_STEP_NAMES = new Set([
-  'query_analysis', 'classifier', 'es_search', 'milvus_dense', 'milvus_sparse', 'rrf_merge', 'rerank',
+  'query_analysis', 'classifier', 'es_search', 'milvus_dense', 'milvus_sparse', 'rrf_merge',
   'instant_reranked',
 ])
 
