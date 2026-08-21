@@ -909,14 +909,14 @@
     ],
     "CBDTNOTIFICATION": [
       "notification;cbdt notification",
-      "Central Board of Direct Taxes  notification",
+      "Central Board of Direct Taxes \u00a0notification",
       "DIRECT TAX notification",
       "INCOME TAX notification",
       "WEALTH TAX notification"
     ],
     "CBDTNOTIFICATIONS": [
       "notification;cbdt notification",
-      "Central Board of Direct Taxes  notification",
+      "Central Board of Direct Taxes \u00a0notification",
       "DIRECT TAX notification",
       "INCOME TAX notification",
       "WEALTH TAX notification"
@@ -1897,7 +1897,7 @@
     ],
     "EEFC": [
       "EEFC",
-      "EXCHANGE EARNERS’ FOREIGN CURRENCY"
+      "EXCHANGE EARNERS\u2019 FOREIGN CURRENCY"
     ],
     "EFC": [
       "EFC",
@@ -2056,7 +2056,7 @@
     ],
     "EXCHANGEEARNERSFOREIGNCURRENCY": [
       "EEFC",
-      "EXCHANGE EARNERS’ FOREIGN CURRENCY"
+      "EXCHANGE EARNERS\u2019 FOREIGN CURRENCY"
     ],
     "EXCISECONTROLCODE": [
       "ECC",
@@ -5814,7 +5814,7 @@
     "NOTIFICATIONNOICSI": "NOTIFICATION NO ICSI",
     "NOTIFICATIONNOIECD": "NOTIFICATION NO IECD",
     "NOTIFICATIONNOIRDANLNTFNMOTP": "NOTIFICATION NO IRDA NL NTFN MOTP",
-    "NOTIFICATIONNOL32REGLNGENAMDT": "NOTIFICATION NO L 3 2 REGLN GEN  AMDT",
+    "NOTIFICATIONNOL32REGLNGENAMDT": "NOTIFICATION NO L 3 2 REGLN GEN \u00a0AMDT",
     "NOTIFICATIONNOL34REGLP200910CCL": "NOTIFICATION NO L 3 4 REG L P 2009 10 CCL",
     "NOTIFICATIONNOL35REGCOST200910CCI": "NOTIFICATION NO L 3 5 REG COST 2009 10 CCI",
     "NOTIFICATIONNOLADDOP": "NOTIFICATION NO LAD DOP",
@@ -5825,7 +5825,7 @@
     "NOTIFICATIONNOSOE": "NOTIFICATION NO SO E",
     "NOTIFICATIONNOSOGSR": "NOTIFICATION NO SO GSR",
     "NOTIFICATIONNOUBDCOBSDSCB": "NOTIFICATION NO UBD CO BSD SCB",
-    "NOTIFICATIONNO R40007REGRECOVERYNOTI04CCI": "NOTIFICATION NO  R 40007 REG RECOVERY NOTI 04 CCI",
+    "NOTIFICATIONNO\u00a0R40007REGRECOVERYNOTI04CCI": "NOTIFICATION NO \u00a0R 40007 REG RECOVERY NOTI 04 CCI",
     "NOTIFICATIONNUMBER": "NOTIFICATION",
     "NOTIFICATIONS": "NOTIFICATION",
     "NOTOFICATIONNOSO": "NOTOFICATION NO SO",
@@ -5917,7 +5917,7 @@
     "REC": "Rural Electrification Corporation Limited",
     "RECOVERYDEBTSDUEBANKSFINANCIALINSTITUTIONSACT": "RECOVERY DEBTS DUE BANKS FINANCIAL INSTITUTIONS ACT",
     "REDRESSALPUBLICGRIEVANCESRULES": "REDRESSAL PUBLIC GRIEVANCES RULES",
-    "REFNO MPDBC": "REF NO  MPD BC",
+    "REFNO\u00a0MPDBC": "REF NO \u00a0MPD BC",
     "REGIONALRURALBANKSACT": "REGIONAL RURAL BANKS ACT",
     "REGISTRATIONACT": "REGISTRATION ACT",
     "REGISTRATIONASSIGNMENTRECEIVABLESRULES": "REGISTRATION ASSIGNMENT RECEIVABLES RULES",
@@ -6207,14 +6207,79 @@
     "WORLDNEWS": "WORLD NEWS"
   },
   "court_full_names": [
-    "Supreme Court", "Delhi High Court", "Bombay High Court", "Madras High Court",
-    "Calcutta High Court", "Karnataka High Court", "Gujarat High Court",
-    "Income Tax Appellate Tribunal", "Customs Excise and Service Tax Appellate Tribunal"
+    "Supreme Court",
+    "Delhi High Court",
+    "Bombay High Court",
+    "Madras High Court",
+    "Calcutta High Court",
+    "Karnataka High Court",
+    "Gujarat High Court",
+    "Income Tax Appellate Tribunal",
+    "Customs Excise and Service Tax Appellate Tribunal"
   ],
   "act_names": [
-    "bharatiya nyaya sanhita", "bharatiya nagarik suraksha sanhita",
-    "bharatiya sakshya adhiniyam", "indian penal code", "income-tax act",
-    "income tax act", "cgst act", "igst act", "customs act",
-    "code of criminal procedure", "indian evidence act"
+    "bharatiya nyaya sanhita",
+    "bharatiya nagarik suraksha sanhita",
+    "bharatiya sakshya adhiniyam",
+    "indian penal code",
+    "income-tax act",
+    "income tax act",
+    "cgst act",
+    "igst act",
+    "customs act",
+    "code of criminal procedure",
+    "indian evidence act"
+  ],
+  "general_legal_terms": [
+    "SECTION",
+    "SUBSECTION",
+    "RULE",
+    "ARTICLE",
+    "CLAUSE",
+    "SCHEDULE",
+    "CHAPTER",
+    "ORDINANCE",
+    "NOTIFICATION",
+    "CIRCULAR",
+    "APPEAL",
+    "APPELLANT",
+    "RESPONDENT",
+    "PETITIONER",
+    "APPLICANT",
+    "ASSESSEE",
+    "TRIBUNAL",
+    "COMMISSIONER",
+    "OFFICER",
+    "ASSESSMENT",
+    "EXEMPTION",
+    "DEDUCTION",
+    "PENALTY",
+    "REFUND",
+    "NOTICE",
+    "ORDER",
+    "JUDGMENT",
+    "RULING",
+    "APPELLATE",
+    "REVISION",
+    "REVIEW",
+    "PETITION",
+    "JURISDICTION",
+    "EVIDENCE",
+    "WITNESS",
+    "PLAINTIFF",
+    "DEFENDANT",
+    "PROSECUTION",
+    "ACCUSED",
+    "WARRANT",
+    "SUMMONS",
+    "DECREE",
+    "INJUNCTION",
+    "AUTHORITY",
+    "REGISTRAR",
+    "PROVISION",
+    "AMENDMENT",
+    "SUBSTITUTION",
+    "EXPLANATION",
+    "REASSESSMENT"
   ]
 }

@@ -2,6 +2,8 @@ import json
 import re
 from pathlib import Path
 
+from rapidfuzz import fuzz, process
+
 _DATA_PATH = Path(__file__).parent / "data" / "legal_lexicon.json"
 _LEXICON = json.loads(_DATA_PATH.read_text())
 
@@ -13,6 +15,7 @@ _NORMALIZATIONS = _LEXICON["normalizations"]
 
 KNOWN_COURT_FULL_NAMES: list[str] = _LEXICON["court_full_names"]
 KNOWN_ACT_NAMES: set[str] = set(_LEXICON["act_names"])
+_GENERAL_LEGAL_TERMS = set(_LEXICON["general_legal_terms"])
 
 
 def is_known_court(token: str) -> bool:
@@ -48,3 +51,42 @@ CITATION_PATTERN = re.compile(
     r"\(?\d{4}\)?\s*\(?\d*\)?\s*[A-Z]{2,10}\s*\d+", re.IGNORECASE
 )
 PARTY_PATTERN = re.compile(r"\bv(?:s\.?|ersus)?\.?\s+\w", re.IGNORECASE)
+
+# Single-token court/journal/general-legal-term names only - act_names are multi-word
+# phrases, and fuzzy-matching a single query token against a multi-word target always
+# scores low, so they'd never be the closest match anyway.
+_FUZZY_TERMS = [t for t in (_COURTS | _JOURNALS | _GENERAL_LEGAL_TERMS) if " " not in t]
+_FUZZY_SCORE_CUTOFF = 82.0
+_FUZZY_MIN_TOKEN_LEN = 4
+
+
+def fuzzy_correct_query(query: str) -> tuple[str, list[dict]]:
+    """Corrects misspelled court/journal/general-legal-vocabulary terms by fuzzy-matching
+    each token against the known-term lists that back is_known_court()/is_known_journal()
+    plus general_legal_terms (section, assessee, tribunal, etc.). Tokens already an exact
+    match, or shorter than _FUZZY_MIN_TOKEN_LEN, or containing a digit (section numbers,
+    citations) are left untouched - all three are cases where a short/legit token can
+    score deceptively high against an unrelated known term (e.g. "GST" -> "GSTL" at 85.7,
+    above threshold)."""
+    corrections = []
+    corrected_tokens = []
+    for token in query.split():
+        stripped = token.strip(".,;:\"'()")
+        upper = stripped.upper()
+        if (
+            len(stripped) < _FUZZY_MIN_TOKEN_LEN
+            or not stripped.isalpha()
+            or upper in _COURTS
+            or upper in _GENERAL_LEGAL_TERMS
+            or is_known_journal(stripped)
+        ):
+            corrected_tokens.append(token)
+            continue
+        match = process.extractOne(upper, _FUZZY_TERMS, scorer=fuzz.ratio, score_cutoff=_FUZZY_SCORE_CUTOFF)
+        if match is None:
+            corrected_tokens.append(token)
+            continue
+        matched_term, score, _ = match
+        corrections.append({"original": token, "corrected": matched_term, "score": score})
+        corrected_tokens.append(matched_term)
+    return " ".join(corrected_tokens), corrections
