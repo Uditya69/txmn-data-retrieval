@@ -419,6 +419,19 @@ async def test_extract_intent_uses_llama_tuned_prompt_for_llama_model():
 
 
 @pytest.mark.asyncio
+async def test_extract_intent_uses_qwen3_tuned_prompt_for_qwen3_model():
+    gateway = AsyncMock()
+    gateway.get_model.return_value = "qwen3"
+    gateway.chat_with_reasoning.return_value = (json.dumps({"search_query": "q", "intent": [], "filters": {}}), None)
+
+    await extract_intent(gateway, "q")
+
+    system_message = gateway.chat_with_reasoning.await_args.kwargs["messages"][0]
+    assert "CONSERVATIVE search normalization" in system_message["content"]
+    assert "Section 52" in system_message["content"]
+
+
+@pytest.mark.asyncio
 async def test_extract_intent_warns_when_model_has_no_tuned_prompt(monkeypatch):
     import retrieval_api.ai_mode.intent as intent_module
 
