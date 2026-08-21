@@ -20,7 +20,7 @@ async def test_extract_intent_parses_json_object_response():
 
     assert result == {
         "original_query": "section 302 punishment",
-        "search_query": "section 302 punishment",  # rewrite rejected: <60% token overlap with input
+        "search_query": "BNS section 103 murder punishment",  # trusted verbatim - no rewrite guardrail anymore
         "intent": ["acts"],
         "filters": {},
         "reasoning": None,
@@ -165,34 +165,37 @@ async def test_extract_intent_skips_on_step_when_none():
 
 
 @pytest.mark.asyncio
-async def test_extract_intent_rejects_invented_act_and_preserves_legal_identifier():
+async def test_extract_intent_trusts_slm_search_query_verbatim_even_with_new_terms():
+    """The old _safe_rewrite guardrail (reject-and-fallback-to-original on an invented
+    Act/court/acronym-expansion/low token overlap) was removed - see the search_query
+    prompt instructions' confidence-gated expansion guidance instead. This is now purely
+    a trust-the-SLM passthrough; nothing in extract_intent itself second-guesses it."""
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat_with_reasoning.return_value = (json.dumps({
         "search_query": "case law for Bharatiya Nyaya Sanhita about scrap sale",
         "intent": ["caselaws"],
         "filters": {},
-        "reasoning": None,
     }), None)
 
     result = await extract_intent(gateway, "80HH scrap sale yes useless drum sale no")
 
-    assert result["search_query"] == "80HH scrap sale yes useless drum sale no"
+    assert result["search_query"] == "case law for Bharatiya Nyaya Sanhita about scrap sale"
 
 
 @pytest.mark.asyncio
-async def test_extract_intent_rejects_expansion_of_ambiguous_acronym():
+async def test_extract_intent_trusts_slm_acronym_expansion():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat_with_reasoning.return_value = (json.dumps({
-        "search_query": "software royalty Profit and Excess India USA DTAA",
+        "search_query": "software royalty Permanent Establishment India USA DTAA",
         "intent": [],
         "filters": {},
     }), None)
 
     result = await extract_intent(gateway, "software royalty PE India USA DTAA")
 
-    assert result["search_query"] == "software royalty PE India USA DTAA"
+    assert result["search_query"] == "software royalty Permanent Establishment India USA DTAA"
 
 
 @pytest.mark.asyncio
@@ -329,7 +332,7 @@ async def test_extract_intent_falls_back_when_shape_is_invalid():
 
 
 @pytest.mark.asyncio
-async def test_extract_intent_rejects_invented_year_and_court():
+async def test_extract_intent_trusts_slm_added_year_and_court():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat_with_reasoning.return_value = (json.dumps({
@@ -340,7 +343,7 @@ async def test_extract_intent_rejects_invented_year_and_court():
 
     result = await extract_intent(gateway, "income tax deduction")
 
-    assert result["search_query"] == "income tax deduction"
+    assert result["search_query"] == "income tax deduction in 2024 decided by Delhi High Court"
 
 
 @pytest.mark.asyncio
@@ -380,7 +383,7 @@ async def test_extract_intent_always_drops_section_filter_regardless_of_category
 
 
 @pytest.mark.asyncio
-async def test_extract_intent_rejects_lossy_rewrite():
+async def test_extract_intent_trusts_slm_shortened_rewrite():
     gateway = AsyncMock()
     gateway.get_model.return_value = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     gateway.chat_with_reasoning.return_value = (json.dumps({
@@ -392,7 +395,7 @@ async def test_extract_intent_rejects_lossy_rewrite():
     query = "80HH scrap sale yes useless drum sale no metallic wire factory"
     result = await extract_intent(gateway, query)
 
-    assert result["search_query"] == query
+    assert result["search_query"] == "sale of scrap under 80HH"
 
 
 @pytest.mark.asyncio
@@ -415,7 +418,7 @@ async def test_extract_intent_uses_llama_tuned_prompt_for_llama_model():
     await extract_intent(gateway, "q")
 
     system_message = gateway.chat_with_reasoning.await_args.kwargs["messages"][0]
-    assert "CONSERVATIVE search normalization" in system_message["content"]
+    assert "the text that will actually be run against the search" in system_message["content"]
 
 
 @pytest.mark.asyncio
@@ -427,7 +430,7 @@ async def test_extract_intent_uses_qwen3_tuned_prompt_for_qwen3_model():
     await extract_intent(gateway, "q")
 
     system_message = gateway.chat_with_reasoning.await_args.kwargs["messages"][0]
-    assert "CONSERVATIVE search normalization" in system_message["content"]
+    assert "the text that will actually be run against the search" in system_message["content"]
     assert "Section 52" in system_message["content"]
 
 

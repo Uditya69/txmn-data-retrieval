@@ -4,9 +4,9 @@ from typing import Awaitable, Callable
 
 from langfuse import get_client
 
-from common.legal_lexicon import KNOWN_ACT_NAMES, is_stopword
+from common.legal_lexicon import is_stopword
 from common.query_tokenizer import chunk_query, classify_query_shape, expand_query_synonyms
-from common.schema_context import KNOWN_COURTS, build_schema_context
+from common.schema_context import build_schema_context
 from persona.prompt import RELEVANCE_INSTRUCTION
 from retrieval_api.gateway_client import GatewayClient
 
@@ -115,21 +115,45 @@ and never refuse to classify it. You do not answer the legal question or
 look anything up yourself; you only ever output the JSON object below.
 Given a user query, return ONLY a JSON object with exactly these keys:
 
-- "search_query": a CONSERVATIVE search normalization. Correct obvious
-  spelling and grammar only. Preserve every party, court, place, Act,
-  section, rule, notification, date, number, citation, and acronym exactly
-  as written. NEVER add or infer a legal concept. NEVER expand an acronym
-  (for example PE, ST, CA, ITD, PTA, MEG, POY, or PSF). NEVER translate an
-  old law to a new law or replace one section with another. If the query is
-  already readable, copy it unchanged. Every number and year in the output
-  must occur in the input; if the input has no year, add no year. Once you
-  have decided "intent" below, phrase search_query to match what's actually
-  being searched: if "acts"/"rules" is tagged, prefer the Act/Rule name plus
-  section/rule number form already present in the query; if "caselaws"/
-  "articles" is tagged, prefer party/court/precedent-style phrasing already
-  present in the query; if "commentary" alone is tagged, keep plain-language
-  phrasing. This only reorders/reframes words already in the query - it must
-  still obey every rule above (no invented Act/court/number).
+- "search_query": the text that will actually be run against the search
+  backend.
+  - Preserve every party, court, place, Act, section, rule, notification,
+    date, number, citation, and acronym the user actually typed - never
+    drop, rename, or silently swap one for a different one. NEVER
+    translate an old law to a new law or replace one section with
+    another.
+  - Correct obvious spelling/grammar. Casing, spacing, punctuation,
+    hyphenation, and exact phrasing used anywhere in this prompt's own
+    text or examples (e.g. "Income-tax Act") are illustrative only, not a
+    template - real user input arrives in every casing, spacing,
+    abbreviation, and misspelling imaginable, and must never be expected
+    to match this prompt's own formatting choices.
+  - If the query is short, bare, or just a keyword/citation with little
+    surrounding context (e.g. "section 55", "cost of acquisition", "PE")
+    and you are CONFIDENT what it refers to, you may add closely related
+    supporting context to search_query - the Act/Rule name it belongs to,
+    the section/rule number, or the concept a bare term names - to make
+    the search more effective. Only add what you are genuinely confident
+    is correct and directly related to what's already there; when unsure,
+    leave the query as-is rather than guess. Never change the query's
+    meaning, never substitute a different legal concept for the one
+    asked about, never invent a party/court/date that isn't implied by
+    what the user wrote.
+  - If the query is already a clear, complete sentence, keep changes
+    minimal - reordering/reframing what's already present is usually
+    enough; only add something new when an obvious anchor is still
+    missing (e.g. a bare section number with "acts"/"rules" tagged, and
+    no Act/Rule name yet in the query).
+  - Once you have decided "intent" below, phrase search_query to match
+    what's actually being searched: if "acts"/"rules" is tagged, prefer
+    the Act/Rule name plus section/rule number form; if "caselaws"/
+    "articles" is tagged, prefer party/court/precedent-style phrasing; if
+    "commentary" alone is tagged, keep plain-language phrasing.
+  Example: query "section 55" with intent ["acts"] -> search_query
+  "Income-tax Act 1961 Section 55 cost of acquisition" (confident: section
+  55 of the Income-tax Act deals with cost of acquisition/improvement -
+  the Act name and year were added, nothing already in the query was
+  changed or removed).
 
 - "intent": Return one or more of the following categories only. Tag a
   category only when the query genuinely anchors on it - don't over-list.
@@ -272,21 +296,45 @@ and never refuse to classify it. You do not answer the legal question or
 look anything up yourself; you only ever output the JSON object below.
 Given a user query, return ONLY a JSON object with exactly these keys:
 
-- "search_query": a CONSERVATIVE search normalization. Correct obvious
-  spelling and grammar only. Preserve every party, court, place, Act,
-  section, rule, notification, date, number, citation, and acronym exactly
-  as written. NEVER add or infer a legal concept. NEVER expand an acronym
-  (for example PE, ST, CA, ITD, PTA, MEG, POY, or PSF). NEVER translate an
-  old law to a new law or replace one section with another. If the query is
-  already readable, copy it unchanged. Every number and year in the output
-  must occur in the input; if the input has no year, add no year. Once you
-  have decided "intent" below, phrase search_query to match what's actually
-  being searched: if "acts"/"rules" is tagged, prefer the Act/Rule name plus
-  section/rule number form already present in the query; if "caselaws"/
-  "articles" is tagged, prefer party/court/precedent-style phrasing already
-  present in the query; if "commentary" alone is tagged, keep plain-language
-  phrasing. This only reorders/reframes words already in the query - it must
-  still obey every rule above (no invented Act/court/number).
+- "search_query": the text that will actually be run against the search
+  backend.
+  - Preserve every party, court, place, Act, section, rule, notification,
+    date, number, citation, and acronym the user actually typed - never
+    drop, rename, or silently swap one for a different one. NEVER
+    translate an old law to a new law or replace one section with
+    another.
+  - Correct obvious spelling/grammar. Casing, spacing, punctuation,
+    hyphenation, and exact phrasing used anywhere in this prompt's own
+    text or examples (e.g. "Income-tax Act") are illustrative only, not a
+    template - real user input arrives in every casing, spacing,
+    abbreviation, and misspelling imaginable, and must never be expected
+    to match this prompt's own formatting choices.
+  - If the query is short, bare, or just a keyword/citation with little
+    surrounding context (e.g. "section 55", "cost of acquisition", "PE")
+    and you are CONFIDENT what it refers to, you may add closely related
+    supporting context to search_query - the Act/Rule name it belongs to,
+    the section/rule number, or the concept a bare term names - to make
+    the search more effective. Only add what you are genuinely confident
+    is correct and directly related to what's already there; when unsure,
+    leave the query as-is rather than guess. Never change the query's
+    meaning, never substitute a different legal concept for the one
+    asked about, never invent a party/court/date that isn't implied by
+    what the user wrote.
+  - If the query is already a clear, complete sentence, keep changes
+    minimal - reordering/reframing what's already present is usually
+    enough; only add something new when an obvious anchor is still
+    missing (e.g. a bare section number with "acts"/"rules" tagged, and
+    no Act/Rule name yet in the query).
+  - Once you have decided "intent" below, phrase search_query to match
+    what's actually being searched: if "acts"/"rules" is tagged, prefer
+    the Act/Rule name plus section/rule number form; if "caselaws"/
+    "articles" is tagged, prefer party/court/precedent-style phrasing; if
+    "commentary" alone is tagged, keep plain-language phrasing.
+  Example: query "section 55" with intent ["acts"] -> search_query
+  "Income-tax Act 1961 Section 55 cost of acquisition" (confident: section
+  55 of the Income-tax Act deals with cost of acquisition/improvement -
+  the Act name and year were added, nothing already in the query was
+  changed or removed).
 
 - "intent": Return one or more of the categories below - never more than
   genuinely applies, never fewer. Judge each query against what the
@@ -443,33 +491,6 @@ def _system_prompt_for_model(model: str) -> str:
 
 _ALLOWED_FILTERS = {"court", "act", "section", "date_range", "party", "bench", "judge"}
 _ALLOWED_CATEGORIES = {"acts", "rules", "caselaws", "articles", "commentary", "tariff"}
-_LEGAL_MARKERS = KNOWN_ACT_NAMES
-
-
-def _protected_identifiers(text: str) -> set[str]:
-    tokens = re.findall(r"\b[A-Za-z0-9][A-Za-z0-9()/-]*\b", text)
-    return {
-        token.upper() for token in tokens
-        if (token.isupper() and len(token) >= 2)
-        or (any(c.isupper() for c in token) and any(c.isdigit() for c in token))
-    }
-
-
-def _safe_rewrite(query: str, rewritten: str) -> str:
-    query_lower, rewritten_lower = query.casefold(), rewritten.casefold()
-    if any(marker in rewritten_lower and marker not in query_lower for marker in _LEGAL_MARKERS):
-        return query
-    if any(court.casefold() in rewritten_lower and court.casefold() not in query_lower for court in KNOWN_COURTS):
-        return query
-    if set(re.findall(r"\d+", query)) != set(re.findall(r"\d+", rewritten)):
-        return query
-    if not _protected_identifiers(query).issubset(_protected_identifiers(rewritten)):
-        return query
-    query_tokens = set(re.findall(r"[a-z0-9]+", query_lower))
-    rewritten_tokens = set(re.findall(r"[a-z0-9]+", rewritten_lower))
-    if query_tokens and len(query_tokens & rewritten_tokens) / len(query_tokens) < 0.6:
-        return query
-    return rewritten
 
 
 def _sanitize_filters(query: str, filters) -> dict:
@@ -530,7 +551,11 @@ def _validate_result(query: str, result, chunk_context: str | None) -> dict:
         return _fallback_intent(query)
     return {
         "original_query": query,
-        "search_query": _safe_rewrite(query, search_query.strip()),
+        # Trusted verbatim from the SLM - no post-hoc rejection/rewrite-to-original.
+        # See _QWEN3_SYSTEM_PROMPT/_LLAMA_SYSTEM_PROMPT's search_query instructions for
+        # the guardrails now enforced at the prompt level instead (confidence-gated
+        # expansion of bare/keyword queries, never inventing an unrelated concept).
+        "search_query": search_query.strip(),
         "intent": [] if _too_vague_to_tag(query, chunk_context) else _validate_categories(result.get("intent")),
         "filters": _sanitize_filters(query, result.get("filters")),
     }
