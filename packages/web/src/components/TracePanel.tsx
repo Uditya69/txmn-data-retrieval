@@ -12,6 +12,9 @@ const STEP_LABELS: Record<string, string> = {
   milvus_dense: 'Milvus dense search',
   milvus_sparse: 'Milvus sparse search',
   rrf_merge: 'RRF merge',
+  ai_milvus_dense: 'Milvus dense search',
+  ai_milvus_sparse: 'Milvus sparse search',
+  ai_rrf_merge: 'RRF merge',
   rerank: 'Rerank',
   instant_reranked: 'Instant rerank',
   synthesis_prompt: 'Synthesis prompt',
@@ -46,12 +49,15 @@ function summarize(step: TraceStep): string {
     case 'es_search':
       return `${(d.hits ?? []).length} hit(s)`
     case 'milvus_dense':
-    case 'milvus_sparse': {
+    case 'milvus_sparse':
+    case 'ai_milvus_dense':
+    case 'ai_milvus_sparse': {
       const collections = d.collections ?? []
       const total = collections.reduce((sum: number, c: any) => sum + c.hit_count, 0)
       return `${collections.length} collections, ${total} hits`
     }
     case 'rrf_merge':
+    case 'ai_rrf_merge':
       return `${d.candidate_count} candidates merged`
     case 'rerank': {
       const capped = d.total_candidates !== undefined && d.total_candidates > d.considered_count
@@ -161,7 +167,10 @@ function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: 
   if (step.step === 'es_search') {
     return <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
   }
-  if (step.step === 'milvus_dense' || step.step === 'milvus_sparse') {
+  if (
+    step.step === 'milvus_dense' || step.step === 'milvus_sparse' ||
+    step.step === 'ai_milvus_dense' || step.step === 'ai_milvus_sparse'
+  ) {
     return (
       <>
         {(d.collections ?? []).map((c: any) => (
@@ -173,7 +182,7 @@ function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: 
       </>
     )
   }
-  if (step.step === 'rrf_merge') {
+  if (step.step === 'rrf_merge' || step.step === 'ai_rrf_merge') {
     return <TruncatedHitList hits={d.top_candidates ?? []} onOpenDocument={onOpenDocument} />
   }
   if (step.step === 'rerank') {

@@ -280,13 +280,13 @@ async def test_run_ai_mode_emits_all_seven_trace_steps_in_order_end_to_end(monke
     assert [step for step, _ in collected] == [
         "intent",
         "filters_resolved",
-        "milvus_dense",
-        "milvus_sparse",
-        "rrf_merge",
+        "ai_milvus_dense",
+        "ai_milvus_sparse",
+        "ai_rrf_merge",
         "rerank",
         "synthesis_prompt",
     ]
 
-    rrf_step = next(data for step, data in collected if step == "rrf_merge")
+    rrf_step = next(data for step, data in collected if step == "ai_rrf_merge")
     assert rrf_step["dense_weight"] == 1.0
     assert rrf_step["sparse_weight"] == 1.0
