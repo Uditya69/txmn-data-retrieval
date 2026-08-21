@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # same pattern as ai_mode_rerank_enabled above. False here means Instant never
     # reranks, even if a client sends rerank: true.
     instant_mode_rerank_enabled: bool = True
+    # Kill switch for Instant mode's classifier-driven automatic backend routing
+    # (the `auto_route` field on the /ws/search message) - same pattern as
+    # instant_mode_rerank_enabled above. False here forces every request onto
+    # today's always-both-backends behavior regardless of what the client asks for.
+    instant_mode_auto_route_enabled: bool = True
     # Gates the local-only admin eval-runner UI (retrieval_api/admin_eval/) - unset
     # (the default) disables that feature entirely, so no deployment needs to think
     # about it unless it opts in.

@@ -58,7 +58,7 @@ describe('useSearch', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
 
     act(() => {
-      result.current.search('cgst', true, 'both', false, false, 'conv-42')
+      result.current.search('cgst', true, 'both', false, false, false, 'conv-42')
     })
     const socket = MockWebSocket.instances[0]
     act(() => {
@@ -90,7 +90,9 @@ describe('useSearch', () => {
     act(() => {
       socket.emit('open')
     })
-    expect(socket.sent).toEqual([JSON.stringify({ query: 'cgst', mode: 'both', trace: true, rerank: false, rrf: false })])
+    expect(socket.sent).toEqual([
+      JSON.stringify({ query: 'cgst', mode: 'both', trace: true, rerank: false, rrf: false, auto_route: false }),
+    ])
 
     act(() => {
       socket.emit('message', {
@@ -114,6 +116,28 @@ describe('useSearch', () => {
       reranked_error: null,
     })
     expect(result.current.loading).toBe(true)
+  })
+
+  it('sends auto_route: false by default and auto_route: true when passed', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    let socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ auto_route: false })
+
+    act(() => {
+      result.current.search('cgst', true, 'both', false, false, true)
+    })
+    socket = MockWebSocket.instances[1]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ auto_route: true })
   })
 
   it('marks loading false and stores the answer on ai_mode_done', () => {

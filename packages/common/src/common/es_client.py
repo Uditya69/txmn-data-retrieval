@@ -3,7 +3,9 @@ import functools
 from elasticsearch import AsyncElasticsearch
 
 from common.config import Settings
-from common.query_tokenizer import chunk_query, classify_query_shape, expand_query_synonyms
+from common.instant_classifier import effective_label
+from common.instant_classifier.labels import boost_profile_key
+from common.query_tokenizer import chunk_query, expand_query_synonyms
 from common.schemas import ES_GROUP_FOR_COLLECTION, MASTERINFO_CITATION_FIELDS
 
 import tiktoken
@@ -144,12 +146,12 @@ async def sparse_fallback_search(
 
 
 _BOOST_PROFILES = {
-    "citation": {"heading": 5.0, "subheading": 3.0, "fullcontent": 1.0,
-                 "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 1.5},
-    "provision": {"heading": 2.0, "subheading": 3.0, "fullcontent": 1.0,
-                  "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 2.5},
-    "plain": {"heading": 2.0, "subheading": 2.0, "fullcontent": 1.5,
-              "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 1.0},
+    "KEYWORD": {"heading": 5.0, "subheading": 3.0, "fullcontent": 1.0,
+                "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 1.5},
+    "HYBRID": {"heading": 2.0, "subheading": 3.0, "fullcontent": 1.0,
+               "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 2.5},
+    "INTENT": {"heading": 2.0, "subheading": 2.0, "fullcontent": 1.5,
+               "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 1.0},
 }
 
 
@@ -191,7 +193,7 @@ def _build_field_query(query: str, shape: str, chunks: list[dict] = ()) -> dict:
     phrase-boosted the few explicitly-recognized merges - Section+number, court+city, citation
     triple, quotes - and left every other word, including an unrecognized party name, to compete
     as independent OR terms with no phrase treatment at all)."""
-    boosts = _BOOST_PROFILES[shape]
+    boosts = _BOOST_PROFILES[boost_profile_key(shape)]
     should = [
         {"multi_match": {"query": query, "fields": [field], "boost": boost, "fuzziness": "AUTO"}}
         for field, boost in boosts.items()
@@ -268,7 +270,7 @@ def build_query_preview(query: str) -> dict:
     can never drift apart. Powers the `/v1/query-analysis` endpoint
     (retrieval_api/query_analysis.py) - our equivalent of centax-node's own
     `/research-premium/api/v1/getLowLevelQuery`, for comparing query breakdowns side by side."""
-    shape = classify_query_shape(query)
+    shape = effective_label(query)
     expanded_query = expand_query_synonyms(query)
     chunks = chunk_query(query)
     return {

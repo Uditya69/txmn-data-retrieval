@@ -15,7 +15,11 @@ def normalize_citation_spacing(query: str) -> str:
 
 
 def classify_query_shape(query: str) -> str:
-    """No-LLM query-shape classification for Instant mode boost selection. Citation checked
+    """Generic no-LLM citation/provision/plain query-shape classifier. No longer drives
+    Instant mode's ES boost-profile selection (see common.instant_classifier.effective_label
+    and es_client.py) or backend routing - retired from that role only. Still a legitimate
+    generic utility with a real caller: retrieval_api.ai_mode.intent's anchor-detection floor
+    (_has_legal_anchor/build_lexicon_check), an unrelated AI Mode concern. Citation checked
     first: a query naming both a citation and a section (e.g. "2024 ITR 123 on Section 54F")
     is still fundamentally a lookup for that one citation, so citation wins ties."""
     normalized = normalize_citation_spacing(query)

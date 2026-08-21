@@ -4,8 +4,9 @@ import asyncio
 from langfuse import get_client
 
 from common.es_client import build_query_preview, raw_search
+from common.instant_classifier import effective_label
+from common.instant_classifier.labels import routing_plan
 from common.milvus_client import hybrid_search
-from common.query_tokenizer import classify_query_shape
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.instant.rerank import rerank_instant_results
@@ -31,10 +32,9 @@ def _apply_elbow_cutoff_per_collection(by_collection: dict[str, list[dict]]) -> 
 
 async def _run_es(es_client, query: str, on_step: OnStep | None) -> tuple[list[dict] | None, str | None]:
     langfuse = get_client()
-    shape = classify_query_shape(query)
     with langfuse.start_as_current_observation(
         as_type="retriever", name="search-es",
-        input={"query": query, "query_shape": shape, "limit": _ES_LIMIT},
+        input={"query": query, "limit": _ES_LIMIT},
     ) as span:
         try:
             raw_results = await raw_search(es_client, query, limit=_ES_LIMIT)
@@ -102,7 +102,7 @@ async def _run_milvus(
 
 async def run_instant(
     gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None,
-    rrf: bool = False, rerank: bool = False,
+    rrf: bool = False, rerank: bool = False, auto_route: bool = False,
 ) -> dict:
     langfuse = get_client()
     with langfuse.start_as_current_observation(as_type="span", name="instant-search", input={"query": query}):
@@ -116,10 +116,23 @@ async def run_instant(
         if on_step is not None:
             await on_step("query_analysis", build_query_preview(query))
 
-        (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(
-            _run_es(es_client, query, on_step),
-            _run_milvus(gateway, milvus_client, query, on_step),
-        )
+        label = effective_label(query)
+        plan = routing_plan(label) if auto_route else {"es": True, "milvus": True, "fuse": False}
+
+        es_task = _run_es(es_client, query, on_step) if plan["es"] else None
+        milvus_task = _run_milvus(gateway, milvus_client, query, on_step) if plan["milvus"] else None
+
+        if es_task is not None and milvus_task is not None:
+            (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(
+                es_task, milvus_task,
+            )
+        elif es_task is not None:
+            es_result, es_error = await es_task
+            milvus_dense, milvus_sparse, milvus_error = None, None, None
+        else:
+            es_result, es_error = None, None
+            milvus_dense, milvus_sparse, milvus_error = await milvus_task
+
         result = {
             "es": es_result,
             "es_error": es_error,
@@ -127,22 +140,24 @@ async def run_instant(
             "milvus_sparse": milvus_sparse,
             "milvus_error": milvus_error,
         }
-        if not rrf and not rerank:
+
+        effective_rrf = plan["fuse"] if auto_route else rrf
+        if not effective_rrf and not rerank:
             return result
 
         # Milvus isn't consulted at all when rrf is off (see rerank_instant_results),
         # so a Milvus-side failure shouldn't block that path.
-        reranked_error = es_error or (milvus_error if rrf else None)
+        reranked_error = es_error or (milvus_error if effective_rrf else None)
         reranked = []
         if reranked_error is None:
             with langfuse.start_as_current_observation(
-                as_type="chain", name="rerank", input={"query": query, "rrf": rrf, "rerank": rerank},
+                as_type="chain", name="rerank", input={"query": query, "rrf": effective_rrf, "rerank": rerank},
             ) as rerank_span:
                 try:
                     reranked = await rerank_instant_results(
-                        gateway, es_client, query, classify_query_shape(query),
+                        gateway, es_client, query, label,
                         es_result or [], milvus_dense or {}, milvus_sparse or {},
-                        rrf=rrf, rerank=rerank, on_step=on_step,
+                        rrf=effective_rrf, rerank=rerank, on_step=on_step,
                     )
                     rerank_span.update(output={"num_reranked": len(reranked)})
                     if on_step is not None:
