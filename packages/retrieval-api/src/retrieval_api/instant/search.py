@@ -116,7 +116,7 @@ async def run_instant(
         if on_step is not None:
             await on_step("query_analysis", build_query_preview(query))
 
-        label = effective_label(query) if auto_route else None
+        label = effective_label(query)
         plan = routing_plan(label) if auto_route else {"es": True, "milvus": True, "fuse": False}
 
         es_task = _run_es(es_client, query, on_step) if plan["es"] else None
@@ -155,7 +155,7 @@ async def run_instant(
             ) as rerank_span:
                 try:
                     reranked = await rerank_instant_results(
-                        gateway, es_client, query, label or "FALLBACK",
+                        gateway, es_client, query, label,
                         es_result or [], milvus_dense or {}, milvus_sparse or {},
                         rrf=effective_rrf, rerank=rerank, on_step=on_step,
                     )
