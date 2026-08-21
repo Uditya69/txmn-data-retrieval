@@ -6,7 +6,6 @@ def _settings(**overrides):
         deepinfra_api_key="k",
         deepinfra_chat_model_slm="deepinfra-slm-model",
         deepinfra_chat_model_synthesis="deepinfra-synthesis-model",
-        deepinfra_chat_model_agent="agent-model",
         deepinfra_rerank_model="rerank-model",
         voyage_api_key="k",
         voyage_embed_model="embed-model",
@@ -17,16 +16,6 @@ def _settings(**overrides):
     )
     defaults.update(overrides)
     return GatewaySettings(**defaults)
-
-
-def test_agent_chat_role_maps_to_its_own_model_and_deepinfra():
-    settings = _settings()
-
-    model_map = build_role_model_map(settings)
-    provider_map = build_role_provider_map(settings)
-
-    assert model_map["agent_chat"] == "agent-model"
-    assert provider_map["agent_chat"] == "deepinfra"
 
 
 def test_chat_provider_defaults_to_deepinfra_for_slm_and_synthesis():

@@ -12,8 +12,6 @@ from pathlib import Path
 
 from langfuse import get_client
 
-from agents.citations import extract_cited_doc_ids
-from agents.pipeline import run_agentic_search
 from common.config import get_settings
 from common.es_client import get_es_client, raw_search, sparse_fallback_search
 from common.milvus_client import get_milvus_client, hybrid_search
@@ -26,6 +24,35 @@ from retrieval_api.ai_mode.retrieve import _flatten, rrf_merge
 from retrieval_api.ai_mode.synthesize import synthesize
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.score_cutoff import elbow_cutoff
+
+# doc_ids in this codebase are alphanumeric/hyphen/underscore tokens (e.g.
+# "101010000000039445", "d1", "gold-doc"). A citation bracket may contain a
+# single doc_id or a comma-separated list of them (e.g. "[d1, d2]"). This
+# intentionally excludes multi-word prose asides like "[emphasis added]" or
+# markdown links like "[Section 80C](...)" — those contain spaces or
+# punctuation that isn't a valid doc_id token, so the whole bracket fails to
+# match and is left alone rather than misread as a citation.
+_CITATION_PATTERN = re.compile(r"\[([\w-]+(?:\s*,\s*[\w-]+)*)\]")
+
+
+def _looks_like_doc_id(token: str) -> bool:
+    # Real doc_ids in this codebase always contain at least one digit and are
+    # at least 2 characters long (e.g. "101010000000039445", "d1", "999").
+    # This excludes single alphabetic words like "sic" (from "[sic]",
+    # common in legal-prose quoting) and lone-digit footnote markers like
+    # "1" (from "[1]") without excluding realistic short doc_ids.
+    return len(token) >= 2 and any(ch.isdigit() for ch in token)
+
+
+def extract_cited_doc_ids(answer: str) -> set[str]:
+    ids: set[str] = set()
+    for match in _CITATION_PATTERN.findall(answer):
+        for token in match.split(","):
+            token = token.strip()
+            if token and _looks_like_doc_id(token):
+                ids.add(token)
+    return ids
+
 
 # One query per class from each era band (1927-1965, 1995-2017, 2025-2026),
 # stratified across direct/indirect/adversarial so a fast candidate-model run
@@ -131,12 +158,6 @@ async def _sparse_with_es_fallback(
     return native_sparse
 
 
-def _agentic_hit_rank(doc_ids: list[str] | None, gold: set[str]) -> int | None:
-    if not doc_ids:
-        return None
-    return 1 if gold & set(doc_ids) else None
-
-
 def stage_cache_path(
     cache_dir: Path, case_id: str, slm_model: str | None, reranker_model: str | None,
     rerank_enabled: bool = True,
@@ -168,7 +189,7 @@ def _save_stage_cache(path: Path, data: dict) -> None:
 async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit: int = 50,
                         langfuse_enabled: bool = True, slm_model: str | None = None,
                         reranker_model: str | None = None, synthesis_model: str | None = None,
-                        skip_agentic: bool = False, cache_dir: Path | None = None,
+                        cache_dir: Path | None = None,
                         rerank_enabled: bool = True, skip_synthesis: bool = False) -> dict:
     query = case["query"]
     gold = set(case["gold_doc_ids"])
@@ -293,15 +314,6 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                 citation_valid = bool(synthesis_answer) and not citation_invalid_ids
                 gold_cited = bool(gold & cited_ids)
 
-        agentic_doc_ids = None
-        if not skip_agentic:
-            agentic_result = await measured("agentic", run_agentic_search(gateway, es_client, milvus_client, query))
-            if agentic_result is not None:
-                if agentic_result.get("ok"):
-                    agentic_doc_ids = agentic_result.get("doc_ids")
-                else:
-                    errors["agentic"] = f"unverifiable_answer: {agentic_result.get('invalid_doc_ids')}"
-
         ranks = {
             "es": doc_rank(es_rows, gold),
             "raw_dense": doc_rank(_flatten(raw_dense), gold),
@@ -310,7 +322,6 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             "rewritten_sparse": doc_rank(sparse_flat, gold),
             "rrf": doc_rank(merged, gold),
             "reranker": doc_rank(reranked, gold),
-            "agentic": _agentic_hit_rank(agentic_doc_ids, gold),
         }
         result = {
             "id": case["id"], "pair": case.get("pair"), "class": case["class"],
@@ -345,7 +356,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
 
 
 def _print_summary(results: list[dict]) -> None:
-    stages = ["es", "raw_dense", "raw_sparse", "rewritten_dense", "rewritten_sparse", "rrf", "reranker", "agentic"]
+    stages = ["es", "raw_dense", "raw_sparse", "rewritten_dense", "rewritten_sparse", "rrf", "reranker"]
     print("ID   class     " + "  ".join(f"{s[:8]:>8}" for s in stages))
     for result in results:
         values = [str(result["ranks"][stage] or ">50") for stage in stages]
@@ -400,7 +411,7 @@ async def _run(args) -> int:
                 case, gateway, es_client, milvus_client, limit=args.limit,
                 langfuse_enabled=not args.no_langfuse,
                 slm_model=args.slm_model, reranker_model=args.reranker_model, synthesis_model=args.synthesis_model,
-                skip_agentic=args.skip_agentic, cache_dir=args.cache_dir,
+                cache_dir=args.cache_dir,
                 rerank_enabled=rerank_enabled, skip_synthesis=args.skip_synthesis,
             )
             results.append(result)
@@ -427,7 +438,6 @@ async def _run(args) -> int:
                 "slm_model": args.slm_model,
                 "reranker_model": args.reranker_model,
                 "synthesis_model": args.synthesis_model,
-                "skip_agentic": args.skip_agentic,
                 "rerank_enabled": rerank_enabled,
             },
             "results": results,
@@ -459,7 +469,6 @@ def main() -> None:
     parser.add_argument("--reranker-model", help="override the DeepInfra model used for the reranker role")
     parser.add_argument("--synthesis-model", help="override the DeepInfra model used for the synthesis role")
     parser.add_argument("--sample12", action="store_true", help="scope to the fixed 12-query stratified sample")
-    parser.add_argument("--skip-agentic", action="store_true", help="skip the agentic tool-call stage (out of scope for AI Mode model comparisons)")
     parser.add_argument("--skip-synthesis", action="store_true", help="skip the synthesis LLM call - retrieval-only comparisons (es/dense/sparse/rrf/reranker ranks) don't need it and it's the slowest stage per query")
     rerank_group = parser.add_mutually_exclusive_group()
     rerank_group.add_argument(

@@ -31,7 +31,7 @@ pids+=($!)
 echo "==> retrieval-api on :$RETRIEVAL_API_PORT (GATEWAY_URL=http://localhost:$MODEL_GATEWAY_PORT)"
 GATEWAY_URL="http://localhost:$MODEL_GATEWAY_PORT" \
   uv run uvicorn retrieval_api.main:app --reload \
-  --reload-dir packages/retrieval-api/src --reload-dir packages/common/src --reload-dir packages/agents/src \
+  --reload-dir packages/retrieval-api/src --reload-dir packages/common/src \
   --port "$RETRIEVAL_API_PORT" &
 pids+=($!)
 

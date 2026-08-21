@@ -4,6 +4,7 @@ import type { TraceStep } from '../api/useSearch'
 import styles from './TracePanel.module.css'
 
 const STEP_LABELS: Record<string, string> = {
+  query_correction: 'Query correction',
   query_analysis: 'Query analysis',
   classifier: 'Classifier',
   intent: 'Intent',
@@ -12,13 +13,12 @@ const STEP_LABELS: Record<string, string> = {
   milvus_dense: 'Milvus dense search',
   milvus_sparse: 'Milvus sparse search',
   rrf_merge: 'RRF merge',
+  ai_milvus_dense: 'Milvus dense search',
+  ai_milvus_sparse: 'Milvus sparse search',
+  ai_rrf_merge: 'RRF merge',
   rerank: 'Rerank',
   instant_reranked: 'Instant rerank',
   synthesis_prompt: 'Synthesis prompt',
-  agent_tool_call: 'Agent tool call',
-  agent_tool_result: 'Agent tool result',
-  agent_citation_rejected: 'Citation rejected — retrying',
-  agent_answer: 'Agent answer',
 }
 
 const ORIGIN_LABELS: Record<string, string> = {
@@ -30,6 +30,12 @@ const ORIGIN_LABELS: Record<string, string> = {
 function summarize(step: TraceStep): string {
   const d = step.data as Record<string, any>
   switch (step.step) {
+    case 'query_correction': {
+      const corrections = d.corrections ?? []
+      return corrections.length === 0
+        ? 'no corrections'
+        : `${corrections.length} correction(s): ${corrections.map((c: any) => `"${c.original}" -> "${c.corrected}"`).join(', ')}`
+    }
     case 'query_analysis': {
       const chunkCount = (d.chunks ?? []).length
       return `shape: ${d.shape} — ${chunkCount} chunk${chunkCount === 1 ? '' : 's'}`
@@ -46,12 +52,15 @@ function summarize(step: TraceStep): string {
     case 'es_search':
       return `${(d.hits ?? []).length} hit(s)`
     case 'milvus_dense':
-    case 'milvus_sparse': {
+    case 'milvus_sparse':
+    case 'ai_milvus_dense':
+    case 'ai_milvus_sparse': {
       const collections = d.collections ?? []
       const total = collections.reduce((sum: number, c: any) => sum + c.hit_count, 0)
       return `${collections.length} collections, ${total} hits`
     }
     case 'rrf_merge':
+    case 'ai_rrf_merge':
       return `${d.candidate_count} candidates merged`
     case 'rerank': {
       const capped = d.total_candidates !== undefined && d.total_candidates > d.considered_count
@@ -62,18 +71,6 @@ function summarize(step: TraceStep): string {
       return `${(d.hits ?? []).length} result(s)`
     case 'synthesis_prompt':
       return `${(d.prompt ?? '').length} chars`
-    case 'agent_tool_call':
-      return `${d.name}(${JSON.stringify(d.arguments)})`
-    case 'agent_tool_result': {
-      if (d.result?.error) return `error: ${d.result.error}`
-      if (d.result?.citation !== undefined) return d.result.citation ? 'citation found' : 'citation not found'
-      const rows = d.result?.rows ?? []
-      return `${rows.length} row(s)`
-    }
-    case 'agent_citation_rejected':
-      return `attempt ${d.attempt}: invalid doc_id(s) ${(d.invalid_doc_ids ?? []).join(', ')}`
-    case 'agent_answer':
-      return `${(d.doc_ids ?? []).length} doc(s) cited`
     default:
       return ''
   }
@@ -161,7 +158,10 @@ function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: 
   if (step.step === 'es_search') {
     return <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
   }
-  if (step.step === 'milvus_dense' || step.step === 'milvus_sparse') {
+  if (
+    step.step === 'milvus_dense' || step.step === 'milvus_sparse' ||
+    step.step === 'ai_milvus_dense' || step.step === 'ai_milvus_sparse'
+  ) {
     return (
       <>
         {(d.collections ?? []).map((c: any) => (
@@ -173,7 +173,7 @@ function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: 
       </>
     )
   }
-  if (step.step === 'rrf_merge') {
+  if (step.step === 'rrf_merge' || step.step === 'ai_rrf_merge') {
     return <TruncatedHitList hits={d.top_candidates ?? []} onOpenDocument={onOpenDocument} />
   }
   if (step.step === 'rerank') {
@@ -184,9 +184,6 @@ function StepBody({ step, onOpenDocument }: { step: TraceStep; onOpenDocument?: 
   }
   if (step.step === 'synthesis_prompt') {
     return <pre className={styles.promptBlock}>{d.prompt}</pre>
-  }
-  if (step.step === 'agent_tool_result' && d.result?.rows) {
-    return <TruncatedHitList hits={d.result.rows} onOpenDocument={onOpenDocument} />
   }
   return null
 }

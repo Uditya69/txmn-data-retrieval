@@ -187,7 +187,7 @@ async def test_retrieve_emits_dense_sparse_and_rrf_merge_steps(monkeypatch):
         gateway, milvus_client=object(), es_client=object(), search_query="q", doc_id_allowlist=None, on_step=on_step,
     )
 
-    assert steps == ["milvus_dense", "milvus_sparse", "rrf_merge"]
+    assert steps == ["ai_milvus_dense", "ai_milvus_sparse", "ai_rrf_merge"]
     assert {row["chunk_id"] for row in result} == {"a", "b"}
 
 
@@ -220,7 +220,7 @@ async def test_retrieve_always_uses_neutral_rrf_weighting(monkeypatch):
         intent=["caselaws"], on_step=on_step,
     )
 
-    rrf_step = next(data for step, data in steps if step == "rrf_merge")
+    rrf_step = next(data for step, data in steps if step == "ai_rrf_merge")
     assert rrf_step["dense_weight"] == 1.0
     assert rrf_step["sparse_weight"] == 1.0
 
@@ -316,7 +316,7 @@ async def test_retrieve_falls_back_to_unfiltered_when_allowlist_zeroes_everythin
     )
 
     assert result[0]["chunk_id"] == "a"
-    assert [step for step, _ in steps] == ["filter_fallback", "milvus_dense", "milvus_sparse", "rrf_merge"]
+    assert [step for step, _ in steps] == ["filter_fallback", "ai_milvus_dense", "ai_milvus_sparse", "ai_rrf_merge"]
     fallback_data = next(data for step, data in steps if step == "filter_fallback")
     assert fallback_data["doc_id_allowlist_count"] == 1
     gateway.embed.assert_awaited_once()  # retry reuses the already-computed embedding

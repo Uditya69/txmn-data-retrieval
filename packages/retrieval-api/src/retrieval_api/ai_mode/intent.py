@@ -467,10 +467,9 @@ misjudge:
 
 def _system_prompt_for_model(model: str) -> str:
     """Different models need different prompt shapes to follow instructions
-    reliably (see docs/superpowers/specs/2026-08-06-agentic-search-pipeline-design.md's
-    note on agent_chat) - the Llama-tuned prompt above was written and
-    eval-validated against Llama-3.1-8B-Instruct's specific tendency to
-    over-generalize open-ended rewrite instructions. Qwen3-4B-Thinking-2507 gets its
+    reliably - the Llama-tuned prompt above was written and eval-validated
+    against Llama-3.1-8B-Instruct's specific tendency to over-generalize
+    open-ended rewrite instructions. Qwen3-4B-Thinking-2507 gets its
     own prompt (see _QWEN3_SYSTEM_PROMPT's docstring for why the shape differs) rather
     than silently inheriting the Llama prompt. Fall back to the Llama prompt for any
     other/unrecognized model too, but surface a warning so a future model swap doesn't

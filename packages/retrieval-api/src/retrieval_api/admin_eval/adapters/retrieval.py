@@ -27,7 +27,7 @@ async def run(gateway_url: str, limit: int | None) -> AsyncIterator[dict]:
             try:
                 result = await evaluate_case(
                     case, gateway, es_client, milvus_client,
-                    langfuse_enabled=False, skip_agentic=True, skip_synthesis=True,
+                    langfuse_enabled=False, skip_synthesis=True,
                 )
             except Exception as exc:
                 yield {"type": "case", "id": case["id"], "query": case["query"], "status": "error", "detail": {"error": str(exc)}}

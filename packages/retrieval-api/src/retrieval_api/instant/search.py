@@ -6,6 +6,7 @@ from langfuse import get_client
 from common.es_client import build_query_preview, raw_search
 from common.instant_classifier import effective_label_with_confidence
 from common.instant_classifier.labels import routing_plan
+from common.legal_lexicon import fuzzy_correct_query
 from common.milvus_client import hybrid_search
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
@@ -102,12 +103,22 @@ async def _run_milvus(
 
 async def run_instant(
     gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None,
-    rrf: bool = False, rerank: bool = False, auto_route: bool = False,
+    rrf: bool = False, auto_route: bool = False,
 ) -> dict:
     langfuse = get_client()
     with langfuse.start_as_current_observation(
         as_type="span", name="instant-search", input={"query": query},
     ) as instant_span:
+        # Corrects misspelled court/journal abbreviations before anything else touches the
+        # query, so the classifier, ES, and Milvus all search/route on the same corrected
+        # text rather than each needing to apply this independently.
+        corrected_query, corrections = fuzzy_correct_query(query)
+        query_correction_trace = {"original": query, "corrected": corrected_query, "corrections": corrections}
+        instant_span.update(metadata={"query_correction": query_correction_trace})
+        if on_step is not None:
+            await on_step("query_correction", query_correction_trace)
+        query = corrected_query
+
         # build_query_preview is the same function raw_search() calls internally (and that
         # backs the standalone /v1/query-analysis endpoint) - using it here rather than
         # independently recomputing shape/chunks means this trace step can never drift from
@@ -146,6 +157,7 @@ async def run_instant(
             milvus_dense, milvus_sparse, milvus_error = await milvus_task
 
         result = {
+            "query_correction": query_correction_trace,
             "es": es_result,
             "es_error": es_error,
             "milvus": milvus_dense,
@@ -154,22 +166,19 @@ async def run_instant(
         }
 
         effective_rrf = plan["fuse"] if auto_route else rrf
-        if not effective_rrf and not rerank:
-            return result
 
-        # Milvus isn't consulted at all when rrf is off (see rerank_instant_results),
-        # so a Milvus-side failure shouldn't block that path.
-        reranked_error = es_error or (milvus_error if effective_rrf else None)
+        # Whichever side was actually skipped (by plan, above) has its error left at None,
+        # so this naturally reduces to "the error from whichever source(s) ran" in every case.
+        reranked_error = es_error or milvus_error
         reranked = []
         if reranked_error is None:
             with langfuse.start_as_current_observation(
-                as_type="chain", name="rerank", input={"query": query, "rrf": effective_rrf, "rerank": rerank},
+                as_type="chain", name="instant-fuse", input={"query": query, "rrf": effective_rrf},
             ) as rerank_span:
                 try:
                     reranked = await rerank_instant_results(
-                        gateway, es_client, query, label,
-                        es_result or [], milvus_dense or {}, milvus_sparse or {},
-                        rrf=effective_rrf, rerank=rerank, on_step=on_step,
+                        label, es_result or [], milvus_dense or {}, milvus_sparse or {},
+                        rrf=effective_rrf, plan=plan, on_step=on_step,
                     )
                     rerank_span.update(output={"num_reranked": len(reranked)})
                     if on_step is not None:

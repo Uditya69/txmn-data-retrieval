@@ -8,7 +8,6 @@ class GatewaySettings(BaseSettings):
     deepinfra_api_key: str
     deepinfra_chat_model_slm: str
     deepinfra_chat_model_synthesis: str
-    deepinfra_chat_model_agent: str
     deepinfra_rerank_model: str
     voyage_api_key: str
     voyage_embed_model: str
@@ -35,7 +34,6 @@ def build_role_model_map(settings: GatewaySettings) -> dict[str, str]:
     return {
         "slm": slm_model,
         "synthesis": synthesis_model,
-        "agent_chat": settings.deepinfra_chat_model_agent,
         "query_embed": settings.voyage_embed_model,
         "reranker": settings.deepinfra_rerank_model,
     }
@@ -45,7 +43,6 @@ def build_role_provider_map(settings: GatewaySettings) -> dict[str, str]:
     return {
         "slm": settings.chat_provider,
         "synthesis": settings.chat_provider,
-        "agent_chat": "deepinfra",
         "reranker": "deepinfra",
         "query_embed": "voyage",
     }

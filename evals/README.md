@@ -35,9 +35,6 @@ in prose for humans skimming a PR or deciding what to test manually.
   self-hostable model candidates against DeepInfra defaults for AI Mode's `slm`,
   `reranker`, and `synthesis` roles.
 - `statutory_eval_results.xlsx` — raw statutory-eval run output.
-- `docs/agent-model-comparison.md` (not in this folder — tracks the `agent_chat` role,
-  which sits outside the retrieval eval sets above) also references
-  `retrieval-eval-queries.md`'s pass criteria.
 
 ## Conventions
 

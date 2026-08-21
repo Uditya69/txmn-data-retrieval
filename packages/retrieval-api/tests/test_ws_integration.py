@@ -10,7 +10,7 @@ from semantic_cache.repository import write as cache_write
 
 
 def test_ws_search_sends_instant_then_ai_mode_events(monkeypatch):
-    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, rerank=False):
+    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
@@ -36,7 +36,7 @@ def test_ws_search_sends_instant_then_ai_mode_events(monkeypatch):
 
 
 def test_ws_search_streams_ai_mode_trace_steps_before_final_answer(monkeypatch):
-    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, rerank=False):
+    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
@@ -95,7 +95,7 @@ async def test_emit_trace_step_swallows_send_errors():
 
 
 def test_ws_search_does_not_pass_on_step_when_trace_flag_is_absent(monkeypatch):
-    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, rerank=False):
+    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
     captured_on_step = "unset"
@@ -122,7 +122,7 @@ def test_ws_search_does_not_pass_on_step_when_trace_flag_is_absent(monkeypatch):
 
 
 def test_ws_search_passes_on_step_when_trace_flag_is_true(monkeypatch):
-    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, rerank=False):
+    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
     captured_on_step = "unset"
@@ -152,7 +152,7 @@ def test_ws_search_auto_route_defaults_to_false_when_absent(monkeypatch):
     captured_auto_route = "unset"
 
     async def fake_run_instant(
-        gateway, es_client, milvus_client, query, on_step=None, rrf=False, rerank=False, auto_route=False,
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
@@ -181,7 +181,7 @@ def test_ws_search_forwards_auto_route_to_run_instant_when_enabled(monkeypatch):
     captured_auto_route = "unset"
 
     async def fake_run_instant(
-        gateway, es_client, milvus_client, query, on_step=None, rrf=False, rerank=False, auto_route=False,
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
@@ -194,7 +194,7 @@ def test_ws_search_forwards_auto_route_to_run_instant_when_enabled(monkeypatch):
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
     monkeypatch.setattr(
         ws_module, "get_settings",
-        lambda: Mock(instant_mode_rerank_enabled=True, instant_mode_auto_route_enabled=True),
+        lambda: Mock(instant_mode_auto_route_enabled=True),
     )
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
@@ -213,7 +213,7 @@ def test_ws_search_kill_switch_forces_auto_route_off_even_when_requested(monkeyp
     captured_auto_route = "unset"
 
     async def fake_run_instant(
-        gateway, es_client, milvus_client, query, on_step=None, rrf=False, rerank=False, auto_route=False,
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
@@ -226,7 +226,7 @@ def test_ws_search_kill_switch_forces_auto_route_off_even_when_requested(monkeyp
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
     monkeypatch.setattr(
         ws_module, "get_settings",
-        lambda: Mock(instant_mode_rerank_enabled=True, instant_mode_auto_route_enabled=False),
+        lambda: Mock(instant_mode_auto_route_enabled=False),
     )
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
@@ -242,7 +242,7 @@ def test_ws_search_kill_switch_forces_auto_route_off_even_when_requested(monkeyp
 
 
 def test_ws_search_instant_mode_does_not_emit_trace_steps(monkeypatch):
-    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, rerank=False):
+    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
@@ -264,7 +264,7 @@ def test_ws_search_instant_mode_does_not_emit_trace_steps(monkeypatch):
 
 
 def test_ws_search_sends_ai_mode_error_event_on_failure(monkeypatch):
-    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, rerank=False):
+    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
@@ -287,7 +287,7 @@ def test_ws_search_sends_ai_mode_error_event_on_failure(monkeypatch):
 
 
 def test_ws_search_still_answers_when_milvus_client_construction_fails(monkeypatch):
-    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, rerank=False):
+    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         assert milvus_client is None
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": None, "milvus_error": "connection refused"}
 
@@ -319,7 +319,7 @@ def test_ws_search_still_answers_when_milvus_client_construction_fails(monkeypat
 
 
 def test_ws_search_instant_mode_skips_ai_mode(monkeypatch):
-    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, rerank=False):
+    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
@@ -341,7 +341,7 @@ def test_ws_search_instant_mode_skips_ai_mode(monkeypatch):
 
 
 def test_ws_search_ai_mode_only_skips_instant(monkeypatch):
-    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, rerank=False):
+    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         raise AssertionError("instant should not run in ai_mode-only mode")
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
@@ -360,125 +360,6 @@ def test_ws_search_ai_mode_only_skips_instant(monkeypatch):
         only = websocket.receive_json()
 
     assert only == {"type": "ai_mode_done", "answer": "final answer", "citations": {}}
-
-
-def test_ws_agent_sends_trace_then_done(monkeypatch):
-    async def fake_run_agentic_search(gateway, es_client, milvus_client, query, on_step=None):
-        if on_step:
-            import asyncio
-            asyncio.get_event_loop()
-        return {"ok": True, "answer": "See [d1].", "doc_ids": ["d1"]}
-
-    monkeypatch.setattr(ws_module, "run_agentic_search", fake_run_agentic_search)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
-    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
-    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
-    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
-
-    client = TestClient(app)
-    with client.websocket_connect("/ws/agent") as websocket:
-        websocket.send_json({"query": "gst rate"})
-        done = websocket.receive_json()
-
-    assert done == {"type": "agent_done", "answer": "See [d1].", "doc_ids": ["d1"]}
-
-
-def test_ws_agent_sends_unverifiable_when_citations_fail(monkeypatch):
-    async def fake_run_agentic_search(gateway, es_client, milvus_client, query, on_step=None):
-        return {"ok": False, "error": "unverifiable_answer", "invalid_doc_ids": ["d999"]}
-
-    monkeypatch.setattr(ws_module, "run_agentic_search", fake_run_agentic_search)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
-    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
-    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
-    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
-
-    client = TestClient(app)
-    with client.websocket_connect("/ws/agent") as websocket:
-        websocket.send_json({"query": "gst rate"})
-        message = websocket.receive_json()
-
-    assert message == {"type": "agent_unverifiable", "invalid_doc_ids": ["d999"]}
-
-
-def test_ws_agent_runs_real_pipeline_and_streams_tool_trace(monkeypatch):
-    """Exercises the REAL run_agentic_search -> run_agent_loop -> dispatch_tool_call
-    chain end to end (only dispatch_tool_call's lowest layer is mocked), so a
-    mismatch between the real implementations of these pieces would be caught
-    here - unlike other tests in this file, which mock run_agentic_search
-    itself and therefore never call the real on_step trace callback."""
-    import json
-
-    import agents.loop as loop_module
-
-    call_count = {"n": 0}
-
-    class FakeGateway:
-        async def chat_with_tools(self, role, messages, tools, tool_choice=None):
-            call_count["n"] += 1
-            if call_count["n"] == 1:
-                return {
-                    "content": None,
-                    "reasoning": None,
-                    "tool_calls": [
-                        {
-                            "id": "call_1",
-                            "type": "function",
-                            "function": {"name": "search_es", "arguments": json.dumps({"query": "gst rate"})},
-                        }
-                    ],
-                }
-            return {"content": "The rate is confirmed. [d1]", "reasoning": None, "tool_calls": None}
-
-    async def fake_dispatch_tool_call(name, arguments, *, gateway, es_client, milvus_client):
-        assert name == "search_es"
-        return {"rows": [{"doc_id": "d1", "score": 1.0, "text": "some case text"}]}
-
-    monkeypatch.setattr(loop_module, "dispatch_tool_call", fake_dispatch_tool_call)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
-    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
-    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
-    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: FakeGateway())
-
-    client = TestClient(app)
-    with client.websocket_connect("/ws/agent") as websocket:
-        websocket.send_json({"query": "gst rate"})
-
-        messages = []
-        while True:
-            message = websocket.receive_json()
-            messages.append(message)
-            if message["type"] in ("agent_done", "agent_unverifiable", "agent_error"):
-                break
-
-    trace_steps = [m for m in messages if m["type"] == "ai_mode_trace"]
-    tool_call_steps = [m for m in trace_steps if m["step"] == "agent_tool_call"]
-    tool_result_steps = [m for m in trace_steps if m["step"] == "agent_tool_result"]
-    assert len(tool_call_steps) == 1
-    assert tool_call_steps[0]["data"] == {"name": "search_es", "arguments": {"query": "gst rate"}}
-    assert len(tool_result_steps) == 1
-    assert tool_result_steps[0]["data"]["result"]["rows"][0]["doc_id"] == "d1"
-
-    done = messages[-1]
-    assert done == {"type": "agent_done", "answer": "The rate is confirmed. [d1]", "doc_ids": ["d1"]}
-
-
-def test_ws_agent_sends_error_on_pipeline_exception(monkeypatch):
-    async def fake_run_agentic_search(gateway, es_client, milvus_client, query, on_step=None):
-        raise RuntimeError("gateway down")
-
-    monkeypatch.setattr(ws_module, "run_agentic_search", fake_run_agentic_search)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
-    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
-    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
-    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
-
-    client = TestClient(app)
-    with client.websocket_connect("/ws/agent") as websocket:
-        websocket.send_json({"query": "gst rate"})
-        message = websocket.receive_json()
-
-    assert message == {"type": "agent_error", "error": "RuntimeError: gateway down"}
 
 
 class _FakeEmbedGateway:
@@ -620,7 +501,7 @@ async def test_instant_mode_cache_hit_skips_run_instant_and_returns_cached_resul
         "milvus": [], "milvus_sparse": [], "milvus_error": None,
     }
     await cache_write(
-        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False_rerank_False",
+        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False",
         "what is section 80C", [1.0, 0.0],
         cached_instant_result,
     )
@@ -634,19 +515,16 @@ async def test_instant_mode_cache_hit_skips_run_instant_and_returns_cached_resul
 
 
 @pytest.mark.asyncio
-async def test_instant_mode_rerank_cache_hit_uses_separate_key_from_plain_instant(
+async def test_instant_mode_rrf_cache_hit_uses_separate_key_from_plain_instant(
     monkeypatch, fake_semantic_cache_collection,
 ):
     # NOTE: this test (and every other semantic-cache websocket test in this file)
     # currently hangs under TestClient.websocket_connect() for reasons unrelated to
     # sync/async framing - confirmed by testing an untouched sibling test, which hangs
-    # identically. Pre-existing, out of scope here; not caused by the rrf/rerank split.
-    # Unlike every other test in this file, this one sends rerank=True - the only
-    # request shape that evaluates settings.instant_mode_rerank_enabled (short-circuited
-    # by `and` otherwise) - so it needs that attribute present, not a bare object().
+    # identically. Pre-existing, out of scope here.
     monkeypatch.setattr(
         ws_module, "get_settings",
-        lambda: Mock(instant_mode_rerank_enabled=True, instant_mode_auto_route_enabled=True),
+        lambda: Mock(instant_mode_auto_route_enabled=True),
     )
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
@@ -665,7 +543,7 @@ async def test_instant_mode_rerank_cache_hit_uses_separate_key_from_plain_instan
 
     # es_error/milvus_error must be present - ws.py reads them unconditionally off any
     # instant_result, cache hit or miss alike, to compute output["instant_ok"]. A real
-    # cache write always includes them (run_instant's rerank branch keeps the es/milvus
+    # cache write always includes them (run_instant's fuse branch keeps the es/milvus
     # keys from the plain branch - see instant/search.py), so a realistic cached entry
     # must too.
     cached_reranked_result = {
@@ -673,14 +551,14 @@ async def test_instant_mode_rerank_cache_hit_uses_separate_key_from_plain_instan
         "reranked": [{"doc_id": "cached-reranked"}], "reranked_error": None,
     }
     await cache_write(
-        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False_rerank_True",
+        fake_semantic_cache_collection, "instant_auto_route_False_rrf_True",
         "what is section 80C", [1.0, 0.0],
         cached_reranked_result,
     )
 
     client = TestClient(app)
     with client.websocket_connect("/ws/search") as websocket:
-        websocket.send_json({"query": "what is section 80C", "mode": "instant", "rerank": True})
+        websocket.send_json({"query": "what is section 80C", "mode": "instant", "rrf": True})
         message = websocket.receive_json()
 
     assert message == {"type": "instant_result", **cached_reranked_result}

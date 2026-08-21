@@ -124,9 +124,14 @@ async def retrieve(
         )
         sparse_by_collection.update(es_sparse_by_collection)
 
+    # Named distinctly from Instant mode's identically-shaped "milvus_dense"/"milvus_sparse"/
+    # "rrf_merge" steps (instant/search.py) - both pipelines share one traceSteps array over
+    # the websocket (ws.py), split into Instant vs. AI Mode panes by step name on the
+    # frontend (ChatMessageView.tsx's INSTANT_STEP_NAMES) - identical names would misroute
+    # AI Mode's own retrieval trace into the Instant pane.
     if on_step is not None:
-        await on_step("milvus_dense", collection_trace(dense_by_collection))
-        await on_step("milvus_sparse", collection_trace(sparse_by_collection))
+        await on_step("ai_milvus_dense", collection_trace(dense_by_collection))
+        await on_step("ai_milvus_sparse", collection_trace(sparse_by_collection))
 
     # RRF fusion weight is always neutral - category does not drive dense/sparse
     # weighting (considered during brainstorming, explicitly rejected; see
@@ -147,7 +152,7 @@ async def retrieve(
             }
             for row in merged[:15]
         ]
-        await on_step("rrf_merge", {
+        await on_step("ai_rrf_merge", {
             "candidate_count": len(merged), "top_candidates": top_candidates,
             "dense_weight": 1.0, "sparse_weight": 1.0,
         })
