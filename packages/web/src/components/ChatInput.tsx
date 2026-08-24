@@ -3,9 +3,14 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 type Props = {
   onSubmit: (question: string) => void
   disabled: boolean
+  /** Changing this (e.g. the active conversation id, including to null on "New chat")
+   * refocuses the input - same as the initial-mount autofocus below, but re-triggered
+   * without a remount so switching/starting a conversation never leaves focus stranded
+   * on whatever was last clicked (a sidebar item, the "New chat" button). */
+  focusKey?: string | null
 }
 
-export default function ChatInput({ onSubmit, disabled }: Props) {
+export default function ChatInput({ onSubmit, disabled, focusKey }: Props) {
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -14,6 +19,10 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [focusKey])
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()

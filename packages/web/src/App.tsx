@@ -255,7 +255,7 @@ export default function App() {
             )}
 
             <div className="max-w-3xl mx-auto w-full">
-              <ChatInput onSubmit={handleSubmit} disabled={pending} />
+              <ChatInput onSubmit={handleSubmit} disabled={pending} focusKey={activeId} />
             </div>
           </div>
         </main>

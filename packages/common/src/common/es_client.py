@@ -174,21 +174,25 @@ _BOOST_PROFILES = {
                "facts_text": 1.0, "held_text": 1.0, "headnotes_text": 1.0},
 }
 
-# Boost magnitudes for the exact section-number phrase match only (chunk type "section"),
-# ported from centax-node's legacy query (query_legacy.json) - confirmed live on the old
-# platform to correctly rank a canonical "Section - 52" doc above every judgment that merely
-# mentions "section 52" in its own body text. The gap between fields spans orders of
-# magnitude, not the small 1-3x multipliers _BOOST_PROFILES uses for loose/fuzzy recall -
-# that gap is the actual fix: it makes an exact heading match structurally undefeatable by
-# BM25 term-frequency in a long document (a judgment repeating "section 52" 30+ times still
-# can't outscore one exact heading hit). Deliberately excludes documenttypeboost/court_boost/
-# landmarkruling - CLAUDE.md's hard-earned lesson is that boost_mode:"multiply" on those
-# fields regresses eval pass rate even when patched; this only touches match_phrase boost
-# weights on text fields already present in every doc, so there's no missing/zero-value
-# fragility to inherit. Only applied to "section" chunks - the identity signal is meaningless
-# for a court_city/citation/quoted chunk, where firing at this magnitude would misrank on any
-# incidental heading match.
-_SECTION_PHRASE_BOOSTS = {
+# Boost magnitudes for a chunk's own phrase match, applied to EVERY chunk type (text,
+# citation, section - all of them), not just "section". This used to be gated to
+# chunk["type"] == "section" only, reasoning that this magnitude "is meaningless for a
+# court_city/citation/quoted chunk". That reasoning was never actually centax-node's own
+# behavior - verified 2026-08-24 by reading centax-node's real source
+# (services/searchTextElastic.js's default per-token branch, ~line 494-538): it applies this
+# exact tier (heading/subheading/headnotestext at this same order of magnitude) to every
+# QueryToken uniformly, with no type check at all - only `fullcontent` is kept small (5 there,
+# 1 here), because that field is long/noisy and would drown in false-positive term-frequency
+# hits otherwise. Confirmed live why the type=="section" gate was wrong: a case-citation query
+# ("Commissioner of Customs Indian Oil 136 Taxman 491 demurrage section 14 and section 151A")
+# buried the actual reported case (whose heading is the exact citation "136 Taxman 491") past
+# rank 500, because its citation-chunk phrase match only got the small _BOOST_PROFILES weight
+# (2-3) while two incidental section-number mentions in the same query got 100000 each and
+# dominated with unrelated "Section 151A"/"Section 14" statutory-provision docs. Deliberately
+# still excludes documenttypeboost/court_boost/landmarkruling (CLAUDE.md's boost_mode:
+# "multiply" eval regression) - this only touches match_phrase boost weights on text fields
+# already present in every doc, no missing/zero-value fragility to inherit.
+_PHRASE_BOOSTS = {
     "heading": 100000.0,
     "subheading": 50000.0,
     "headnotes_text": 40000.0,
@@ -226,9 +230,9 @@ def get_es_client(settings: Settings) -> IndexedESClient:
 # function_score: a first attempt put it there at weight 3.0 and it did nothing - verified live,
 # the current-2025-edition doc stayed buried at rank ~108/200, because +3 is negligible next to
 # the natural BM25 variance between 200+ near-identical "Section 52" heading matches. This
-# should-clause competes at the SAME scale as _SECTION_PHRASE_BOOSTS instead (still additive,
+# should-clause competes at the SAME scale as _PHRASE_BOOSTS instead (still additive,
 # `bool` should-scoring is sum by default - no boost_mode:"multiply" risk, same safe mechanism
-# _SECTION_PHRASE_BOOSTS already uses), sized well below an exact heading/subheading phrase
+# _PHRASE_BOOSTS already uses), sized well below an exact heading/subheading phrase
 # match (100000/50000) so it only ever tiebreaks among docs that already matched the section
 # number, never outranks a correct match to a *different* section. Only the current live edition
 # (Income-tax Act, 2025, subgroup 111050000000020042) gets this - the 1961 edition keeps its
@@ -248,21 +252,27 @@ def _build_field_query(query: str, shape: str, chunks: list[dict] = (), boost_en
     searchTextElastic.js) add match_phrase-with-slop should clauses per field, one per chunk -
     never replacing the loose per-field multi_match terms above, so a query still falls back to
     plain OR-term recall (typos/fuzzy matches match_phrase can't tolerate) even where chunking
-    finds nothing. Each phrase clause reuses the SAME per-field boost weight as that field's
-    multi_match clause - chunking only changes matching precision (does "Dimension Data India"
-    have to appear together, within `slop` positions, versus anywhere independently), not the
-    boost scale. This replaces the older, narrower extract_boost_phrases mechanism (which only
-    phrase-boosted the few explicitly-recognized merges - Section+number, court+city, citation
-    triple, quotes - and left every other word, including an unrecognized party name, to compete
-    as independent OR terms with no phrase treatment at all)."""
+    finds nothing. Every chunk's phrase clause uses `_PHRASE_BOOSTS` (heading/subheading/
+    headnotes_text at 100000/50000/40000, fullcontent/facts_text/held_text at 1.0) regardless of
+    chunk type (text, citation, section - all of them) - ported from centax-node's real behavior
+    (searchTextElastic.js's default per-token branch applies this exact tier to every QueryToken
+    uniformly, no type check). An earlier version of this function gated the big tier to
+    chunk["type"] == "section" only, reusing the small per-shape `boosts` weight for every other
+    chunk type - verified live to be wrong: a case-citation query's citation-chunk phrase match
+    (the exact reported citation, its strongest identifying signal) only got weight 2-3 under
+    that scheme, while an incidental section-number mention elsewhere in the same query got
+    100000 and buried the real case past rank 500 behind unrelated statutory-provision docs. This
+    replaces the older, narrower extract_boost_phrases mechanism (which only phrase-boosted the
+    few explicitly-recognized merges - Section+number, court+city, citation triple, quotes - and
+    left every other word, including an unrecognized party name, to compete as independent OR
+    terms with no phrase treatment at all)."""
     boosts = _BOOST_PROFILES[boost_profile_key(shape)]
     should = [
         {"multi_match": {"query": query, "fields": [field], "boost": boost, "fuzziness": "AUTO"}}
         for field, boost in boosts.items()
     ]
     for chunk in chunks:
-        chunk_boosts = _SECTION_PHRASE_BOOSTS if chunk["type"] == "section" else boosts
-        for field, boost in chunk_boosts.items():
+        for field, boost in _PHRASE_BOOSTS.items():
             should.append({
                 "match_phrase": {field: {"query": chunk["text"], "slop": chunk["proximity"], "boost": boost}},
             })
@@ -355,7 +365,7 @@ _RECENCY_TIERS = [
 
 # groups.group.name buckets to prefer when the query itself names a specific section/rule
 # number (query_tokenizer.chunk_query's "section" chunk type - the same detector
-# _SECTION_PHRASE_BOOSTS above already relies on): a query naming "Section 52" is looking
+# _PHRASE_BOOSTS above already relies on): a query naming "Section 52" is looking
 # for the statutory provision itself, not a judgment that happens to cite it. Scoped to
 # that one existing detector rather than a general content-type classifier - Instant mode
 # runs no LLM/intent classification of its own (extract_intent() is an AI-Mode-only,
@@ -383,7 +393,7 @@ _STATUTORY_GROUP_BOOST_WEIGHT = 8.0
 # current-edition doc stayed buried at rank ~108/200 for "Section 52", because +3 here is
 # negligible next to natural BM25 variance between 200+ near-identical heading matches. It's
 # instead a should-clause boost inside _build_field_query itself (_CURRENT_EDITION_SHOULD_BOOST,
-# same scale as _SECTION_PHRASE_BOOSTS) - see that constant's comment for why it has to live
+# same scale as _PHRASE_BOOSTS) - see that constant's comment for why it has to live
 # there instead of here to actually move the ranking.
 #
 # Deliberately excludes centax-node's matching *penalty* functions (subcategory

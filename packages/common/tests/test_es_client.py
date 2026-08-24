@@ -195,6 +195,49 @@ def test_build_field_query_accepts_new_taxonomy_labels():
         assert "bool" in query
 
 
+def test_build_field_query_applies_massive_phrase_boost_to_citation_chunks_too():
+    """Regression test for the buried-case-citation bug: a citation-type chunk must get the
+    same large phrase-boost tier as a section-type chunk, not the small per-shape multi_match
+    weight - ported from centax-node's real behavior (searchTextElastic.js applies this tier
+    to every QueryToken uniformly, no type check), confirmed live against a query where the
+    old type=="section"-gated version buried the correct case past rank 500."""
+    chunks = [{"text": "136 Taxman 491", "proximity": 2, "type": "citation", "alt_text": None}]
+    query = _build_field_query("136 Taxman 491", "HYBRID", chunks=chunks)
+
+    should = query["bool"]["should"]
+    citation_heading_boosts = [
+        clause["match_phrase"]["heading"]["boost"] for clause in should
+        if "match_phrase" in clause and clause["match_phrase"].get("heading", {}).get("query") == "136 Taxman 491"
+    ]
+    assert citation_heading_boosts == [100000.0]
+
+
+def test_build_field_query_applies_massive_phrase_boost_to_plain_text_chunks_too():
+    chunks = [{"text": "Commissioner Customs Indian Oil", "proximity": 5, "type": "text", "alt_text": None}]
+    query = _build_field_query("Commissioner Customs Indian Oil", "HYBRID", chunks=chunks)
+
+    should = query["bool"]["should"]
+    text_subheading_boosts = [
+        clause["match_phrase"]["subheading"]["boost"] for clause in should
+        if "match_phrase" in clause
+        and clause["match_phrase"].get("subheading", {}).get("query") == "Commissioner Customs Indian Oil"
+    ]
+    assert text_subheading_boosts == [50000.0]
+
+
+def test_build_field_query_section_chunks_still_get_the_same_tier():
+    """Not a regression for the original use case this tier was built for."""
+    chunks = [{"text": "Section 52", "proximity": 0, "type": "section", "alt_text": "Section 052"}]
+    query = _build_field_query("Section 52", "HYBRID", chunks=chunks)
+
+    should = query["bool"]["should"]
+    section_heading_boosts = [
+        clause["match_phrase"]["heading"]["boost"] for clause in should
+        if "match_phrase" in clause and clause["match_phrase"].get("heading", {}).get("query") == "Section 52"
+    ]
+    assert section_heading_boosts == [100000.0]
+
+
 def test_build_query_preview_omits_expanded_query_when_unchanged():
     preview = build_query_preview("can a company claim depreciation")
     assert preview["expanded_query"] is None
@@ -313,7 +356,7 @@ async def test_raw_search_boost_true_includes_static_taxonomy_id_boosts_uncondit
 @pytest.mark.asyncio
 async def test_raw_search_boost_true_adds_current_edition_should_boost_for_section_query():
     """The current-edition (Income-tax Act 2025, subgroup 111050000000020042) preference must
-    live as a should-clause boost inside the main query, at _SECTION_PHRASE_BOOSTS' scale - not
+    live as a should-clause boost inside the main query, at _PHRASE_BOOSTS' scale - not
     as a small function_score addition, which was verified live to be too weak to move the
     ranking (see _CURRENT_EDITION_SHOULD_BOOST's comment)."""
     client = FakeAsyncES(search_hits=[])

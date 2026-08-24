@@ -53,7 +53,7 @@ _SECTION_NUMBER_PATTERN = re.compile(r"^\d+[A-Za-z]*(\(\w+\))*$")
 # single space, BEFORE tokenization ever runs: "Section52" (fully glued, zero separator),
 # "Section-52" (dash, zero space), "Section - 52" (spaced dash), "Section- 52"/"Section -52"
 # (asymmetric spacing), en/em dash - all become "Section 52". This corpus's own `heading` field
-# is literally formatted "Section - 52" (see es_client.py's _SECTION_PHRASE_BOOSTS comment) -
+# is literally formatted "Section - 52" (see es_client.py's _PHRASE_BOOSTS comment) -
 # a user copy-pasting a heading, a citation, or just typing fast hits one of these shapes
 # constantly, and .split() handles none of them consistently on its own (a glued token like
 # "Section52"/"Section-52" never gets split at all; a spaced dash becomes its own token that

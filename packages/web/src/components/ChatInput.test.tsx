@@ -8,4 +8,16 @@ describe('ChatInput', () => {
 
     expect(screen.getByLabelText('Search query')).toHaveFocus()
   })
+
+  it('refocuses the input when focusKey changes (e.g. "New chat" resets activeId)', () => {
+    const { rerender } = render(<ChatInput onSubmit={vi.fn()} disabled={false} focusKey="conv-1" />)
+    const input = screen.getByLabelText('Search query')
+
+    input.blur()
+    expect(input).not.toHaveFocus()
+
+    rerender(<ChatInput onSubmit={vi.fn()} disabled={false} focusKey={null} />)
+
+    expect(input).toHaveFocus()
+  })
 })

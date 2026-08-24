@@ -90,6 +90,15 @@ def test_strip_stopwords_never_drops_a_known_journal():
     assert "ITR" in strip_stopwords(["citation", "in", "ITR"])
 
 
+def test_chunk_query_does_not_emit_a_standalone_and_chunk():
+    """Regression test: "and" surviving as its own chunk used to only cost a small
+    _BOOST_PROFILES weight (harmless), but es_client.py's _build_field_query now applies the
+    same massive phrase-boost tier to every chunk type - a stray connective chunk at that
+    scale would match virtually every document in the corpus."""
+    chunks = chunk_query("section 14 and section 151A")
+    assert not any(c["text"].strip().upper() == "AND" for c in chunks)
+
+
 def test_extract_quoted_phrases_keeps_quoted_text_as_one_token():
     assert '"Income India"' not in extract_quoted_phrases('Section 6 of "Income India" in case of Supreme court')
     assert "Income India" in extract_quoted_phrases('Section 6 of "Income India" in case of Supreme court')

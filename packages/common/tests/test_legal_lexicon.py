@@ -28,6 +28,16 @@ def test_is_stopword_recognizes_able():
     assert is_stopword("SECTION") is False
 
 
+def test_is_stopword_recognizes_common_connectives_missing_before_2026_08_24():
+    """AND/FOR/A/AS were absent from the lexicon - harmless while _PHRASE_BOOSTS was gated to
+    section-type chunks only (a stray "and" chunk got a small weight), but once that gate was
+    removed (es_client.py's _build_field_query applies the same massive tier to every chunk
+    type), an un-stripped connective surviving as its own chunk would get a 100000-scale
+    heading boost matching virtually every document in the corpus."""
+    for word in ("AND", "FOR", "A", "AS"):
+        assert is_stopword(word) is True
+
+
 def test_expand_synonyms_returns_alternatives_for_acit():
     result = expand_synonyms("ACIT")
     assert "ASSISTANT COMMISSIONER INCOME TAX" in result
