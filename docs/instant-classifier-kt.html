@@ -1,0 +1,594 @@
+<title>Instant Classifier</title>
+<style>
+:root{
+  --bg:#f7f6f3;
+  --surface:#ffffff;
+  --surface-2:#f0eee8;
+  --ink:#1e2320;
+  --ink-soft:#4c534e;
+  --muted:#8a9089;
+  --border:#dfdcd2;
+  --accent:#b5701f;
+  --accent-soft:#f2e2c8;
+  --accent-ink:#6e4413;
+  --teal:#2e7d6b;
+  --teal-soft:#dcefe9;
+  --code-bg:#1e2320;
+  --code-ink:#e7e4da;
+  --code-accent:#e0a45c;
+  --shadow:0 1px 2px rgba(30,35,32,0.06);
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --serif:Charter,"Iowan Old Style","Palatino Linotype",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181a;
+    --surface:#1b2023;
+    --surface-2:#20262a;
+    --ink:#e9e6de;
+    --ink-soft:#b3b8b2;
+    --muted:#7c847e;
+    --border:#2c3236;
+    --accent:#e0a45c;
+    --accent-soft:#3a3020;
+    --accent-ink:#f0c78a;
+    --teal:#5cb39c;
+    --teal-soft:#1c2f2a;
+    --code-bg:#0f1213;
+    --code-ink:#e7e4da;
+    --code-accent:#e0a45c;
+    --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14181a;
+  --surface:#1b2023;
+  --surface-2:#20262a;
+  --ink:#e9e6de;
+  --ink-soft:#b3b8b2;
+  --muted:#7c847e;
+  --border:#2c3236;
+  --accent:#e0a45c;
+  --accent-soft:#3a3020;
+  --accent-ink:#f0c78a;
+  --teal:#5cb39c;
+  --teal-soft:#1c2f2a;
+  --code-bg:#0f1213;
+  --code-ink:#e7e4da;
+  --code-accent:#e0a45c;
+  --shadow:0 1px 3px rgba(0,0,0,0.4);
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--serif);
+  font-size:17px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent-soft);color:var(--accent-ink);}
+
+a{color:var(--accent-ink);text-decoration-thickness:1px;text-underline-offset:2px;}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+.shell{
+  max-width:1180px;
+  margin:0 auto;
+  padding:2.5rem 1.5rem 6rem;
+  display:grid;
+  grid-template-columns:220px minmax(0,760px);
+  gap:3rem;
+  justify-content:center;
+}
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr);}
+  nav.toc{display:none;}
+}
+
+header.hero{
+  grid-column:1/-1;
+  max-width:820px;
+  margin:0 auto 1rem;
+  padding-bottom:1.75rem;
+  border-bottom:1px solid var(--border);
+}
+.eyebrow{
+  font-family:var(--mono);
+  font-size:0.72rem;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--accent-ink);
+  font-weight:600;
+}
+h1{
+  font-family:var(--mono);
+  font-weight:700;
+  font-size:clamp(1.8rem,4vw,2.5rem);
+  letter-spacing:-0.01em;
+  margin:0.4rem 0 0.6rem;
+  text-wrap:balance;
+}
+.dek{
+  font-family:var(--serif);
+  font-size:1.1rem;
+  color:var(--ink-soft);
+  max-width:60ch;
+  margin:0;
+}
+
+.stats{
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.6rem;
+  margin-top:1.4rem;
+}
+.stat{
+  font-family:var(--mono);
+  font-size:0.78rem;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:5px;
+  padding:0.35rem 0.65rem;
+  color:var(--ink-soft);
+}
+.stat b{color:var(--ink);font-weight:600;}
+
+nav.toc{
+  position:sticky;
+  top:2rem;
+  align-self:start;
+  font-family:var(--mono);
+  font-size:0.8rem;
+}
+nav.toc .label{
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  color:var(--muted);
+  font-size:0.68rem;
+  margin-bottom:0.7rem;
+}
+nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:toc;}
+nav.toc li{counter-increment:toc;margin-bottom:0.55rem;}
+nav.toc a{
+  color:var(--ink-soft);
+  text-decoration:none;
+  display:flex;
+  gap:0.5rem;
+}
+nav.toc a:hover{color:var(--accent-ink);}
+nav.toc a::before{
+  content:counter(toc,decimal-leading-zero);
+  color:var(--accent);
+  font-weight:600;
+}
+
+main{min-width:0;}
+section{margin-bottom:3rem;scroll-margin-top:2rem;}
+section h2{
+  font-family:var(--mono);
+  font-size:1.15rem;
+  font-weight:700;
+  display:flex;
+  align-items:baseline;
+  gap:0.6rem;
+  margin:0 0 1rem;
+  padding-bottom:0.6rem;
+  border-bottom:1px solid var(--border);
+}
+section h2 .num{color:var(--accent);font-variant-numeric:tabular-nums;}
+h3{font-family:var(--sans);font-size:1rem;font-weight:700;margin:1.6rem 0 0.6rem;}
+p{margin:0 0 1rem;}
+ul,ol{padding-left:1.3rem;margin:0 0 1rem;}
+li{margin-bottom:0.35rem;}
+strong{font-weight:700;color:var(--ink);}
+code{
+  font-family:var(--mono);
+  font-size:0.86em;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:4px;
+  padding:0.1em 0.35em;
+}
+pre{
+  background:var(--code-bg);
+  color:var(--code-ink);
+  border-radius:8px;
+  padding:1rem 1.1rem;
+  overflow-x:auto;
+  font-family:var(--mono);
+  font-size:0.83rem;
+  line-height:1.55;
+  margin:0 0 1.1rem;
+  box-shadow:var(--shadow);
+}
+pre code{background:none;border:none;padding:0;color:inherit;}
+.kw{color:var(--code-accent);}
+
+.callout{
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-left:3px solid var(--teal);
+  border-radius:6px;
+  padding:0.9rem 1.1rem;
+  margin:0 0 1.1rem;
+  font-family:var(--sans);
+  font-size:0.92rem;
+}
+.callout.warn{border-left-color:var(--accent);}
+.callout .tag{
+  font-family:var(--mono);
+  font-size:0.68rem;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--teal);
+  font-weight:700;
+  display:block;
+  margin-bottom:0.3rem;
+}
+.callout.warn .tag{color:var(--accent-ink);}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-family:var(--sans);
+  font-size:0.86rem;
+  margin:0 0 1.2rem;
+}
+caption{
+  caption-side:top;
+  text-align:left;
+  font-family:var(--mono);
+  font-size:0.72rem;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--muted);
+  margin-bottom:0.5rem;
+}
+th,td{
+  text-align:left;
+  padding:0.55rem 0.7rem;
+  border-bottom:1px solid var(--border);
+  vertical-align:top;
+}
+th{
+  font-family:var(--mono);
+  font-size:0.72rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--muted);
+  font-weight:600;
+}
+td code{white-space:nowrap;}
+.wide-table{overflow-x:auto;}
+
+.pill-row{display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.1rem;}
+.pill{
+  font-family:var(--mono);
+  font-size:0.78rem;
+  padding:0.3rem 0.7rem;
+  border-radius:999px;
+  border:1px solid var(--border);
+}
+.pill.es{background:var(--teal-soft);color:var(--teal);border-color:transparent;}
+.pill.milvus{background:var(--accent-soft);color:var(--accent-ink);border-color:transparent;}
+.pill.fuse{background:var(--surface-2);color:var(--ink-soft);}
+
+.route-grid{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:0.5rem 1rem;
+  font-family:var(--mono);
+  font-size:0.85rem;
+  margin-bottom:1.2rem;
+}
+.route-grid dt{font-weight:700;color:var(--ink);}
+.route-grid dd{margin:0;color:var(--ink-soft);}
+
+.diagram{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:1.2rem;
+  margin-bottom:1.1rem;
+  overflow-x:auto;
+}
+
+footer{
+  grid-column:1/-1;
+  max-width:820px;
+  margin:2rem auto 0;
+  padding-top:1.5rem;
+  border-top:1px solid var(--border);
+  font-family:var(--mono);
+  font-size:0.78rem;
+  color:var(--muted);
+}
+
+@media (prefers-reduced-motion:no-preference){
+  section{scroll-behavior:smooth;}
+}
+</style>
+
+<div class="shell">
+  <header class="hero">
+    <span class="eyebrow">Knowledge Transfer &middot; Instant Mode</span>
+    <h1>The Instant Classifier</h1>
+    <p class="dek">A small, fast model that reads a search query and decides which search engines should even bother looking. No LLM, no embeddings — just old-fashioned text features and logistic regression, retrained by hand when it gets something wrong.</p>
+    <div class="stats">
+      <span class="stat"><b>3</b> output labels</span>
+      <span class="stat"><b>&lt;5ms</b> inference</span>
+      <span class="stat">Algorithm: <b>Logistic Regression</b></span>
+      <span class="stat">Trained on <b>60</b> examples</span>
+      <span class="stat">Confidence floor: <b>0.8</b></span>
+      <span class="stat">Retrain: <b>1 command</b></span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Table of contents">
+    <div class="label">On this page</div>
+    <ol>
+      <li><a href="#what">What it's for</a></li>
+      <li><a href="#features">What it looks at</a></li>
+      <li><a href="#isitai">Is this "AI"?</a></li>
+      <li><a href="#decide">How it decides</a></li>
+      <li><a href="#examples">Worked examples</a></li>
+      <li><a href="#route">Label &rarr; routing</a></li>
+      <li><a href="#flow">Request flow</a></li>
+      <li><a href="#retrain">Training it further</a></li>
+      <li><a href="#files">File map</a></li>
+      <li><a href="#faq">Gotchas &amp; FAQ</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <section id="what">
+      <h2><span class="num">01</span> What it's for</h2>
+      <p>Instant Mode can search two very different backends: <strong>Elasticsearch</strong> (lexical/keyword matching — great for "Section 52", exact citations) and <strong>Milvus</strong> (vector similarity — great for "how do people avoid paying tax on rental income", i.e. meaning, not exact words). Querying both every time and merging results costs latency and can actually make results worse when one backend just isn't relevant to a given query.</p>
+      <p>The classifier's whole job is to look at the raw query text and pick one of three labels <em>before</em> anything is searched:</p>
+      <div class="pill-row">
+        <span class="pill es">KEYWORD &rarr; Elasticsearch only</span>
+        <span class="pill milvus">INTENT &rarr; Milvus only</span>
+        <span class="pill fuse">HYBRID &rarr; both, RRF-fused</span>
+      </div>
+      <p>It replaced an older hand-written heuristic (<code>query_tokenizer.classify_query_shape()</code>) that used regex rules to guess query shape. This is a trained model instead — same idea, better calibrated, and it reports a confidence score the old heuristic couldn't.</p>
+    </section>
+
+    <section id="features">
+      <h2><span class="num">02</span> What it looks at</h2>
+      <p>There are <strong>no embeddings and no LLM call</strong> here on purpose — the design goal was sub-5ms, CPU-only. The model is a <code>scikit-learn</code> <code>Pipeline</code> of a <code>FeatureUnion</code> feeding a <code>LogisticRegression</code>. Six feature groups look at the query text in parallel:</p>
+      <div class="wide-table">
+      <table>
+        <caption>packages/common/src/common/instant_classifier/features.py</caption>
+        <thead><tr><th>Featurizer</th><th>What it catches</th></tr></thead>
+        <tbody>
+          <tr><td><code>RegexFeaturizer</code></td><td>Section refs, citations, party names (<code>v.</code> patterns) — binary hits</td></tr>
+          <tr><td><code>GazetteerFeaturizer</code></td><td>Known court names, known journal names, known legal terms (fuzzy-expanded)</td></tr>
+          <tr><td><code>StructuralFeaturizer</code></td><td>Token count, trailing "?", presence of a quote mark</td></tr>
+          <tr><td><code>IntentLanguageFeaturizer</code></td><td>Question words, first-person phrasing, modal/conditional words ("can", "should", "if")</td></tr>
+          <tr><td><code>TfidfVectorizer</code> (word)</td><td>1&ndash;2 word n-grams</td></tr>
+          <tr><td><code>TfidfVectorizer</code> (char)</td><td>3&ndash;5 character n-grams — catches typo/variant citation forms like <code>s.138</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="callout">
+        <span class="tag">Mental model</span>
+        Think of it as "does this query smell like a citation lookup, or does it smell like a plain-English question?" — every feature above is one sniff test, and logistic regression just learns how to weigh the sniffs.
+      </div>
+    </section>
+
+    <section id="isitai">
+      <h2><span class="num">03</span> Is this "AI"? What kind of model is it, really?</h2>
+      <p><strong>No transformer, no GPT-style anything, no neural network at all.</strong> It's 1990s-era machine learning: <code>TfidfVectorizer</code> + <code>LogisticRegression</code> from <code>scikit-learn</code>. If "AI" in your head means ChatGPT-style generative models, recalibrate — this is closer to a spam filter than to a chatbot. That's not a compromise; it's the point (see the sub-5ms latency budget in <a href="#features">§02</a>).</p>
+
+      <h3>What "the model" literally is on disk</h3>
+      <p><code>instant_classifier_model.joblib</code> is a <strong>pickled Python object</strong> — specifically an <code>sklearn.pipeline.Pipeline</code> containing two fitted objects, saved via <code>joblib.dump()</code> (<code>pipeline.py:25</code>). Nothing more mysterious than that:</p>
+      <ol>
+        <li>The fitted <code>FeatureUnion</code> — this is mostly two fitted <code>TfidfVectorizer</code>s, each holding a <strong>vocabulary</strong>: a dictionary mapping every word/n-gram seen during training to a column index, plus the IDF weight for each. The four hand-written featurizers (regex/gazetteer/structural/intent-language) don't need fitting — they're deterministic functions of the text, always fitted-as-a-no-op.</li>
+        <li>The fitted <code>LogisticRegression</code> — literally <strong>one number (a weight) per feature column, per class</strong>, plus one bias number per class. For 3 classes and, say, ~2,000 TF-IDF columns, that's roughly 6,000 floating-point numbers total. That's the entire "brain." <code>joblib.load()</code> just deserializes those numbers back into memory.</li>
+      </ol>
+
+      <h3>What happens, mechanically, on one query</h3>
+      <p>Take <code>"can I claim HRA if I live with my parents"</code> as a concrete walk-through:</p>
+      <ol>
+        <li><strong>Text &rarr; numbers.</strong> Every featurizer in <a href="#features">§02</a> turns the string into a fixed-length vector of numbers — a mix of 0/1 flags (regex hits, question words, modals) and TF-IDF weights (how rare/distinctive each word or char-chunk is, relative to the training set). All six groups get concatenated into one long row vector, say 2,015 numbers.</li>
+        <li><strong>Numbers &rarr; 3 raw scores.</strong> Logistic regression does one matrix multiply: <code>scores = weights &middot; features + bias</code> — a weighted sum, once per class (KEYWORD, INTENT, HYBRID). This is the entire "inference" step, computationally: no attention, no layers, no iteration — one dot product per class.</li>
+        <li><strong>Scores &rarr; probabilities.</strong> A <code>softmax</code> turns the 3 raw scores into 3 probabilities that sum to 1, e.g. <code>{KEYWORD: 0.04, INTENT: 0.91, HYBRID: 0.05}</code>.</li>
+        <li><strong>Probabilities &rarr; label.</strong> <code>argmax</code> picks <code>INTENT</code> at 0.91 confidence &mdash; comfortably above the 0.8 threshold, so it's used as-is.</li>
+      </ol>
+      <p>Every step above is standard linear algebra you could do by hand on paper for a small enough vocabulary. There is no hidden reasoning, no context window, no "thinking" — it is a fixed function of the input text, output in fractions of a millisecond.</p>
+
+      <h3>The dataset — what it actually looks like</h3>
+      <p>Not embeddings, not scraped text — a hand-curated, hand-labeled JSONL file, one JSON object per line:</p>
+      <pre><code>{"query_text": "Section 52", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-20"}
+{"query_text": "u/s 54F", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-20"}
+{"query_text": "CIT vs Infosys Ltd", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-20"}
+{"query_text": "how do I evade tax legally", "label": "INTENT", "source": "manual", "date_added": "2026-08-20"}</code></pre>
+      <p><code>train.jsonl</code> has exactly <strong>60 rows</strong>; <code>eval_frozen.jsonl</code> has exactly <strong>24 rows</strong>, split off and frozen so every retrain is scored against the same fixed yardstick. That's it &mdash; there's no scraped corpus, no synthetic augmentation, no crowd-sourced labeling. Every row was written by a person who decided what label a realistic query should get. 60 examples is <em>tiny</em> by deep-learning standards, but it's enough for logistic regression over a handful of engineered features &mdash; the model isn't trying to learn "language," it's trying to learn "which of these ~15 signals correlates with which label," and 60 labeled examples is plenty of signal for that.</p>
+
+      <h3>Why not use a real LLM/transformer for this?</h3>
+      <table>
+        <thead><tr><th></th><th>This classifier</th><th>An LLM call</th></tr></thead>
+        <tbody>
+          <tr><td>Latency</td><td>&lt;5ms, in-process</td><td>hundreds of ms &ndash; seconds, network round trip</td></tr>
+          <tr><td>Cost</td><td>~0 (CPU, no external call)</td><td>per-token API cost, every single query</td></tr>
+          <tr><td>Determinism</td><td>same input &rarr; same output, always</td><td>can vary run to run</td></tr>
+          <tr><td>Explainability</td><td>you can print the exact weight vector</td><td>opaque</td></tr>
+          <tr><td>What it needs to be good at</td><td>one narrow decision: which backend(s) to hit</td><td>overkill for a 3-way routing decision</td></tr>
+        </tbody>
+      </table>
+      <p>AI Mode elsewhere in this repo <em>does</em> use an SLM (small language model) for query rewriting and an LLM for synthesis &mdash; those are genuinely open-ended generation tasks that need that machinery. This classifier's job is a closed, 3-way multiple-choice question asked on every single keystroke of Instant Mode, so it gets the cheapest tool that's accurate enough for the job.</p>
+    </section>
+
+    <section id="decide">
+      <h2><span class="num">04</span> How it decides</h2>
+      <pre><code><span class="kw">def</span> classify(query):
+    proba = pipeline.predict_proba([query])[0]
+    label = pipeline.classes_[proba.argmax()]
+    confidence = float(proba.max())
+    <span class="kw">return</span> label, confidence
+
+<span class="kw">def</span> resolve_routing(label, confidence, threshold):
+    <span class="kw">if</span> confidence &lt; threshold:
+        <span class="kw">return</span> <span class="kw">HYBRID</span>   <span class="kw"># when unsure, search everything</span>
+    <span class="kw">return</span> label</code></pre>
+      <p>Two things worth internalizing:</p>
+      <ul>
+        <li><strong>Empty query &rarr; instant <code>HYBRID</code>, 0.0 confidence</strong> — never even touches the model.</li>
+        <li><strong>Low confidence &rarr; forced to <code>HYBRID</code></strong>, regardless of what the model's top guess was. This is the safety net: "not sure" always means "search both backends," never "guess and skip one."</li>
+      </ul>
+      <p>The threshold (currently <code>0.8</code>) isn't a guess — it's computed at <em>training</em> time by a sweep: try every cutoff from 0.1 to 0.9, and for each one measure accuracy <em>only on the predictions that clear that cutoff</em>. The winning threshold is the highest one that doesn't drag accuracy below the model's overall accuracy. Higher threshold = more queries get pushed to safe HYBRID; lower threshold = more queries get to use the faster single-engine route. It's a dial, not a constant.</p>
+    </section>
+
+    <section id="examples">
+      <h2><span class="num">05</span> Worked examples</h2>
+      <p>These are <strong>real outputs from the committed model</strong> (run against <code>packages/common/src/common/instant_classifier</code> directly, not made up for illustration) — <code>raw</code> is the model's top guess and confidence before thresholding; <code>effective</code> is what actually gets used for routing, after the 0.8 cutoff.</p>
+      <div class="wide-table">
+      <table>
+        <thead><tr><th>Query</th><th>Raw label</th><th>Confidence</th><th>Effective label</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td><code>"Section 80C"</code></td><td>KEYWORD</td><td>0.996</td><td><strong>KEYWORD</strong></td><td>Section-reference regex fires clean</td></tr>
+          <tr><td><code>"u/s 54F"</code></td><td>KEYWORD</td><td>0.997</td><td><strong>KEYWORD</strong></td><td>Abbreviated citation form, still matches the citation regex + char n-grams</td></tr>
+          <tr><td><code>"CIT vs Infosys Ltd"</code></td><td>KEYWORD</td><td>0.945</td><td><strong>KEYWORD</strong></td><td>Party-name (<code>v.</code>/<code>vs</code>) pattern hit</td></tr>
+          <tr><td><code>"133 taxmann.com 196"</code></td><td>KEYWORD</td><td>0.982</td><td><strong>KEYWORD</strong></td><td>Journal-citation shape, gazetteer + regex agree</td></tr>
+          <tr><td><code>"notification 12/2024"</code></td><td>KEYWORD</td><td>0.997</td><td><strong>KEYWORD</strong></td><td>Numeric-ID shape, no question language at all</td></tr>
+          <tr><td><code>"how do I evade tax legally"</code></td><td>INTENT</td><td>0.902</td><td><strong>INTENT</strong></td><td>Question word + first-person + no citation-like tokens</td></tr>
+          <tr><td><code>"can I claim HRA if I live with my parents"</code></td><td>INTENT</td><td>0.870</td><td><strong>INTENT</strong></td><td>Modal (<code>can</code>) + first-person + conditional (<code>if</code>) all stack</td></tr>
+          <tr><td><code>"why did the AO disallow depreciation on goodwill"</code></td><td>INTENT</td><td>0.859</td><td><strong>INTENT</strong></td><td>Question word + plain-English phrasing, no legal-citation shape</td></tr>
+          <tr><td><code>"Supreme Court judgment on capital gains exemption"</code></td><td>INTENT</td><td>0.820</td><td><strong>INTENT</strong></td><td>Known-court gazetteer hit alone wasn't enough to flip it to KEYWORD &mdash; phrasing still reads as a topic search</td></tr>
+          <tr><td><code>"Section 54F vs Section 54 which is better for reinvestment"</code></td><td>HYBRID</td><td>0.892</td><td><strong>HYBRID</strong></td><td>Two citation hits <em>and</em> comparison/question language &mdash; genuinely mixed signal, model itself lands on HYBRID</td></tr>
+          <tr><td><code>"exemption limit for senior citizens"</code></td><td>KEYWORD</td><td>0.492</td><td><strong>HYBRID</strong> <span class="pill fuse" style="padding:0.1rem 0.5rem;">forced</span></td><td>Model's top guess is KEYWORD, but at only 0.492 confidence that's below the 0.8 floor &mdash; forced to HYBRID as a safety net</td></tr>
+          <tr><td><code>""</code> (empty)</td><td>&mdash;</td><td>0.000</td><td><strong>HYBRID</strong></td><td>Short-circuited before the model ever runs (<code>__init__.py</code> line 33-34)</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="callout">
+        <span class="tag">What to notice</span>
+        The model isn't keying off single words &mdash; <code>"income tax act 2025"</code> and <code>"is rental income taxable"</code> both classify KEYWORD, because plain-English topic phrases without question/modal/conditional words still read as "look this up," not "explain this to me." The presence of <em>legal-sounding words</em> alone doesn't trigger INTENT &mdash; it's the combination of question/modal/first-person structure <em>and</em> the absence of a citation-shaped token that does.
+      </div>
+    </section>
+
+    <section id="route">
+      <h2><span class="num">06</span> Label &rarr; routing</h2>
+      <div class="wide-table">
+      <table>
+        <thead><tr><th>Label</th><th>Elasticsearch</th><th>Milvus</th><th>RRF Fuse</th></tr></thead>
+        <tbody>
+          <tr><td><code>KEYWORD</code></td><td>&#10003;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td><code>INTENT</code></td><td>&mdash;</td><td>&#10003;</td><td>&mdash;</td></tr>
+          <tr><td><code>HYBRID</code></td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>The same label does double duty beyond just "which backend": it also picks the ES field-boost profile (<code>es_client.py::_BOOST_PROFILES</code>) and the RRF fusion weights per source (<code>rerank.py::_LABEL_RRF_WEIGHTS</code>). One classification, three downstream effects.</p>
+      <div class="callout warn">
+        <span class="tag">Hard rule — don't touch</span>
+        RRF fusion weight stays neutral (1.0/1.0) regardless of category anywhere else in the system — category-based weighting was proposed and explicitly rejected during design. See <code>CLAUDE.md</code> rule 4.
+      </div>
+    </section>
+
+    <section id="flow">
+      <h2><span class="num">07</span> Request flow, end to end</h2>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TD
+  A["WS: /ws/search<br/>reads auto_route flag"] --> B["run_instant()<br/>instant/search.py"]
+  B --> C["fuzzy_correct_query()"]
+  C --> D["effective_label_with_confidence()<br/>instant_classifier"]
+  D --> E{"auto_route on?"}
+  E -- "no (legacy)" --> F["always query ES + Milvus,<br/>no fusion"]
+  E -- "yes" --> G["routing_plan(label)"]
+  G --> H{"which backends?"}
+  H -- KEYWORD --> I["ES only"]
+  H -- INTENT --> J["Milvus only"]
+  H -- HYBRID --> K["ES + Milvus"]
+  D -.emits.-> T["trace step: classifier<br/>{label, confidence, plan}"]
+  I --> L["rerank_instant_results()"]
+  J --> L
+  K --> L
+  F --> L
+  T -.-> M["TracePanel.tsx<br/>shown in UI"]
+  L --> N["response to client"]
+        </pre>
+      </div>
+      <p>Where each hop lives:</p>
+      <ol>
+        <li><code>packages/retrieval-api/.../ws.py</code> &mdash; WebSocket handler, reads <code>auto_route</code> from the client message (gated by a settings flag).</li>
+        <li><code>instant/search.py::run_instant</code> &mdash; the orchestrator. Corrects the query, calls the classifier, builds the routing plan, fires ES/Milvus tasks concurrently, fuses.</li>
+        <li><code>common/es_client.py</code> / <code>common/milvus_client.py</code> &mdash; the actual backend calls, only invoked if the plan says so.</li>
+        <li><code>instant/rerank.py::rerank_instant_results</code> &mdash; fuses (or passes through) results per the plan.</li>
+        <li><code>web/src/components/TracePanel.tsx</code> &mdash; renders the <code>classifier</code> trace step in the UI: which label, what confidence, and (if auto-route is on) exactly which backends got hit.</li>
+      </ol>
+    </section>
+
+    <section id="retrain">
+      <h2><span class="num">08</span> Training it further</h2>
+      <p>You will retrain this when: the classifier gets a real query wrong in production, you're adding coverage for a new query pattern, or you've expanded the legal lexicon and want the gazetteer features to benefit.</p>
+      <h3>Step 1 — Add examples</h3>
+      <p>Edit <code>packages/common/data/instant_classifier/train.jsonl</code>. One JSON object per line:</p>
+      <pre><code>{"query_text": "Section 80C deduction limit", "label": "KEYWORD"}
+{"query_text": "can I claim HRA if I live with my parents", "label": "INTENT"}</code></pre>
+      <p>Never touch <code>eval_frozen.jsonl</code> — it's the frozen 24-example yardstick used to score every retrain. If you add examples there, you lose the ability to compare accuracy across model versions.</p>
+      <h3>Step 2 — Retrain</h3>
+      <pre><code>uv run python packages/common/scripts/train_instant_classifier.py</code></pre>
+      <p>This fits a fresh pipeline on <code>train.jsonl</code>, scores it against <code>eval_frozen.jsonl</code>, sweeps the confidence threshold, and overwrites <code>instant_classifier_model.joblib</code> + <code>instant_classifier_model_meta.json</code>. It prints the new meta JSON — check <code>overall_eval_accuracy</code> and <code>confidence_threshold</code> before committing.</p>
+      <h3>Step 3 — Verify</h3>
+      <pre><code>uv run pytest packages/common/tests/test_instant_classifier_eval.py -v</code></pre>
+      <p>This is a CI guard: it loads the committed artifact and asserts eval accuracy stays &ge; 0.7. If your retrain drops below that, something in your new examples is probably mislabeled or contradictory to existing ones — don't just lower the floor to make it pass.</p>
+      <h3>Step 4 — Commit</h3>
+      <p>Commit the <code>.joblib</code> and <code>_meta.json</code> together with your <code>train.jsonl</code> change. There's no CI auto-retrain — this is a manual, reviewed step by design.</p>
+      <div class="callout">
+        <span class="tag">Adding a 4th label?</span>
+        Don't. The routing table (<code>labels.py::_ROUTING</code>) is a fixed 3-way switch tied directly to "which of our two backends to hit." A new label needs a new routing decision to go with it — that's a design change, not a training-data change. Talk to whoever owns <code>docs/superpowers/specs/2026-08-20-instant-mode-query-classifier-design.md</code> first.
+      </div>
+    </section>
+
+    <section id="files">
+      <h2><span class="num">09</span> File map</h2>
+      <div class="wide-table">
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>common/instant_classifier/__init__.py</code></td><td>Public API: <code>classify</code>, <code>effective_label</code>, <code>effective_label_with_confidence</code></td></tr>
+          <tr><td><code>common/instant_classifier/features.py</code></td><td>The 6 feature extractors + <code>build_feature_union()</code></td></tr>
+          <tr><td><code>common/instant_classifier/labels.py</code></td><td><code>resolve_routing()</code>, <code>routing_plan()</code>, the label constants</td></tr>
+          <tr><td><code>common/instant_classifier/pipeline.py</code></td><td><code>build_pipeline()</code>, <code>save_artifact()</code>, <code>load_artifact()</code></td></tr>
+          <tr><td><code>common/data/instant_classifier_model.joblib</code></td><td>Trained model, committed to git</td></tr>
+          <tr><td><code>common/data/instant_classifier_model_meta.json</code></td><td>Accuracy, threshold, label list &mdash; committed to git</td></tr>
+          <tr><td><code>common/data/instant_classifier/train.jsonl</code></td><td>60 labeled training examples &mdash; edit this to retrain</td></tr>
+          <tr><td><code>common/data/instant_classifier/eval_frozen.jsonl</code></td><td>24 frozen eval examples &mdash; never edit</td></tr>
+          <tr><td><code>common/scripts/train_instant_classifier.py</code></td><td>Training entrypoint + threshold sweep</td></tr>
+          <tr><td><code>retrieval-api/instant/search.py</code></td><td><code>run_instant()</code> &mdash; calls the classifier, builds/executes the plan</td></tr>
+          <tr><td><code>retrieval-api/instant/rerank.py</code></td><td>RRF fusion + per-label weights</td></tr>
+          <tr><td><code>web/src/components/TracePanel.tsx</code></td><td>Renders the classifier step in the UI</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section id="faq">
+      <h2><span class="num">10</span> Gotchas &amp; FAQ</h2>
+      <dl class="route-grid">
+        <dt>Model missing on startup?</dt>
+        <dd>App crashes on purpose (<code>FileNotFoundError</code>) — fail-loud by design, not a bug to silently work around.</dd>
+        <dt>Confidence looks oddly high always?</dt>
+        <dd>3-class softmax can't go below ~1/3 — a threshold under 0.33 never gates anything, that's expected.</dd>
+        <dt>Where do I see it working live?</dt>
+        <dd>Open the TracePanel in the web UI for any Instant Mode query with tracing on — look for the "Classifier" step.</dd>
+        <dt><code>auto_route</code> is off, does the classifier still run?</dt>
+        <dd>Yes — it still classifies and the label still drives ES boost profile and shows in the trace, it just doesn't skip any backend.</dd>
+        <dt>Can I swap in embeddings for better accuracy?</dt>
+        <dd>That defeats the point — sub-5ms CPU-only is a stated design goal. Bigger accuracy gains should come from better training examples, not a heavier model.</dd>
+      </dl>
+    </section>
+
+  </main>
+
+  <footer>
+    Source: <code>docs/superpowers/specs/2026-08-20-instant-mode-query-classifier-design.md</code> &middot; retrieval-system repo
+  </footer>
+</div>
