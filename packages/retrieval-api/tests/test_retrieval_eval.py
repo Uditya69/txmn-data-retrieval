@@ -66,7 +66,7 @@ def test_load_cases_validates_unique_ids_and_known_collections(tmp_path):
 async def test_evaluate_case_reports_each_retrieval_stage(monkeypatch):
     import retrieval_api.retrieval_eval as module
 
-    async def fake_raw_search(client, query, limit=50):
+    async def fake_raw_search(client, query, limit=50, boost=False):
         return [{"doc_id": "gold", "score": 1.0}]
 
     async def fake_hybrid(client, collections, dense_vector, sparse_query_text,
@@ -125,7 +125,7 @@ async def test_evaluate_case_always_uses_neutral_rrf_weighting(monkeypatch):
         "gold_doc_ids": ["d1"], "expected_collections": ["ruling"], "pass_at": 10,
     }
 
-    async def fake_raw_search(client, query, limit=50):
+    async def fake_raw_search(client, query, limit=50, boost=False):
         return []
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -177,7 +177,7 @@ def test_sample_12_query_ids_are_a_subset_of_the_full_dataset():
 async def test_evaluate_case_records_citation_validity_against_reranked_chunks(monkeypatch):
     import retrieval_api.retrieval_eval as module
 
-    async def fake_raw_search(client, query, limit=50):
+    async def fake_raw_search(client, query, limit=50, boost=False):
         return []
 
     async def fake_hybrid(client, collections, dense_vector, sparse_query_text,
@@ -226,7 +226,7 @@ async def test_evaluate_case_records_citation_validity_against_reranked_chunks(m
 async def test_evaluate_case_citation_valid_is_false_for_empty_synthesis_answer(monkeypatch):
     import retrieval_api.retrieval_eval as module
 
-    async def fake_raw_search(client, query, limit=50):
+    async def fake_raw_search(client, query, limit=50, boost=False):
         return []
 
     async def fake_hybrid(client, collections, dense_vector, sparse_query_text,
@@ -273,7 +273,7 @@ async def test_evaluate_case_citation_valid_is_false_for_empty_synthesis_answer(
 def _stage_fakes(monkeypatch, module, synthesize_answer="See [gold1]."):
     calls = {"raw_search": 0, "hybrid_search": 0, "extract_intent": 0, "rerank_top_chunks": 0, "synthesize": 0}
 
-    async def fake_raw_search(client, query, limit=50):
+    async def fake_raw_search(client, query, limit=50, boost=False):
         calls["raw_search"] += 1
         return [{"doc_id": "gold1", "score": 1.0}]
 

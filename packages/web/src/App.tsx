@@ -44,9 +44,10 @@ export default function App() {
   const remoteConversations = useConversations(apiBaseUrl, auth.token)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
-  const [rrf, setRrf] = useState(false)
-  const [autoRoute, setAutoRoute] = useState(false)
-  const [showReasoning, setShowReasoning] = useState(false)
+  const [rrf, setRrf] = useState(true)
+  const [boost, setBoost] = useState(true)
+  const [autoRoute, setAutoRoute] = useState(true)
+  const [showReasoning, setShowReasoning] = useState(true)
   const [openDocId, setOpenDocId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -121,7 +122,7 @@ export default function App() {
 
   function runQuery(conversationId: string, assistantId: string, question: string) {
     pendingClassicRef.current = { conversationId, assistantId }
-    classicSearch.search(question, true, 'both', rrf, autoRoute, auth.token ? conversationId : undefined)
+    classicSearch.search(question, true, 'both', rrf, autoRoute, auth.token ? conversationId : undefined, boost)
   }
 
   function handleNewChat() {
@@ -208,6 +209,7 @@ export default function App() {
 
             <div className="ml-auto flex items-center gap-3">
               <RerankToggle label="RRF" checked={rrf} onToggle={setRrf} />
+              <RerankToggle label="Boost" checked={boost} onToggle={setBoost} />
               <RerankToggle label="Auto-Route" checked={autoRoute} onToggle={setAutoRoute} />
               <RerankToggle label="Reasoning" checked={showReasoning} onToggle={setShowReasoning} />
               <DevModeToggle devMode={devMode} onToggle={setDevMode} />

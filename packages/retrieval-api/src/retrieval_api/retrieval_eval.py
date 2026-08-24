@@ -190,7 +190,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                         langfuse_enabled: bool = True, slm_model: str | None = None,
                         reranker_model: str | None = None, synthesis_model: str | None = None,
                         cache_dir: Path | None = None,
-                        rerank_enabled: bool = True, skip_synthesis: bool = False) -> dict:
+                        rerank_enabled: bool = True, skip_synthesis: bool = False, boost: bool = False) -> dict:
     query = case["query"]
     gold = set(case["gold_doc_ids"])
     langfuse = get_client()
@@ -228,7 +228,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             reranked = cached["reranked"]
             timings["stage_cache"] = 0.0
         else:
-            es_rows = await measured("es", raw_search(es_client, query, limit=limit)) or []
+            es_rows = await measured("es", raw_search(es_client, query, limit=limit, boost=boost)) or []
             raw_vector = await measured("raw_embedding", gateway.embed(role="query_embed", text=query))
             raw_dense = (
                 await measured("raw_dense", hybrid_search(
@@ -412,7 +412,7 @@ async def _run(args) -> int:
                 langfuse_enabled=not args.no_langfuse,
                 slm_model=args.slm_model, reranker_model=args.reranker_model, synthesis_model=args.synthesis_model,
                 cache_dir=args.cache_dir,
-                rerank_enabled=rerank_enabled, skip_synthesis=args.skip_synthesis,
+                rerank_enabled=rerank_enabled, skip_synthesis=args.skip_synthesis, boost=args.boost,
             )
             results.append(result)
             ranks = result["ranks"]
@@ -439,6 +439,7 @@ async def _run(args) -> int:
                 "reranker_model": args.reranker_model,
                 "synthesis_model": args.synthesis_model,
                 "rerank_enabled": rerank_enabled,
+                "boost": args.boost,
             },
             "results": results,
         }
@@ -470,6 +471,7 @@ def main() -> None:
     parser.add_argument("--synthesis-model", help="override the DeepInfra model used for the synthesis role")
     parser.add_argument("--sample12", action="store_true", help="scope to the fixed 12-query stratified sample")
     parser.add_argument("--skip-synthesis", action="store_true", help="skip the synthesis LLM call - retrieval-only comparisons (es/dense/sparse/rrf/reranker ranks) don't need it and it's the slowest stage per query")
+    parser.add_argument("--boost", action="store_true", help="run the ES 'es' stage through Instant mode's opt-in ranking boost (common/es_client.py::_apply_boost) instead of plain BM25")
     rerank_group = parser.add_mutually_exclusive_group()
     rerank_group.add_argument(
         "--rerank", dest="rerank_enabled", action="store_true", default=None,

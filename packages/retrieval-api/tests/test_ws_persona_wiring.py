@@ -10,7 +10,7 @@ import retrieval_api.ws as ws_module
 
 
 def _patch_common(monkeypatch, fake_run_ai_mode):
-    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, rerank=False):
+    async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)

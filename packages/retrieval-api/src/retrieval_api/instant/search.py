@@ -31,14 +31,16 @@ def _apply_elbow_cutoff_per_collection(by_collection: dict[str, list[dict]]) -> 
     return {collection: _apply_elbow_cutoff(rows) for collection, rows in by_collection.items()}
 
 
-async def _run_es(es_client, query: str, on_step: OnStep | None) -> tuple[list[dict] | None, str | None]:
+async def _run_es(
+    es_client, query: str, on_step: OnStep | None, boost: bool = False,
+) -> tuple[list[dict] | None, str | None]:
     langfuse = get_client()
     with langfuse.start_as_current_observation(
         as_type="retriever", name="search-es",
-        input={"query": query, "limit": _ES_LIMIT},
+        input={"query": query, "limit": _ES_LIMIT, "boost": boost},
     ) as span:
         try:
-            raw_results = await raw_search(es_client, query, limit=_ES_LIMIT)
+            raw_results = await raw_search(es_client, query, limit=_ES_LIMIT, boost=boost)
             results = _apply_elbow_cutoff(raw_results)
             span.update(output={
                 "hits_before_cutoff": len(raw_results),
@@ -103,7 +105,7 @@ async def _run_milvus(
 
 async def run_instant(
     gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None,
-    rrf: bool = False, auto_route: bool = False,
+    rrf: bool = False, auto_route: bool = False, boost: bool = False,
 ) -> dict:
     langfuse = get_client()
     with langfuse.start_as_current_observation(
@@ -127,7 +129,7 @@ async def run_instant(
         # showed an unrecognized word run like "Dimension Data India" grouped into one phrase
         # the way the real query - and /v1/query-analysis - already did).
         if on_step is not None:
-            await on_step("query_analysis", build_query_preview(query))
+            await on_step("query_analysis", build_query_preview(query, boost=boost))
 
         label, confidence = effective_label_with_confidence(query)
         plan = routing_plan(label) if auto_route else {"es": True, "milvus": True, "fuse": False}
@@ -142,7 +144,7 @@ async def run_instant(
         if on_step is not None:
             await on_step("classifier", classifier_trace)
 
-        es_task = _run_es(es_client, query, on_step) if plan["es"] else None
+        es_task = _run_es(es_client, query, on_step, boost=boost) if plan["es"] else None
         milvus_task = _run_milvus(gateway, milvus_client, query, on_step) if plan["milvus"] else None
 
         if es_task is not None and milvus_task is not None:

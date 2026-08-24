@@ -91,7 +91,7 @@ describe('useSearch', () => {
       socket.emit('open')
     })
     expect(socket.sent).toEqual([
-      JSON.stringify({ query: 'cgst', mode: 'both', trace: true, rrf: false, auto_route: false }),
+      JSON.stringify({ query: 'cgst', mode: 'both', trace: true, rrf: false, auto_route: false, boost: false }),
     ])
 
     act(() => {
@@ -138,6 +138,28 @@ describe('useSearch', () => {
       socket.emit('open')
     })
     expect(JSON.parse(socket.sent[0])).toMatchObject({ auto_route: true })
+  })
+
+  it('sends boost: false by default and boost: true when passed', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    let socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ boost: false })
+
+    act(() => {
+      result.current.search('cgst', true, 'both', false, false, undefined, true)
+    })
+    socket = MockWebSocket.instances[1]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ boost: true })
   })
 
   it('marks loading false and stores the answer on ai_mode_done', () => {

@@ -1,6 +1,6 @@
 // src/components/TracePanel.tsx
 import { useState } from 'react'
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import type { TraceStep } from '../api/useSearch'
 import styles from './TracePanel.module.css'
 
@@ -155,11 +155,40 @@ function ChunkList({ chunks }: { chunks: QueryChunk[] }) {
   )
 }
 
+function CopyButton({ getText }: { getText: () => string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = (e: MouseEvent) => {
+    // Lives inside a <summary> in every call site - stop the click from also
+    // toggling the parent <details> open/closed (its default behavior).
+    e.preventDefault()
+    e.stopPropagation()
+    navigator.clipboard.writeText(getText())
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <button type="button" className={styles.copyButton} onClick={handleCopy}>
+      {copied ? 'Copied ✓' : 'Copy'}
+    </button>
+  )
+}
+
+// Mirrors retrieval_api/instant/search.py's _ES_LIMIT - the real raw_search() call this
+// preview stands in for always searches with this size, so the request body shown/copied
+// here must carry it too, or pasting it into Elasticvue/curl runs a different search than
+// what Instant mode actually sent.
+const _ES_LIMIT = 20
+
 function QueryAnalysisBody({ data }: { data: Record<string, any> }) {
   // Same build_query_preview() output the /v1/query-analysis endpoint returns - see its
   // own docstring (common/es_client.py) - so this must never show a different breakdown
   // than what raw_search actually sent to ES.
   const chunks: QueryChunk[] = data.chunks ?? []
+  // The full request body ES itself expects (query + size) - copyable straight into
+  // Elasticvue's REST console or a curl -d payload, not just the bare query clause.
+  const esRequestBody = data.es_query ? { query: data.es_query, size: _ES_LIMIT } : null
   return (
     <>
       {data.expanded_query && (
@@ -168,6 +197,15 @@ function QueryAnalysisBody({ data }: { data: Record<string, any> }) {
         </p>
       )}
       <ChunkList chunks={chunks} />
+      {esRequestBody && (
+        <details className={styles.details}>
+          <summary className={styles.detailsSummaryRow}>
+            <span className={styles.detailsSummary}>Show ES query</span>
+            <CopyButton getText={() => JSON.stringify(esRequestBody, null, 2)} />
+          </summary>
+          <pre className={styles.promptBlock}>{JSON.stringify(esRequestBody, null, 2)}</pre>
+        </details>
+      )}
     </>
   )
 }

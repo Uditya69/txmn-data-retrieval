@@ -38,3 +38,22 @@ def test_query_analysis_route_requires_query_field():
     response = client.post("/v1/query-analysis", json={})
 
     assert response.status_code == 422
+
+
+def test_query_analysis_route_boost_true_wraps_es_query_in_function_score():
+    """boost mirrors raw_search's own toggle - the previewed es_query must show the same
+    function_score wrapper a real boosted search would send, not the plain query."""
+    client = TestClient(app)
+
+    response = client.post("/v1/query-analysis", json={"query": "Section 52", "boost": True})
+
+    assert response.status_code == 200
+    assert "function_score" in response.json()["es_query"]
+
+
+def test_query_analysis_route_boost_defaults_to_false():
+    client = TestClient(app)
+
+    response = client.post("/v1/query-analysis", json={"query": "Section 52"})
+
+    assert "function_score" not in response.json()["es_query"]

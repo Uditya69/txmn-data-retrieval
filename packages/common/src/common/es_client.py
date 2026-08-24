@@ -199,7 +199,26 @@ def get_es_client(settings: Settings) -> IndexedESClient:
     return IndexedESClient(client, settings.es_index)
 
 
-def _build_field_query(query: str, shape: str, chunks: list[dict] = ()) -> dict:
+# Current-edition preference for a specific act, ported from centax-node's legacy query
+# (query_legacy.json embeds this as a `year:2026 AND subgroup:20042` compound should-clause
+# with boost 80000.0, at the SAME scale as its own heading match_phrase boosts - not a small
+# function_score multiplier). Belongs here, inside the should-list, not in _apply_boost's
+# function_score: a first attempt put it there at weight 3.0 and it did nothing - verified live,
+# the current-2025-edition doc stayed buried at rank ~108/200, because +3 is negligible next to
+# the natural BM25 variance between 200+ near-identical "Section 52" heading matches. This
+# should-clause competes at the SAME scale as _SECTION_PHRASE_BOOSTS instead (still additive,
+# `bool` should-scoring is sum by default - no boost_mode:"multiply" risk, same safe mechanism
+# _SECTION_PHRASE_BOOSTS already uses), sized well below an exact heading/subheading phrase
+# match (100000/50000) so it only ever tiebreaks among docs that already matched the section
+# number, never outranks a correct match to a *different* section. Only the current live edition
+# (Income-tax Act, 2025, subgroup 111050000000020042) gets this - the 1961 edition keeps its
+# small function_score bump (_STATIC_TAXONOMY_BOOSTS below), since nothing here should prefer
+# an old edition over the current one.
+_CURRENT_EDITION_SUBGROUP_ID = "111050000000020042"
+_CURRENT_EDITION_SHOULD_BOOST = 20000.0
+
+
+def _build_field_query(query: str, shape: str, chunks: list[dict] = (), boost_enabled: bool = False) -> dict:
     """Query-shape-aware multi-field search (design doc section 1+3): every content field
     is searched (facts_text/held_text/headnotes_text are only 26-58% populated on the real
     index, so heading/subheading/fullcontent - 100% populated - must never be skipped),
@@ -231,6 +250,14 @@ def _build_field_query(query: str, shape: str, chunks: list[dict] = ()) -> dict:
                 should.append({
                     "match_phrase": {field: {"query": chunk["alt_text"], "slop": chunk["proximity"], "boost": boost}},
                 })
+    if boost_enabled and any(chunk["type"] == "section" for chunk in chunks):
+        should.append({
+            "term": {
+                "groups.group.subgroup.id": {
+                    "value": _CURRENT_EDITION_SUBGROUP_ID, "boost": _CURRENT_EDITION_SHOULD_BOOST,
+                },
+            },
+        })
     return {"bool": {"should": should, "minimum_should_match": 1}}
 
 
@@ -288,35 +315,162 @@ def _wrap_function_score(field_query: dict) -> dict:
     }
 
 
-def build_query_preview(query: str) -> dict:
+# Recency ladder ported from centax-node's legacy query (query_legacy.json's function_score
+# functions array) - formatteddocumentdate is confirmed 100% populated on the live index
+# (docs/retrieval-flow-current-state.md), so this tier list is directly portable as-is.
+# Weights kept at legacy's own scale (single/low-double-digit) even though legacy combined
+# them under boost_mode "multiply" and _apply_boost below uses "sum" - under sum mode these
+# numbers only ever *add* to a query's BM25/phrase-boost score, never multiply it, so unlike
+# legacy there's no risk of a missing/zero date tier collapsing the whole score.
+_RECENCY_TIERS = [
+    ("now-1d", "now", 18.0),
+    ("now-7d", "now-1d", 15.0),
+    ("now-1M", "now-7d", 13.0),
+    ("now-3M", "now-1M", 10.0),
+    ("now-1y", "now-3M", 8.0),
+    ("now-2y", "now-1y", 5.0),
+    ("now-5y", "now-2y", 3.5),
+    ("now-150y", "now-5y", 1.5),
+]
+
+# groups.group.name buckets to prefer when the query itself names a specific section/rule
+# number (query_tokenizer.chunk_query's "section" chunk type - the same detector
+# _SECTION_PHRASE_BOOSTS above already relies on): a query naming "Section 52" is looking
+# for the statutory provision itself, not a judgment that happens to cite it. Scoped to
+# that one existing detector rather than a general content-type classifier - Instant mode
+# runs no LLM/intent classification of its own (extract_intent() is an AI-Mode-only,
+# per-request network call), and chunk_query's section detector is already computed for
+# every query regardless of this toggle, so reusing it costs nothing extra. See
+# docs/superpowers/specs/... group/subgroup boosting discussion: legacy's own numeric
+# taxonomy ids (groups.group.id/.subgroup.id/etc.) require resolving a query to the exact
+# act/section's CMS node id, which this repo has no resolver for - deferred as a follow-up;
+# this coarse groups.group.name boost is the buildable-today subset.
+_STATUTORY_GROUPS = ["ACT", "RULE"]
+_STATUTORY_GROUP_BOOST_WEIGHT = 8.0
+
+# Static per-taxonomy-node boosts ported from centax-node's legacy query
+# (query_legacy.json's function_score functions array: groups.group.id/groups.group.subgroup.id
+# weight 2.0/3.0 entries) - unconditional, unlike _group_name_boost_functions above (which only
+# fires for a section/rule-number query). Verified live against the real index before porting
+# (see chat history/2026-08-24 audit): only 2 of the legacy sample's 5 id-boost entries still
+# resolve to real docs - "groups.group.subgroup.id"=111050000000000064 (0 hits - that id is a
+# *group* id, not a subgroup id) and "groups.group.id"=111050000000020048 (0 hits, dead/stale)
+# are dropped. The other two - "groups.group.id"=111050000000000064 (ACT, 83,309 docs) and
+# "groups.group.subgroup.id"=111050000000010687 (Income-tax Act 1961, 40,524 docs) - are kept
+# here as small function_score tie-breakers. The third live id from the legacy sample,
+# subgroup 111050000000020042 (Income-tax Act 2025 - the CURRENT edition), is deliberately NOT
+# here: a first attempt put it in this list at weight 3.0 and verified live it did nothing - the
+# current-edition doc stayed buried at rank ~108/200 for "Section 52", because +3 here is
+# negligible next to natural BM25 variance between 200+ near-identical heading matches. It's
+# instead a should-clause boost inside _build_field_query itself (_CURRENT_EDITION_SHOULD_BOOST,
+# same scale as _SECTION_PHRASE_BOOSTS) - see that constant's comment for why it has to live
+# there instead of here to actually move the ranking.
+#
+# Deliberately excludes centax-node's matching *penalty* functions (subcategory
+# 111050000000017095 outside caselaws -> weight 0.03; subgroup 111050000000010567 Finance Acts
+# minus year 2025 -> weight 0.02): those are only meaningful under boost_mode "multiply" (a
+# near-zero weight suppresses a doc's score). Under this toggle's sum/additive design - the
+# whole reason it doesn't reproduce _wrap_function_score's eval regression - every function can
+# only ever add to a score, never suppress it, so there is no additive equivalent of a penalty.
+_STATIC_TAXONOMY_BOOSTS = [
+    ("groups.group.id", "111050000000000064", 2.0),  # ACT
+    ("groups.group.subgroup.id", "111050000000010687", 2.0),  # Income-tax Act, 1961
+]
+
+
+def _recency_boost_functions() -> list[dict]:
+    return [
+        {"filter": {"range": {"formatteddocumentdate": {"gte": gte, "lte": lte}}}, "weight": weight}
+        for gte, lte, weight in _RECENCY_TIERS
+    ]
+
+
+def _static_taxonomy_boost_functions() -> list[dict]:
+    return [
+        {"filter": {"term": {field: value}}, "weight": weight}
+        for field, value, weight in _STATIC_TAXONOMY_BOOSTS
+    ]
+
+
+def _group_name_boost_functions(chunks: list[dict]) -> list[dict]:
+    if not any(chunk["type"] == "section" for chunk in chunks):
+        return []
+    return [{
+        "filter": {"terms": {"groups.group.name.keyword": _STATUTORY_GROUPS}},
+        "weight": _STATUTORY_GROUP_BOOST_WEIGHT,
+    }]
+
+
+def _apply_boost(field_query: dict, chunks: list[dict]) -> dict:
+    """Instant mode's opt-in `boost` toggle (raw_search's `boost` param). Additive
+    (score_mode/boost_mode "sum"), deliberately never "multiply" - _wrap_function_score
+    above is the same documenttypeboost/court_boost/landmarkruling formula design-doc
+    section 2 built, but boost_mode "multiply" got it disabled: a single function
+    landing on (or defaulting to) 0 zeroed the *entire* relevance score regardless of
+    text match quality (see _wrap_function_score's docstring; 21/53 vs 42/53 eval pass
+    rate with/without it). Sum mode can't reproduce that failure - every function here
+    only ever adds a small, bounded amount on top of the query's own text-relevance
+    score, so a doc with no boost signal at all just gets +0, never a score-killing
+    multiplier. Still gated behind `gt: 0` filters for the sparse/zero-valued fields
+    (landmarkruling 2.1% populated, court_boost a real 0 on 45.8% of the corpus) so
+    "no signal" reads as +0, not a negative/degenerate field_value_factor output."""
+    functions = [
+        {
+            "filter": {"range": {"documenttypeboost": {"gt": 0}}},
+            "field_value_factor": {"field": "documenttypeboost", "factor": 0.2, "modifier": "sqrt"},
+        },
+        {
+            "filter": {"range": {"court_boost": {"gt": 0}}},
+            "field_value_factor": {"field": "court_boost", "factor": 0.01, "modifier": "none"},
+        },
+        {
+            "filter": {"range": {"landmarkruling": {"gt": 0}}},
+            "field_value_factor": {"field": "landmarkruling", "factor": 1.2, "modifier": "log2p"},
+        },
+        *_recency_boost_functions(),
+        *_group_name_boost_functions(chunks),
+        *_static_taxonomy_boost_functions(),
+    ]
+    return {
+        "function_score": {
+            "query": field_query,
+            "functions": functions,
+            "score_mode": "sum",
+            "boost_mode": "sum",
+        }
+    }
+
+
+def build_query_preview(query: str, boost: bool = False) -> dict:
     """The exact shape/chunk/ES-query breakdown raw_search uses for this query, without
     executing a search - single source of truth shared with raw_search (below) so the two
-    can never drift apart. Powers the `/v1/query-analysis` endpoint
-    (retrieval_api/query_analysis.py) - our equivalent of centax-node's own
-    `/research-premium/api/v1/getLowLevelQuery`, for comparing query breakdowns side by side."""
+    can never drift apart (this is also why `boost` is a parameter here rather than raw_search
+    wrapping the query itself after calling this - a caller that omitted `boost` here would
+    silently show an unboosted preview for a boosted search). Powers the `/v1/query-analysis`
+    endpoint (retrieval_api/query_analysis.py) and the Instant mode trace panel's "Show ES
+    query" block - our equivalent of centax-node's own `/research-premium/api/v1/getLowLevelQuery`,
+    for comparing query breakdowns side by side.
+
+    boost=False (default): `es_query` is the unwrapped, plain BM25/phrase-boost query.
+    boost=True: `es_query` is wrapped via _apply_boost() - see that function's docstring for
+    why (additive/sum-mode, not the disabled multiply-mode _wrap_function_score)."""
     shape = effective_label(query)
     expanded_query = expand_query_synonyms(query)
     chunks = chunk_query(query)
+    field_query = _build_field_query(expanded_query, shape, chunks=chunks, boost_enabled=boost)
+    if boost:
+        field_query = _apply_boost(field_query, chunks)
     return {
         "query": query,
         "shape": shape,
         "expanded_query": expanded_query if expanded_query != query else None,
         "chunks": chunks,
-        "es_query": _build_field_query(expanded_query, shape, chunks=chunks),
+        "es_query": field_query,
     }
 
 
-async def raw_search(client, query: str, limit: int = 20) -> list[dict]:
-    field_query = build_query_preview(query)["es_query"]
-    # Deliberately NOT wrapped in _wrap_function_score(). Even after patching that formula's
-    # missing/zero-value bugs (see its docstring), a 53-query eval run showed the patched
-    # boosting still nearly halves pass rate versus plain text relevance (21/53 boosted vs
-    # 42/53 unboosted - evals/retrieval_cases.json). Root cause is architectural
-    # (boost_mode: "multiply" lets documenttypeboost/court_boost/landmarkruling outweigh real
-    # text relevance by 10-50x), not another missing-data instance, so it's left disabled here
-    # rather than patched further. Re-enabling requires redesigning the boost combination
-    # (e.g. bounded/additive instead of multiplicative), not just flipping this back on.
-    #
+async def raw_search(client, query: str, limit: int = 20, boost: bool = False) -> list[dict]:
+    field_query = build_query_preview(query, boost=boost)["es_query"]
     # No landmarkruling:-10 exclusion here either, deliberately - a previous version of this
     # function had one (`_exclude_blacklisted`, since removed), reasoning it preserved a
     # content filter that used to ride along inside centax-node's function_score must_not. That

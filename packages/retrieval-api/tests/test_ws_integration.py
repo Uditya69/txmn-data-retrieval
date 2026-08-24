@@ -152,7 +152,7 @@ def test_ws_search_auto_route_defaults_to_false_when_absent(monkeypatch):
     captured_auto_route = "unset"
 
     async def fake_run_instant(
-        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False,
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False, boost=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
@@ -181,7 +181,7 @@ def test_ws_search_forwards_auto_route_to_run_instant_when_enabled(monkeypatch):
     captured_auto_route = "unset"
 
     async def fake_run_instant(
-        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False,
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False, boost=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
@@ -213,7 +213,7 @@ def test_ws_search_kill_switch_forces_auto_route_off_even_when_requested(monkeyp
     captured_auto_route = "unset"
 
     async def fake_run_instant(
-        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False,
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False, boost=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
@@ -501,7 +501,7 @@ async def test_instant_mode_cache_hit_skips_run_instant_and_returns_cached_resul
         "milvus": [], "milvus_sparse": [], "milvus_error": None,
     }
     await cache_write(
-        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False",
+        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False_boost_False",
         "what is section 80C", [1.0, 0.0],
         cached_instant_result,
     )
@@ -551,7 +551,7 @@ async def test_instant_mode_rrf_cache_hit_uses_separate_key_from_plain_instant(
         "reranked": [{"doc_id": "cached-reranked"}], "reranked_error": None,
     }
     await cache_write(
-        fake_semantic_cache_collection, "instant_auto_route_False_rrf_True",
+        fake_semantic_cache_collection, "instant_auto_route_False_rrf_True_boost_False",
         "what is section 80C", [1.0, 0.0],
         cached_reranked_result,
     )
@@ -562,6 +562,44 @@ async def test_instant_mode_rrf_cache_hit_uses_separate_key_from_plain_instant(
         message = websocket.receive_json()
 
     assert message == {"type": "instant_result", **cached_reranked_result}
+
+
+@pytest.mark.asyncio
+async def test_instant_mode_boost_cache_hit_uses_separate_key_from_plain_instant(
+    monkeypatch, fake_semantic_cache_collection,
+):
+    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
+    monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
+    monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
+    monkeypatch.setattr(
+        ws_module, "get_semantic_cache_collection", lambda *_: fake_semantic_cache_collection,
+    )
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("run_instant should not be called on a cache hit")
+
+    monkeypatch.setattr(ws_module, "run_instant", fail_if_called)
+    monkeypatch.setattr(ws_module, "run_ai_mode", AsyncMock(return_value={
+        "ok": True, "answer": "unused", "citations": [], "intent": [],
+    }))
+
+    cached_boosted_result = {
+        "es": [{"doc_id": "cached-boosted"}], "es_error": None,
+        "milvus": [], "milvus_sparse": [], "milvus_error": None,
+    }
+    await cache_write(
+        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False_boost_True",
+        "what is section 80C", [1.0, 0.0],
+        cached_boosted_result,
+    )
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "what is section 80C", "mode": "instant", "boost": True})
+        message = websocket.receive_json()
+
+    assert message == {"type": "instant_result", **cached_boosted_result}
 
 
 class _CountingFakeEmbedGateway:

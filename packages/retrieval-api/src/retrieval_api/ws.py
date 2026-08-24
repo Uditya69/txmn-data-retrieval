@@ -104,6 +104,10 @@ async def search(websocket: WebSocket):
     # Instant mode's only fusion knob - RRF is cheap local rank math with no external
     # dependency (no cross-encoder/AI call in Instant mode at all).
     rrf = message.get("rrf", False)
+    # Instant mode's ES ranking-boost toggle (documenttypeboost/court_boost/landmarkruling/
+    # recency/statutory-group signals, common/es_client.py::_apply_boost) - additive, off
+    # by default same as rrf.
+    boost = message.get("boost", False)
     auto_route = message.get("auto_route", False) and settings.instant_mode_auto_route_enabled
     es_client = get_es_client(settings)
     gateway = get_gateway_client(settings)
@@ -140,9 +144,9 @@ async def search(websocket: WebSocket):
     query_embedding = None
     instant_cache_hit = None
     ai_mode_cache_hit = None
-    # Each (auto_route, rrf) combination produces different result content - a
+    # Each (auto_route, rrf, boost) combination produces different result content - a
     # separate cache key per combination.
-    instant_cache_key = f"instant_auto_route_{auto_route}_rrf_{rrf}"
+    instant_cache_key = f"instant_auto_route_{auto_route}_rrf_{rrf}_boost_{boost}"
     try:
         cache_settings = get_semantic_cache_settings()
         if cache_settings.semantic_cache_enabled:
@@ -203,7 +207,7 @@ async def search(websocket: WebSocket):
                     run_instant(
                         gateway, es_client, milvus_client, query,
                         on_step=emit_trace_step if trace else None, rrf=rrf,
-                        auto_route=auto_route,
+                        auto_route=auto_route, boost=boost,
                     )
                 )
                 if mode in ("instant", "both") and instant_cache_hit is None else None

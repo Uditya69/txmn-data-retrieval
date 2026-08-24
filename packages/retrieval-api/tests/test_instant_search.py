@@ -8,7 +8,7 @@ from retrieval_api.instant.search import run_instant
 async def test_run_instant_returns_both_branches_on_success(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -36,7 +36,7 @@ async def test_run_instant_returns_both_branches_on_success(monkeypatch):
 async def test_run_instant_applies_elbow_cutoff_to_es_and_milvus_results(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         # steep drop after the first hit - only the first should survive
         return [
             {"doc_id": "d1", "score": 10.0},
@@ -73,7 +73,7 @@ async def test_run_instant_keeps_flat_score_distribution_uncapped(monkeypatch):
 
     flat_scores = [{"doc_id": f"d{i}", "score": 5.0} for i in range(12)]
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return flat_scores
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -96,7 +96,7 @@ async def test_run_instant_keeps_flat_score_distribution_uncapped(monkeypatch):
 async def test_run_instant_returns_partial_result_when_es_fails(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def failing_raw_search(client, query, limit=20):
+    async def failing_raw_search(client, query, limit=20, boost=False):
         raise RuntimeError("ES down")
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -121,7 +121,7 @@ async def test_run_instant_returns_partial_result_when_es_fails(monkeypatch):
 async def test_run_instant_returns_partial_result_when_gateway_embed_fails(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
 
     monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
@@ -139,10 +139,58 @@ async def test_run_instant_returns_partial_result_when_gateway_embed_fails(monke
 
 
 @pytest.mark.asyncio
+async def test_run_instant_forwards_boost_flag_to_raw_search(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    seen_boost = []
+
+    async def fake_raw_search(client, query, limit=20, boost=False):
+        seen_boost.append(boost)
+        return [{"doc_id": "d1", "score": 4.2}]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": []}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q", boost=True)
+
+    assert seen_boost == [True]
+
+
+@pytest.mark.asyncio
+async def test_run_instant_defaults_boost_to_false(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    seen_boost = []
+
+    async def fake_raw_search(client, query, limit=20, boost=False):
+        seen_boost.append(boost)
+        return [{"doc_id": "d1", "score": 4.2}]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": []}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
+
+    assert seen_boost == [False]
+
+
+@pytest.mark.asyncio
 async def test_run_instant_returns_reranked_list_when_rrf_flag_set(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return [{"doc_id": "d1", "score": 4.2, "heading": "h1", "subheading": "s1"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -169,7 +217,7 @@ async def test_run_instant_returns_reranked_list_when_rrf_flag_set(monkeypatch):
 async def test_run_instant_without_rrf_skips_fusion(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return [{"doc_id": "d1", "score": 4.2, "heading": "h1", "subheading": "s1"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -192,7 +240,7 @@ async def test_run_instant_without_rrf_skips_fusion(monkeypatch):
 async def test_run_instant_skips_fusion_when_es_branch_failed(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def failing_raw_search(client, query, limit=20):
+    async def failing_raw_search(client, query, limit=20, boost=False):
         raise RuntimeError("ES down")
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -214,7 +262,7 @@ async def test_run_instant_skips_fusion_when_es_branch_failed(monkeypatch):
 async def test_run_instant_emits_es_and_milvus_trace_steps(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -255,7 +303,7 @@ async def test_run_instant_corrects_misspelled_court_before_search(monkeypatch):
 
     seen_queries = []
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         seen_queries.append(query)
         return []
 
@@ -285,7 +333,7 @@ async def test_run_instant_corrects_misspelled_court_before_search(monkeypatch):
 async def test_run_instant_emits_query_correction_trace_step_even_with_no_corrections(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return []
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -311,7 +359,7 @@ async def test_run_instant_emits_query_correction_trace_step_even_with_no_correc
 async def test_run_instant_emits_classifier_trace_step_with_label_confidence_and_plan(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return []
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -346,7 +394,7 @@ async def test_run_instant_forwards_on_step_into_fusion_for_rrf_merge_step(monke
     the trace also picks up the rrf_merge step rerank.py emits."""
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return [{"doc_id": "d1", "score": 4.2, "heading": "h1", "subheading": "s1"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -376,7 +424,7 @@ async def test_run_instant_forwards_on_step_into_fusion_for_rrf_merge_step(monke
 async def test_run_instant_auto_route_keyword_skips_milvus(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return [{"doc_id": "d1", "score": 4.2}]
 
     milvus_called = False
@@ -407,7 +455,7 @@ async def test_run_instant_auto_route_intent_skips_es(monkeypatch):
 
     es_called = False
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         nonlocal es_called
         es_called = True
         return []
@@ -434,7 +482,7 @@ async def test_run_instant_auto_route_intent_skips_es(monkeypatch):
 async def test_run_instant_auto_route_hybrid_forces_rrf_fusion(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return [{"doc_id": "d1", "score": 4.2}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -462,7 +510,7 @@ async def test_run_instant_auto_route_false_preserves_today_behavior(monkeypatch
     back to the single source that ran) with no AI/cross-encoder call involved."""
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20):
+    async def fake_raw_search(client, query, limit=20, boost=False):
         return [{"doc_id": "d1", "score": 4.2}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):

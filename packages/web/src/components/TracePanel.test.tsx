@@ -88,6 +88,49 @@ describe('TracePanel', () => {
     expect(screen.getByText('"section 092C"')).toBeInTheDocument()
   })
 
+  it('shows the raw ES query collapsed by default, with a copy button', () => {
+    const esQuery = { bool: { should: [{ match: { heading: 'Section 52' } }], minimum_should_match: 1 } }
+    const steps: TraceStep[] = [
+      {
+        step: 'query_analysis',
+        data: { query: 'section 52', shape: 'KEYWORD', chunks: [], es_query: esQuery },
+      },
+    ]
+    const { container } = render(<TracePanel steps={steps} />)
+
+    expect(screen.getByText('Show ES query')).toBeInTheDocument()
+    const details = container.querySelector('details')
+    expect(details?.open).toBe(false)
+    expect(details?.textContent).toContain('"minimum_should_match": 1')
+    // Wrapped as a full request body - copyable straight into Elasticvue/curl, not just
+    // the bare query clause.
+    expect(details?.textContent).toContain('"size": 20')
+  })
+
+  it('copies the ES query wrapped as a full request body ({query, size}), without toggling the details panel open state', async () => {
+    const writeText = vi.fn()
+    Object.assign(navigator, { clipboard: { writeText } })
+    const esQuery = { bool: { should: [], minimum_should_match: 1 } }
+    const steps: TraceStep[] = [
+      { step: 'query_analysis', data: { query: 'q', shape: 'KEYWORD', chunks: [], es_query: esQuery } },
+    ]
+    const { container } = render(<TracePanel steps={steps} />)
+
+    await userEvent.click(screen.getByText('Copy'))
+
+    expect(writeText).toHaveBeenCalledWith(JSON.stringify({ query: esQuery, size: 20 }, null, 2))
+    expect(container.querySelector('details')?.open).toBe(false)
+  })
+
+  it('does not render the ES query block when es_query is absent', () => {
+    const steps: TraceStep[] = [
+      { step: 'query_analysis', data: { query: 'q', shape: 'KEYWORD', chunks: [] } },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.queryByText('Show ES query')).not.toBeInTheDocument()
+  })
+
   it('shows the query_analysis chunks feeding the classifier decision on the classifier card', () => {
     const steps: TraceStep[] = [
       {

@@ -221,6 +221,135 @@ async def test_raw_search_does_not_wrap_query_in_function_score():
     assert "bool" in query
 
 
+def test_build_query_preview_boost_true_wraps_es_query_in_function_score():
+    """The trace panel's "Show ES query" block (and /v1/query-analysis) call
+    build_query_preview directly, not raw_search - boost must be threaded through here too,
+    or a boosted search would silently show an unboosted preview."""
+    preview = build_query_preview("Section 52", boost=True)
+    assert "function_score" in preview["es_query"]
+
+
+def test_build_query_preview_boost_false_default_leaves_es_query_unwrapped():
+    preview = build_query_preview("Section 52")
+    assert "function_score" not in preview["es_query"]
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_wraps_query_in_sum_mode_function_score():
+    """The opt-in `boost` toggle wraps the query in function_score, but with score_mode/
+    boost_mode "sum" - never "multiply" (see _apply_boost's docstring for why multiply
+    was rejected: a single zero-valued function killed the whole relevance score)."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    query = client.search_calls[0]
+    assert "function_score" in query
+    fs = query["function_score"]
+    assert fs["score_mode"] == "sum"
+    assert fs["boost_mode"] == "sum"
+    assert "bool" in fs["query"]
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_includes_doctype_court_landmark_and_recency_functions():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    functions = client.search_calls[0]["function_score"]["functions"]
+    fields = {fn["field_value_factor"]["field"] for fn in functions if "field_value_factor" in fn}
+    assert fields == {"documenttypeboost", "court_boost", "landmarkruling"}
+    recency_functions = [fn for fn in functions if "field_value_factor" not in fn and "filter" in fn
+                         and "range" in fn["filter"] and "formatteddocumentdate" in fn["filter"]["range"]]
+    assert len(recency_functions) == 8
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_boosts_statutory_groups_for_section_query():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Section 52 exemption", limit=20, boost=True)
+
+    functions = client.search_calls[0]["function_score"]["functions"]
+    group_functions = [
+        fn for fn in functions
+        if fn.get("filter", {}).get("terms", {}).get("groups.group.name.keyword") == ["ACT", "RULE"]
+    ]
+    assert len(group_functions) == 1
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_skips_statutory_group_boost_for_non_section_query():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    functions = client.search_calls[0]["function_score"]["functions"]
+    group_functions = [fn for fn in functions if "groups.group.name.keyword" in fn.get("filter", {}).get("terms", {})]
+    assert group_functions == []
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_includes_static_taxonomy_id_boosts_unconditionally():
+    """Unlike the statutory-group boost (only fires for a section/rule-number query), the
+    static per-taxonomy-node boosts (ACT group id, specific act-edition subgroup ids) are
+    unconditional - present even for a query with no section chunk at all."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    functions = client.search_calls[0]["function_score"]["functions"]
+    term_boosts = {
+        (list(fn["filter"]["term"].keys())[0], list(fn["filter"]["term"].values())[0]): fn["weight"]
+        for fn in functions if "term" in fn.get("filter", {})
+    }
+    assert term_boosts == {
+        ("groups.group.id", "111050000000000064"): 2.0,
+        ("groups.group.subgroup.id", "111050000000010687"): 2.0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_adds_current_edition_should_boost_for_section_query():
+    """The current-edition (Income-tax Act 2025, subgroup 111050000000020042) preference must
+    live as a should-clause boost inside the main query, at _SECTION_PHRASE_BOOSTS' scale - not
+    as a small function_score addition, which was verified live to be too weak to move the
+    ranking (see _CURRENT_EDITION_SHOULD_BOOST's comment)."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Section 52", limit=20, boost=True)
+
+    should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
+    matches = [
+        clause for clause in should
+        if clause.get("term", {}).get("groups.group.subgroup.id", {}).get("value") == "111050000000020042"
+    ]
+    assert len(matches) == 1
+    assert matches[0]["term"]["groups.group.subgroup.id"]["boost"] == 20000.0
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_skips_current_edition_should_boost_for_non_section_query():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
+    matches = [clause for clause in should if "groups.group.subgroup.id" in clause.get("term", {})]
+    assert matches == []
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_false_default_unaffected():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20)
+
+    query = client.search_calls[0]
+    assert "function_score" not in query
+
+
 @pytest.mark.asyncio
 async def test_raw_search_does_not_exclude_landmarkruling_blacklisted_docs():
     """A prior version of raw_search hoisted centax-node's landmarkruling:-10 handling into
