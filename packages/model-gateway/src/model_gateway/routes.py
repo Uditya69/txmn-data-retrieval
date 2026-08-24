@@ -3,13 +3,14 @@ from langfuse import get_client
 from pydantic import BaseModel
 
 from model_gateway.adapters.deepinfra import DeepInfraAdapter
+from model_gateway.adapters.local import LocalAdapter
 from model_gateway.adapters.voyage import VoyageAdapter
 from model_gateway.config import build_role_model_map, build_role_provider_map, get_gateway_settings
 
 router = APIRouter()
 
 ROLE_MODEL_MAP: dict[str, str] = build_role_model_map(get_gateway_settings())
-ROLE_PROVIDER_MAP: dict[str, str] = build_role_provider_map()
+ROLE_PROVIDER_MAP: dict[str, str] = build_role_provider_map(get_gateway_settings())
 
 # Matches the headers retrieval_api.gateway_client sets so this generation
 # nests under the caller's trace instead of starting a new one.
@@ -29,6 +30,8 @@ def get_adapter(provider: str):
     settings = get_gateway_settings()
     if provider == "voyage":
         return VoyageAdapter(api_key=settings.voyage_api_key)
+    if provider == "local":
+        return LocalAdapter(base_url=settings.local_base_url, api_key=settings.local_api_key)
     return DeepInfraAdapter(api_key=settings.deepinfra_api_key)
 
 
@@ -48,10 +51,9 @@ async def get_model(role: str):
 class ChatRequest(BaseModel):
     role: str
     messages: list[dict]
-    tools: list[dict] | None = None
-    tool_choice: str | None = None
     model: str | None = None
     response_format: dict | None = None
+    temperature: float | None = None
 
 
 class EmbedRequest(BaseModel):
@@ -77,16 +79,16 @@ async def chat(req: ChatRequest, request: Request):
         name=f"chat:{req.role}",
         model=model,
         input=req.messages,
-        metadata={"provider": provider, "has_tools": bool(req.tools)},
+        metadata={"provider": provider},
         trace_context=_trace_context_from_headers(request),
     ) as generation:
-        content, usage_details, reasoning, tool_calls = await get_adapter(provider).chat(
-            model, req.messages, req.tools, req.tool_choice, req.response_format,
+        content, usage_details, reasoning = await get_adapter(provider).chat(
+            model, req.messages, req.response_format, req.temperature,
         )
-        generation.update(output=content if content is not None else {"tool_calls": tool_calls}, usage_details=usage_details)
+        generation.update(output=content, usage_details=usage_details)
         if reasoning:
             generation.update(metadata={"reasoning": reasoning})
-    return {"content": content, "reasoning": reasoning, "tool_calls": tool_calls}
+    return {"content": content, "reasoning": reasoning}
 
 
 @router.post("/v1/embed")
@@ -108,6 +110,11 @@ async def embed(req: EmbedRequest, request: Request):
 
 @router.post("/v1/rerank")
 async def rerank(req: RerankRequest, request: Request):
+    # DeepInfra's rerank endpoint 422s on an empty documents list ("the number of queries and
+    # documents must be the same") - nothing to rerank anyway, so short-circuit before it ever
+    # reaches the adapter, rather than let that surface as an unhandled 500 to the caller.
+    if not req.documents:
+        return {"scores": []}
     default_model, provider = _resolve(req.role)
     model = req.model or default_model
     langfuse = get_client()

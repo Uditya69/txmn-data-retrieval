@@ -9,7 +9,10 @@ dependencies = [
   "langchain-core>=0.3",
   "langfuse>=4.14",
   "common",
-  "agents",
+  "auth",
+  "persona",
+  "chat",
+  "semantic-cache",
 ]
 
 [project.scripts]

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useSearch } from './useSearch'
 
@@ -28,6 +28,58 @@ beforeEach(() => {
 })
 
 describe('useSearch', () => {
+  it('omits access_token from the payload when none is provided (guest)', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).not.toHaveProperty('access_token')
+  })
+
+  it('includes access_token in the payload when a token is provided', () => {
+    const { result } = renderHook(() => useSearch('ws://test', 'tok-abc'))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ access_token: 'tok-abc' })
+  })
+
+  it('includes conversation_id in the payload when provided', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+
+    act(() => {
+      result.current.search('cgst', true, 'both', false, false, 'conv-42')
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ conversation_id: 'conv-42' })
+  })
+
+  it('omits conversation_id from the payload when not provided', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).not.toHaveProperty('conversation_id')
+  })
+
   it('sends the query with mode "both" and the trace flag once the socket opens, and stores the instant result', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
 
@@ -38,7 +90,9 @@ describe('useSearch', () => {
     act(() => {
       socket.emit('open')
     })
-    expect(socket.sent).toEqual([JSON.stringify({ query: 'cgst', mode: 'both', trace: true, rerank: false })])
+    expect(socket.sent).toEqual([
+      JSON.stringify({ query: 'cgst', mode: 'both', trace: true, rrf: false, auto_route: false, boost: false }),
+    ])
 
     act(() => {
       socket.emit('message', {
@@ -62,6 +116,50 @@ describe('useSearch', () => {
       reranked_error: null,
     })
     expect(result.current.loading).toBe(true)
+  })
+
+  it('sends auto_route: false by default and auto_route: true when passed', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    let socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ auto_route: false })
+
+    act(() => {
+      result.current.search('cgst', true, 'both', false, true)
+    })
+    socket = MockWebSocket.instances[1]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ auto_route: true })
+  })
+
+  it('sends boost: false by default and boost: true when passed', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    let socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ boost: false })
+
+    act(() => {
+      result.current.search('cgst', true, 'both', false, false, undefined, true)
+    })
+    socket = MockWebSocket.instances[1]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ boost: true })
   })
 
   it('marks loading false and stores the answer on ai_mode_done', () => {
@@ -119,10 +217,10 @@ describe('useSearch', () => {
     act(() => {
       socket.emit('open')
       socket.emit('message', {
-        data: JSON.stringify({ type: 'ai_mode_trace', step: 'intent', data: { rewritten_query: 'r' } }),
+        data: JSON.stringify({ type: 'ai_mode_trace', step: 'intent', data: { search_query: 'r', intent: ['caselaws'] } }),
       })
     })
-    expect(result.current.traceSteps).toEqual([{ step: 'intent', data: { rewritten_query: 'r' } }])
+    expect(result.current.traceSteps).toEqual([{ step: 'intent', data: { search_query: 'r', intent: ['caselaws'] } }])
 
     act(() => {
       socket.emit('message', {
@@ -130,7 +228,7 @@ describe('useSearch', () => {
       })
     })
     expect(result.current.traceSteps).toEqual([
-      { step: 'intent', data: { rewritten_query: 'r' } },
+      { step: 'intent', data: { search_query: 'r', intent: ['caselaws'] } },
       { step: 'filters_resolved', data: { doc_id_count: 0 } },
     ])
   })
@@ -153,5 +251,22 @@ describe('useSearch', () => {
       result.current.search('second query', true)
     })
     expect(result.current.traceSteps).toEqual([])
+  })
+
+  it('sets a wsError and calls onSessionExpired when the server reports session_expired', () => {
+    const onSessionExpired = vi.fn()
+    const { result } = renderHook(() => useSearch('ws://test', 'stale-token', onSessionExpired))
+
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+      socket.emit('message', { data: JSON.stringify({ type: 'session_expired' }) })
+    })
+
+    expect(result.current.wsError).toBe('Reconnecting your session…')
+    expect(onSessionExpired).toHaveBeenCalledOnce()
   })
 })

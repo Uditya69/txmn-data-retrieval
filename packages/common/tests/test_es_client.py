@@ -7,6 +7,8 @@ from common.es_client import (
     fetch_citations,
     fetch_fullcontent,
     fetch_document_metadata,
+    build_query_preview,
+    _build_field_query,
 )
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
@@ -37,11 +39,15 @@ class FakeAsyncES:
         self.search_hits = search_hits or []
         self.mget_docs = mget_docs or {}
         self.search_calls = []
+        self.highlight_calls = []
+        self.source_calls = []
         self.mget_calls = []
         self.index = index
 
-    async def search(self, index, query, size):
+    async def search(self, index, query, size, highlight=None, _source=None):
         self.search_calls.append(query)
+        self.highlight_calls.append(highlight)
+        self.source_calls.append(_source)
         self.searched_index = index
         return {"hits": {"hits": self.search_hits}}
 
@@ -98,33 +104,57 @@ async def test_raw_search_expands_known_abbreviation_into_multi_match_query_text
 
     await raw_search(client, "ACIT order on depreciation", limit=20)
 
-    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
+    sent_query = client.search_calls[0]
     multi_match_query = sent_query["bool"]["should"][0]["multi_match"]["query"]
     assert "ACIT order on depreciation" in multi_match_query
     assert "ASSISTANT COMMISSIONER INCOME TAX" in multi_match_query
 
 
+def _heading_phrase_clauses(should: list[dict]) -> list[dict]:
+    return [c for c in should if "match_phrase" in c and "heading" in c["match_phrase"]]
+
+
 @pytest.mark.asyncio
-async def test_raw_search_adds_phrase_boost_clause_for_merged_keyword_number():
+async def test_raw_search_adds_exact_match_phrase_clause_for_merged_keyword_number():
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "Section 6 of Income Tax Act", limit=20)
 
-    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
-    should = sent_query["bool"]["should"]
-    phrase_clauses = [c for c in should if c["multi_match"].get("type") == "phrase"]
-    assert any(c["multi_match"]["query"] == "Section 6" for c in phrase_clauses)
+    sent_query = client.search_calls[0]
+    phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
+    section_clauses = [c for c in phrase_clauses if c["match_phrase"]["heading"]["query"] == "Section 6"]
+    assert section_clauses
+    assert section_clauses[0]["match_phrase"]["heading"]["slop"] == 0
 
 
 @pytest.mark.asyncio
-async def test_raw_search_omits_phrase_boost_clauses_when_no_merge_survives():
+async def test_raw_search_chunks_unrecognized_word_run_into_a_text_phrase_clause():
+    """The gap chunk_query closes: words with no Section/Court/citation keyword
+    anchor still get grouped into one match_phrase (slop=5), not left as loose
+    independent OR terms - see chunk_query's own docstring for why."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "can a company claim depreciation on goodwill", limit=20)
 
-    sent_query = client.search_calls[0]["function_score"]["query"]["bool"]["must"][0]
-    should = sent_query["bool"]["should"]
-    assert not [c for c in should if c["multi_match"].get("type") == "phrase"]
+    sent_query = client.search_calls[0]
+    phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
+    text_clauses = [c for c in phrase_clauses if c["match_phrase"]["heading"]["slop"] == 5]
+    assert text_clauses
+    # stopword-strip removes "on" before chunking, same as extract_boost_phrases did
+    assert "on" not in text_clauses[0]["match_phrase"]["heading"]["query"].split()
+
+
+@pytest.mark.asyncio
+async def test_raw_search_adds_zero_padded_alternative_clause_for_short_section_numbers():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "section 92C ITES comparables", limit=20)
+
+    sent_query = client.search_calls[0]
+    phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
+    queries = {c["match_phrase"]["heading"]["query"] for c in phrase_clauses}
+    assert "section 92C" in queries
+    assert "section 092C" in queries
 
 
 @pytest.mark.asyncio
@@ -136,33 +166,209 @@ async def test_raw_search_queries_heading_subheading_fullcontent_not_just_sparse
     query = client.search_calls[0]
     should_fields = {
         clause["multi_match"]["fields"][0] if "multi_match" in clause else None
-        for clause in query["function_score"]["query"]["bool"]["must"][0]["bool"]["should"]
+        for clause in query["bool"]["should"]
     }
     for field in ("heading", "subheading", "fullcontent"):
         assert field in should_fields, f"{field} missing from should clauses: {should_fields}"
 
 
+def test_build_query_preview_matches_what_raw_search_actually_sends():
+    """Single source of truth: raw_search calls build_query_preview() internally (see its
+    own source) rather than recomputing shape/chunks/query separately, specifically so the
+    /v1/query-analysis endpoint (backed by this function) can never drift from what a real
+    search actually does."""
+    preview = build_query_preview("Section 6 of Income Tax Act")
+
+    assert preview["query"] == "Section 6 of Income Tax Act"
+    # This query's classifier confidence (~0.69) sits below the confidence_threshold
+    # trained by the fixed threshold sweep (0.9 - see train_instant_classifier.py's
+    # _sweep_threshold), so effective_label() correctly defaults to HYBRID rather than
+    # trusting a genuinely uncertain HYBRID-vs-INTENT call.
+    assert preview["shape"] == "HYBRID"
+    assert any(c["type"] == "section" and c["text"] == "Section 6" for c in preview["chunks"])
+    assert "bool" in preview["es_query"]
+
+
+def test_build_field_query_accepts_new_taxonomy_labels():
+    for label in ("KEYWORD", "HYBRID", "INTENT"):
+        query = _build_field_query("test query", label)
+        assert "bool" in query
+
+
+def test_build_query_preview_omits_expanded_query_when_unchanged():
+    preview = build_query_preview("can a company claim depreciation")
+    assert preview["expanded_query"] is None
+
+
+def test_build_query_preview_includes_expanded_query_when_synonym_applies():
+    preview = build_query_preview("ACIT order on depreciation")
+    assert preview["expanded_query"] is not None
+    assert "ASSISTANT COMMISSIONER INCOME TAX" in preview["expanded_query"]
+
+
 @pytest.mark.asyncio
-async def test_raw_search_wraps_query_in_function_score_with_boost_fields():
+async def test_raw_search_does_not_wrap_query_in_function_score():
+    """raw_search deliberately skips _wrap_function_score - see its docstring and the
+    comment in raw_search: a 53-query eval run showed the patched boost formula still
+    nearly halves pass rate versus plain BM25 text relevance (21/53 boosted vs 42/53
+    unboosted), an architectural (boost_mode: multiply) issue, not a missing-data one."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "exemption claim", limit=20)
+
+    query = client.search_calls[0]
+    assert "function_score" not in query
+    assert "bool" in query
+
+
+def test_build_query_preview_boost_true_wraps_es_query_in_function_score():
+    """The trace panel's "Show ES query" block (and /v1/query-analysis) call
+    build_query_preview directly, not raw_search - boost must be threaded through here too,
+    or a boosted search would silently show an unboosted preview."""
+    preview = build_query_preview("Section 52", boost=True)
+    assert "function_score" in preview["es_query"]
+
+
+def test_build_query_preview_boost_false_default_leaves_es_query_unwrapped():
+    preview = build_query_preview("Section 52")
+    assert "function_score" not in preview["es_query"]
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_wraps_query_in_sum_mode_function_score():
+    """The opt-in `boost` toggle wraps the query in function_score, but with score_mode/
+    boost_mode "sum" - never "multiply" (see _apply_boost's docstring for why multiply
+    was rejected: a single zero-valued function killed the whole relevance score)."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
 
     query = client.search_calls[0]
     assert "function_score" in query
-    factor_fields = {f["field_value_factor"]["field"] for f in query["function_score"]["functions"]}
-    assert factor_fields == {"documenttypeboost", "court_boost", "landmarkruling"}
+    fs = query["function_score"]
+    assert fs["score_mode"] == "sum"
+    assert fs["boost_mode"] == "sum"
+    assert "bool" in fs["query"]
 
 
 @pytest.mark.asyncio
-async def test_raw_search_excludes_blacklisted_landmarkruling_docs():
+async def test_raw_search_boost_true_includes_doctype_court_landmark_and_recency_functions():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    functions = client.search_calls[0]["function_score"]["functions"]
+    fields = {fn["field_value_factor"]["field"] for fn in functions if "field_value_factor" in fn}
+    assert fields == {"documenttypeboost", "court_boost", "landmarkruling"}
+    recency_functions = [fn for fn in functions if "field_value_factor" not in fn and "filter" in fn
+                         and "range" in fn["filter"] and "formatteddocumentdate" in fn["filter"]["range"]]
+    assert len(recency_functions) == 8
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_boosts_statutory_groups_for_section_query():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Section 52 exemption", limit=20, boost=True)
+
+    functions = client.search_calls[0]["function_score"]["functions"]
+    group_functions = [
+        fn for fn in functions
+        if fn.get("filter", {}).get("terms", {}).get("groups.group.name.keyword") == ["ACT", "RULE"]
+    ]
+    assert len(group_functions) == 1
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_skips_statutory_group_boost_for_non_section_query():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    functions = client.search_calls[0]["function_score"]["functions"]
+    group_functions = [fn for fn in functions if "groups.group.name.keyword" in fn.get("filter", {}).get("terms", {})]
+    assert group_functions == []
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_includes_static_taxonomy_id_boosts_unconditionally():
+    """Unlike the statutory-group boost (only fires for a section/rule-number query), the
+    static per-taxonomy-node boosts (ACT group id, specific act-edition subgroup ids) are
+    unconditional - present even for a query with no section chunk at all."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    functions = client.search_calls[0]["function_score"]["functions"]
+    term_boosts = {
+        (list(fn["filter"]["term"].keys())[0], list(fn["filter"]["term"].values())[0]): fn["weight"]
+        for fn in functions if "term" in fn.get("filter", {})
+    }
+    assert term_boosts == {
+        ("groups.group.id", "111050000000000064"): 2.0,
+        ("groups.group.subgroup.id", "111050000000010687"): 2.0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_adds_current_edition_should_boost_for_section_query():
+    """The current-edition (Income-tax Act 2025, subgroup 111050000000020042) preference must
+    live as a should-clause boost inside the main query, at _SECTION_PHRASE_BOOSTS' scale - not
+    as a small function_score addition, which was verified live to be too weak to move the
+    ranking (see _CURRENT_EDITION_SHOULD_BOOST's comment)."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Section 52", limit=20, boost=True)
+
+    should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
+    matches = [
+        clause for clause in should
+        if clause.get("term", {}).get("groups.group.subgroup.id", {}).get("value") == "111050000000020042"
+    ]
+    assert len(matches) == 1
+    assert matches[0]["term"]["groups.group.subgroup.id"]["boost"] == 20000.0
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_skips_current_edition_should_boost_for_non_section_query():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
+    matches = [clause for clause in should if "groups.group.subgroup.id" in clause.get("term", {})]
+    assert matches == []
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_false_default_unaffected():
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "exemption claim", limit=20)
 
     query = client.search_calls[0]
-    bool_clause = query["function_score"]["query"]["bool"]
-    assert {"term": {"landmarkruling": -10}} in bool_clause.get("must_not", [])
+    assert "function_score" not in query
+
+
+@pytest.mark.asyncio
+async def test_raw_search_does_not_exclude_landmarkruling_blacklisted_docs():
+    """A prior version of raw_search hoisted centax-node's landmarkruling:-10 handling into
+    a top-level query must_not, believing it preserved a content-exclusion filter. That was a
+    misreading of the source: in centax-node's actual query (services/caselaws.js), that
+    must_not is scoped as a per-function `filter` *inside* one function_score function entry -
+    it only controls whether that one function's boost applies, matching its own comment
+    ("Don't add Function Score for blacklisted"). It never excluded the doc from results at
+    all. Our prior top-level version was a real regression (hid ~173 legitimate docs from
+    every search) with no source-of-truth backing it, and is now removed - raw_search must
+    send the field_query as-is, no must_not anywhere, no landmarkruling clause at all."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20)
+
+    query = client.search_calls[0]
+    assert query == {"bool": {"should": query["bool"]["should"], "minimum_should_match": 1}}
+    assert "must_not" not in query["bool"]
+    assert "landmarkruling" not in str(query)
 
 
 def test_get_es_client_reads_index_and_auth_from_settings():
@@ -420,3 +626,184 @@ async def test_fetch_citations_returns_doc_id_keyed_masterinfo_fields():
     assert "judgment_text" not in result["d1"]
     # confirm the field restriction was actually passed through to ES (mget _source param)
     assert client.mget_calls[0]["_source"] == MASTERINFO_CITATION_FIELDS
+
+
+def test_trim_to_token_budget_returns_short_text_unchanged():
+    from common.es_client import trim_to_token_budget
+
+    text = "short text well under budget"
+    assert trim_to_token_budget(text, target_tokens=1024) == text
+
+
+def test_trim_to_token_budget_centers_and_trims_oversized_text():
+    from common.es_client import trim_to_token_budget
+    import tiktoken
+
+    tokenizer = tiktoken.get_encoding("cl100k_base")
+    # "filler" repeated gives before/after segments that are token-exact symmetric by
+    # construction (unlike numbered "wordN" placeholders, whose token length varies with
+    # N's digit count and drifts MARKER's true offset away from the token-count midpoint).
+    before = " ".join(["filler"] * 2000)
+    after = " ".join(["filler"] * 2000)
+    text = f"{before} MARKER {after}"
+
+    trimmed = trim_to_token_budget(text, target_tokens=100)
+
+    trimmed_tokens = tokenizer.encode(trimmed)
+    assert len(trimmed_tokens) == 100
+    assert "MARKER" in trimmed
+
+
+def test_trim_to_token_budget_keeps_head_when_center_is_false():
+    from common.es_client import trim_to_token_budget
+    import tiktoken
+
+    tokenizer = tiktoken.get_encoding("cl100k_base")
+    text = "HEAD " + " ".join(["filler"] * 2000) + " TAIL"
+
+    trimmed = trim_to_token_budget(text, target_tokens=100, center=False)
+
+    assert len(tokenizer.encode(trimmed)) == 100
+    assert "HEAD" in trimmed
+    assert "TAIL" not in trimmed
+
+
+def test_cap_group_shares_single_group_is_unaffected():
+    from common.es_client import _cap_group_shares
+
+    hits = [{"_group": "CASELAWS", "id": i} for i in range(20)]
+    result = _cap_group_shares(hits, limit=20, group_cap=15)
+
+    assert result == hits
+
+
+def test_cap_group_shares_trims_dominant_group_and_backfills_from_minority():
+    from common.es_client import _cap_group_shares
+
+    # 18 CASELAWS hits (relevance rank 1-18) + 2 Experts Opinion hits (rank 19-20) -
+    # naive top-20 would return 18 CASELAWS + 2 Experts Opinion. The cap should trim
+    # CASELAWS to 15 and backfill the 3 freed slots from Experts Opinion's next-best
+    # hits (which don't exist here beyond the 2 already present, so this asserts what
+    # DOES exist survives and CASELAWS is capped, not that phantom hits appear).
+    caselaws_hits = [{"_group": "CASELAWS", "id": f"cl{i}"} for i in range(18)]
+    eo_hits = [{"_group": "Experts Opinion", "id": f"eo{i}"} for i in range(2)]
+    hits = caselaws_hits + eo_hits  # already in relevance order
+
+    result = _cap_group_shares(hits, limit=20, group_cap=15)
+
+    result_caselaws = [h for h in result if h["_group"] == "CASELAWS"]
+    result_eo = [h for h in result if h["_group"] == "Experts Opinion"]
+    assert len(result_caselaws) == 15
+    assert result_caselaws == caselaws_hits[:15]
+    assert result_eo == eo_hits
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_filters_by_group_and_partitions_by_collection():
+    client = FakeAsyncES(search_hits=[
+        {
+            "_source": {"id": "d1", "groups": {"group": {"name": "CASELAWS"}}},
+            "_score": 9.0,
+            "highlight": {"fullcontent": ["snippet about the ruling"]},
+        },
+        {
+            "_source": {"id": "d2", "groups": {"group": {"name": "Experts Opinion"}}},
+            "_score": 7.0,
+            "highlight": {"fullcontent": ["snippet about the article"]},
+        },
+    ], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    result = await sparse_fallback_search(client, "query text", groups=["CASELAWS", "Experts Opinion"])
+
+    assert result == {
+        "ruling": [{
+            "chunk_id": "es:d1:0", "doc_id": "d1", "text": "snippet about the ruling",
+            "score": 9.0, "source": "es_fallback",
+        }],
+        "article_section": [{
+            "chunk_id": "es:d2:0", "doc_id": "d2", "text": "snippet about the article",
+            "score": 7.0, "source": "es_fallback",
+        }],
+    }
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_applies_doc_id_allowlist_and_highlight_config():
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    await sparse_fallback_search(client, "query text", groups=["ACT"], doc_id_allowlist=["d1", "d2"])
+
+    query = client.search_calls[0]
+    must_clauses = query["bool"]["must"]
+    assert {"terms": {"groups.group.name.keyword": ["ACT"]}} in must_clauses
+    assert {"terms": {"id": ["d1", "d2"]}} in must_clauses
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_strips_highlight_markup_tags():
+    """Default ES highlighting wraps matches in <em>...</em> - that raw markup must never
+    reach the reranker/LLM as if it were clean document text, and unclosed/split tags could
+    eat into trim_to_token_budget's centered cut. pre_tags/post_tags=[""] disables the
+    wrapping while keeping fragment selection/centering."""
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    await sparse_fallback_search(client, "query text", groups=["CASELAWS"])
+
+    highlight = client.highlight_calls[0]
+    assert highlight["pre_tags"] == [""]
+    assert highlight["post_tags"] == [""]
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_restricts_source_to_id_and_group():
+    """sparse_fallback_search only ever reads source['id'] and
+    source['groups']['group']['name'] - fullcontent (the full legal document text, 100%
+    populated) must not be fetched needlessly for every one of up to 100 hits per query."""
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    await sparse_fallback_search(client, "query text", groups=["CASELAWS"])
+
+    assert client.source_calls[0] == ["id", "groups.group.name"]
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_skips_hits_missing_highlight_or_unknown_group():
+    client = FakeAsyncES(search_hits=[
+        {"_source": {"id": "d1", "groups": {"group": {"name": "CASELAWS"}}}, "_score": 9.0, "highlight": {}},
+        {"_source": {"id": "d2", "groups": {"group": {"name": "Nonsense Group"}}}, "_score": 8.0,
+         "highlight": {"fullcontent": ["x"]}},
+    ], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    result = await sparse_fallback_search(client, "query text", groups=["CASELAWS"])
+
+    assert result == {}
+
+
+def test_cap_group_shares_backfills_to_full_limit_when_minority_group_has_more():
+    from common.es_client import _cap_group_shares
+
+    # 18 CASELAWS + 10 Experts Opinion, all in relevance order (interleaved isn't
+    # required - the function must not assume a particular pre-existing interleave).
+    caselaws_hits = [{"_group": "CASELAWS", "id": f"cl{i}"} for i in range(18)]
+    eo_hits = [{"_group": "Experts Opinion", "id": f"eo{i}"} for i in range(10)]
+    hits = caselaws_hits + eo_hits
+
+    result = _cap_group_shares(hits, limit=20, group_cap=15)
+
+    assert len(result) == 20
+    result_caselaws = [h for h in result if h["_group"] == "CASELAWS"]
+    result_eo = [h for h in result if h["_group"] == "Experts Opinion"]
+    assert len(result_caselaws) == 15
+    assert len(result_eo) == 5
+    assert result_caselaws == caselaws_hits[:15]
+    assert result_eo == eo_hits[:5]

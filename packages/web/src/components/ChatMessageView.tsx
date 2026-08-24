@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { ChatMessage, ChatMode, ResultState } from '../types'
-import { mergeResults, mapRerankedResults, type CardSource } from '../lib/mergeResults'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import type { ChatMessage, ResultState } from '../types'
+import { mergeResults, mapRerankedResults, type CardSource, type MilvusByCollection } from '../lib/mergeResults'
 import { parseCitations } from '../lib/citations'
 import { groupIntoParagraphs, renderInlineText } from '../lib/richText'
 import { highlightMatches } from '../lib/highlight'
@@ -15,6 +15,7 @@ const SOURCE_FILTERS: { source: CardSource; label: string }[] = [
 type Props = {
   message: ChatMessage
   devMode: boolean
+  showReasoning?: boolean
   onOpenDocument: (docId: string) => void
 }
 
@@ -39,15 +40,77 @@ function LoadingDots() {
   )
 }
 
-function TraceSection({ result, onOpenDocument }: { result: ResultState | undefined; onOpenDocument: (docId: string) => void }) {
-  if (!result || result.traceSteps.length === 0) return null
+function CopyTraceButton({ traceSteps, disabled }: { traceSteps: ResultState['traceSteps']; disabled: boolean }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = (e: MouseEvent) => {
+    // Stop the click from also toggling the parent <details> open/closed -
+    // the button lives inside <summary>, whose default behavior is exactly that.
+    e.preventDefault()
+    e.stopPropagation()
+    if (disabled) return
+    navigator.clipboard.writeText(JSON.stringify(traceSteps, null, 2))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      disabled={disabled}
+      title={disabled ? 'Wait for the response to finish loading' : 'Copy trace as JSON'}
+      className="text-xs font-medium normal-case tracking-normal"
+      style={{
+        color: disabled ? 'var(--text-faint)' : 'var(--accent, #4b7bec)',
+        marginLeft: '0.6rem',
+        padding: '0.1rem 0.5rem',
+        border: '1px solid var(--border-soft)',
+        borderRadius: '999px',
+        background: 'var(--bg-raised, transparent)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) e.currentTarget.style.background = 'var(--border-soft)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'var(--bg-raised, transparent)'
+      }}
+    >
+      {copied ? 'Copied ✓' : 'Copy'}
+    </button>
+  )
+}
+
+// Instant and AI Mode share one traceSteps array off the wire (ws.py's
+// _emit_trace_step sends every step - both modes' - as the same "ai_mode_trace"
+// message type). Split by step name so each pane's Trace section only shows its
+// own steps, not the other mode's mixed in.
+const INSTANT_STEP_NAMES = new Set([
+  'query_correction', 'query_analysis', 'classifier', 'es_search', 'milvus_dense', 'milvus_sparse', 'rrf_merge',
+  'instant_reranked',
+])
+
+function TraceSection({
+  result,
+  onOpenDocument,
+  filter,
+}: {
+  result: ResultState | undefined
+  onOpenDocument: (docId: string) => void
+  filter?: (step: { step: string }) => boolean
+}) {
+  const steps = filter ? (result?.traceSteps ?? []).filter(filter) : result?.traceSteps ?? []
+  if (!result || steps.length === 0) return null
   return (
     <details className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
       <summary className="text-xs font-medium uppercase tracking-wider cursor-pointer" style={{ color: 'var(--text-faint)' }}>
-        Trace ({result.traceSteps.length})
+        Trace ({steps.length})
+        <CopyTraceButton traceSteps={steps} disabled={result.status !== 'done'} />
       </summary>
       <div className="mt-2">
-        <TracePanel steps={result.traceSteps} onOpenDocument={onOpenDocument} />
+        <TracePanel steps={steps} onOpenDocument={onOpenDocument} />
       </div>
     </details>
   )
@@ -71,6 +134,48 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
   )
   const [page, setPage] = useState(0)
   useEffect(() => setPage(0), [instant])
+  const [lookupId, setLookupId] = useState('')
+  // Deliberately built from `instant` directly, not `allCards`: mergeResults dedupes a
+  // doc_id to whichever source claims it FIRST (ES, then Milvus dense, then sparse - see
+  // its own comment), so a doc present in both ES and Milvus sparse only gets an `allCards`
+  // entry tagged 'es'. Looking up rank against `allCards` would then silently report
+  // "not found" for Milvus sparse even though that retriever genuinely returned it - exactly
+  // the kind of wrong answer this lookup exists to prevent. Each source's own rank is
+  // recomputed independently here instead, ES in its already-rank-ordered position, Milvus
+  // dense/sparse deduped to best-score-per-doc_id across their 7 collections and re-sorted -
+  // the honest "which rank is this doc_id at within this retriever, on its own" answer, not
+  // filtered by whether some other retriever already claimed it first for display purposes.
+  const lookup = useMemo(() => {
+    const target = lookupId.trim()
+    if (!target) return null
+    if (isReranked) {
+      const idx = (instant?.reranked ?? []).findIndex((h) => h.doc_id === target)
+      return { reranked: idx === -1 ? null : idx + 1 }
+    }
+    const rankInEs = (() => {
+      const idx = (instant?.es ?? []).findIndex((h) => h.doc_id === target)
+      return idx === -1 ? null : idx + 1
+    })()
+    const rankInMilvus = (byCollection: MilvusByCollection | null | undefined) => {
+      const bestScoreByDocId = new Map<string, number>()
+      for (const hits of Object.values(byCollection ?? {})) {
+        for (const hit of hits) {
+          const prev = bestScoreByDocId.get(hit.doc_id)
+          if (prev === undefined || hit.score > prev) bestScoreByDocId.set(hit.doc_id, hit.score)
+        }
+      }
+      const ranked = [...bestScoreByDocId.entries()].sort((a, b) => b[1] - a[1])
+      const idx = ranked.findIndex(([docId]) => docId === target)
+      return idx === -1 ? null : idx + 1
+    }
+    return {
+      bySource: {
+        es: rankInEs,
+        milvus_dense: rankInMilvus(instant?.milvus),
+        milvus_sparse: rankInMilvus(instant?.milvus_sparse),
+      } as Record<CardSource, number | null>,
+    }
+  }, [lookupId, instant, isReranked])
   const cards = devMode && !isReranked ? allCards.filter((card) => activeSources.has(card.source)) : allCards
   const pageCount = Math.max(1, Math.ceil(cards.length / PAGE_SIZE))
   const clampedPage = Math.min(page, pageCount - 1)
@@ -114,6 +219,32 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
               </button>
             )
           })}
+        </div>
+      )}
+
+      {devMode && instant && (
+        <div className="mb-3">
+          <input
+            type="text"
+            value={lookupId}
+            onChange={(e) => setLookupId(e.target.value)}
+            placeholder="Check doc_id rank…"
+            aria-label="Check doc_id rank"
+            className="text-xs w-full px-2 py-1.5 rounded-lg font-mono"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border-soft)', color: 'var(--text)' }}
+          />
+          {lookup && (
+            <p className="text-xs mt-1.5 font-mono" style={{ color: 'var(--text-faint)' }}>
+              {isReranked
+                ? lookup.reranked
+                  ? `rank #${lookup.reranked}`
+                  : 'not found'
+                : SOURCE_FILTERS.map(({ source, label }) => {
+                    const rank = lookup.bySource?.[source]
+                    return `${label}: ${rank ? `#${rank}` : '—'}`
+                  }).join('   ')}
+            </p>
+          )}
         </div>
       )}
 
@@ -181,6 +312,8 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
           </button>
         </div>
       )}
+
+      {devMode && <TraceSection result={result} onOpenDocument={onOpenDocument} filter={(step) => INSTANT_STEP_NAMES.has(step.step)} />}
     </div>
   )
 }
@@ -191,10 +324,8 @@ function renderAnswer(answer: string, knownDocIds: Set<string>) {
   return { paragraphs, citations: parsed.citations }
 }
 
-// heading/subheading come from the citations dict the backend sends (classic mode
-// only - AI Mode's fetch_citations pulls them straight from ES, see schemas.py's
-// MASTERINFO_CITATION_FIELDS). Agent mode has no per-doc metadata, only doc_ids, so
-// cards there fall back to showing the doc_id itself.
+// heading/subheading come from the citations dict the backend sends - AI Mode's
+// fetch_citations pulls them straight from ES, see schemas.py's MASTERINFO_CITATION_FIELDS.
 type CitationMeta = { heading?: string; subheading?: string }
 
 function CitedDocsStrip({
@@ -245,29 +376,38 @@ function CitedDocsStrip({
   )
 }
 
+function ReasoningSection({ reasoning }: { reasoning: string }) {
+  return (
+    <details className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
+      <summary className="text-xs font-medium uppercase tracking-wider cursor-pointer" style={{ color: 'var(--text-faint)' }}>
+        Reasoning
+      </summary>
+      <p className="text-sm mt-2 whitespace-pre-wrap" style={{ color: 'var(--text-muted)' }}>{reasoning}</p>
+    </details>
+  )
+}
+
 function AnswerPane({
-  mode,
   result,
   devMode,
+  showReasoning,
   onOpenDocument,
 }: {
-  mode: ChatMode
   result: ResultState | undefined
   devMode: boolean
+  showReasoning?: boolean
   onOpenDocument: (docId: string) => void
 }) {
   const status = result?.status ?? 'loading'
-  const answerText = mode === 'classic' ? (result?.aiMode?.ok ? result.aiMode.answer : '') : result?.agent?.ok ? result.agent.answer : ''
-  const errorText = mode === 'classic' ? (result?.aiMode && !result.aiMode.ok ? result.aiMode.error : null) : result?.agent && !result.agent.ok ? result.agent.error : null
-  const docIds = mode === 'agent' && result?.agent?.ok ? result.agent.docIds : []
-  // DB-sourced doc_id allowlist for this answer - citations dict (classic) and
-  // docIds (agent) both come from ES/Milvus fetches, never from the LLM's own text.
+  const answerText = result?.aiMode?.ok ? result.aiMode.answer : ''
+  const errorText = result?.aiMode && !result.aiMode.ok ? result.aiMode.error : null
+  // DB-sourced doc_id allowlist for this answer - the citations dict comes from
+  // ES/Milvus fetches, never from the LLM's own text.
   const knownDocIds = useMemo(() => {
-    if (mode === 'agent') return new Set(docIds)
     return new Set(result?.aiMode?.ok ? Object.keys(result.aiMode.citations) : [])
-  }, [mode, docIds, result])
+  }, [result])
   const metaByDocId = useMemo(() => {
-    if (mode === 'agent' || !result?.aiMode?.ok) return {}
+    if (!result?.aiMode?.ok) return {}
     const citations = result.aiMode.citations
     return Object.fromEntries(
       Object.keys(citations).map((docId) => {
@@ -275,7 +415,7 @@ function AnswerPane({
         return [docId, { heading: meta?.heading, subheading: meta?.subheading }]
       }),
     )
-  }, [mode, result])
+  }, [result])
   const { paragraphs, citations } = answerText ? renderAnswer(answerText, knownDocIds) : { paragraphs: [], citations: [] }
 
   return (
@@ -286,7 +426,7 @@ function AnswerPane({
           style={{ background: 'var(--accent)', boxShadow: status === 'loading' ? '0 0 8px var(--accent)' : 'none' }}
         />
         <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
-          {mode === 'agent' ? 'Agent' : 'Answer'}
+          Answer
         </span>
       </div>
 
@@ -329,12 +469,22 @@ function AnswerPane({
         </div>
       )}
 
-      {devMode && <TraceSection result={result} onOpenDocument={onOpenDocument} />}
+      {showReasoning && result?.aiMode?.ok && result.aiMode.reasoning && (
+        <ReasoningSection reasoning={result.aiMode.reasoning} />
+      )}
+
+      {devMode && (
+        <TraceSection
+          result={result}
+          onOpenDocument={onOpenDocument}
+          filter={(step) => !INSTANT_STEP_NAMES.has(step.step)}
+        />
+      )}
     </div>
   )
 }
 
-export function ChatMessageView({ message, devMode, onOpenDocument }: Props) {
+export function ChatMessageView({ message, devMode, showReasoning, onOpenDocument }: Props) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -347,21 +497,11 @@ export function ChatMessageView({ message, devMode, onOpenDocument }: Props) {
 
   const result = message.results[message.activeMode]
 
-  if (message.activeMode === 'classic') {
-    return (
-      <div className="flex justify-start w-full">
-        <div className="w-full flex gap-4 min-w-0">
-          <InstantPane result={result} devMode={devMode} onOpenDocument={onOpenDocument} query={message.question} />
-          <AnswerPane mode="classic" result={result} devMode={devMode} onOpenDocument={onOpenDocument} />
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[85%] w-full">
-        <AnswerPane mode="agent" result={result} devMode={devMode} onOpenDocument={onOpenDocument} />
+    <div className="flex justify-start w-full">
+      <div className="w-full flex gap-4 min-w-0">
+        <InstantPane result={result} devMode={devMode} onOpenDocument={onOpenDocument} query={message.question} />
+        <AnswerPane result={result} devMode={devMode} showReasoning={showReasoning} onOpenDocument={onOpenDocument} />
       </div>
     </div>
   )

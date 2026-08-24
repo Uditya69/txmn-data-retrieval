@@ -3,9 +3,11 @@ import asyncio
 
 from langfuse import get_client
 
-from common.es_client import raw_search
+from common.es_client import build_query_preview, raw_search
+from common.instant_classifier import effective_label_with_confidence
+from common.instant_classifier.labels import routing_plan
+from common.legal_lexicon import fuzzy_correct_query
 from common.milvus_client import hybrid_search
-from common.query_tokenizer import classify_query_shape
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.instant.rerank import rerank_instant_results
@@ -29,15 +31,16 @@ def _apply_elbow_cutoff_per_collection(by_collection: dict[str, list[dict]]) -> 
     return {collection: _apply_elbow_cutoff(rows) for collection, rows in by_collection.items()}
 
 
-async def _run_es(es_client, query: str, on_step: OnStep | None) -> tuple[list[dict] | None, str | None]:
+async def _run_es(
+    es_client, query: str, on_step: OnStep | None, boost: bool = False,
+) -> tuple[list[dict] | None, str | None]:
     langfuse = get_client()
-    shape = classify_query_shape(query)
     with langfuse.start_as_current_observation(
         as_type="retriever", name="search-es",
-        input={"query": query, "query_shape": shape, "limit": _ES_LIMIT},
+        input={"query": query, "limit": _ES_LIMIT, "boost": boost},
     ) as span:
         try:
-            raw_results = await raw_search(es_client, query, limit=_ES_LIMIT)
+            raw_results = await raw_search(es_client, query, limit=_ES_LIMIT, boost=boost)
             results = _apply_elbow_cutoff(raw_results)
             span.update(output={
                 "hits_before_cutoff": len(raw_results),
@@ -101,33 +104,90 @@ async def _run_milvus(
 
 
 async def run_instant(
-    gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None, rerank: bool = False,
+    gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None,
+    rrf: bool = False, auto_route: bool = False, boost: bool = False,
 ) -> dict:
     langfuse = get_client()
-    with langfuse.start_as_current_observation(as_type="span", name="instant-search", input={"query": query}):
-        (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(
-            _run_es(es_client, query, on_step),
-            _run_milvus(gateway, milvus_client, query, on_step),
-        )
-        if not rerank:
-            return {
-                "es": es_result,
-                "es_error": es_error,
-                "milvus": milvus_dense,
-                "milvus_sparse": milvus_sparse,
-                "milvus_error": milvus_error,
-            }
+    with langfuse.start_as_current_observation(
+        as_type="span", name="instant-search", input={"query": query},
+    ) as instant_span:
+        # Corrects misspelled court/journal abbreviations before anything else touches the
+        # query, so the classifier, ES, and Milvus all search/route on the same corrected
+        # text rather than each needing to apply this independently.
+        corrected_query, corrections = fuzzy_correct_query(query)
+        query_correction_trace = {"original": query, "corrected": corrected_query, "corrections": corrections}
+        instant_span.update(metadata={"query_correction": query_correction_trace})
+        if on_step is not None:
+            await on_step("query_correction", query_correction_trace)
+        query = corrected_query
 
+        # build_query_preview is the same function raw_search() calls internally (and that
+        # backs the standalone /v1/query-analysis endpoint) - using it here rather than
+        # independently recomputing shape/chunks means this trace step can never drift from
+        # what the real ES query actually was, the way the older analyze_query()-based version
+        # of this step did (it used its own separate, pre-chunk_query pipeline, so it never
+        # showed an unrecognized word run like "Dimension Data India" grouped into one phrase
+        # the way the real query - and /v1/query-analysis - already did).
+        if on_step is not None:
+            await on_step("query_analysis", build_query_preview(query, boost=boost))
+
+        label, confidence = effective_label_with_confidence(query)
+        plan = routing_plan(label) if auto_route else {"es": True, "milvus": True, "fuse": False}
+        # Surfaced in both trace systems - without this, a skipped ES/Milvus call (auto_route)
+        # is indistinguishable from one that ran and legitimately found nothing, and the raw
+        # model confidence (as opposed to the post-threshold label) is otherwise unobservable
+        # anywhere, since effective_label() alone discards it.
+        classifier_trace = {
+            "label": label, "confidence": confidence, "auto_route": auto_route, "plan": plan,
+        }
+        instant_span.update(metadata={"classifier": classifier_trace})
+        if on_step is not None:
+            await on_step("classifier", classifier_trace)
+
+        es_task = _run_es(es_client, query, on_step, boost=boost) if plan["es"] else None
+        milvus_task = _run_milvus(gateway, milvus_client, query, on_step) if plan["milvus"] else None
+
+        if es_task is not None and milvus_task is not None:
+            (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(
+                es_task, milvus_task,
+            )
+        elif es_task is not None:
+            es_result, es_error = await es_task
+            milvus_dense, milvus_sparse, milvus_error = None, None, None
+        else:
+            es_result, es_error = None, None
+            milvus_dense, milvus_sparse, milvus_error = await milvus_task
+
+        result = {
+            "query_correction": query_correction_trace,
+            "es": es_result,
+            "es_error": es_error,
+            "milvus": milvus_dense,
+            "milvus_sparse": milvus_sparse,
+            "milvus_error": milvus_error,
+        }
+
+        effective_rrf = plan["fuse"] if auto_route else rrf
+
+        # Whichever side was actually skipped (by plan, above) has its error left at None,
+        # so this naturally reduces to "the error from whichever source(s) ran" in every case.
         reranked_error = es_error or milvus_error
         reranked = []
         if reranked_error is None:
-            try:
-                reranked = await rerank_instant_results(
-                    gateway, es_client, query, classify_query_shape(query),
-                    es_result or [], milvus_dense or {}, milvus_sparse or {},
-                )
-                if on_step is not None:
-                    await on_step("instant_reranked", {"hits": reranked})
-            except Exception as exc:  # noqa: BLE001 - branch isolation is the point
-                reranked_error = str(exc)
-    return {"reranked": reranked, "reranked_error": reranked_error}
+            with langfuse.start_as_current_observation(
+                as_type="chain", name="instant-fuse", input={"query": query, "rrf": effective_rrf},
+            ) as rerank_span:
+                try:
+                    reranked = await rerank_instant_results(
+                        label, es_result or [], milvus_dense or {}, milvus_sparse or {},
+                        rrf=effective_rrf, plan=plan, on_step=on_step,
+                    )
+                    rerank_span.update(output={"num_reranked": len(reranked)})
+                    if on_step is not None:
+                        await on_step("instant_reranked", {"hits": reranked})
+                except Exception as exc:  # noqa: BLE001 - branch isolation is the point
+                    reranked_error = str(exc)
+                    rerank_span.update(level="ERROR", status_message=reranked_error)
+        result["reranked"] = reranked
+        result["reranked_error"] = reranked_error
+    return result

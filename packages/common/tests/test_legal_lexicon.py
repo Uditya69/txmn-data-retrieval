@@ -16,6 +16,13 @@ def test_is_known_journal_recognizes_itr():
     assert is_known_journal("RANDOMWORD") is False
 
 
+def test_is_known_journal_normalizes_punctuation_variants():
+    # the lexicon stores space-separated multi-word abbreviations ("TAXMANN COM"); a query
+    # token spells the same abbreviation with punctuation instead of spaces.
+    assert is_known_journal("taxmann.com") is True
+    assert is_known_journal("S.T.R.") is True
+
+
 def test_is_stopword_recognizes_able():
     assert is_stopword("ABLE") is True
     assert is_stopword("SECTION") is False
@@ -56,3 +63,25 @@ def test_citation_pattern_matches_known_citation_formats(text):
 @pytest.mark.parametrize("text", ["Krishana Goel vs. Principal Commissioner", "State v. Doe", "X versus Y"])
 def test_party_pattern_matches_vs_variants(text):
     assert PARTY_PATTERN.search(text) is not None
+
+
+from common.legal_lexicon import KNOWN_ACT_NAMES, KNOWN_COURT_FULL_NAMES
+
+
+def test_known_court_full_names_includes_original_nine():
+    for name in [
+        "Supreme Court", "Delhi High Court", "Bombay High Court", "Madras High Court",
+        "Calcutta High Court", "Karnataka High Court", "Gujarat High Court",
+        "Income Tax Appellate Tribunal", "Customs Excise and Service Tax Appellate Tribunal",
+    ]:
+        assert name in KNOWN_COURT_FULL_NAMES
+
+
+def test_known_act_names_includes_original_ten():
+    for name in [
+        "bharatiya nyaya sanhita", "bharatiya nagarik suraksha sanhita",
+        "bharatiya sakshya adhiniyam", "indian penal code", "income-tax act",
+        "income tax act", "cgst act", "igst act", "customs act",
+        "code of criminal procedure", "indian evidence act",
+    ]:
+        assert name in KNOWN_ACT_NAMES

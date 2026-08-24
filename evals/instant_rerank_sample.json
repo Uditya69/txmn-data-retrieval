@@ -1,0 +1,21 @@
+[
+  {"id":"R01","class":"direct","topic":"GST input tax credit","query":"GMA Pinnacle Automotives State Tax Officer 161 taxmann.com 145 Kerala GSTR-2A GSTR-3B mismatch input tax credit","gold_doc_ids":["101010000000353260"],"expected_collections":["metadata","headnotes"],"note":"party name + citation + core keywords all present"},
+
+  {"id":"R02","class":"direct","topic":"Customs valuation","query":"Commissioner of Customs Mumbai J D Orgochem 2008 taxmann.com 334 SC section 14 Customs Valuation DPIG Rules undervaluation","gold_doc_ids":["101010000000094230"],"expected_collections":["metadata","headnotes"],"note":"party name + citation + section keywords"},
+
+  {"id":"R03","class":"direct","topic":"DTAA royalty / PE","query":"Oracle Systems Corporation ADIT International Taxation 62 taxmann.com 291 Delhi article 5 7 12 India USA DTAA software royalty permanent establishment","gold_doc_ids":["101010000000164604"],"expected_collections":["metadata","headnotes","facts","held"],"note":"party name + citation + article numbers"},
+
+  {"id":"R04","class":"direct","topic":"IBC financial debt","query":"Utsav Securities Timeline Buildcon 118 taxmann.com 171 NCLT New Delhi section 5(8) financial debt time value of money","gold_doc_ids":["101010000000193057"],"expected_collections":["metadata","headnotes"],"note":"party name + citation + section keyword"},
+
+  {"id":"R05","class":"direct","topic":"Penalty for concealment","query":"Nitin Chauhan Income-tax Officer Nahan 97 taxmann.com 669 Chandigarh Tribunal section 271(1)(c) Explanation 1 concealment penalty","gold_doc_ids":["101010000000183772"],"expected_collections":["metadata","headnotes"],"note":"party name + citation + section keyword"},
+
+  {"id":"R06","class":"indirect","topic":"GST input tax credit","query":"If a buyer's input credit claim doesn't match because the supplier's own return shows a different figure, must the officer first give the buyer a chance to prove the supply actually happened before rejecting the claim outright?","gold_doc_ids":["101010000000353260"],"expected_collections":["headnotes","held"],"note":"pure fact-pattern paraphrase, no citation, no party name, no section number"},
+
+  {"id":"R07","class":"indirect","topic":"Customs valuation","query":"When customs alleges an import was underpriced but cannot point to any comparable shipment sold higher around the same time, and the importer explains the low price through falling global prices, who wins that argument?","gold_doc_ids":["101010000000094230"],"expected_collections":["headnotes"],"note":"paraphrase of the legal issue, no citation/party/section keywords"},
+
+  {"id":"R08","class":"indirect","topic":"DTAA royalty / PE","query":"A foreign software company licenses copies of its software to an Indian customer and pays tax on the receipts as royalty at the DTAA rate. Can the department later reopen that assessment by claiming the income should instead be taxed as business profits through a permanent establishment?","gold_doc_ids":["101010000000164604"],"expected_collections":["facts","held"],"note":"semantic paraphrase of the fact pattern and legal question, no shared keywords with R03"},
+
+  {"id":"R09","class":"mixed","topic":"IBC financial debt","stress":"short_vague_no_party","query":"NBFC gave interest free loan no proof of intent to charge interest can it still be treated as financial debt insolvency","gold_doc_ids":["101010000000193057"],"expected_collections":["headnotes","held"],"note":"topical keywords present (NBFC, financial debt, insolvency) but no party name, no citation, no section number"},
+
+  {"id":"R10","class":"mixed","topic":"Penalty for concealment","stress":"typos_telegraphic","query":"declared agri income but left out fd interst can he say he thot all deposit intrest was tax free 271 1 c penalty","gold_doc_ids":["101010000000183772"],"expected_collections":["headnotes","facts","held"],"note":"some real keywords (271 1 c, agri income, FD interest) but misspelled and telegraphic, no party/citation"}
+]

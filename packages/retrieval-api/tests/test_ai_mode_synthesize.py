@@ -123,3 +123,71 @@ async def test_synthesize_forwards_model_override(monkeypatch):
 
     call_kwargs = gateway.chat_with_reasoning.await_args.kwargs
     assert call_kwargs["model"] == "Qwen/Qwen3-4B-Thinking-2507"
+
+
+@pytest.mark.asyncio
+async def test_synthesize_appends_persona_context_to_system_prompt(monkeypatch):
+    import retrieval_api.ai_mode.synthesize as module
+
+    async def fake_fetch_citations(client, doc_ids):
+        return {}
+
+    monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
+
+    gateway = AsyncMock()
+    gateway.chat_with_reasoning.return_value = ("Answer.", None)
+
+    await synthesize(
+        gateway, es_client=object(), query="q",
+        top_chunks=[{"chunk_id": "a", "doc_id": "d1", "text": "chunk text"}],
+        citations={"d1": {}},
+        persona_context="This user frequently asks about caselaws; expertise level: practitioner.",
+    )
+
+    system_message = gateway.chat_with_reasoning.call_args.kwargs["messages"][0]
+    assert system_message["role"] == "system"
+    assert "expertise level: practitioner" in system_message["content"]
+
+
+@pytest.mark.asyncio
+async def test_synthesize_omits_persona_context_when_empty(monkeypatch):
+    import retrieval_api.ai_mode.synthesize as module
+
+    async def fake_fetch_citations(client, doc_ids):
+        return {}
+
+    monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
+
+    gateway = AsyncMock()
+    gateway.chat_with_reasoning.return_value = ("Answer.", None)
+
+    await synthesize(
+        gateway, es_client=object(), query="q",
+        top_chunks=[{"chunk_id": "a", "doc_id": "d1", "text": "chunk text"}],
+        citations={"d1": {}},
+    )
+
+    system_message = gateway.chat_with_reasoning.call_args.kwargs["messages"][0]
+    assert system_message["content"] == module._SYSTEM_PROMPT
+
+
+@pytest.mark.asyncio
+async def test_synthesize_appends_relevance_instruction_when_persona_context_present(monkeypatch):
+    import retrieval_api.ai_mode.synthesize as module
+    from persona.prompt import RELEVANCE_INSTRUCTION
+
+    monkeypatch.setattr(module, "fetch_citations", AsyncMock(return_value={}))
+
+    gateway = AsyncMock()
+    gateway.chat_with_reasoning.return_value = ("Answer.", None)
+
+    await synthesize(
+        gateway, es_client=object(), query="q",
+        top_chunks=[{"chunk_id": "a", "doc_id": "d1", "text": "chunk text"}],
+        citations={"d1": {}},
+        persona_context="This user frequently asks about caselaws.",
+    )
+
+    system_prompt = gateway.chat_with_reasoning.await_args.kwargs["messages"][0]["content"]
+    assert "This user frequently asks about caselaws." in system_prompt
+    assert RELEVANCE_INSTRUCTION in system_prompt

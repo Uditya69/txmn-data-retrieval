@@ -22,10 +22,32 @@
   font-size: 14px;
 }
 
+.description {
+  color: #8a8a8a;
+  font-size: 12px;
+  font-style: italic;
+  margin: 0 0 6px;
+}
+
 .summary {
   color: #555;
   font-size: 13px;
   margin: 0 0 8px;
+}
+
+.details {
+  margin-top: 4px;
+}
+
+.detailsSummary {
+  cursor: pointer;
+  color: #1a56db;
+  font-size: 12px;
+  user-select: none;
+}
+
+.details[open] .detailsSummary {
+  margin-bottom: 8px;
 }
 
 .hitList {
@@ -37,6 +59,33 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.originBadge {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border-radius: 4px;
+  background: #eef1fb;
+  color: #3a4b9e;
+}
+
+.promptBlock {
+  margin: 0;
+  padding: 8px;
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 400px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
 }
 
 .showMore {
@@ -57,4 +106,25 @@
   padding: 0;
   font: inherit;
   text-decoration: underline;
+}
+
+.detailsSummaryRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.copyButton {
+  font-size: 11px;
+  font-weight: 500;
+  color: #1a56db;
+  padding: 1px 8px;
+  border: 1px solid #dbe3f7;
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.copyButton:hover {
+  background: #eef1fb;
 }

@@ -4,6 +4,26 @@ Scope: `packages/common/src/common/es_client.py` (`raw_search`, used only by Ins
 `_run_es` in `packages/retrieval-api/src/retrieval_api/instant/search.py`). AI Mode's intent/
 category taxonomy and filter-field fixes are a separate, later spec — not in scope here.
 
+> **Update, post-implementation: section 2's `function_score` ranking boost is disabled.**
+> First, two missing/zero-value bugs in the formula below were found and patched (landmarkruling
+> populated on only 2.1% of the corpus, `missing: 0.0001` compounding through
+> log2p+factor+`boost_mode: multiply` into a ~30,000x penalty for the other 98%; court_boost
+> a real, present `0` on 45.8% of the corpus, same multiply-to-zero effect). Patched and
+> verified fixed on the live index. But a full 53-query Instant-mode eval
+> (`evals/retrieval_cases.json`) run with the *patched* formula still active passed only 21/53,
+> versus 42/53 with `function_score` skipped entirely (plain BM25 text relevance, no boost).
+> The multiplicative `documenttypeboost x court_boost x landmarkruling` stack still routinely
+> outweighs real query-text relevance by 10-50x for docs with strong boost values but a weaker
+> text match, even fully patched — an architecture problem (`boost_mode: "multiply"` itself),
+> not another instance of the missing-data class of bug. `raw_search` now sends the field query
+> directly (still bool/should, still query-shape-aware per section 3), skipping the
+> `function_score` wrapper; `_wrap_function_score` is kept in `es_client.py`, unused, as a
+> record of the formula and this finding. The `landmarkruling: -10` blacklist exclusion (a
+> content filter, not a ranking signal) was kept independently via a separate `must_not` wrapper
+> so disabling the boost didn't silently let blacklisted docs back into results.
+> Re-enabling ranking boost requires redesigning the combination (bounded/additive instead of
+> multiplicative), not just flipping section 2 back on — left as a follow-up, not done here.
+
 ## Motivation
 
 Instant mode is meant to be a fast raw ES+Milvus preview (`< 1s`, no LLM calls). An audit of

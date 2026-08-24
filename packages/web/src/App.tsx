@@ -5,81 +5,19 @@ import { ChatMessageView } from './components/ChatMessageView'
 import DocumentReader from './components/DocumentReader'
 import DevModeToggle from './components/DevModeToggle'
 import RerankToggle from './components/RerankToggle'
+import AuthMenu from './components/AuthMenu'
 import { useSearch } from './api/useSearch'
-import { useAgentSearch } from './api/useAgentSearch'
-import { resolveWsUrl, resolveAgentWsUrl, resolveApiBaseUrl } from './lib/config'
+import { useAuth } from './api/useAuth'
+import { useConversations } from './api/useConversations'
+import { resolveWsUrl, resolveApiBaseUrl } from './lib/config'
 import type { ChatMessage, ChatMode, Conversation, ResultState } from './types'
 
-const CONVERSATIONS_KEY = 'taxmann-retrieval-conversations'
-const SIDEBAR_KEY = 'taxmann-retrieval-sidebar-collapsed'
+const MODE: ChatMode = 'classic'
 
 let nextId = 0
 function genId(prefix: string) {
   nextId += 1
   return `${prefix}-${nextId}`
-}
-
-function isValidMessage(m: unknown): m is ChatMessage {
-  if (!m || typeof m !== 'object') return false
-  const msg = m as Record<string, unknown>
-  if (msg.role === 'user') return typeof msg.text === 'string'
-  if (msg.role === 'assistant') return typeof msg.question === 'string' && typeof msg.results === 'object' && msg.results !== null
-  return false
-}
-
-function loadConversations(): Conversation[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(CONVERSATIONS_KEY) ?? '[]')
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(
-      (c): c is Conversation => c && typeof c === 'object' && Array.isArray(c.messages) && c.messages.every(isValidMessage),
-    )
-  } catch {
-    return []
-  }
-}
-
-// Trace steps carry full rerank chunk text and the synthesis prompt (see
-// ai_mode/citations.py, ai_mode/synthesize.py) - they're only ever shown
-// live behind devMode (ChatMessageView's TraceSection), so persisting them
-// serves no purpose and is what blows past localStorage's ~5-10MB quota
-// after a handful of chats.
-export function toPersistable(conversations: Conversation[]): Conversation[] {
-  return conversations.map((c) => ({
-    ...c,
-    messages: c.messages.map((m) =>
-      m.role === 'assistant'
-        ? {
-            ...m,
-            results: Object.fromEntries(
-              Object.entries(m.results).map(([mode, r]) => [mode, r ? { ...r, traceSteps: [] } : r]),
-            ) as Partial<Record<ChatMode, ResultState>>,
-          }
-        : m,
-    ),
-  }))
-}
-
-function isQuotaExceeded(err: unknown): boolean {
-  return err instanceof DOMException && (err.name === 'QuotaExceededError' || err.code === 22)
-}
-
-// Drops the oldest conversations (they're appended at the end - see
-// handleSubmit's `[newConversation, ...prev]`) until the write fits, instead
-// of letting an uncaught QuotaExceededError crash the whole app.
-export function persistConversations(conversations: Conversation[]) {
-  const payload = toPersistable(conversations)
-  for (let keep = payload.length; keep >= 0; keep -= 1) {
-    try {
-      localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(payload.slice(0, keep)))
-      return
-    } catch (err) {
-      if (!isQuotaExceeded(err)) {
-        console.error('Failed to persist conversations', err)
-        return
-      }
-    }
-  }
 }
 
 function titleFromQuestion(question: string) {
@@ -91,37 +29,50 @@ function loadingResult(): ResultState {
 }
 
 function readDevModeFromUrl(): boolean {
-  return new URLSearchParams(window.location.search).get('dev') === '1'
+  // Defaults on - ?dev=0 is the explicit opt-out, not ?dev=1 the opt-in.
+  return new URLSearchParams(window.location.search).get('dev') !== '0'
 }
 
 export default function App() {
   const wsUrl = resolveWsUrl()
-  const agentWsUrl = resolveAgentWsUrl()
-  const classicSearch = useSearch(wsUrl)
-  const agentSearch = useAgentSearch(agentWsUrl)
+  const apiBaseUrl = resolveApiBaseUrl(wsUrl)
+  const auth = useAuth(apiBaseUrl)
+  const classicSearch = useSearch(wsUrl, auth.token, auth.refresh)
 
-  const [conversations, setConversations] = useState<Conversation[]>(loadConversations)
+  const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === '1')
-  const [mode, setMode] = useState<ChatMode>('classic')
+  const remoteConversations = useConversations(apiBaseUrl, auth.token)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
-  const [rerank, setRerank] = useState(false)
+  const [rrf, setRrf] = useState(true)
+  const [boost, setBoost] = useState(true)
+  const [autoRoute, setAutoRoute] = useState(true)
+  const [showReasoning, setShowReasoning] = useState(true)
   const [openDocId, setOpenDocId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const pendingClassicRef = useRef<{ conversationId: string; assistantId: string } | null>(null)
-  const pendingAgentRef = useRef<{ conversationId: string; assistantId: string } | null>(null)
 
   const activeConversation = conversations.find((c) => c.id === activeId) ?? null
   const messages = activeConversation?.messages ?? []
 
+  // Login/logout changes where conversations come from - fetch the remote
+  // list for logged-in users, or clear in-memory state on logout so the
+  // previous user's chats don't leak to the next guest session.
   useEffect(() => {
-    persistConversations(conversations)
-  }, [conversations])
-
-  useEffect(() => {
-    localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed ? '1' : '0')
-  }, [sidebarCollapsed])
+    // Clear the remote list synchronously first, on every token change
+    // (login, logout, or switching to a different logged-in user) - so a
+    // stale previous-user conversation list is never visibly shown in the
+    // sidebar while the new user's `refresh()` fetch is still in flight.
+    remoteConversations.clear()
+    if (auth.token) {
+      remoteConversations.refresh()
+    } else {
+      setConversations([])
+      setActiveId(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.token])
 
   // Auto-scroll only when a message is actually added (new question asked, or
   // switching conversations) - not on every streaming patch. patchResult
@@ -163,32 +114,31 @@ export default function App() {
       aiMode: classicSearch.aiMode,
       traceSteps: classicSearch.traceSteps,
     }))
+    if (!classicSearch.loading && classicSearch.aiMode && auth.token) {
+      remoteConversations.refresh()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classicSearch.instant, classicSearch.aiMode, classicSearch.traceSteps, classicSearch.loading])
 
-  useEffect(() => {
-    const pending = pendingAgentRef.current
-    if (!pending) return
-    patchResult(pending.conversationId, pending.assistantId, 'agent', () => ({
-      status: agentSearch.loading ? 'loading' : agentSearch.result ? 'done' : 'loading',
-      agent: agentSearch.result,
-      traceSteps: agentSearch.traceSteps,
-    }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentSearch.result, agentSearch.traceSteps, agentSearch.loading])
-
-  function runQuery(conversationId: string, assistantId: string, question: string, targetMode: ChatMode) {
-    if (targetMode === 'classic') {
-      pendingClassicRef.current = { conversationId, assistantId }
-      classicSearch.search(question, true, 'both', rerank)
-    } else {
-      pendingAgentRef.current = { conversationId, assistantId }
-      agentSearch.search(question)
-    }
+  function runQuery(conversationId: string, assistantId: string, question: string) {
+    pendingClassicRef.current = { conversationId, assistantId }
+    classicSearch.search(question, true, 'both', rrf, autoRoute, auth.token ? conversationId : undefined, boost)
   }
 
   function handleNewChat() {
     setActiveId(null)
+  }
+
+  async function handleSelectConversation(id: string) {
+    if (auth.token) {
+      const existing = conversations.find((c) => c.id === id)
+      if (!existing) {
+        const messages = await remoteConversations.loadConversation(id)
+        const summary = remoteConversations.conversations.find((c) => c.id === id)
+        setConversations((prev) => [...prev, { id, title: summary?.title ?? id, messages }])
+      }
+    }
+    setActiveId(id)
   }
 
   function handleSubmit(question: string) {
@@ -198,13 +148,20 @@ export default function App() {
       id: assistantId,
       role: 'assistant',
       question,
-      activeMode: mode,
-      results: { [mode]: loadingResult() },
+      activeMode: MODE,
+      results: { [MODE]: loadingResult() },
     }
 
     let conversationId = activeId
     if (!conversationId) {
-      conversationId = genId('conv')
+      // Sent to the server as the conversation's Mongo _id (see App's runQuery
+      // -> useSearch's conversation_id payload field) - must be globally
+      // unique across users, not just unique within this page load. genId's
+      // module-scoped counter resets to "conv-1" on every fresh page load, so
+      // two different users' first conversations would collide and the
+      // second write would silently clobber the first (repository.py's
+      // create_conversation upserts by _id). crypto.randomUUID() avoids that.
+      conversationId = crypto.randomUUID()
       const newConversation: Conversation = { id: conversationId, title: titleFromQuestion(question), messages: [userMsg, assistantMsg] }
       setConversations((prev) => [newConversation, ...prev])
       setActiveId(conversationId)
@@ -212,42 +169,29 @@ export default function App() {
       updateConversationMessages(conversationId, (msgs) => [...msgs, userMsg, assistantMsg])
     }
 
-    runQuery(conversationId, assistantId, question, mode)
+    runQuery(conversationId, assistantId, question)
   }
 
-  function switchMode(m: ChatMode) {
-    setMode(m)
-    if (!activeId) return
+  const pending = classicSearch.loading
+  const wsError = classicSearch.wsError
 
-    const conv = conversations.find((c) => c.id === activeId)
-    const last = conv?.messages[conv.messages.length - 1]
-    if (!last || last.role !== 'assistant') return
-
-    const alreadyFetched = Boolean(last.results[m])
-    updateConversationMessages(activeId, (msgs) =>
-      msgs.map((msg, i) =>
-        i === msgs.length - 1 && msg.role === 'assistant'
-          ? { ...msg, activeMode: m, results: alreadyFetched ? msg.results : { ...msg.results, [m]: loadingResult() } }
-          : msg,
-      ),
-    )
-
-    if (!alreadyFetched) {
-      runQuery(activeId, last.id, last.question, m)
-    }
-  }
-
-  const pending = classicSearch.loading || agentSearch.loading
-  const wsError = classicSearch.wsError || agentSearch.wsError
+  // Merge in any local conversation not already represented remotely (by id) -
+  // a brand-new chat isn't in remoteConversations until the next refresh().
+  const sidebarConversations = auth.token
+    ? [
+        ...conversations.filter((c) => !remoteConversations.conversations.some((rc) => rc.id === c.id)),
+        ...remoteConversations.conversations.map((c) => ({ id: c.id, title: c.title, messages: [] })),
+      ]
+    : conversations
 
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--ink)' }}>
       <Sidebar
-        conversations={conversations}
+        conversations={sidebarConversations}
         activeId={activeId}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
-        onSelect={setActiveId}
+        onSelect={handleSelectConversation}
         onNewChat={handleNewChat}
       />
 
@@ -263,30 +207,20 @@ export default function App() {
               Taxmann Retrieval
             </button>
 
-            <div
-              className="absolute left-1/2 -translate-x-1/2 inline-flex gap-1 p-1 rounded-full"
-              style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-soft)' }}
-            >
-              {(['classic', 'agent'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => switchMode(m)}
-                  className="text-xs px-4 py-1.5 rounded-full font-medium cursor-pointer capitalize"
-                  style={{
-                    background: mode === m ? 'var(--surface)' : 'transparent',
-                    color: mode === m ? 'var(--text)' : 'var(--text-faint)',
-                    boxShadow: mode === m ? '0 1px 2px oklch(0 0 0 / 0.06)' : 'none',
-                  }}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-
             <div className="ml-auto flex items-center gap-3">
-              <RerankToggle rerank={rerank} onToggle={setRerank} />
+              <RerankToggle label="RRF" checked={rrf} onToggle={setRrf} />
+              <RerankToggle label="Boost" checked={boost} onToggle={setBoost} />
+              <RerankToggle label="Auto-Route" checked={autoRoute} onToggle={setAutoRoute} />
+              <RerankToggle label="Reasoning" checked={showReasoning} onToggle={setShowReasoning} />
               <DevModeToggle devMode={devMode} onToggle={setDevMode} />
+              <AuthMenu
+                email={auth.email}
+                loading={auth.loading}
+                error={auth.error}
+                onSignup={auth.signup}
+                onLogin={auth.login}
+                onLogout={auth.logout}
+              />
             </div>
           </div>
         </header>
@@ -301,7 +235,13 @@ export default function App() {
           ) : (
             <div className="flex-1 flex flex-col gap-4 py-6">
               {messages.map((m) => (
-                <ChatMessageView key={m.id} message={m} devMode={devMode} onOpenDocument={setOpenDocId} />
+                <ChatMessageView
+                  key={m.id}
+                  message={m}
+                  devMode={devMode}
+                  showReasoning={showReasoning}
+                  onOpenDocument={setOpenDocId}
+                />
               ))}
               <div ref={bottomRef} />
             </div>
@@ -321,7 +261,7 @@ export default function App() {
         </main>
       </div>
 
-      <DocumentReader docId={openDocId} apiBaseUrl={resolveApiBaseUrl(wsUrl)} onClose={() => setOpenDocId(null)} onOpenDocument={setOpenDocId} />
+      <DocumentReader docId={openDocId} apiBaseUrl={apiBaseUrl} onClose={() => setOpenDocId(null)} onOpenDocument={setOpenDocId} />
     </div>
   )
 }
