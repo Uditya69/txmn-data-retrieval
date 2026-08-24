@@ -1,7 +1,7 @@
 import asyncio
 from itertools import zip_longest
 
-from common.es_client import sparse_fallback_search
+from common.es_client import build_sparse_fallback_query_preview, sparse_fallback_search
 from common.milvus_client import hybrid_search
 from common.schemas import ES_GROUP_FOR_COLLECTION, SPARSE_VECTOR_COLLECTIONS, collections_for_intent
 from retrieval_api.ai_mode.intent import OnStep
@@ -56,6 +56,8 @@ async def retrieve(
     doc_id_allowlist: list[str] | None,
     intent: list[str] | None = None,
     on_step: OnStep | None = None,
+    boost: bool = False,
+    raw_query: str | None = None,
 ) -> list[dict]:
     collections = collections_for_intent(intent or [])
     gap_collections = [
@@ -64,12 +66,28 @@ async def retrieve(
 
     dense_vector = await gateway.embed(role="query_embed", text=search_query)
 
+    # ES fallback searches the user's own words, not the LLM-rewritten search_query - unlike
+    # Milvus (which benefits from the rewrite's added context/synonyms for embedding + its own
+    # BM25 pass), ES already has its own query-shape classification, phrase chunking, and
+    # synonym expansion (_build_field_query) tuned against real user phrasing - a rewrite step
+    # on top of that risks drifting the exact section/citation/term match the boost toggle's
+    # phrase boosts depend on. Falls back to search_query if no raw_query was given (keeps
+    # existing callers/tests working unchanged).
+    es_query_text = raw_query if raw_query is not None else search_query
+    es_groups = [ES_GROUP_FOR_COLLECTION[c] for c in gap_collections]
+    # Tracks whichever doc_id_allowlist the ES fallback call actually last ran with (None
+    # once/if the zero-hit-allowlist retry below fires) - needed to rebuild an accurate query
+    # preview for the trace step after the fact, without re-running the search.
+    effective_allowlist = doc_id_allowlist
+
     async def _run_es_fallback(allowlist):
         if not gap_collections:
             return {}
-        groups = [ES_GROUP_FOR_COLLECTION[c] for c in gap_collections]
+        groups = es_groups
         try:
-            return await sparse_fallback_search(es_client, search_query, groups, doc_id_allowlist=allowlist)
+            return await sparse_fallback_search(
+                es_client, es_query_text, groups, doc_id_allowlist=allowlist, boost=boost,
+            )
         except Exception as exc:
             # ES was never in this path before this branch - a fallback path degrades
             # gracefully (same "no ES rows" shape the rest of the pipeline already
@@ -106,6 +124,7 @@ async def retrieve(
     # category query should surface as zero results, not silently widen to every
     # collection (that would defeat the point of routing).
     if doc_id_allowlist and not any(dense_by_collection.values()) and not any(sparse_by_collection.values()):
+        effective_allowlist = None
         if on_step is not None:
             await on_step("filter_fallback", {
                 "reason": "doc_id_allowlist matched zero Milvus results across every routed collection; retrying unfiltered",
@@ -130,8 +149,18 @@ async def retrieve(
     # frontend (ChatMessageView.tsx's INSTANT_STEP_NAMES) - identical names would misroute
     # AI Mode's own retrieval trace into the Instant pane.
     if on_step is not None:
-        await on_step("ai_milvus_dense", collection_trace(dense_by_collection))
-        await on_step("ai_milvus_sparse", collection_trace(sparse_by_collection))
+        await on_step("ai_milvus_dense", {**collection_trace(dense_by_collection), "query": search_query})
+        sparse_trace = {**collection_trace(sparse_by_collection), "milvus_query": search_query}
+        if gap_collections:
+            # es_query_text/boost/effective_allowlist are exactly what the real ES-fallback
+            # call(s) feeding this step's rows used - build_sparse_fallback_query_preview
+            # reconstructs the query body without re-running the search, same
+            # single-source-of-truth pattern Instant mode's query_analysis step uses.
+            sparse_trace["es_query"] = es_query_text
+            sparse_trace["es_query_body"] = build_sparse_fallback_query_preview(
+                es_query_text, es_groups, doc_id_allowlist=effective_allowlist, boost=boost,
+            )
+        await on_step("ai_milvus_sparse", sparse_trace)
 
     # RRF fusion weight is always neutral - category does not drive dense/sparse
     # weighting (considered during brainstorming, explicitly rejected; see

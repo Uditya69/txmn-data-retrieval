@@ -86,9 +86,26 @@ _ES_HIGHLIGHT_FRAGMENT_CHARS = 6000  # oversized on purpose - trim_to_token_budg
 _COLLECTION_FOR_ES_GROUP = {group: collection for collection, group in ES_GROUP_FOR_COLLECTION.items()}
 
 
+def build_sparse_fallback_query_preview(
+    query: str, groups: list[str], doc_id_allowlist: list[str] | None = None, boost: bool = False,
+) -> dict:
+    """The exact query body sparse_fallback_search sends to ES, without executing a search -
+    same single-source-of-truth pattern as build_query_preview (see its own docstring for why):
+    a caller building this independently could silently drift from what the real search sends.
+    Powers the AI Mode trace panel's "Show ES query" block for the ai_milvus_sparse step, same
+    as build_query_preview powers Instant mode's."""
+    field_query = build_query_preview(query, boost=boost)["es_query"]
+    must: list[dict] = [{"terms": {"groups.group.name.keyword": groups}}]
+    if doc_id_allowlist:
+        must.append({"terms": {"id": doc_id_allowlist}})
+    must.append(field_query)
+    return {"bool": {"must": must}}
+
+
 async def sparse_fallback_search(
     client, query: str, groups: list[str], doc_id_allowlist: list[str] | None = None,
     limit: int = _ES_FALLBACK_LIMIT, group_cap: int = _ES_FALLBACK_GROUP_CAP,
+    boost: bool = False,
 ) -> dict[str, list[dict]]:
     """ES fallback for lexical search on the Milvus collections whose sparse_vector was
     dropped. One ES call per query regardless of how many gap-collections are routed
@@ -96,13 +113,14 @@ async def sparse_fallback_search(
     the routed gap-collections via ES_GROUP_FOR_COLLECTION), OR'd into one filter. Returns
     rows partitioned back into the same dict[collection, list[row]] shape
     common.milvus_client.hybrid_search returns, via the inverse of that same mapping. See
-    docs/superpowers/specs/2026-08-17-milvus-sparse-es-fallback-design.md."""
-    field_query = build_query_preview(query)["es_query"]
-    must: list[dict] = [{"terms": {"groups.group.name.keyword": groups}}]
-    if doc_id_allowlist:
-        must.append({"terms": {"id": doc_id_allowlist}})
-    must.append(field_query)
+    docs/superpowers/specs/2026-08-17-milvus-sparse-es-fallback-design.md.
 
+    `boost` mirrors Instant mode's raw_search toggle (_apply_boost) - safe to reuse here
+    unchanged: this function's rows only ever get locally rank-sorted against each other
+    (never raw-score-compared against Milvus - see retrieve.py::_flatten's interleave-by-rank),
+    so a boosted ES score here can only change *which* ES-origin row ranks first among ES's
+    own rows, never let ES outrank Milvus on score. See
+    docs/superpowers/specs/2026-08-24-ai-mode-boosting-design.md."""
     # Requesting more than `limit` when multiple groups are routed gives _cap_group_shares
     # a real pool to draw from - without this, ES's own top-`limit` (sorted globally by
     # score) could already be dominated by one group before the cap ever sees the rest.
@@ -110,7 +128,7 @@ async def sparse_fallback_search(
 
     response = await client.search(
         index=client.index,
-        query={"bool": {"must": must}},
+        query=build_sparse_fallback_query_preview(query, groups, doc_id_allowlist, boost=boost),
         size=fetch_size,
         _source=["id", "groups.group.name"],
         highlight={"fields": {"fullcontent": {

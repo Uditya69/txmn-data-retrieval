@@ -218,4 +218,158 @@ describe('TracePanel', () => {
     expect(screen.queryByText(/^\[\]/)).not.toBeInTheDocument()
   })
 
+  it('labels ai_milvus_sparse as ES fallback only when every hit is ES-origin', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'ai_milvus_sparse',
+        data: {
+          collections: [{
+            name: 'act_section', hit_count: 20,
+            top_hits: [{ chunk_id: 'es:d1:0', doc_id: 'd1', score: 1.0, text_preview: 't', origin: 'es' }],
+          }],
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.getByRole('heading', { level: 3, name: 'ES fallback sparse search' })).toBeInTheDocument()
+    expect(screen.getByText(/ES fallback only/)).toBeInTheDocument()
+  })
+
+  it('labels ai_milvus_sparse as Milvus sparse search when every hit is Milvus-origin', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'ai_milvus_sparse',
+        data: {
+          collections: [{
+            name: 'held', hit_count: 3,
+            top_hits: [{ chunk_id: 'c1', doc_id: 'd1', score: 1.0, text_preview: 't', origin: 'milvus' }],
+          }],
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.getByRole('heading', { level: 3, name: 'Milvus sparse search' })).toBeInTheDocument()
+    expect(screen.getByText(/Milvus native only/)).toBeInTheDocument()
+  })
+
+  it('labels ai_milvus_sparse as round-robin merged when both origins are present', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'ai_milvus_sparse',
+        data: {
+          collections: [
+            {
+              name: 'held', hit_count: 3,
+              top_hits: [{ chunk_id: 'c1', doc_id: 'd1', score: 1.0, text_preview: 't', origin: 'milvus' }],
+            },
+            {
+              name: 'act_section', hit_count: 20,
+              top_hits: [{ chunk_id: 'es:d2:0', doc_id: 'd2', score: 1.0, text_preview: 't', origin: 'es' }],
+            },
+          ],
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Milvus + ES fallback sparse (round-robin merged)' }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText(/round-robin merged/).length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('shows the query ai_milvus_dense actually searched with', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'ai_milvus_dense',
+        data: { query: 'rewritten by LLM', collections: [{ name: 'ruling', hit_count: 1, top_hits: [] }] },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.getByText('rewritten by LLM')).toBeInTheDocument()
+  })
+
+  it('shows only the ES fallback query (not a Milvus line) when ai_milvus_sparse ran ES-only, plus a copyable ES query body', async () => {
+    const esQueryBody = { bool: { must: [{ terms: { 'groups.group.name.keyword': ['ACT'] } }] } }
+    const steps: TraceStep[] = [
+      {
+        step: 'ai_milvus_sparse',
+        data: {
+          milvus_query: 'rewritten by LLM',
+          es_query: 'section 55',
+          es_query_body: esQueryBody,
+          collections: [{
+            name: 'act_section', hit_count: 20,
+            top_hits: [{ chunk_id: 'es:d1:0', doc_id: 'd1', score: 1.0, text_preview: 't', origin: 'es' }],
+          }],
+        },
+      },
+    ]
+    const { container } = render(<TracePanel steps={steps} />)
+
+    // ES actually ran (act_section has no native sparse) - Milvus contributed nothing to
+    // this step, so "Milvus searched" must not appear even though milvus_query is present.
+    expect(screen.queryByText('rewritten by LLM')).not.toBeInTheDocument()
+    expect(screen.getByText('section 55')).toBeInTheDocument()
+    expect(screen.getByText('Show ES query')).toBeInTheDocument()
+
+    const details = container.querySelectorAll('details')
+    const esQueryDetails = Array.from(details).find((el) => el.textContent?.includes('Show ES query'))
+    expect(esQueryDetails?.textContent).toContain('"size": 20')
+
+    const writeText = vi.fn()
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, writable: true, configurable: true })
+    await userEvent.click(screen.getByText('Copy'))
+    expect(writeText).toHaveBeenCalledWith(JSON.stringify({ query: esQueryBody, size: 20 }, null, 2))
+  })
+
+  it('shows both queries for ai_milvus_sparse when the step genuinely mixes Milvus and ES origins', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'ai_milvus_sparse',
+        data: {
+          milvus_query: 'rewritten by LLM',
+          es_query: 'section 55',
+          es_query_body: { bool: { must: [] } },
+          collections: [
+            {
+              name: 'held', hit_count: 3,
+              top_hits: [{ chunk_id: 'c1', doc_id: 'd1', score: 1.0, text_preview: 't', origin: 'milvus' }],
+            },
+            {
+              name: 'act_section', hit_count: 20,
+              top_hits: [{ chunk_id: 'es:d2:0', doc_id: 'd2', score: 1.0, text_preview: 't', origin: 'es' }],
+            },
+          ],
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.getByText('rewritten by LLM')).toBeInTheDocument()
+    expect(screen.getByText('section 55')).toBeInTheDocument()
+  })
+
+  it('does not show an ES fallback query line or ES query block when ai_milvus_sparse ran Milvus-native only', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'ai_milvus_sparse',
+        data: {
+          milvus_query: 'q',
+          collections: [{
+            name: 'held', hit_count: 3,
+            top_hits: [{ chunk_id: 'c1', doc_id: 'd1', score: 1.0, text_preview: 't', origin: 'milvus' }],
+          }],
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.getByText('q')).toBeInTheDocument()
+    expect(screen.queryByText('Show ES query')).not.toBeInTheDocument()
+  })
+
 })

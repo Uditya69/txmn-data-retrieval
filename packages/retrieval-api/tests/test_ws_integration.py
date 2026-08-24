@@ -13,7 +13,7 @@ def test_ws_search_sends_instant_then_ai_mode_events(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {"d1": {}}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
@@ -39,7 +39,7 @@ def test_ws_search_streams_ai_mode_trace_steps_before_final_answer(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         await on_step(
             "intent",
             {"query": query, "original_query": query, "search_query": "r", "intent": ["caselaws"], "filters": {}},
@@ -100,7 +100,7 @@ def test_ws_search_does_not_pass_on_step_when_trace_flag_is_absent(monkeypatch):
 
     captured_on_step = "unset"
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         nonlocal captured_on_step
         captured_on_step = on_step
         return {"ok": True, "answer": "final answer", "citations": {}}
@@ -127,7 +127,7 @@ def test_ws_search_passes_on_step_when_trace_flag_is_true(monkeypatch):
 
     captured_on_step = "unset"
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         nonlocal captured_on_step
         captured_on_step = on_step
         return {"ok": True, "answer": "final answer", "citations": {}}
@@ -158,7 +158,7 @@ def test_ws_search_auto_route_defaults_to_false_when_absent(monkeypatch):
         captured_auto_route = auto_route
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
@@ -187,7 +187,7 @@ def test_ws_search_forwards_auto_route_to_run_instant_when_enabled(monkeypatch):
         captured_auto_route = auto_route
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
@@ -219,7 +219,7 @@ def test_ws_search_kill_switch_forces_auto_route_off_even_when_requested(monkeyp
         captured_auto_route = auto_route
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
@@ -245,7 +245,7 @@ def test_ws_search_instant_mode_does_not_emit_trace_steps(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         raise AssertionError("ai_mode should not run in instant-only mode")
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
@@ -267,7 +267,7 @@ def test_ws_search_sends_ai_mode_error_event_on_failure(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": False, "error": "gateway unreachable"}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
@@ -291,7 +291,7 @@ def test_ws_search_still_answers_when_milvus_client_construction_fails(monkeypat
         assert milvus_client is None
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": None, "milvus_error": "connection refused"}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         assert milvus_client is None
         return {"ok": False, "error": "connection refused"}
 
@@ -322,7 +322,7 @@ def test_ws_search_instant_mode_skips_ai_mode(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         raise AssertionError("ai_mode should not run in instant-only mode")
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
@@ -344,7 +344,7 @@ def test_ws_search_ai_mode_only_skips_instant(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         raise AssertionError("instant should not run in ai_mode-only mode")
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
@@ -392,7 +392,7 @@ async def test_ai_mode_cache_hit_skips_run_ai_mode_and_returns_cached_answer(
     }))
 
     await cache_write(
-        fake_semantic_cache_collection, "ai_mode", "what is section 80C", [1.0, 0.0],
+        fake_semantic_cache_collection, "ai_mode_boost_False", "what is section 80C", [1.0, 0.0],
         {"ok": True, "answer": "cached answer", "citations": [], "intent": ["acts"]},
     )
 
@@ -441,7 +441,7 @@ async def test_ai_mode_cache_miss_runs_pipeline_and_writes_back(
 
 async def cache_lookup_helper(collection):
     from semantic_cache.repository import lookup
-    return await lookup(collection, "ai_mode", [1.0, 0.0], threshold=0.95)
+    return await lookup(collection, "ai_mode_boost_False", [1.0, 0.0], threshold=0.95)
 
 
 @pytest.mark.asyncio

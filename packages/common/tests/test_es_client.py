@@ -743,6 +743,39 @@ async def test_sparse_fallback_search_applies_doc_id_allowlist_and_highlight_con
     assert {"terms": {"id": ["d1", "d2"]}} in must_clauses
 
 
+def test_build_sparse_fallback_query_preview_matches_what_sparse_fallback_search_sends():
+    """Single-source-of-truth check, same reasoning as build_query_preview's own docstring -
+    the preview must never drift from the real query."""
+    from common.es_client import build_sparse_fallback_query_preview
+
+    preview = build_sparse_fallback_query_preview("Section 52", groups=["ACT"], doc_id_allowlist=["d1"])
+
+    assert {"terms": {"groups.group.name.keyword": ["ACT"]}} in preview["bool"]["must"]
+    assert {"terms": {"id": ["d1"]}} in preview["bool"]["must"]
+    assert "function_score" not in str(preview)
+
+
+def test_build_sparse_fallback_query_preview_boost_true_wraps_field_query_in_function_score():
+    from common.es_client import build_sparse_fallback_query_preview
+
+    preview = build_sparse_fallback_query_preview("Section 52", groups=["ACT"], boost=True)
+
+    field_query = preview["bool"]["must"][-1]
+    assert "function_score" in field_query
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_sends_exactly_the_query_build_sparse_fallback_query_preview_returns():
+    from common.es_client import sparse_fallback_search, build_sparse_fallback_query_preview
+
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    await sparse_fallback_search(client, "Section 52", groups=["ACT"], doc_id_allowlist=["d1"], boost=True)
+
+    expected = build_sparse_fallback_query_preview("Section 52", groups=["ACT"], doc_id_allowlist=["d1"], boost=True)
+    assert client.search_calls[0] == expected
+
+
 @pytest.mark.asyncio
 async def test_sparse_fallback_search_strips_highlight_markup_tags():
     """Default ES highlighting wraps matches in <em>...</em> - that raw markup must never

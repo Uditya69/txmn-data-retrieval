@@ -147,6 +147,9 @@ async def search(websocket: WebSocket):
     # Each (auto_route, rrf, boost) combination produces different result content - a
     # separate cache key per combination.
     instant_cache_key = f"instant_auto_route_{auto_route}_rrf_{rrf}_boost_{boost}"
+    # boost now affects AI Mode's own retrieval too (sparse_fallback_search) - a boosted
+    # result must not be served to/overwrite a non-boosted cache lookup or vice versa.
+    ai_mode_cache_key = f"ai_mode_boost_{boost}"
     try:
         cache_settings = get_semantic_cache_settings()
         if cache_settings.semantic_cache_enabled:
@@ -175,7 +178,7 @@ async def search(websocket: WebSocket):
         if mode in ("ai_mode", "both"):
             try:
                 ai_mode_cache_hit = await cache_lookup(
-                    cache_collection, "ai_mode", query_embedding,
+                    cache_collection, ai_mode_cache_key, query_embedding,
                     cache_settings.semantic_cache_threshold,
                 )
             except Exception:
@@ -217,7 +220,7 @@ async def search(websocket: WebSocket):
                     run_ai_mode(
                         gateway, es_client, milvus_client, query,
                         on_step=emit_trace_step if trace else None,
-                        persona_context=persona_context,
+                        persona_context=persona_context, boost=boost,
                     )
                 )
                 if mode in ("ai_mode", "both") and ai_mode_cache_hit is None else None
@@ -259,7 +262,7 @@ async def search(websocket: WebSocket):
                     ai_mode_result = await ai_mode_task
                     if cache_collection is not None and ai_mode_result["ok"]:
                         write_task = asyncio.create_task(
-                            _safe_cache_write(cache_collection, "ai_mode", query, query_embedding, ai_mode_result)
+                            _safe_cache_write(cache_collection, ai_mode_cache_key, query, query_embedding, ai_mode_result)
                         )
                         _background_tasks.add(write_task)
                         write_task.add_done_callback(_background_tasks.discard)

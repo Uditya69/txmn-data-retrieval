@@ -10,7 +10,7 @@ from retrieval_api.ai_mode.synthesize import synthesize
 
 async def run_ai_mode(
     gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None,
-    persona_context: str = "",
+    persona_context: str = "", boost: bool = False,
 ) -> dict:
     langfuse = get_client()
     with langfuse.start_as_current_observation(as_type="span", name="ai-mode", input={"query": query}) as root_span:
@@ -32,7 +32,8 @@ async def run_ai_mode(
             ) as span:
                 candidates = await retrieve(
                     gateway, milvus_client, es_client, intent_result["search_query"], doc_id_allowlist,
-                    intent_result["intent"], on_step=on_step,
+                    intent_result["intent"], on_step=on_step, boost=boost,
+                    raw_query=intent_result["original_query"],
                 )
                 span.update(output={"num_candidates": len(candidates)})
 

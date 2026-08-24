@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 type Props = {
   onSubmit: (question: string) => void
@@ -7,6 +7,13 @@ type Props = {
 
 export default function ChatInput({ onSubmit, disabled }: Props) {
   const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Focused on first render (page load/refresh) so the user can start typing
+  // immediately - no click into the box required.
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -27,6 +34,7 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
         style={{ background: 'var(--surface-raised)', border: '1.5px solid var(--border-strong)' }}
       >
         <input
+          ref={inputRef}
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
