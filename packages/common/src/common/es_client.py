@@ -6,7 +6,9 @@ from common.config import Settings
 from common.instant_classifier import effective_label
 from common.instant_classifier.labels import boost_profile_key
 from common.query_tokenizer import chunk_query, expand_query_synonyms
-from common.schemas import ES_GROUP_FOR_COLLECTION, MASTERINFO_CITATION_FIELDS
+from common.schemas import (
+    CATEGORY_DISPLAY_LABELS, ES_GROUP_FOR_COLLECTION, GROUP_DISPLAY_LABELS, MASTERINFO_CITATION_FIELDS,
+)
 
 import tiktoken
 
@@ -664,3 +666,38 @@ async def fetch_citations(client, doc_ids: list[str]) -> dict[str, dict]:
         for doc in response["docs"]
         if doc.get("found")
     }
+
+
+async def fetch_doc_categories(client, doc_ids: list[str]) -> dict[str, dict]:
+    """Instant mode's "category | group" result-card badge. Batched sibling of
+    fetch_citations - one mget for every doc_id across ES, Milvus dense/sparse, and
+    reranked cards, so the badge is consistent regardless of which engine surfaced a
+    given doc (Milvus itself carries neither field). `categories` is a populated-on-
+    every-doc but multi-valued list (verified live: a doc can carry 4+ subject-area
+    tags at once, e.g. "Direct Tax Laws"+"International Tax"+"Transfer Pricing"+
+    "Bare Act" together) with no reliable primary flag - `isprimarycat` is only set on
+    ~20% of the corpus (81k/410k docs, confirmed via a live count). Picks the
+    isprimarycat=1 entry when present, else the first entry - the same fallback the
+    reference product's own category-resolution code uses. Raw category/group values
+    are then run through CATEGORY_DISPLAY_LABELS/GROUP_DISPLAY_LABELS (ported from the
+    data team's catList/groupList tables); a value with no entry there is passed
+    through unchanged rather than guessed at."""
+    if not doc_ids:
+        return {}
+    response = await client.mget(
+        index=client.index, ids=doc_ids,
+        _source=["categories.name", "categories.isprimarycat", "groups.group.name"],
+    )
+    results: dict[str, dict] = {}
+    for doc in response["docs"]:
+        if not doc.get("found"):
+            continue
+        source = doc["_source"]
+        categories = source.get("categories") or []
+        primary = next((c for c in categories if c.get("isprimarycat") == 1), None)
+        category_name = (primary or categories[0])["name"] if categories else None
+        category = CATEGORY_DISPLAY_LABELS.get(category_name, category_name)
+        group_name = source.get("groups", {}).get("group", {}).get("name")
+        group = GROUP_DISPLAY_LABELS.get(group_name, group_name)
+        results[doc["_id"]] = {"category": category, "group": group}
+    return results

@@ -32,6 +32,75 @@ ES_GROUP_FOR_COLLECTION: dict[str, str] = {
     "commentary_section": "COMMENTARY",
 }
 
+# Display labels for ES's `categories.name` and `groups.group.name` values, used to
+# build the "category | group" badge shown on Instant mode result cards. Ported
+# verbatim from the data team's own catList/groupList lookup tables (the same ones
+# the reference product renders that badge from) - not independently derived, so a
+# raw value with no entry here is passed through unchanged rather than guessed at.
+CATEGORY_DISPLAY_LABELS: dict[str, str] = {
+    "Account & Audit": "Account & Audit",
+    "Bare Act": "Indian Acts & Rules",
+    "BILLS": "Bills",
+    "COMPANY AND SEBI": "Company Law",
+    "DIRECT TAX LAWS": "Income Tax",
+    "FEMA BANKING INSURANCE": "Fema & Banking",
+    "GOODS & SERVICES TAX": "Excise/ST/VAT",
+    "GST New": "GST",
+    "International Taxation": "International Tax",
+    "IBC": "Insolvency & Bankruptcy Code",
+    "SERVICE TAX LAWS": "Excise/ST/VAT",
+    "Competition Law": "Competition Law",
+    "Transfer Pricing": "Transfer Pricing",
+    "COMPETITION ACT": "Competition Law",
+    "CORPORATE LAWS": "Corporate Laws",
+    "International Tax": "International Tax",
+    "Labour Laws": "Labour Laws",
+}
+
+GROUP_DISPLAY_LABELS: dict[str, str] = {
+    "ACT": "Acts",
+    "Advance Ruling": "Advance Ruling",
+    "BILL": "Bills",
+    "CASELAWS": "Case Laws",
+    "CBDT": "CBDT on Finance Acts",
+    "CIRNOT": "Circulars & Notifications",
+    "COMMENTARY": "Commentaries",
+    "DTA": "Treaties",
+    "DTC": "Direct Tax Code",
+    "Experts Opinion": "Articles",
+    "Featured story": "Analysis",
+    "Foreign Companies": "Foreign Companies",
+    "Guidelines": "Guidelines",
+    "News": "News",
+    "Non Resident": "Non Resident",
+    "PRACTICE & PROCEDURE": "Practice & Procedure",
+    "REPORT": "Reports",
+    "RULE": "Rules",
+    "Transfer Pricing": "Transfer Pricing",
+    "Witholding Tax": "Witholding Tax",
+    "AAA Model Report": "AAA Model Report",
+    "AAA Group": "Account Standard",
+    "Act of Parliament/Amendment Act": "Act of Parliament",
+    "FAQs": "FAQs",
+    "Video & Presentation": "Video & Presentation",
+    "Companies Act Topics": "Companies Act Topics",
+    "LISTING/INFORMAL REPORT": "Informal Guidelines",
+    "STANDARDS": "Standards",
+    "Ordinances": "Ordinance",
+    "COMPANY ALLIED LAWS": "Company Allied Laws",
+    "Indian Constitution": "Indian Constitution",
+    "form": "Forms",
+    "CIRCULAR": "Notification",
+    "NOTIFICATION": "Forms",
+    "Standard & Guidance notes": "Standard",
+    "ITFG Opinions": "ITFG Opinions",
+    "IND AS Simplified": "IND AS Simplified",
+    "Queries": "Queries",
+    "AAAOther": "AAA Other",
+    "Financials and Disclosures": "Financials and Disclosures",
+    "Tariff": "Tariff",
+}
+
 MASTERINFO_CITATION_FIELDS = [
     "heading",
     "subheading",

@@ -3,7 +3,7 @@ import asyncio
 
 from langfuse import get_client
 
-from common.es_client import build_query_preview, raw_search
+from common.es_client import build_query_preview, fetch_doc_categories, raw_search
 from common.instant_classifier import effective_label_with_confidence
 from common.instant_classifier.labels import routing_plan
 from common.legal_lexicon import fuzzy_correct_query
@@ -29,6 +29,18 @@ def _apply_elbow_cutoff(rows: list[dict]) -> list[dict]:
 
 def _apply_elbow_cutoff_per_collection(by_collection: dict[str, list[dict]]) -> dict[str, list[dict]]:
     return {collection: _apply_elbow_cutoff(rows) for collection, rows in by_collection.items()}
+
+
+def _all_doc_ids(
+    es_result: list[dict] | None, milvus_dense: dict[str, list[dict]] | None, milvus_sparse: dict[str, list[dict]] | None,
+) -> list[str]:
+    """Union of doc_ids across every source Instant mode can show a card for - the
+    reranked list is a fusion of exactly these three, so it needs no separate pass."""
+    ids: set[str] = {row["doc_id"] for row in es_result or []}
+    for by_collection in (milvus_dense, milvus_sparse):
+        for rows in (by_collection or {}).values():
+            ids.update(row["doc_id"] for row in rows)
+    return list(ids)
 
 
 async def _run_es(
@@ -167,6 +179,12 @@ async def run_instant(
             "milvus_error": milvus_error,
         }
 
+        # Runs alongside reranking below, not after - a separate mget by doc_id, so it has
+        # no dependency on the fuse step's own output.
+        doc_meta_task = asyncio.create_task(
+            fetch_doc_categories(es_client, _all_doc_ids(es_result, milvus_dense, milvus_sparse)),
+        )
+
         effective_rrf = plan["fuse"] if auto_route else rrf
 
         # Whichever side was actually skipped (by plan, above) has its error left at None,
@@ -190,4 +208,11 @@ async def run_instant(
                     rerank_span.update(level="ERROR", status_message=reranked_error)
         result["reranked"] = reranked
         result["reranked_error"] = reranked_error
+
+        # A badge is a nice-to-have, not a reason to fail the whole search - degrade to no
+        # badges rather than propagate an mget error out of run_instant.
+        try:
+            result["doc_meta"] = await doc_meta_task
+        except Exception:  # noqa: BLE001 - branch isolation is the point
+            result["doc_meta"] = {}
     return result

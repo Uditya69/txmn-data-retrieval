@@ -254,13 +254,21 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
       )}
       {cards.length > 0 && (
         <div className="flex flex-col gap-2">
-          {pageCards.map((card, index) => (
+          {pageCards.map((card, index) => {
+            const meta = instant?.doc_meta?.[card.doc_id]
+            const badge = meta && [meta.category, meta.group].filter(Boolean).join(' | ')
+            return (
             <button
               key={`${card.source}-${card.doc_id}-${index}`}
               onClick={() => onOpenDocument(card.doc_id)}
               className="w-full text-left rounded-lg p-3 transition-colors duration-150 cursor-pointer"
               style={{ background: 'var(--surface)', border: '1px solid var(--border-soft)' }}
             >
+              {badge && (
+                <div className="text-right text-xs font-medium mb-1" style={{ color: 'var(--accent)' }}>
+                  {badge}
+                </div>
+              )}
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
                   {card.heading ? highlightMatches(card.heading, query) : card.doc_id}
@@ -285,7 +293,8 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
               )}
               <p className="text-sm mt-2 line-clamp-3" style={{ color: 'var(--text-muted)' }}>{highlightMatches(card.snippet, query)}</p>
             </button>
-          ))}
+            )
+          })}
         </div>
       )}
 
