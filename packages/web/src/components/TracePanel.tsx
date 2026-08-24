@@ -19,6 +19,7 @@ const STEP_LABELS: Record<string, string> = {
   ai_rrf_merge: 'RRF merge',
   rerank: 'Rerank',
   instant_reranked: 'Instant rerank',
+  keyword_search: 'Keyword search (ES only)',
   synthesis_prompt: 'Synthesis prompt',
 }
 
@@ -75,6 +76,7 @@ const STEP_DESCRIPTIONS: Record<string, string> = {
   ai_rrf_merge: 'Merges ES + Milvus results by rank position (RRF) — never by comparing raw scores.',
   rerank: 'Cross-encoder reranking of the merged candidates.',
   instant_reranked: 'Final result list for Instant mode after fusion/reranking.',
+  keyword_search: 'A precise anchor lookup (bare section/rule/article reference, citation, court name, or Act name) - Milvus dense/sparse, RRF, and reranking are skipped entirely; these ES results go straight to synthesis.',
   synthesis_prompt: 'The prompt sent to the LLM to synthesize the final answer.',
 }
 
@@ -129,6 +131,8 @@ function summarize(step: TraceStep): string {
     }
     case 'instant_reranked':
       return `${(d.hits ?? []).length} result(s)`
+    case 'keyword_search':
+      return `"${d.query}" — ${d.candidate_count} candidate(s), top ${d.top_doc_ids?.length ?? 0} kept`
     case 'synthesis_prompt':
       return `${(d.prompt ?? '').length} chars`
     default:
@@ -359,6 +363,8 @@ function StepBody({
     body = <TruncatedHitList hits={d.top_chunks ?? []} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'instant_reranked') {
     body = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
+  } else if (step.step === 'keyword_search') {
+    body = <TruncatedHitList hits={(d.top_doc_ids ?? []).map((id: string) => ({ doc_id: id }))} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'synthesis_prompt') {
     body = <pre className={styles.promptBlock}>{d.prompt}</pre>
   }

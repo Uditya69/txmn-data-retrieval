@@ -298,6 +298,39 @@ async def test_run_instant_emits_es_and_milvus_trace_steps(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_instant_sends_cleaned_text_to_milvus_but_raw_text_to_es(monkeypatch):
+    """The exact bug this fixes: "section 55" and "what is section 55" must send Milvus
+    dense/sparse identical, cleaned text - ES already handles this itself via chunk_query's
+    own stopword-stripping inside _build_field_query's phrase-boost clauses, so ES keeps
+    getting the raw sentence (its own pipeline needs the full text for the loose multi_match
+    recall clause too)."""
+    import retrieval_api.instant.search as search_module
+
+    es_queries = []
+    milvus_queries = []
+
+    async def fake_raw_search(client, query, limit=20, boost=False):
+        es_queries.append(query)
+        return []
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        milvus_queries.append(sparse_query_text)
+        return {}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="what is section 55")
+
+    assert es_queries == ["what is section 55"]
+    assert milvus_queries == ["section 55", "section 55"]  # dense pass + sparse pass
+    gateway.embed.assert_awaited_once_with(role="query_embed", text="section 55")
+
+
+@pytest.mark.asyncio
 async def test_run_instant_corrects_misspelled_court_before_search(monkeypatch):
     import retrieval_api.instant.search as search_module
 
@@ -322,7 +355,9 @@ async def test_run_instant_corrects_misspelled_court_before_search(monkeypatch):
     )
 
     assert "AHMEDABAD" in seen_queries[0].split()
-    gateway.embed.assert_awaited_once_with(role="query_embed", text=result["query_correction"]["corrected"])
+    # Milvus gets the cleaned (stopword-stripped) text, not the raw corrected sentence -
+    # "from" is a stopword and chunk_query drops it (see build_dense_sparse_query).
+    gateway.embed.assert_awaited_once_with(role="query_embed", text="case AHMEDABAD tribunal")
     assert result["query_correction"]["original"] == "case from AHMDABAD tribunal"
     assert result["query_correction"]["corrections"] == [
         {"original": "AHMDABAD", "corrected": "AHMEDABAD", "score": result["query_correction"]["corrections"][0]["score"]},

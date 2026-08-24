@@ -1,7 +1,8 @@
 import re
 
 from common.legal_lexicon import (
-    CITATION_PATTERN, PARTY_PATTERN, SECTION_PATTERN, expand_synonyms, is_known_journal, is_stopword,
+    CITATION_PATTERN, KNOWN_ACT_NAMES, PARTY_PATTERN, SECTION_PATTERN, expand_synonyms,
+    is_known_court, is_known_journal, is_stopword,
 )
 
 _CITATION_SPACING_PATTERN = re.compile(r"(\d{4})([a-zA-Z])")
@@ -306,3 +307,67 @@ def chunk_query(query: str) -> list[dict]:
             text_run.append(token)
     flush_text_run()
     return chunks
+
+
+# Chunk types chunk_query() already recognizes as a precise, lookup-safe anchor - a doc
+# either contains this exact span or it doesn't, so ES lexical search alone resolves it as
+# well as Milvus dense/sparse would (see classify_intent_mode).
+_ANCHOR_CHUNK_TYPES = {"section", "citation", "court_city", "quoted"}
+
+
+def _is_bare_act_name(text: str) -> bool:
+    """True when `text` is nothing but a known Act name, optionally trailed by a bare
+    year ("Income Tax Act 1961") - chunk_query has no dedicated Act-name chunk type, so a
+    query like "what is the income tax act" leaves it in the generic text-run chunk; this
+    re-checks that leftover text against KNOWN_ACT_NAMES rather than teaching chunk_query
+    a fifth merge rule for a check only classify_intent_mode needs. Anything beyond the
+    act name itself (a trailing concept word, e.g. "income tax act depreciation") fails
+    both checks below and correctly falls through to hybrid - see
+    test_classify_intent_mode_tags_conceptual_query_as_hybrid."""
+    lowered = text.lower()
+    if lowered in KNOWN_ACT_NAMES:
+        return True
+    for act_name in KNOWN_ACT_NAMES:
+        if lowered.startswith(act_name) and lowered[len(act_name):].strip().isdigit():
+            return True
+    return False
+
+
+def classify_intent_mode(query: str) -> str:
+    """Tags a query "keyword" (ES-only search is sufficient) or "hybrid" (needs the full
+    Milvus dense/sparse + RRF pipeline). "keyword" fires only when EVERY surviving chunk
+    (after chunk_query's own filler/stopword strip) is a precise, unambiguous anchor - a
+    structural chunk type (section/rule/article number, citation, court/city, quoted
+    phrase) or a bare known court/journal token/Act name. Deliberately excludes
+    legal_lexicon's `synonyms` entries (PE, ALP, AMT, ...): those are abbreviations for
+    broad legal concepts, not lookup keys, and still need semantic (Milvus) recall - see
+    test_classify_intent_mode_does_not_tag_synonym_lexicon_term_as_keyword. Any leftover
+    unanchored content (a bare concept word, a party name, a mix of anchor + concept text)
+    tags hybrid, same as an empty/all-filler query."""
+    chunks = chunk_query(query)
+    if not chunks:
+        return "hybrid"
+    for chunk in chunks:
+        if chunk["type"] in _ANCHOR_CHUNK_TYPES:
+            continue
+        text = chunk["text"]
+        if " " not in text and (is_known_court(text) or is_known_journal(text)):
+            continue
+        if _is_bare_act_name(text):
+            continue
+        return "hybrid"
+    return "keyword"
+
+
+def build_dense_sparse_query(chunks: list[dict], fallback: str) -> str:
+    """Reconstructs a cleaned search string for Milvus dense embedding + native sparse search
+    from chunk_query's own chunks - drops the conversational/question-word scaffolding
+    chunk_query already strips via strip_stopwords ("what is section 55" -> chunks == [{"text":
+    "section 55", ...}]) while keeping every real content word, citation, and section
+    reference, in order. Exists because Instant mode has no LLM query-rewrite step (unlike AI
+    Mode's extract_intent) to do this - without it, "section 55" and "what is section 55" send
+    identical text to ES's phrase-boost clauses (chunk_query already cleans those) but
+    different, noise-diluted text to Milvus dense/sparse, which search the raw sentence
+    verbatim. Falls back to the original query on the empty-chunks edge case (empty query)."""
+    text = " ".join(chunk["text"] for chunk in chunks if chunk.get("text"))
+    return text or fallback

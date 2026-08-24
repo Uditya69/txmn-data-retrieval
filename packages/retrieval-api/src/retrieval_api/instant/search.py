@@ -8,6 +8,7 @@ from common.instant_classifier import effective_label_with_confidence
 from common.instant_classifier.labels import routing_plan
 from common.legal_lexicon import fuzzy_correct_query
 from common.milvus_client import hybrid_search
+from common.query_tokenizer import build_dense_sparse_query, chunk_query
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.instant.rerank import rerank_instant_results
@@ -76,7 +77,10 @@ async def _run_milvus(
     """Runs dense (Voyage embedding) and sparse (Milvus-native BM25) search
     against every collection - the same two passes AI Mode's retrieve()
     does - so Instant's trace surfaces exactly what each retriever fetched,
-    not just the dense results Instant's merged card list is built from."""
+    not just the dense results Instant's merged card list is built from.
+
+    `query` here is already the cleaned dense/sparse search text (see run_instant's
+    build_dense_sparse_query call) - not necessarily the user's raw sentence."""
     langfuse = get_client()
     with langfuse.start_as_current_observation(
         as_type="retriever", name="search-milvus", input={"query": query},
@@ -143,6 +147,14 @@ async def run_instant(
         if on_step is not None:
             await on_step("query_analysis", build_query_preview(query, boost=boost))
 
+        # Instant mode has no LLM query-rewrite step (unlike AI Mode's extract_intent) to strip
+        # conversational scaffolding before searching - without this, "section 55" and "what is
+        # section 55" send identical text to ES's phrase-boost clauses (chunk_query already
+        # cleans those - see _PHRASE_BOOSTS) but different, noise-diluted text to Milvus
+        # dense/sparse, which searched the raw sentence verbatim. ES keeps searching the raw
+        # `query` (its own pipeline already handles this); only Milvus gets the cleaned text.
+        milvus_query = build_dense_sparse_query(chunk_query(query), fallback=query)
+
         label, confidence = effective_label_with_confidence(query)
         plan = routing_plan(label) if auto_route else {"es": True, "milvus": True, "fuse": False}
         # Surfaced in both trace systems - without this, a skipped ES/Milvus call (auto_route)
@@ -157,7 +169,7 @@ async def run_instant(
             await on_step("classifier", classifier_trace)
 
         es_task = _run_es(es_client, query, on_step, boost=boost) if plan["es"] else None
-        milvus_task = _run_milvus(gateway, milvus_client, query, on_step) if plan["milvus"] else None
+        milvus_task = _run_milvus(gateway, milvus_client, milvus_query, on_step) if plan["milvus"] else None
 
         if es_task is not None and milvus_task is not None:
             (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(

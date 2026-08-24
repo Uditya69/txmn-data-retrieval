@@ -1,11 +1,19 @@
 from langfuse import get_client
 
 from common.config import get_settings
+from common.es_client import fetch_citations, keyword_mode_search
+from common.query_tokenizer import classify_intent_mode
 from retrieval_api.ai_mode.intent import extract_intent, OnStep
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
 from retrieval_api.ai_mode.retrieve import retrieve
 from retrieval_api.ai_mode.citations import rerank_and_prefetch
 from retrieval_api.ai_mode.synthesize import synthesize
+
+# ES-only top-N handed to synthesize() for a "keyword"-tagged query - same as
+# rerank_and_prefetch's _NO_RERANK_TOP_N, so the synthesis prompt's chunk count stays
+# comparable between the two paths.
+_KEYWORD_MODE_TOP_N = 5
+_KEYWORD_MODE_ES_LIMIT = 20
 
 
 async def run_ai_mode(
@@ -27,24 +35,47 @@ async def run_ai_mode(
                 doc_id_allowlist = await resolve_allowlist(es_client, intent_result["filters"], on_step=on_step)
                 span.update(output={"num_allowed": None if doc_id_allowlist is None else len(doc_id_allowlist)})
 
-            with langfuse.start_as_current_observation(
-                as_type="chain", name="retrieve", input={"search_query": intent_result["search_query"]},
-            ) as span:
-                candidates = await retrieve(
-                    gateway, milvus_client, es_client, intent_result["search_query"], doc_id_allowlist,
-                    intent_result["intent"], on_step=on_step, boost=boost,
-                    raw_query=intent_result["original_query"],
-                )
-                span.update(output={"num_candidates": len(candidates)})
+            # A precise anchor lookup (bare section/rule/article ref, citation, court name,
+            # Act name - see classify_intent_mode) needs no semantic recall: ES alone already
+            # resolves it, so Milvus dense/sparse + RRF + reranking are skipped entirely.
+            mode = classify_intent_mode(intent_result["original_query"])
 
-            with langfuse.start_as_current_observation(
-                as_type="chain", name="rerank-and-prefetch", input={"query": query, "num_candidates": len(candidates)},
-            ) as span:
-                top_chunks, citations = await rerank_and_prefetch(
-                    gateway, es_client, query, candidates, on_step=on_step,
-                    rerank_enabled=get_settings().ai_mode_rerank_enabled,
-                )
-                span.update(output={"num_top_chunks": len(top_chunks), "num_citations": len(citations)})
+            if mode == "keyword":
+                with langfuse.start_as_current_observation(
+                    as_type="chain", name="keyword-search", input={"query": intent_result["original_query"]},
+                ) as span:
+                    rows = await keyword_mode_search(
+                        es_client, intent_result["original_query"], doc_id_allowlist=doc_id_allowlist,
+                        limit=_KEYWORD_MODE_ES_LIMIT, boost=boost,
+                    )
+                    top_rows = sorted(rows, key=lambda row: row["score"], reverse=True)[:_KEYWORD_MODE_TOP_N]
+                    top_chunks = [{"doc_id": row["doc_id"], "text": row["text"]} for row in top_rows]
+                    citations = await fetch_citations(es_client, [row["doc_id"] for row in top_rows])
+                    span.update(output={"num_top_chunks": len(top_chunks), "num_citations": len(citations)})
+                if on_step is not None:
+                    await on_step("keyword_search", {
+                        "query": intent_result["original_query"], "mode": mode,
+                        "candidate_count": len(rows), "top_doc_ids": [row["doc_id"] for row in top_rows],
+                    })
+            else:
+                with langfuse.start_as_current_observation(
+                    as_type="chain", name="retrieve", input={"search_query": intent_result["search_query"]},
+                ) as span:
+                    candidates = await retrieve(
+                        gateway, milvus_client, es_client, intent_result["search_query"], doc_id_allowlist,
+                        intent_result["intent"], on_step=on_step, boost=boost,
+                        raw_query=intent_result["original_query"],
+                    )
+                    span.update(output={"num_candidates": len(candidates)})
+
+                with langfuse.start_as_current_observation(
+                    as_type="chain", name="rerank-and-prefetch", input={"query": query, "num_candidates": len(candidates)},
+                ) as span:
+                    top_chunks, citations = await rerank_and_prefetch(
+                        gateway, es_client, query, candidates, on_step=on_step,
+                        rerank_enabled=get_settings().ai_mode_rerank_enabled,
+                    )
+                    span.update(output={"num_top_chunks": len(top_chunks), "num_citations": len(citations)})
 
             with langfuse.start_as_current_observation(as_type="chain", name="synthesize", input={"query": query}) as span:
                 synthesis = await synthesize(

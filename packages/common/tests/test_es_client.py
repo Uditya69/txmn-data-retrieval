@@ -883,3 +883,75 @@ def test_cap_group_shares_backfills_to_full_limit_when_minority_group_has_more()
     assert len(result_eo) == 5
     assert result_caselaws == caselaws_hits[:15]
     assert result_eo == eo_hits[:5]
+
+
+@pytest.mark.asyncio
+async def test_keyword_mode_search_returns_doc_id_score_and_highlight_text():
+    client = FakeAsyncES(search_hits=[
+        {"_source": {"id": "d1"}, "_score": 9.0, "highlight": {"fullcontent": ["snippet about section 55"]}},
+    ], index="researchindex_aic_test")
+
+    from common.es_client import keyword_mode_search
+
+    result = await keyword_mode_search(client, "section 55", limit=20)
+
+    assert result == [{"doc_id": "d1", "score": 9.0, "text": "snippet about section 55"}]
+
+
+@pytest.mark.asyncio
+async def test_keyword_mode_search_skips_hits_with_no_highlight_fragment():
+    client = FakeAsyncES(search_hits=[
+        {"_source": {"id": "d1"}, "_score": 9.0, "highlight": {}},
+    ], index="researchindex_aic_test")
+
+    from common.es_client import keyword_mode_search
+
+    result = await keyword_mode_search(client, "section 55", limit=20)
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_keyword_mode_search_applies_doc_id_allowlist():
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import keyword_mode_search
+
+    await keyword_mode_search(client, "section 55", doc_id_allowlist=["d1", "d2"])
+
+    query = client.search_calls[0]
+    assert {"terms": {"id": ["d1", "d2"]}} in query["bool"]["must"]
+
+
+@pytest.mark.asyncio
+async def test_keyword_mode_search_strips_highlight_markup_tags():
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import keyword_mode_search
+
+    await keyword_mode_search(client, "section 55")
+
+    highlight = client.highlight_calls[0]
+    assert highlight["pre_tags"] == [""]
+    assert highlight["post_tags"] == [""]
+
+
+@pytest.mark.asyncio
+async def test_keyword_mode_search_sends_exactly_the_query_build_keyword_search_query_preview_returns():
+    from common.es_client import keyword_mode_search, build_keyword_search_query_preview
+
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    await keyword_mode_search(client, "Section 52", doc_id_allowlist=["d1"], boost=True)
+
+    expected = build_keyword_search_query_preview("Section 52", doc_id_allowlist=["d1"], boost=True)
+    assert client.search_calls[0] == expected
+
+
+def test_build_keyword_search_query_preview_boost_true_wraps_field_query_in_function_score():
+    from common.es_client import build_keyword_search_query_preview
+
+    preview = build_keyword_search_query_preview("Section 52", boost=True)
+
+    field_query = preview["bool"]["must"][-1]
+    assert "function_score" in field_query

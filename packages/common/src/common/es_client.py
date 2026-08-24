@@ -499,6 +499,49 @@ def build_query_preview(query: str, boost: bool = False) -> dict:
     }
 
 
+def build_keyword_search_query_preview(
+    query: str, doc_id_allowlist: list[str] | None = None, boost: bool = False,
+) -> dict:
+    """The exact query body keyword_mode_search sends to ES, without executing a search -
+    same single-source-of-truth pattern as build_sparse_fallback_query_preview. Unlike that
+    function, no `groups.group.name` filter: AI Mode's keyword-tagged path (see
+    query_tokenizer.classify_intent_mode) is a precise anchor lookup (section/citation/
+    court/Act name) that can legitimately live in any content group, not just the 5
+    Milvus-sparse-gap collections sparse_fallback_search targets."""
+    field_query = build_query_preview(query, boost=boost)["es_query"]
+    must: list[dict] = []
+    if doc_id_allowlist:
+        must.append({"terms": {"id": doc_id_allowlist}})
+    must.append(field_query)
+    return {"bool": {"must": must}}
+
+
+async def keyword_mode_search(
+    client, query: str, doc_id_allowlist: list[str] | None = None, limit: int = 20,
+    boost: bool = False,
+) -> list[dict]:
+    """ES-only retrieval for AI Mode's "keyword"-tagged queries (classify_intent_mode) -
+    a precise anchor lookup skips Milvus dense/sparse + RRF entirely, same highlight-based
+    text-fragment shape as sparse_fallback_search so the caller can feed rows straight into
+    synthesize() without a chunk_id (no chunk-level candidate set to dedupe/rerank here)."""
+    response = await client.search(
+        index=client.index,
+        query=build_keyword_search_query_preview(query, doc_id_allowlist, boost=boost),
+        size=limit,
+        _source=["id"],
+        highlight={"fields": {"fullcontent": {
+            "fragment_size": _ES_HIGHLIGHT_FRAGMENT_CHARS, "number_of_fragments": 1,
+        }}, "pre_tags": [""], "post_tags": [""]},
+    )
+    results = []
+    for hit in response["hits"]["hits"]:
+        fragments = hit.get("highlight", {}).get("fullcontent")
+        if not fragments:
+            continue
+        results.append({"doc_id": hit["_source"]["id"], "score": hit["_score"], "text": fragments[0]})
+    return results
+
+
 async def raw_search(client, query: str, limit: int = 20, boost: bool = False) -> list[dict]:
     field_query = build_query_preview(query, boost=boost)["es_query"]
     # No landmarkruling:-10 exclusion here either, deliberately - a previous version of this

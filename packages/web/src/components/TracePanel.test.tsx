@@ -218,6 +218,26 @@ describe('TracePanel', () => {
     expect(screen.queryByText(/^\[\]/)).not.toBeInTheDocument()
   })
 
+  it('renders a keyword_search step with query, candidate count, and top doc ids', () => {
+    const onOpenDocument = vi.fn()
+    const steps: TraceStep[] = [
+      {
+        step: 'keyword_search',
+        data: {
+          query: 'section 55', mode: 'keyword', candidate_count: 20,
+          top_doc_ids: ['d1', 'd2'],
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} onOpenDocument={onOpenDocument} />)
+
+    expect(screen.getByRole('heading', { level: 3, name: /keyword search/i })).toBeInTheDocument()
+    expect(screen.getByText(/section 55/)).toBeInTheDocument()
+    expect(screen.getByText(/20 candidate/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'd1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'd2' })).toBeInTheDocument()
+  })
+
   it('labels ai_milvus_sparse as ES fallback only when every hit is ES-origin', () => {
     const steps: TraceStep[] = [
       {

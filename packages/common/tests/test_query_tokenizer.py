@@ -1,7 +1,8 @@
 from common.query_tokenizer import (
     classify_query_shape, normalize_citation_spacing, merge_keyword_number,
     merge_court_city, merge_citation_span, strip_stopwords, extract_quoted_phrases,
-    expand_query_synonyms, extract_boost_phrases, chunk_query,
+    expand_query_synonyms, extract_boost_phrases, chunk_query, build_dense_sparse_query,
+    classify_intent_mode,
 )
 
 
@@ -88,6 +89,27 @@ def test_strip_stopwords_removes_recognized_stopword():
 def test_strip_stopwords_never_drops_a_known_journal():
     # ITR is both plausible-stopword-adjacent and a real journal - must survive
     assert "ITR" in strip_stopwords(["citation", "in", "ITR"])
+
+
+def test_build_dense_sparse_query_strips_question_scaffolding():
+    """The exact bug this fixes: Instant mode has no LLM rewrite step, so without this,
+    "section 55" and "what is section 55" would send different, noise-diluted text to Milvus
+    dense/sparse (they already send identical text to ES - chunk_query already cleans the
+    phrase-boost clauses)."""
+    assert build_dense_sparse_query(chunk_query("what is section 55"), fallback="what is section 55") == "section 55"
+    assert build_dense_sparse_query(chunk_query("section 55"), fallback="section 55") == "section 55"
+
+
+def test_build_dense_sparse_query_keeps_real_content_words_for_conceptual_queries():
+    cleaned = build_dense_sparse_query(
+        chunk_query("how is depreciation computed under the income tax act"),
+        fallback="how is depreciation computed under the income tax act",
+    )
+    assert cleaned == "depreciation computed under income tax act"
+
+
+def test_build_dense_sparse_query_falls_back_to_original_when_chunks_are_empty():
+    assert build_dense_sparse_query([], fallback="original text") == "original text"
 
 
 def test_chunk_query_does_not_emit_a_standalone_and_chunk():
@@ -212,3 +234,45 @@ def test_chunk_query_single_leftover_word_still_becomes_its_own_text_chunk():
 
 def test_chunk_query_empty_query_returns_no_chunks():
     assert chunk_query("") == []
+
+
+def test_classify_intent_mode_tags_bare_section_reference_as_keyword():
+    assert classify_intent_mode("what is section 55") == "keyword"
+
+
+def test_classify_intent_mode_tags_bare_citation_as_keyword():
+    assert classify_intent_mode("133 taxmann.com 196") == "keyword"
+
+
+def test_classify_intent_mode_tags_bare_known_court_as_keyword():
+    assert classify_intent_mode("what is ITAT") == "keyword"
+
+
+def test_classify_intent_mode_tags_bare_act_name_as_keyword():
+    assert classify_intent_mode("what is the income tax act") == "keyword"
+
+
+def test_classify_intent_mode_tags_act_name_with_year_as_keyword():
+    assert classify_intent_mode("income tax act 1961") == "keyword"
+
+
+def test_classify_intent_mode_does_not_tag_synonym_lexicon_term_as_keyword():
+    # "PE" is a recognized abbreviation (legal_lexicon.json synonyms -> Permanent
+    # Establishment) but names a broad legal concept, not a precise lookup - synonym
+    # entries are deliberately excluded from the keyword gate (courts/journals/act
+    # names/structural refs only), so this must stay hybrid.
+    assert classify_intent_mode("what is PE") == "hybrid"
+
+
+def test_classify_intent_mode_tags_conceptual_query_as_hybrid():
+    assert classify_intent_mode("how is depreciation computed under the income tax act") == "hybrid"
+
+
+def test_classify_intent_mode_tags_party_name_plus_section_as_hybrid():
+    # a mix of an unanchored text run (party name) alongside a structural chunk still
+    # needs semantic search for the unanchored part - only an all-anchor query qualifies.
+    assert classify_intent_mode("Dimension Data India section 92C") == "hybrid"
+
+
+def test_classify_intent_mode_tags_empty_query_as_hybrid():
+    assert classify_intent_mode("") == "hybrid"

@@ -100,9 +100,9 @@ async def test_run_ai_mode_forwards_original_query_as_raw_query_to_retrieve(monk
     monkeypatch.setattr(module, "rerank_and_prefetch", fake_rerank_and_prefetch)
     monkeypatch.setattr(module, "synthesize", fake_synthesize)
 
-    await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="section 55")
+    await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="capital gains treatment on sale of property")
 
-    assert seen_raw_query == ["section 55"]
+    assert seen_raw_query == ["capital gains treatment on sale of property"]
 
 
 @pytest.mark.asyncio
@@ -356,3 +356,128 @@ async def test_run_ai_mode_emits_all_seven_trace_steps_in_order_end_to_end(monke
     rrf_step = next(data for step, data in collected if step == "ai_rrf_merge")
     assert rrf_step["dense_weight"] == 1.0
     assert rrf_step["sparse_weight"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_run_ai_mode_keyword_tagged_query_skips_retrieve_and_rerank(monkeypatch):
+    """classify_intent_mode tags a bare section reference "keyword" - that path must go
+    straight from ES to synthesize, never touching Milvus/RRF/reranking."""
+    import retrieval_api.ai_mode.pipeline as module
+
+    async def fake_extract_intent(gateway, query, on_step=None, persona_context=""):
+        return {"original_query": query, "search_query": "rewritten", "intent": ["acts"], "filters": {}}
+
+    async def fake_resolve_allowlist(es_client, filters, on_step=None):
+        return None
+
+    async def unexpected_retrieve(*args, **kwargs):
+        raise AssertionError("retrieve() must not be called on the keyword path")
+
+    async def unexpected_rerank_and_prefetch(*args, **kwargs):
+        raise AssertionError("rerank_and_prefetch() must not be called on the keyword path")
+
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        return [
+            {"doc_id": "d1", "score": 9.0, "text": "top hit"},
+            {"doc_id": "d2", "score": 5.0, "text": "second hit"},
+        ]
+
+    async def fake_fetch_citations(client, doc_ids):
+        return {doc_id: {"title": doc_id} for doc_id in doc_ids}
+
+    received_synthesize_args = {}
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+        received_synthesize_args["top_chunks"] = top_chunks
+        received_synthesize_args["citations"] = citations
+        return {"answer": "final answer", "citations": citations}
+
+    monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_resolve_allowlist)
+    monkeypatch.setattr(module, "retrieve", unexpected_retrieve)
+    monkeypatch.setattr(module, "rerank_and_prefetch", unexpected_rerank_and_prefetch)
+    monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
+    monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+
+    result = await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="Section 55")
+
+    assert result == {"ok": True, "answer": "final answer", "citations": {"d1": {"title": "d1"}, "d2": {"title": "d2"}}, "intent": ["acts"]}
+    assert received_synthesize_args["top_chunks"] == [
+        {"doc_id": "d1", "text": "top hit"},
+        {"doc_id": "d2", "text": "second hit"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_ai_mode_keyword_path_caps_at_top_five_by_score(monkeypatch):
+    import retrieval_api.ai_mode.pipeline as module
+
+    async def fake_extract_intent(gateway, query, on_step=None, persona_context=""):
+        return {"original_query": query, "search_query": "rewritten", "intent": [], "filters": {}}
+
+    async def fake_resolve_allowlist(es_client, filters, on_step=None):
+        return None
+
+    rows = [{"doc_id": f"d{i}", "score": float(i), "text": f"hit {i}"} for i in range(7)]
+
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        return rows
+
+    async def fake_fetch_citations(client, doc_ids):
+        return {doc_id: {} for doc_id in doc_ids}
+
+    received = {}
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+        received["top_chunks"] = top_chunks
+        return {"answer": "a", "citations": citations}
+
+    monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_resolve_allowlist)
+    monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
+    monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+
+    await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="Section 55")
+
+    assert [c["doc_id"] for c in received["top_chunks"]] == ["d6", "d5", "d4", "d3", "d2"]
+
+
+@pytest.mark.asyncio
+async def test_run_ai_mode_keyword_path_emits_keyword_search_trace_step(monkeypatch):
+    import retrieval_api.ai_mode.pipeline as module
+
+    async def fake_extract_intent(gateway, query, on_step=None, persona_context=""):
+        return {"original_query": query, "search_query": "rewritten", "intent": [], "filters": {}}
+
+    async def fake_resolve_allowlist(es_client, filters, on_step=None):
+        return None
+
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        return [{"doc_id": "d1", "score": 9.0, "text": "top hit"}]
+
+    async def fake_fetch_citations(client, doc_ids):
+        return {doc_id: {} for doc_id in doc_ids}
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+        return {"answer": "a", "citations": citations}
+
+    monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_resolve_allowlist)
+    monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
+    monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+
+    collected = []
+
+    async def collector(step, data):
+        collected.append((step, data))
+
+    await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="Section 55", on_step=collector)
+
+    step_names = [step for step, _ in collected]
+    assert "keyword_search" in step_names
+    keyword_step = next(data for step, data in collected if step == "keyword_search")
+    assert keyword_step["mode"] == "keyword"
+    assert keyword_step["top_doc_ids"] == ["d1"]
