@@ -72,12 +72,17 @@ async def _run_es(
 
 
 async def _run_milvus(
-    gateway, milvus_client, query: str, on_step: OnStep | None,
+    gateway, milvus_client, query: str, on_step: OnStep | None, milvus_sparse_enabled: bool = False,
 ) -> tuple[dict | None, dict | None, str | None]:
-    """Runs dense (Voyage embedding) and sparse (Milvus-native BM25) search
-    against every collection - the same two passes AI Mode's retrieve()
-    does - so Instant's trace surfaces exactly what each retriever fetched,
-    not just the dense results Instant's merged card list is built from.
+    """Runs dense (Voyage embedding) and, when enabled, sparse (Milvus-native BM25) search
+    against every collection - the same two passes AI Mode's retrieve() does - so Instant's
+    trace surfaces exactly what each retriever fetched, not just the dense results Instant's
+    merged card list is built from.
+
+    milvus_sparse_enabled (common.config.Settings.milvus_sparse_enabled) is off by default -
+    same env-only kill switch AI Mode's retrieve() uses, no separate UI toggle. Instant has no
+    ES sparse-fallback mechanism (that's an AI-Mode-only gap-collection concern), so disabling
+    this skips the native sparse pass entirely with nothing else to fall back to.
 
     `query` here is already the cleaned dense/sparse search text (see run_instant's
     build_dense_sparse_query call) - not necessarily the user's raw sentence."""
@@ -87,14 +92,20 @@ async def _run_milvus(
     ) as span:
         try:
             dense_vector = await gateway.embed(role="query_embed", text=query)
-            dense_result, sparse_result = await asyncio.gather(
-                hybrid_search(
+            if milvus_sparse_enabled:
+                dense_result, sparse_result = await asyncio.gather(
+                    hybrid_search(
+                        milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=dense_vector, sparse_query_text=query,
+                    ),
+                    hybrid_search(
+                        milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None, sparse_query_text=query,
+                    ),
+                )
+            else:
+                dense_result = await hybrid_search(
                     milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=dense_vector, sparse_query_text=query,
-                ),
-                hybrid_search(
-                    milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None, sparse_query_text=query,
-                ),
-            )
+                )
+                sparse_result = {}
             # snapshot pre-cutoff ranks before the elbow trims them, same reason
             # as _run_es: this is the only place that can show a gold doc_id's
             # rank when the elbow cutoff is what dropped it, versus the search
@@ -112,7 +123,11 @@ async def _run_milvus(
             })
             if on_step is not None:
                 await on_step("milvus_dense", collection_trace(dense_result))
-                await on_step("milvus_sparse", collection_trace(sparse_result))
+                # Nothing ran the sparse pass at all when disabled - an empty "Milvus
+                # sparse search" card with zero collections would just be noise (same
+                # reasoning as AI Mode's ai_milvus_sparse step, retrieve.py).
+                if milvus_sparse_enabled:
+                    await on_step("milvus_sparse", collection_trace(sparse_result))
             return dense_result, sparse_result, None
         except Exception as exc:  # noqa: BLE001 - branch isolation is the point
             span.update(level="ERROR", status_message=str(exc))
@@ -121,7 +136,7 @@ async def _run_milvus(
 
 async def run_instant(
     gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None,
-    rrf: bool = False, auto_route: bool = False, boost: bool = False,
+    rrf: bool = False, auto_route: bool = False, boost: bool = False, milvus_sparse_enabled: bool = False,
 ) -> dict:
     langfuse = get_client()
     with langfuse.start_as_current_observation(
@@ -169,7 +184,10 @@ async def run_instant(
             await on_step("classifier", classifier_trace)
 
         es_task = _run_es(es_client, query, on_step, boost=boost) if plan["es"] else None
-        milvus_task = _run_milvus(gateway, milvus_client, milvus_query, on_step) if plan["milvus"] else None
+        milvus_task = (
+            _run_milvus(gateway, milvus_client, milvus_query, on_step, milvus_sparse_enabled=milvus_sparse_enabled)
+            if plan["milvus"] else None
+        )
 
         if es_task is not None and milvus_task is not None:
             (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(

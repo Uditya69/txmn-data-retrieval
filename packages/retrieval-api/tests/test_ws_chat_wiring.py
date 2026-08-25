@@ -16,7 +16,10 @@ def _patch_common(monkeypatch, fake_run_ai_mode, fake_conversations_collection):
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(
+        ws_module, "get_settings",
+        lambda: Mock(instant_mode_auto_route_enabled=False, milvus_sparse_enabled=False, expose_reasoning=False),
+    )
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())

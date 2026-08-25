@@ -361,14 +361,15 @@ async def test_run_ai_mode_emits_all_seven_trace_steps_in_order_end_to_end(monke
 @pytest.mark.asyncio
 async def test_run_ai_mode_keyword_tagged_query_skips_retrieve_and_rerank(monkeypatch):
     """classify_intent_mode tags a bare section reference "keyword" - that path must go
-    straight from ES to synthesize, never touching Milvus/RRF/reranking."""
+    straight from ES to synthesize, never touching the SLM (extract_intent), allowlist
+    resolution, or Milvus/RRF/reranking."""
     import retrieval_api.ai_mode.pipeline as module
 
-    async def fake_extract_intent(gateway, query, on_step=None, persona_context=""):
-        return {"original_query": query, "search_query": "rewritten", "intent": ["acts"], "filters": {}}
+    async def unexpected_extract_intent(*args, **kwargs):
+        raise AssertionError("extract_intent() must not be called on the keyword path - no SLM call needed")
 
-    async def fake_resolve_allowlist(es_client, filters, on_step=None):
-        return None
+    async def unexpected_resolve_allowlist(*args, **kwargs):
+        raise AssertionError("resolve_allowlist() must not be called on the keyword path")
 
     async def unexpected_retrieve(*args, **kwargs):
         raise AssertionError("retrieve() must not be called on the keyword path")
@@ -392,8 +393,8 @@ async def test_run_ai_mode_keyword_tagged_query_skips_retrieve_and_rerank(monkey
         received_synthesize_args["citations"] = citations
         return {"answer": "final answer", "citations": citations}
 
-    monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
-    monkeypatch.setattr(module, "resolve_allowlist", fake_resolve_allowlist)
+    monkeypatch.setattr(module, "extract_intent", unexpected_extract_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", unexpected_resolve_allowlist)
     monkeypatch.setattr(module, "retrieve", unexpected_retrieve)
     monkeypatch.setattr(module, "rerank_and_prefetch", unexpected_rerank_and_prefetch)
     monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
@@ -402,7 +403,8 @@ async def test_run_ai_mode_keyword_tagged_query_skips_retrieve_and_rerank(monkey
 
     result = await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="Section 55")
 
-    assert result == {"ok": True, "answer": "final answer", "citations": {"d1": {"title": "d1"}, "d2": {"title": "d2"}}, "intent": ["acts"]}
+    # No SLM call ran, so there's no LLM-classified category list for this answer.
+    assert result == {"ok": True, "answer": "final answer", "citations": {"d1": {"title": "d1"}, "d2": {"title": "d2"}}, "intent": []}
     assert received_synthesize_args["top_chunks"] == [
         {"doc_id": "d1", "text": "top hit"},
         {"doc_id": "d2", "text": "second hit"},

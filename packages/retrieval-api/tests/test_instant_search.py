@@ -22,7 +22,10 @@ async def test_run_instant_returns_both_branches_on_success(monkeypatch):
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]
 
-    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="tax exemption")
+    result = await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="tax exemption",
+        milvus_sparse_enabled=True,
+    )
 
     assert result["es"] == [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
     assert result["es_error"] is None
@@ -58,7 +61,9 @@ async def test_run_instant_applies_elbow_cutoff_to_es_and_milvus_results(monkeyp
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]
 
-    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
+    result = await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="q", milvus_sparse_enabled=True,
+    )
 
     assert result["es"] == [{"doc_id": "d1", "score": 10.0}]
     assert result["milvus"] == {"ruling": [{"chunk_id": "d1::ruling::0", "doc_id": "d1", "text": "t", "score": 10.0}]}
@@ -108,7 +113,9 @@ async def test_run_instant_returns_partial_result_when_es_fails(monkeypatch):
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1]
 
-    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
+    result = await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="q", milvus_sparse_enabled=True,
+    )
 
     assert result["es"] is None
     assert result["es_error"] == "ES down"
@@ -280,7 +287,10 @@ async def test_run_instant_emits_es_and_milvus_trace_steps(monkeypatch):
     async def on_step(step, data):
         steps.append(step)
 
-    await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q", on_step=on_step)
+    await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="q", on_step=on_step,
+        milvus_sparse_enabled=True,
+    )
 
     # es_search runs on an independent branch (asyncio.gather with _run_milvus)
     # so its relative order vs. the milvus steps isn't guaranteed - only that
@@ -323,7 +333,10 @@ async def test_run_instant_sends_cleaned_text_to_milvus_but_raw_text_to_es(monke
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]
 
-    await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="what is section 55")
+    await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="what is section 55",
+        milvus_sparse_enabled=True,
+    )
 
     assert es_queries == ["what is section 55"]
     assert milvus_queries == ["section 55", "section 55"]  # dense pass + sparse pass
@@ -561,3 +574,63 @@ async def test_run_instant_auto_route_false_preserves_today_behavior(monkeypatch
     assert result["es"] is not None
     assert result["milvus"] is not None
     assert {row["doc_id"] for row in result["reranked"]} == {"d1"}
+
+
+@pytest.mark.asyncio
+async def test_run_instant_skips_native_milvus_sparse_pass_by_default(monkeypatch):
+    """milvus_sparse_enabled defaults to False - Instant mode must not call hybrid_search
+    for the native sparse (dense_vector=None) pass at all unless explicitly opted in.
+    Instant has no ES sparse-fallback (that's AI-Mode-only), so disabling this leaves
+    nothing else feeding the sparse side at all."""
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False):
+        return []
+
+    sparse_pass_called = False
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        nonlocal sparse_pass_called
+        if dense_vector is None:
+            sparse_pass_called = True
+            return {}
+        return {"ruling": [{"chunk_id": "d1::ruling::0", "doc_id": "d1", "text": "t", "score": 0.9}]}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
+
+    assert not sparse_pass_called
+    assert result["milvus_sparse"] == {}
+    assert result["milvus"] == {"ruling": [{"chunk_id": "d1::ruling::0", "doc_id": "d1", "text": "t", "score": 0.9}]}
+
+
+@pytest.mark.asyncio
+async def test_run_instant_omits_milvus_sparse_trace_step_when_disabled(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False):
+        return []
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": [{"chunk_id": "d1::ruling::0", "doc_id": "d1", "text": "t", "score": 0.9}]}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    steps = []
+
+    async def on_step(step, data):
+        steps.append(step)
+
+    await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q", on_step=on_step)
+
+    assert "milvus_dense" in steps
+    assert "milvus_sparse" not in steps

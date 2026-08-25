@@ -154,7 +154,7 @@ async def retrieve(
     if on_step is not None:
         await on_step("ai_milvus_dense", {**collection_trace(dense_by_collection), "query": search_query})
         # Nothing ran a sparse pass at all when native Milvus sparse is disabled
-        # (the common/default case - ai_mode_milvus_sparse_enabled) and no gap
+        # (the common/default case - common.config.Settings.milvus_sparse_enabled) and no gap
         # collections were routed (no ES fallback either) - an empty step here
         # would show a "Milvus sparse search" card with zero collections and
         # nothing to explain, so skip emitting it entirely rather than show it.

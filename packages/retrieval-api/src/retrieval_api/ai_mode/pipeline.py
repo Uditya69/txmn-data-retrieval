@@ -23,39 +23,34 @@ async def run_ai_mode(
     langfuse = get_client()
     with langfuse.start_as_current_observation(as_type="span", name="ai-mode", input={"query": query}) as root_span:
         try:
-            with langfuse.start_as_current_observation(
-                as_type="chain", name="extract-intent", input={"query": query},
-            ) as span:
-                intent_result = await extract_intent(gateway, query, on_step=on_step, persona_context=persona_context)
-                span.update(output=intent_result)
-
-            with langfuse.start_as_current_observation(
-                as_type="retriever", name="resolve-allowlist", input={"filters": intent_result["filters"]},
-            ) as span:
-                doc_id_allowlist = await resolve_allowlist(es_client, intent_result["filters"], on_step=on_step)
-                span.update(output={"num_allowed": None if doc_id_allowlist is None else len(doc_id_allowlist)})
-
             # A precise anchor lookup (bare section/rule/article ref, citation, court name,
             # Act name - see classify_intent_mode) needs no semantic recall: ES alone already
-            # resolves it, so Milvus dense/sparse + RRF + reranking are skipped entirely.
-            mode = classify_intent_mode(intent_result["original_query"])
+            # resolves it. classify_intent_mode is pure lexical/regex logic with no SLM
+            # dependency, so this runs BEFORE extract_intent, on the raw query - letting the
+            # keyword branch skip the SLM call entirely rather than pay for a search_query
+            # rewrite/intent/filters extraction it never uses. (extract_intent never rewrites
+            # `original_query` away from the raw query it's given, so classifying on `query`
+            # here is identical to classifying on intent_result["original_query"] later.)
+            mode = classify_intent_mode(query)
 
             if mode == "keyword":
-                # classify_intent_mode already confirmed every surviving chunk (post
-                # chunk_query's own filler/stopword strip) is a precise anchor - but the
-                # raw original_query still carries whatever conversational scaffolding
-                # ("what is", "tell me about") the user typed around it. Searching ES with
-                # that raw text dilutes the query with noise words the anchor check itself
-                # already discarded; build_dense_sparse_query reconstructs the same cleaned
-                # anchor-only text Instant mode's own dense/sparse pass uses (see its
+                # Every surviving chunk (post chunk_query's own filler/stopword strip) is a
+                # precise anchor - but the raw query still carries whatever conversational
+                # scaffolding ("what is", "tell me about") the user typed around it. Searching
+                # ES with that raw text dilutes the query with noise words the anchor check
+                # itself already discarded; build_dense_sparse_query reconstructs the same
+                # cleaned anchor-only text Instant mode's own dense/sparse pass uses (see its
                 # docstring), so ES gets "section 55", not "what is section 55".
-                chunks = chunk_query(intent_result["original_query"])
-                keyword_query = build_dense_sparse_query(chunks, fallback=intent_result["original_query"])
+                chunks = chunk_query(query)
+                keyword_query = build_dense_sparse_query(chunks, fallback=query)
                 with langfuse.start_as_current_observation(
                     as_type="chain", name="keyword-search", input={"query": keyword_query},
                 ) as span:
+                    # No SLM call means no extracted filters - a precise anchor lookup relies
+                    # on ES's own phrase-boost match against the anchor text (chunk_query's
+                    # section/court_city/citation/quoted chunks) for precision instead.
                     rows = await keyword_mode_search(
-                        es_client, keyword_query, doc_id_allowlist=doc_id_allowlist,
+                        es_client, keyword_query, doc_id_allowlist=None,
                         limit=_KEYWORD_MODE_ES_LIMIT, boost=boost,
                     )
                     top_rows = sorted(rows, key=lambda row: row["score"], reverse=True)[:_KEYWORD_MODE_TOP_N]
@@ -67,7 +62,22 @@ async def run_ai_mode(
                         "query": keyword_query, "mode": mode,
                         "candidate_count": len(rows), "top_doc_ids": [row["doc_id"] for row in top_rows],
                     })
+                intent_categories: list[str] = []
             else:
+                with langfuse.start_as_current_observation(
+                    as_type="chain", name="extract-intent", input={"query": query},
+                ) as span:
+                    intent_result = await extract_intent(gateway, query, on_step=on_step, persona_context=persona_context)
+                    span.update(output=intent_result)
+
+                with langfuse.start_as_current_observation(
+                    as_type="retriever", name="resolve-allowlist", input={"filters": intent_result["filters"]},
+                ) as span:
+                    doc_id_allowlist = await resolve_allowlist(es_client, intent_result["filters"], on_step=on_step)
+                    span.update(output={"num_allowed": None if doc_id_allowlist is None else len(doc_id_allowlist)})
+
+                intent_categories = intent_result["intent"]
+
                 with langfuse.start_as_current_observation(
                     as_type="chain", name="retrieve", input={"search_query": intent_result["search_query"]},
                 ) as span:
@@ -75,7 +85,7 @@ async def run_ai_mode(
                         gateway, milvus_client, es_client, intent_result["search_query"], doc_id_allowlist,
                         intent_result["intent"], on_step=on_step, boost=boost,
                         raw_query=intent_result["original_query"],
-                        milvus_sparse_enabled=get_settings().ai_mode_milvus_sparse_enabled,
+                        milvus_sparse_enabled=get_settings().milvus_sparse_enabled,
                     )
                     span.update(output={"num_candidates": len(candidates)})
 
@@ -99,7 +109,7 @@ async def run_ai_mode(
 
             result = {
                 "ok": True, "answer": synthesis["answer"], "citations": synthesis["citations"],
-                "intent": intent_result["intent"],
+                "intent": intent_categories,
             }
             if synthesis.get("reasoning"):
                 result["reasoning"] = synthesis["reasoning"]

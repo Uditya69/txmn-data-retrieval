@@ -211,6 +211,7 @@ async def search(websocket: WebSocket):
                         gateway, es_client, milvus_client, query,
                         on_step=emit_trace_step if trace else None, rrf=rrf,
                         auto_route=auto_route, boost=boost,
+                        milvus_sparse_enabled=settings.milvus_sparse_enabled,
                     )
                 )
                 if mode in ("instant", "both") and instant_cache_hit is None else None

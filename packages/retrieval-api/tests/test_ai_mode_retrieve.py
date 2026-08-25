@@ -708,7 +708,7 @@ async def test_retrieve_mixed_intent_produces_both_native_and_es_origin_rows(mon
 
 @pytest.mark.asyncio
 async def test_retrieve_skips_native_milvus_sparse_pass_by_default(monkeypatch):
-    """ai_mode_milvus_sparse_enabled defaults to False - retrieve() must not call
+    """milvus_sparse_enabled defaults to False - retrieve() must not call
     hybrid_search for the native sparse (dense_vector=None) pass at all unless the
     caller explicitly opts in. ES sparse-fallback for gap collections is unaffected."""
     import retrieval_api.ai_mode.retrieve as module
