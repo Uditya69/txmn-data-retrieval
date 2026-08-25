@@ -195,6 +195,49 @@ def test_build_field_query_accepts_new_taxonomy_labels():
         assert "bool" in query
 
 
+def test_build_field_query_applies_massive_phrase_boost_to_citation_chunks_too():
+    """Regression test for the buried-case-citation bug: a citation-type chunk must get the
+    same large phrase-boost tier as a section-type chunk, not the small per-shape multi_match
+    weight - ported from centax-node's real behavior (searchTextElastic.js applies this tier
+    to every QueryToken uniformly, no type check), confirmed live against a query where the
+    old type=="section"-gated version buried the correct case past rank 500."""
+    chunks = [{"text": "136 Taxman 491", "proximity": 2, "type": "citation", "alt_text": None}]
+    query = _build_field_query("136 Taxman 491", "HYBRID", chunks=chunks)
+
+    should = query["bool"]["should"]
+    citation_heading_boosts = [
+        clause["match_phrase"]["heading"]["boost"] for clause in should
+        if "match_phrase" in clause and clause["match_phrase"].get("heading", {}).get("query") == "136 Taxman 491"
+    ]
+    assert citation_heading_boosts == [100000.0]
+
+
+def test_build_field_query_applies_massive_phrase_boost_to_plain_text_chunks_too():
+    chunks = [{"text": "Commissioner Customs Indian Oil", "proximity": 5, "type": "text", "alt_text": None}]
+    query = _build_field_query("Commissioner Customs Indian Oil", "HYBRID", chunks=chunks)
+
+    should = query["bool"]["should"]
+    text_subheading_boosts = [
+        clause["match_phrase"]["subheading"]["boost"] for clause in should
+        if "match_phrase" in clause
+        and clause["match_phrase"].get("subheading", {}).get("query") == "Commissioner Customs Indian Oil"
+    ]
+    assert text_subheading_boosts == [50000.0]
+
+
+def test_build_field_query_section_chunks_still_get_the_same_tier():
+    """Not a regression for the original use case this tier was built for."""
+    chunks = [{"text": "Section 52", "proximity": 0, "type": "section", "alt_text": "Section 052"}]
+    query = _build_field_query("Section 52", "HYBRID", chunks=chunks)
+
+    should = query["bool"]["should"]
+    section_heading_boosts = [
+        clause["match_phrase"]["heading"]["boost"] for clause in should
+        if "match_phrase" in clause and clause["match_phrase"].get("heading", {}).get("query") == "Section 52"
+    ]
+    assert section_heading_boosts == [100000.0]
+
+
 def test_build_query_preview_omits_expanded_query_when_unchanged():
     preview = build_query_preview("can a company claim depreciation")
     assert preview["expanded_query"] is None
@@ -232,6 +275,58 @@ def test_build_query_preview_boost_true_wraps_es_query_in_function_score():
 def test_build_query_preview_boost_false_default_leaves_es_query_unwrapped():
     preview = build_query_preview("Section 52")
     assert "function_score" not in preview["es_query"]
+
+
+def test_build_query_preview_adds_caselaws_group_should_boost_for_ruling_query():
+    """Without this, "landmark Supreme Court ruling on GST" scores generic "Words & Idioms"
+    commentary docs whose heading literally contains "Supreme Court" far above real case law -
+    heading/subheading/headnotes_text _PHRASE_BOOSTS fire the same regardless of document
+    type. Unconditional (present even with boost=False, the default) since it lives at
+    _PHRASE_BOOSTS' should-clause scale, the same reason _CURRENT_EDITION_SHOULD_BOOST does -
+    a small function_score addition was verified too weak to move the ranking."""
+    preview = build_query_preview("landmark Supreme Court ruling on GST")
+
+    should = preview["es_query"]["bool"]["should"]
+    matches = [
+        clause for clause in should
+        if clause.get("term", {}).get("groups.group.name.keyword", {}).get("value") == "CASELAWS"
+    ]
+    assert len(matches) == 1
+    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 10_000_000.0
+
+
+def test_build_query_preview_skips_caselaws_group_should_boost_when_no_signal():
+    preview = build_query_preview("Section 54F exemption eligibility")
+
+    should = preview["es_query"]["bool"]["should"]
+    matches = [clause for clause in should if "groups.group.name.keyword" in clause.get("term", {})]
+    assert matches == []
+
+
+def test_build_query_preview_adds_rule_group_should_boost_for_bare_rule_word():
+    preview = build_query_preview("landmark rule laid down by the tribunal")
+
+    should = preview["es_query"]["bool"]["should"]
+    matches = [
+        clause for clause in should
+        if clause.get("term", {}).get("groups.group.name.keyword", {}).get("value") == "RULE"
+    ]
+    assert len(matches) == 1
+    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 2_000_000.0
+
+
+def test_build_query_preview_adds_experts_opinion_group_should_boost_for_article_word():
+    """ARTICLE's real ES groups.group.name is "Experts Opinion", not "ARTICLE" - see
+    query_tokenizer.detect_group_signals's docstring for the verification behind that."""
+    preview = build_query_preview("landmark article on GST reforms")
+
+    should = preview["es_query"]["bool"]["should"]
+    matches = [
+        clause for clause in should
+        if clause.get("term", {}).get("groups.group.name.keyword", {}).get("value") == "Experts Opinion"
+    ]
+    assert len(matches) == 1
+    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 2_000_000.0
 
 
 @pytest.mark.asyncio
@@ -313,7 +408,7 @@ async def test_raw_search_boost_true_includes_static_taxonomy_id_boosts_uncondit
 @pytest.mark.asyncio
 async def test_raw_search_boost_true_adds_current_edition_should_boost_for_section_query():
     """The current-edition (Income-tax Act 2025, subgroup 111050000000020042) preference must
-    live as a should-clause boost inside the main query, at _SECTION_PHRASE_BOOSTS' scale - not
+    live as a should-clause boost inside the main query, at _PHRASE_BOOSTS' scale - not
     as a small function_score addition, which was verified live to be too weak to move the
     ranking (see _CURRENT_EDITION_SHOULD_BOOST's comment)."""
     client = FakeAsyncES(search_hits=[])
@@ -743,6 +838,39 @@ async def test_sparse_fallback_search_applies_doc_id_allowlist_and_highlight_con
     assert {"terms": {"id": ["d1", "d2"]}} in must_clauses
 
 
+def test_build_sparse_fallback_query_preview_matches_what_sparse_fallback_search_sends():
+    """Single-source-of-truth check, same reasoning as build_query_preview's own docstring -
+    the preview must never drift from the real query."""
+    from common.es_client import build_sparse_fallback_query_preview
+
+    preview = build_sparse_fallback_query_preview("Section 52", groups=["ACT"], doc_id_allowlist=["d1"])
+
+    assert {"terms": {"groups.group.name.keyword": ["ACT"]}} in preview["bool"]["must"]
+    assert {"terms": {"id": ["d1"]}} in preview["bool"]["must"]
+    assert "function_score" not in str(preview)
+
+
+def test_build_sparse_fallback_query_preview_boost_true_wraps_field_query_in_function_score():
+    from common.es_client import build_sparse_fallback_query_preview
+
+    preview = build_sparse_fallback_query_preview("Section 52", groups=["ACT"], boost=True)
+
+    field_query = preview["bool"]["must"][-1]
+    assert "function_score" in field_query
+
+
+@pytest.mark.asyncio
+async def test_sparse_fallback_search_sends_exactly_the_query_build_sparse_fallback_query_preview_returns():
+    from common.es_client import sparse_fallback_search, build_sparse_fallback_query_preview
+
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    await sparse_fallback_search(client, "Section 52", groups=["ACT"], doc_id_allowlist=["d1"], boost=True)
+
+    expected = build_sparse_fallback_query_preview("Section 52", groups=["ACT"], doc_id_allowlist=["d1"], boost=True)
+    assert client.search_calls[0] == expected
+
+
 @pytest.mark.asyncio
 async def test_sparse_fallback_search_strips_highlight_markup_tags():
     """Default ES highlighting wraps matches in <em>...</em> - that raw markup must never
@@ -807,3 +935,75 @@ def test_cap_group_shares_backfills_to_full_limit_when_minority_group_has_more()
     assert len(result_eo) == 5
     assert result_caselaws == caselaws_hits[:15]
     assert result_eo == eo_hits[:5]
+
+
+@pytest.mark.asyncio
+async def test_keyword_mode_search_returns_doc_id_score_and_highlight_text():
+    client = FakeAsyncES(search_hits=[
+        {"_source": {"id": "d1"}, "_score": 9.0, "highlight": {"fullcontent": ["snippet about section 55"]}},
+    ], index="researchindex_aic_test")
+
+    from common.es_client import keyword_mode_search
+
+    result = await keyword_mode_search(client, "section 55", limit=20)
+
+    assert result == [{"doc_id": "d1", "score": 9.0, "text": "snippet about section 55"}]
+
+
+@pytest.mark.asyncio
+async def test_keyword_mode_search_skips_hits_with_no_highlight_fragment():
+    client = FakeAsyncES(search_hits=[
+        {"_source": {"id": "d1"}, "_score": 9.0, "highlight": {}},
+    ], index="researchindex_aic_test")
+
+    from common.es_client import keyword_mode_search
+
+    result = await keyword_mode_search(client, "section 55", limit=20)
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_keyword_mode_search_applies_doc_id_allowlist():
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import keyword_mode_search
+
+    await keyword_mode_search(client, "section 55", doc_id_allowlist=["d1", "d2"])
+
+    query = client.search_calls[0]
+    assert {"terms": {"id": ["d1", "d2"]}} in query["bool"]["must"]
+
+
+@pytest.mark.asyncio
+async def test_keyword_mode_search_strips_highlight_markup_tags():
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    from common.es_client import keyword_mode_search
+
+    await keyword_mode_search(client, "section 55")
+
+    highlight = client.highlight_calls[0]
+    assert highlight["pre_tags"] == [""]
+    assert highlight["post_tags"] == [""]
+
+
+@pytest.mark.asyncio
+async def test_keyword_mode_search_sends_exactly_the_query_build_keyword_search_query_preview_returns():
+    from common.es_client import keyword_mode_search, build_keyword_search_query_preview
+
+    client = FakeAsyncES(search_hits=[], index="researchindex_aic_test")
+
+    await keyword_mode_search(client, "Section 52", doc_id_allowlist=["d1"], boost=True)
+
+    expected = build_keyword_search_query_preview("Section 52", doc_id_allowlist=["d1"], boost=True)
+    assert client.search_calls[0] == expected
+
+
+def test_build_keyword_search_query_preview_boost_true_wraps_field_query_in_function_score():
+    from common.es_client import build_keyword_search_query_preview
+
+    preview = build_keyword_search_query_preview("Section 52", boost=True)
+
+    field_query = preview["bool"]["must"][-1]
+    assert "function_score" in field_query

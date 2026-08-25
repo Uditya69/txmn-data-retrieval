@@ -1,7 +1,8 @@
 import re
 
 from common.legal_lexicon import (
-    CITATION_PATTERN, PARTY_PATTERN, SECTION_PATTERN, expand_synonyms, is_known_journal, is_stopword,
+    CITATION_PATTERN, KNOWN_ACT_NAMES, PARTY_PATTERN, SECTION_PATTERN, expand_synonyms,
+    is_known_court, is_known_journal, is_stopword, normalize,
 )
 
 _CITATION_SPACING_PATTERN = re.compile(r"(\d{4})([a-zA-Z])")
@@ -53,7 +54,7 @@ _SECTION_NUMBER_PATTERN = re.compile(r"^\d+[A-Za-z]*(\(\w+\))*$")
 # single space, BEFORE tokenization ever runs: "Section52" (fully glued, zero separator),
 # "Section-52" (dash, zero space), "Section - 52" (spaced dash), "Section- 52"/"Section -52"
 # (asymmetric spacing), en/em dash - all become "Section 52". This corpus's own `heading` field
-# is literally formatted "Section - 52" (see es_client.py's _SECTION_PHRASE_BOOSTS comment) -
+# is literally formatted "Section - 52" (see es_client.py's _PHRASE_BOOSTS comment) -
 # a user copy-pasting a heading, a citation, or just typing fast hits one of these shapes
 # constantly, and .split() handles none of them consistently on its own (a glued token like
 # "Section52"/"Section-52" never gets split at all; a spaced dash becomes its own token that
@@ -306,3 +307,117 @@ def chunk_query(query: str) -> list[dict]:
             text_run.append(token)
     flush_text_run()
     return chunks
+
+
+# Chunk types chunk_query() already recognizes as a precise, lookup-safe anchor - a doc
+# either contains this exact span or it doesn't, so ES lexical search alone resolves it as
+# well as Milvus dense/sparse would (see classify_intent_mode).
+_ANCHOR_CHUNK_TYPES = {"section", "citation", "court_city", "quoted"}
+
+
+def _is_bare_act_name(text: str) -> bool:
+    """True when `text` is nothing but a known Act name, optionally trailed by a bare
+    year ("Income Tax Act 1961") - chunk_query has no dedicated Act-name chunk type, so a
+    query like "what is the income tax act" leaves it in the generic text-run chunk; this
+    re-checks that leftover text against KNOWN_ACT_NAMES rather than teaching chunk_query
+    a fifth merge rule for a check only classify_intent_mode needs. Anything beyond the
+    act name itself (a trailing concept word, e.g. "income tax act depreciation") fails
+    both checks below and correctly falls through to hybrid - see
+    test_classify_intent_mode_tags_conceptual_query_as_hybrid."""
+    lowered = text.lower()
+    if lowered in KNOWN_ACT_NAMES:
+        return True
+    for act_name in KNOWN_ACT_NAMES:
+        if lowered.startswith(act_name) and lowered[len(act_name):].strip().isdigit():
+            return True
+    return False
+
+
+def classify_intent_mode(query: str) -> str:
+    """Tags a query "keyword" (ES-only search is sufficient) or "hybrid" (needs the full
+    Milvus dense/sparse + RRF pipeline). "keyword" fires only when EVERY surviving chunk
+    (after chunk_query's own filler/stopword strip) is a precise, unambiguous anchor - a
+    structural chunk type (section/rule/article number, citation, court/city, quoted
+    phrase) or a bare known court/journal token/Act name. Deliberately excludes
+    legal_lexicon's `synonyms` entries (PE, ALP, AMT, ...): those are abbreviations for
+    broad legal concepts, not lookup keys, and still need semantic (Milvus) recall - see
+    test_classify_intent_mode_does_not_tag_synonym_lexicon_term_as_keyword. Any leftover
+    unanchored content (a bare concept word, a party name, a mix of anchor + concept text)
+    tags hybrid, same as an empty/all-filler query."""
+    chunks = chunk_query(query)
+    if not chunks:
+        return "hybrid"
+    for chunk in chunks:
+        if chunk["type"] in _ANCHOR_CHUNK_TYPES:
+            continue
+        text = chunk["text"]
+        if " " not in text and (is_known_court(text) or is_known_journal(text)):
+            continue
+        if _is_bare_act_name(text):
+            continue
+        return "hybrid"
+    return "keyword"
+
+
+# A legal_lexicon normalization target isn't always the real ES `groups.group.name` value it
+# signals: RULING/CASE/CITATION/JUDGEMENT do normalize to "CASELAWS", which is also the real
+# group name, but ARTICLE's real group is "Experts Opinion" (verified against a real doc
+# pulled into the 2026-08-25 investigation: heading "[2019] 106 taxmann.com 47 (Article)",
+# groups.group.name == "Experts Opinion", id 111050000000000051) - centax-node's own token
+# table (constants/token.js) confirms the same three group ids/boosts (CASELAWS
+# 111050000000000060/10,000,000; RULE 111050000000000026/2,000,000; ARTICLE's entry points at
+# 111050000000000051/2,000,000, i.e. Experts Opinion). CIRCULAR/NOTIFICATION have their own
+# confirmed token-table entries too, but are deliberately excluded here - we don't have
+# verified live data for those two groups' behavior on this repo's own index (see es_client.py
+# comment for CASELAWS/RULE/ARTICLE's own verification caveat, which still applies even to
+# these three).
+_GROUP_SIGNAL_ES_GROUP_NAMES = {
+    "CASELAWS": "CASELAWS",
+    "RULE": "RULE",
+    "ARTICLE": "Experts Opinion",
+}
+
+
+def detect_group_signals(chunks: list[dict]) -> set[str]:
+    """Real ES `groups.group.name` values signaled by any word across chunk_query()'s chunks -
+    ported from centax-node's queryAnalyzer.js/token dictionary recognizing certain words
+    (RULING, JUDGEMENT, CASE, RULE, ARTICLE, ...) as meaning the query wants that content type
+    specifically, not just matching them as ordinary text. A signal word is often not its own
+    chunk: "landmark Supreme Court ruling on GST" leaves "ruling" merged into the trailing
+    "ruling GST" text-run chunk (see chunk_query), so this checks every word inside each
+    chunk's text, not each chunk's text as a whole.
+
+    legal_lexicon's normalize() covers suffixed/abbreviated variants (RULES/RULENO -> RULE,
+    CASE/CASES/CITATION/JUDGEMENT -> CASELAWS) but has no identity entry for a bare word
+    already in its own canonical form (RULE -> RULE, ARTICLE -> ARTICLE would be a no-op
+    normalization, so the lexicon data omits it) - normalize()'s own fallback (return the
+    input unchanged when not found) makes checking the *normalized* form still catch this,
+    since a bare "RULE" normalizes to "RULE" right back.
+
+    Callers turn each returned group name into a should-clause `groups.group.name.keyword`
+    boost sized to compete with _PHRASE_BOOSTS (see es_client.py) - without it, a query like
+    the one above scores generic "Words & Idioms" commentary docs whose heading literally
+    contains "Supreme Court" far above the real case law it's asking for, since
+    heading/subheading/headnotes_text phrase-match boosts fire identically regardless of
+    document type."""
+    return {
+        _GROUP_SIGNAL_ES_GROUP_NAMES[target]
+        for chunk in chunks
+        for word in chunk["text"].split()
+        for target in [normalize(word.upper())]
+        if target in _GROUP_SIGNAL_ES_GROUP_NAMES
+    }
+
+
+def build_dense_sparse_query(chunks: list[dict], fallback: str) -> str:
+    """Reconstructs a cleaned search string for Milvus dense embedding + native sparse search
+    from chunk_query's own chunks - drops the conversational/question-word scaffolding
+    chunk_query already strips via strip_stopwords ("what is section 55" -> chunks == [{"text":
+    "section 55", ...}]) while keeping every real content word, citation, and section
+    reference, in order. Exists because Instant mode has no LLM query-rewrite step (unlike AI
+    Mode's extract_intent) to do this - without it, "section 55" and "what is section 55" send
+    identical text to ES's phrase-boost clauses (chunk_query already cleans those) but
+    different, noise-diluted text to Milvus dense/sparse, which search the raw sentence
+    verbatim. Falls back to the original query on the empty-chunks edge case (empty query)."""
+    text = " ".join(chunk["text"] for chunk in chunks if chunk.get("text"))
+    return text or fallback

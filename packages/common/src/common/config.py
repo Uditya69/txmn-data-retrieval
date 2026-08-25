@@ -23,6 +23,20 @@ class Settings(BaseSettings):
     # ai_mode_rerank_enabled above. False here forces every request onto
     # today's always-both-backends behavior regardless of what the client asks for.
     instant_mode_auto_route_enabled: bool = True
+    # Kill switch for native Milvus sparse (BM25 Function) search - shared by both AI Mode's
+    # retrieve() and Instant mode's _run_milvus, off by default. Off means the sparse role is
+    # covered by ES alone (AI Mode: whole-query, unscoped; Instant: no fallback, dense-only);
+    # on restores the legacy split (native Milvus sparse + ES fallback scoped to gap
+    # collections, AI Mode only). Env-only: no UI toggle exists for this one.
+    milvus_sparse_enabled: bool = False
+    # Opt-in SLM pass for AI Mode's keyword path (classify_intent_mode == "keyword") - that
+    # path otherwise skips the SLM entirely (see ai_mode/pipeline.py) to avoid paying for a
+    # rewrite/intent/filters extraction it never uses. When on, an extra small SLM call
+    # (ai_mode/keyword_expansion.py) may suggest up to 2 genuinely-confident additional legal
+    # keywords to broaden the ES lexical search - never a query rewrite. Off by default: this
+    # is an experimental recall booster being evaluated, not yet trusted as the default
+    # behavior. Env-only: no UI toggle exists for this one.
+    keyword_mode_expansion_enabled: bool = False
     # Gates the local-only admin eval-runner UI (retrieval_api/admin_eval/) - unset
     # (the default) disables that feature entirely, so no deployment needs to think
     # about it unless it opts in.

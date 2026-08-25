@@ -15,7 +15,10 @@ def _patch_common(monkeypatch, fake_run_ai_mode):
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(
+        ws_module, "get_settings",
+        lambda: Mock(instant_mode_auto_route_enabled=False, milvus_sparse_enabled=False, expose_reasoning=False),
+    )
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -45,7 +48,7 @@ def test_ws_search_logged_in_user_with_persona_reaches_run_ai_mode_with_rendered
             "query_count": 20,
         }
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         captured["persona_context"] = persona_context
         return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
 
@@ -93,7 +96,7 @@ def test_ws_search_logged_in_user_with_thin_persona_gets_empty_persona_context(m
             "query_count": 3,
         }
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         captured["persona_context"] = persona_context
         return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
 
@@ -128,7 +131,7 @@ def test_ws_search_guest_gets_empty_persona_context_and_no_persona_write(monkeyp
     async def fake_get_persona(personas_collection, user_id):
         raise AssertionError("get_persona should never be called for a guest")
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         captured["persona_context"] = persona_context
         return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
 
@@ -160,7 +163,7 @@ def test_ws_search_logged_in_user_successful_ai_mode_schedules_persona_write(mon
     async def fake_get_persona(personas_collection, user_id):
         return None
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["acts", "rules"]}
 
     _patch_common(monkeypatch, fake_run_ai_mode)
@@ -199,7 +202,7 @@ def test_ws_search_accepts_access_token_field_without_crashing(monkeypatch):
     this doesn't require a live Mongo/ES/Milvus stack since mode=instant never
     touches persona lookup or AI Mode at all."""
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         raise AssertionError("ai_mode should not run in instant-only mode")
 
     async def fake_get_persona(personas_collection, user_id):
@@ -224,7 +227,7 @@ def test_ws_search_sends_session_expired_when_access_token_fails_to_decode(monke
     stored session has gone stale so it can clear it and prompt re-login, instead of
     persona/history quietly stopping with no visible cause."""
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         raise AssertionError("ai_mode should not run in instant-only mode")
 
     async def fake_get_persona(personas_collection, user_id):
@@ -247,7 +250,7 @@ def test_ws_search_omits_session_expired_for_guest(monkeypatch):
     """No access_token at all is a normal guest request, not a stale session -
     session_expired must never fire when none was sent in the first place."""
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         raise AssertionError("ai_mode should not run in instant-only mode")
 
     _patch_common(monkeypatch, fake_run_ai_mode)

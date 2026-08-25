@@ -19,6 +19,11 @@ def collection_ranked_trace(by_collection: dict[str, list[dict]], top_n: int = 1
 
 
 def collection_trace(by_collection: dict[str, list[dict]]) -> dict:
+    """`origin` on each hit ("es" for a sparse_fallback_search row, "milvus" otherwise) lets
+    the trace panel tell whether a given sparse-search step's results came entirely from ES
+    fallback, entirely from native Milvus sparse, or a genuine mix (round-robin-interleaved by
+    retrieve.py::_flatten) - without that tag every "ai_milvus_sparse" step looked identical
+    regardless of which source(s) actually ran, which is exactly what prompted this field."""
     return {
         "collections": [
             {
@@ -30,6 +35,7 @@ def collection_trace(by_collection: dict[str, list[dict]]) -> dict:
                         "doc_id": row["doc_id"],
                         "score": row["score"],
                         "text_preview": row["text"][:200],
+                        "origin": "es" if row.get("source") == "es_fallback" else "milvus",
                     }
                     for row in rows[:5]
                 ],

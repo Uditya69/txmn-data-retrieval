@@ -19,13 +19,47 @@ const STEP_LABELS: Record<string, string> = {
   ai_rrf_merge: 'RRF merge',
   rerank: 'Rerank',
   instant_reranked: 'Instant rerank',
+  keyword_search: 'Keyword search (ES only)',
+  keyword_expansion: 'Keyword expansion',
   synthesis_prompt: 'Synthesis prompt',
 }
 
 const ORIGIN_LABELS: Record<string, string> = {
   es: 'ES',
+  milvus: 'Milvus',
   milvus_dense: 'Milvus dense',
   milvus_sparse: 'Milvus sparse',
+}
+
+// AI Mode's sparse step (ai_milvus_sparse) can be backed entirely by native Milvus sparse,
+// entirely by ES fallback (a gap collection like act_section has no native sparse_vector at
+// all), or genuinely both (round-robin-interleaved by retrieve.py::_flatten - see
+// docs/superpowers/specs/2026-08-24-ai-mode-boosting-design.md) - a single static label would
+// misdescribe two of these three cases. Each hit's `origin` tag (common/trace_utils.py's
+// collection_trace) says which; a collection is always homogeneously one origin or the other
+// (never mixed within itself), so sampling top_hits per collection is enough to tell.
+type SparseComposition = 'es' | 'milvus' | 'mixed' | null
+
+function sparseComposition(data: Record<string, any>): SparseComposition {
+  const origins = new Set<string>()
+  for (const c of data.collections ?? []) {
+    for (const hit of c.top_hits ?? []) {
+      if (hit.origin) origins.add(hit.origin)
+    }
+  }
+  if (origins.size === 0) return null
+  if (origins.has('es') && origins.has('milvus')) return 'mixed'
+  return origins.has('es') ? 'es' : 'milvus'
+}
+
+function stepLabel(step: TraceStep): string {
+  if (step.step === 'ai_milvus_sparse') {
+    const composition = sparseComposition(step.data as Record<string, any>)
+    if (composition === 'es') return 'ES fallback sparse search'
+    if (composition === 'mixed') return 'Milvus + ES fallback sparse (round-robin merged)'
+    if (composition === 'milvus') return 'Milvus sparse search'
+  }
+  return STEP_LABELS[step.step] ?? step.step
 }
 
 const STEP_DESCRIPTIONS: Record<string, string> = {
@@ -38,11 +72,13 @@ const STEP_DESCRIPTIONS: Record<string, string> = {
   milvus_dense: 'Milvus dense (semantic embedding) search results.',
   milvus_sparse: 'Milvus BM25 sparse search results.',
   ai_milvus_dense: 'Milvus dense (semantic embedding) search results.',
-  ai_milvus_sparse: 'Milvus BM25 sparse search results.',
+  ai_milvus_sparse: 'BM25 sparse search results - native Milvus for collections that have a sparse vector, ES fallback for the ones that don\'t (act_section/rule_section/article_section/commentary_section/ruling).',
   rrf_merge: 'Merges ES + Milvus results by rank position (RRF) — never by comparing raw scores.',
   ai_rrf_merge: 'Merges ES + Milvus results by rank position (RRF) — never by comparing raw scores.',
   rerank: 'Cross-encoder reranking of the merged candidates.',
   instant_reranked: 'Final result list for Instant mode after fusion/reranking.',
+  keyword_search: 'A precise anchor lookup (bare section/rule/article reference, citation, court name, or Act name) - Milvus dense/sparse, RRF, and reranking are skipped entirely; these ES results go straight to synthesis.',
+  keyword_expansion: 'Optional SLM pass (env flag, off by default) - may add up to 2 legal keywords to broaden the ES search for a keyword-tagged query. An empty result here is the common, expected case.',
   synthesis_prompt: 'The prompt sent to the LLM to synthesize the final answer.',
 }
 
@@ -73,11 +109,19 @@ function summarize(step: TraceStep): string {
       return `${(d.hits ?? []).length} hit(s)`
     case 'milvus_dense':
     case 'milvus_sparse':
-    case 'ai_milvus_dense':
-    case 'ai_milvus_sparse': {
+    case 'ai_milvus_dense': {
       const collections = d.collections ?? []
       const total = collections.reduce((sum: number, c: any) => sum + c.hit_count, 0)
       return `${collections.length} collections, ${total} hits`
+    }
+    case 'ai_milvus_sparse': {
+      const collections = d.collections ?? []
+      const total = collections.reduce((sum: number, c: any) => sum + c.hit_count, 0)
+      const composition = sparseComposition(d)
+      const note = composition === 'es' ? ' — ES fallback only (no native sparse for these collections)'
+        : composition === 'mixed' ? ' — Milvus native + ES fallback, round-robin merged'
+        : composition === 'milvus' ? ' — Milvus native only' : ''
+      return `${collections.length} collections, ${total} hits${note}`
     }
     case 'rrf_merge':
     case 'ai_rrf_merge':
@@ -89,6 +133,12 @@ function summarize(step: TraceStep): string {
     }
     case 'instant_reranked':
       return `${(d.hits ?? []).length} result(s)`
+    case 'keyword_search':
+      return `"${d.query}" — ${d.candidate_count} candidate(s), top ${d.top_doc_ids?.length ?? 0} kept`
+    case 'keyword_expansion': {
+      const added = d.added_keywords ?? []
+      return added.length === 0 ? 'no keywords added' : `+${added.length}: ${added.join(', ')}`
+    }
     case 'synthesis_prompt':
       return `${(d.prompt ?? '').length} chars`
     default:
@@ -229,12 +279,78 @@ function ClassifierBody({ data, chunks }: { data: Record<string, any>; chunks: Q
   )
 }
 
+// Mirrors common/es_client.py's _ES_FALLBACK_LIMIT - sparse_fallback_search's own default
+// size, so the request body shown/copied here matches what an ai_milvus_sparse step's ES
+// fallback call actually sent (a multi-group call internally fetches more per _cap_group_shares,
+// but this base size is what a single-group call - the common case - genuinely used).
+const _ES_FALLBACK_LIMIT = 20
+
+function MilvusSparseDenseBody({
+  step, data, onOpenDocument,
+}: {
+  step: string
+  data: Record<string, any>
+  onOpenDocument?: (docId: string) => void
+}) {
+  // Only show a source's query line when that source actually contributed a row to this
+  // step - a gap collection like act_section never gets a native Milvus row at all, so
+  // showing "Milvus searched: ..." there would claim Milvus ran when it contributed nothing.
+  const composition = step === 'ai_milvus_sparse' ? sparseComposition(data) : null
+  return (
+    <>
+      {step === 'ai_milvus_dense' && data.query && (
+        <p className={styles.summary}>Searched: <code>{data.query}</code></p>
+      )}
+      {step === 'ai_milvus_sparse' && (composition === 'milvus' || composition === 'mixed') && data.milvus_query && (
+        <p className={styles.summary}>Milvus searched: <code>{data.milvus_query}</code></p>
+      )}
+      {step === 'ai_milvus_sparse' && (composition === 'es' || composition === 'mixed') && data.es_query && (
+        <p className={styles.summary}>ES fallback searched: <code>{data.es_query}</code></p>
+      )}
+      <details className={styles.details}>
+        <summary className={styles.detailsSummary}>Show results</summary>
+        {(data.collections ?? []).map((c: any) => (
+          <div key={c.name}>
+            <strong>{c.name}</strong> ({c.hit_count})
+            <TruncatedHitList hits={c.top_hits ?? []} onOpenDocument={onOpenDocument} />
+          </div>
+        ))}
+      </details>
+      {data.es_query_body && (
+        <details className={styles.details}>
+          <summary className={styles.detailsSummaryRow}>
+            <span className={styles.detailsSummary}>Show ES query</span>
+            <CopyButton getText={() => JSON.stringify({ query: data.es_query_body, size: _ES_FALLBACK_LIMIT }, null, 2)} />
+          </summary>
+          <pre className={styles.promptBlock}>
+            {JSON.stringify({ query: data.es_query_body, size: _ES_FALLBACK_LIMIT }, null, 2)}
+          </pre>
+        </details>
+      )}
+    </>
+  )
+}
+
 const COLLAPSIBLE_LABELS: Record<string, string> = {
   synthesis_prompt: 'Show prompt',
 }
 
 function collapsibleLabel(step: string): string {
   return COLLAPSIBLE_LABELS[step] ?? 'Show results'
+}
+
+// A model's own chain-of-thought for why it decided what it did - carried unconditionally
+// on any trace step whose backend function captured one (e.g. keyword_expansion, intent),
+// regardless of what else that step renders below. Most useful exactly when the model
+// decided to do nothing (an empty added_keywords list, for instance) - that's the case a
+// step-specific body has nothing else to show for.
+function ReasoningDetails({ reasoning }: { reasoning: string }) {
+  return (
+    <details className={styles.details}>
+      <summary className={styles.detailsSummary}>Show reasoning</summary>
+      <pre className={styles.promptBlock}>{reasoning}</pre>
+    </details>
+  )
 }
 
 function StepBody({
@@ -245,47 +361,46 @@ function StepBody({
   precedingChunks: QueryChunk[] | null
 }) {
   const d = step.data as Record<string, any>
-  if (step.step === 'query_analysis') {
-    return <QueryAnalysisBody data={d} />
-  }
-  if (step.step === 'classifier') {
-    return <ClassifierBody data={d} chunks={precedingChunks} />
-  }
+  const reasoning = typeof d.reasoning === 'string' && d.reasoning.trim() ? d.reasoning : null
 
-  let body: ReactNode = null
-  if (step.step === 'es_search') {
-    body = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
+  let specific: ReactNode = null
+  if (step.step === 'query_analysis') {
+    specific = <QueryAnalysisBody data={d} />
+  } else if (step.step === 'classifier') {
+    specific = <ClassifierBody data={d} chunks={precedingChunks} />
   } else if (
     step.step === 'milvus_dense' || step.step === 'milvus_sparse' ||
     step.step === 'ai_milvus_dense' || step.step === 'ai_milvus_sparse'
   ) {
-    body = (
-      <>
-        {(d.collections ?? []).map((c: any) => (
-          <div key={c.name}>
-            <strong>{c.name}</strong> ({c.hit_count})
-            <TruncatedHitList hits={c.top_hits ?? []} onOpenDocument={onOpenDocument} />
-          </div>
-        ))}
-      </>
-    )
+    specific = <MilvusSparseDenseBody step={step.step} data={d} onOpenDocument={onOpenDocument} />
+  } else if (step.step === 'es_search') {
+    specific = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'rrf_merge' || step.step === 'ai_rrf_merge') {
-    body = <TruncatedHitList hits={d.top_candidates ?? []} onOpenDocument={onOpenDocument} />
+    specific = <TruncatedHitList hits={d.top_candidates ?? []} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'rerank') {
-    body = <TruncatedHitList hits={d.top_chunks ?? []} onOpenDocument={onOpenDocument} />
+    specific = <TruncatedHitList hits={d.top_chunks ?? []} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'instant_reranked') {
-    body = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
+    specific = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
+  } else if (step.step === 'keyword_search') {
+    specific = <TruncatedHitList hits={(d.top_doc_ids ?? []).map((id: string) => ({ doc_id: id }))} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'synthesis_prompt') {
-    body = <pre className={styles.promptBlock}>{d.prompt}</pre>
+    specific = <pre className={styles.promptBlock}>{d.prompt}</pre>
   }
 
-  if (body === null) return null
-
-  return (
+  const wrappedSpecific = specific !== null ? (
     <details className={styles.details}>
       <summary className={styles.detailsSummary}>{collapsibleLabel(step.step)}</summary>
-      {body}
+      {specific}
     </details>
+  ) : null
+
+  if (wrappedSpecific === null && reasoning === null) return null
+
+  return (
+    <>
+      {wrappedSpecific}
+      {reasoning && <ReasoningDetails reasoning={reasoning} />}
+    </>
   )
 }
 
@@ -309,7 +424,7 @@ export default function TracePanel({ steps, onOpenDocument }: TracePanelProps) {
         }
         return (
           <section key={`${step.step}-${index}`} className={styles.card}>
-            <h3>{STEP_LABELS[step.step] ?? step.step}</h3>
+            <h3>{stepLabel(step)}</h3>
             {STEP_DESCRIPTIONS[step.step] && (
               <p className={styles.description}>{STEP_DESCRIPTIONS[step.step]}</p>
             )}

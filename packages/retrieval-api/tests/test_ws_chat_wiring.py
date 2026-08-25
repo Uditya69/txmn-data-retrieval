@@ -16,7 +16,10 @@ def _patch_common(monkeypatch, fake_run_ai_mode, fake_conversations_collection):
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(
+        ws_module, "get_settings",
+        lambda: Mock(instant_mode_auto_route_enabled=False, milvus_sparse_enabled=False, expose_reasoning=False),
+    )
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -32,7 +35,7 @@ def _patch_common(monkeypatch, fake_run_ai_mode, fake_conversations_collection):
 
 
 def test_ws_search_logged_in_user_persists_conversation_turn(monkeypatch, fake_conversations_collection):
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
 
     _patch_common(monkeypatch, fake_run_ai_mode, fake_conversations_collection)
@@ -61,7 +64,7 @@ def test_ws_search_logged_in_user_persists_conversation_turn(monkeypatch, fake_c
 
 
 def test_ws_search_guest_never_writes_conversation(monkeypatch, fake_conversations_collection):
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
 
     _patch_common(monkeypatch, fake_run_ai_mode, fake_conversations_collection)
@@ -76,7 +79,7 @@ def test_ws_search_guest_never_writes_conversation(monkeypatch, fake_conversatio
 
 
 def test_ws_search_logged_in_user_without_conversation_id_does_not_crash(monkeypatch, fake_conversations_collection):
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
 
     _patch_common(monkeypatch, fake_run_ai_mode, fake_conversations_collection)

@@ -1,7 +1,8 @@
 from common.query_tokenizer import (
     classify_query_shape, normalize_citation_spacing, merge_keyword_number,
     merge_court_city, merge_citation_span, strip_stopwords, extract_quoted_phrases,
-    expand_query_synonyms, extract_boost_phrases, chunk_query,
+    expand_query_synonyms, extract_boost_phrases, chunk_query, build_dense_sparse_query,
+    classify_intent_mode, detect_group_signals,
 )
 
 
@@ -88,6 +89,36 @@ def test_strip_stopwords_removes_recognized_stopword():
 def test_strip_stopwords_never_drops_a_known_journal():
     # ITR is both plausible-stopword-adjacent and a real journal - must survive
     assert "ITR" in strip_stopwords(["citation", "in", "ITR"])
+
+
+def test_build_dense_sparse_query_strips_question_scaffolding():
+    """The exact bug this fixes: Instant mode has no LLM rewrite step, so without this,
+    "section 55" and "what is section 55" would send different, noise-diluted text to Milvus
+    dense/sparse (they already send identical text to ES - chunk_query already cleans the
+    phrase-boost clauses)."""
+    assert build_dense_sparse_query(chunk_query("what is section 55"), fallback="what is section 55") == "section 55"
+    assert build_dense_sparse_query(chunk_query("section 55"), fallback="section 55") == "section 55"
+
+
+def test_build_dense_sparse_query_keeps_real_content_words_for_conceptual_queries():
+    cleaned = build_dense_sparse_query(
+        chunk_query("how is depreciation computed under the income tax act"),
+        fallback="how is depreciation computed under the income tax act",
+    )
+    assert cleaned == "depreciation computed under income tax act"
+
+
+def test_build_dense_sparse_query_falls_back_to_original_when_chunks_are_empty():
+    assert build_dense_sparse_query([], fallback="original text") == "original text"
+
+
+def test_chunk_query_does_not_emit_a_standalone_and_chunk():
+    """Regression test: "and" surviving as its own chunk used to only cost a small
+    _BOOST_PROFILES weight (harmless), but es_client.py's _build_field_query now applies the
+    same massive phrase-boost tier to every chunk type - a stray connective chunk at that
+    scale would match virtually every document in the corpus."""
+    chunks = chunk_query("section 14 and section 151A")
+    assert not any(c["text"].strip().upper() == "AND" for c in chunks)
 
 
 def test_extract_quoted_phrases_keeps_quoted_text_as_one_token():
@@ -201,5 +232,87 @@ def test_chunk_query_single_leftover_word_still_becomes_its_own_text_chunk():
     assert chunks == [{"text": "goodwill", "proximity": 5, "type": "text", "alt_text": None}]
 
 
+def test_detect_group_signals_true_for_ruling_inside_merged_text_chunk():
+    # "ruling" ends up merged into the trailing "ruling GST" text chunk (see chunk_query),
+    # not its own standalone chunk - the detector must scan words inside a chunk's text,
+    # not just compare each chunk's whole text against the lexicon.
+    chunks = chunk_query("landmark Supreme Court ruling on GST")
+    assert detect_group_signals(chunks) == {"CASELAWS"}
+
+
+def test_detect_group_signals_true_for_judgement_synonym():
+    chunks = chunk_query("Bombay High Court judgement on capital gains")
+    assert detect_group_signals(chunks) == {"CASELAWS"}
+
+
+def test_detect_group_signals_detects_bare_rule_word():
+    # legal_lexicon.json's normalizations dict has no identity entry for the bare canonical
+    # word ("RULE" -> "RULE" would be a no-op normalization, so the data curator skipped
+    # it - only suffixed/abbreviated forms like RULENO/RULES are listed) - centax-node's own
+    # token table (constants/token.js) has a dedicated entry for the bare word itself, so
+    # this must recognize it too, not just the normalize()-mapped variants.
+    chunks = chunk_query("landmark rule laid down by the tribunal")
+    assert detect_group_signals(chunks) == {"RULE"}
+
+
+def test_detect_group_signals_detects_bare_article_word_as_experts_opinion():
+    # ARTICLE's real ES groups.group.name is "Experts Opinion", not "ARTICLE" - verified
+    # against a real doc pulled into this investigation (heading "[2019] 106 taxmann.com 47
+    # (Article)", groups.group.name == "Experts Opinion", id 111050000000000051).
+    chunks = chunk_query("landmark article on GST reforms")
+    assert detect_group_signals(chunks) == {"Experts Opinion"}
+
+
+def test_detect_group_signals_false_when_no_signal_word_present():
+    chunks = chunk_query("Section 54F exemption eligibility")
+    assert detect_group_signals(chunks) == set()
+
+
+def test_detect_group_signals_false_for_empty_chunks():
+    assert detect_group_signals([]) == set()
+
+
 def test_chunk_query_empty_query_returns_no_chunks():
     assert chunk_query("") == []
+
+
+def test_classify_intent_mode_tags_bare_section_reference_as_keyword():
+    assert classify_intent_mode("what is section 55") == "keyword"
+
+
+def test_classify_intent_mode_tags_bare_citation_as_keyword():
+    assert classify_intent_mode("133 taxmann.com 196") == "keyword"
+
+
+def test_classify_intent_mode_tags_bare_known_court_as_keyword():
+    assert classify_intent_mode("what is ITAT") == "keyword"
+
+
+def test_classify_intent_mode_tags_bare_act_name_as_keyword():
+    assert classify_intent_mode("what is the income tax act") == "keyword"
+
+
+def test_classify_intent_mode_tags_act_name_with_year_as_keyword():
+    assert classify_intent_mode("income tax act 1961") == "keyword"
+
+
+def test_classify_intent_mode_does_not_tag_synonym_lexicon_term_as_keyword():
+    # "PE" is a recognized abbreviation (legal_lexicon.json synonyms -> Permanent
+    # Establishment) but names a broad legal concept, not a precise lookup - synonym
+    # entries are deliberately excluded from the keyword gate (courts/journals/act
+    # names/structural refs only), so this must stay hybrid.
+    assert classify_intent_mode("what is PE") == "hybrid"
+
+
+def test_classify_intent_mode_tags_conceptual_query_as_hybrid():
+    assert classify_intent_mode("how is depreciation computed under the income tax act") == "hybrid"
+
+
+def test_classify_intent_mode_tags_party_name_plus_section_as_hybrid():
+    # a mix of an unanchored text run (party name) alongside a structural chunk still
+    # needs semantic search for the unanchored part - only an all-anchor query qualifies.
+    assert classify_intent_mode("Dimension Data India section 92C") == "hybrid"
+
+
+def test_classify_intent_mode_tags_empty_query_as_hybrid():
+    assert classify_intent_mode("") == "hybrid"

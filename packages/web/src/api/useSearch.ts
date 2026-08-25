@@ -3,6 +3,11 @@ import type { EsHit, MilvusByCollection, RerankedHit } from '../lib/mergeResults
 
 export type AiModeCitation = Record<string, unknown>
 
+export interface DocMeta {
+  category: string | null
+  group: string | null
+}
+
 export interface InstantResult {
   es: EsHit[] | null
   es_error: string | null
@@ -11,6 +16,10 @@ export interface InstantResult {
   milvus_error: string | null
   reranked?: RerankedHit[] | null
   reranked_error?: string | null
+  // "category | group" badge data, keyed by doc_id - populated for every card
+  // regardless of which engine (ES/Milvus/reranked) surfaced it. See
+  // common.es_client.fetch_doc_categories.
+  doc_meta?: Record<string, DocMeta> | null
 }
 
 export type AiModeResult =
@@ -88,6 +97,7 @@ export function useSearch(
               milvus_error: message.milvus_error ?? null,
               reranked: message.reranked ?? null,
               reranked_error: message.reranked_error ?? null,
+              doc_meta: message.doc_meta ?? null,
             },
           }))
         } else if (message.type === 'ai_mode_trace') {

@@ -9,16 +9,26 @@ import retrieval_api.ws as ws_module
 from semantic_cache.repository import write as cache_write
 
 
+def _fake_settings(**overrides):
+    """ws.py reads a few Settings fields directly off whatever get_settings() returns
+    (instant_mode_auto_route_enabled, milvus_sparse_enabled, expose_reasoning) even
+    when a test's fake run_instant/run_ai_mode never look at their values - a bare
+    object() has none of them and raises AttributeError the moment ws.py touches one
+    unconditionally (not short-circuited away, e.g. by an absent auto_route field)."""
+    defaults = {"instant_mode_auto_route_enabled": False, "milvus_sparse_enabled": False, "expose_reasoning": False}
+    return Mock(**{**defaults, **overrides})
+
+
 def test_ws_search_sends_instant_then_ai_mode_events(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {"d1": {}}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -39,7 +49,7 @@ def test_ws_search_streams_ai_mode_trace_steps_before_final_answer(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         await on_step(
             "intent",
             {"query": query, "original_query": query, "search_query": "r", "intent": ["caselaws"], "filters": {}},
@@ -49,7 +59,7 @@ def test_ws_search_streams_ai_mode_trace_steps_before_final_answer(monkeypatch):
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -100,14 +110,14 @@ def test_ws_search_does_not_pass_on_step_when_trace_flag_is_absent(monkeypatch):
 
     captured_on_step = "unset"
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         nonlocal captured_on_step
         captured_on_step = on_step
         return {"ok": True, "answer": "final answer", "citations": {}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -127,14 +137,14 @@ def test_ws_search_passes_on_step_when_trace_flag_is_true(monkeypatch):
 
     captured_on_step = "unset"
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         nonlocal captured_on_step
         captured_on_step = on_step
         return {"ok": True, "answer": "final answer", "citations": {}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -153,17 +163,18 @@ def test_ws_search_auto_route_defaults_to_false_when_absent(monkeypatch):
 
     async def fake_run_instant(
         gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False, boost=False,
+        milvus_sparse_enabled=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -182,19 +193,20 @@ def test_ws_search_forwards_auto_route_to_run_instant_when_enabled(monkeypatch):
 
     async def fake_run_instant(
         gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False, boost=False,
+        milvus_sparse_enabled=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
     monkeypatch.setattr(
         ws_module, "get_settings",
-        lambda: Mock(instant_mode_auto_route_enabled=True),
+        lambda: _fake_settings(instant_mode_auto_route_enabled=True),
     )
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
@@ -214,19 +226,20 @@ def test_ws_search_kill_switch_forces_auto_route_off_even_when_requested(monkeyp
 
     async def fake_run_instant(
         gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False, boost=False,
+        milvus_sparse_enabled=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
     monkeypatch.setattr(
         ws_module, "get_settings",
-        lambda: Mock(instant_mode_auto_route_enabled=False),
+        lambda: _fake_settings(instant_mode_auto_route_enabled=False),
     )
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
@@ -245,12 +258,12 @@ def test_ws_search_instant_mode_does_not_emit_trace_steps(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         raise AssertionError("ai_mode should not run in instant-only mode")
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -267,12 +280,12 @@ def test_ws_search_sends_ai_mode_error_event_on_failure(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": False, "error": "gateway unreachable"}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -291,7 +304,7 @@ def test_ws_search_still_answers_when_milvus_client_construction_fails(monkeypat
         assert milvus_client is None
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": None, "milvus_error": "connection refused"}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         assert milvus_client is None
         return {"ok": False, "error": "connection refused"}
 
@@ -300,7 +313,7 @@ def test_ws_search_still_answers_when_milvus_client_construction_fails(monkeypat
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", raise_milvus_unavailable)
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -322,12 +335,12 @@ def test_ws_search_instant_mode_skips_ai_mode(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         return {"es": [{"doc_id": "d1"}], "es_error": None, "milvus": {}, "milvus_error": None}
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         raise AssertionError("ai_mode should not run in instant-only mode")
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -344,12 +357,12 @@ def test_ws_search_ai_mode_only_skips_instant(monkeypatch):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
         raise AssertionError("instant should not run in ai_mode-only mode")
 
-    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}}
 
     monkeypatch.setattr(ws_module, "run_instant", fake_run_instant)
     monkeypatch.setattr(ws_module, "run_ai_mode", fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
@@ -375,7 +388,7 @@ class _FakeEmbedGateway:
 async def test_ai_mode_cache_hit_skips_run_ai_mode_and_returns_cached_answer(
     monkeypatch, fake_semantic_cache_collection,
 ):
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
@@ -392,7 +405,7 @@ async def test_ai_mode_cache_hit_skips_run_ai_mode_and_returns_cached_answer(
     }))
 
     await cache_write(
-        fake_semantic_cache_collection, "ai_mode", "what is section 80C", [1.0, 0.0],
+        fake_semantic_cache_collection, "ai_mode_boost_False", "what is section 80C", [1.0, 0.0],
         {"ok": True, "answer": "cached answer", "citations": [], "intent": ["acts"]},
     )
 
@@ -408,7 +421,7 @@ async def test_ai_mode_cache_hit_skips_run_ai_mode_and_returns_cached_answer(
 async def test_ai_mode_cache_miss_runs_pipeline_and_writes_back(
     monkeypatch, fake_semantic_cache_collection,
 ):
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
@@ -441,12 +454,12 @@ async def test_ai_mode_cache_miss_runs_pipeline_and_writes_back(
 
 async def cache_lookup_helper(collection):
     from semantic_cache.repository import lookup
-    return await lookup(collection, "ai_mode", [1.0, 0.0], threshold=0.95)
+    return await lookup(collection, "ai_mode_boost_False", [1.0, 0.0], threshold=0.95)
 
 
 @pytest.mark.asyncio
 async def test_cache_lookup_failure_degrades_to_normal_pipeline(monkeypatch):
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
@@ -480,7 +493,7 @@ async def test_cache_lookup_failure_degrades_to_normal_pipeline(monkeypatch):
 async def test_instant_mode_cache_hit_skips_run_instant_and_returns_cached_result(
     monkeypatch, fake_semantic_cache_collection,
 ):
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
@@ -524,7 +537,7 @@ async def test_instant_mode_rrf_cache_hit_uses_separate_key_from_plain_instant(
     # identically. Pre-existing, out of scope here.
     monkeypatch.setattr(
         ws_module, "get_settings",
-        lambda: Mock(instant_mode_auto_route_enabled=True),
+        lambda: _fake_settings(instant_mode_auto_route_enabled=True),
     )
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
@@ -568,7 +581,7 @@ async def test_instant_mode_rrf_cache_hit_uses_separate_key_from_plain_instant(
 async def test_instant_mode_boost_cache_hit_uses_separate_key_from_plain_instant(
     monkeypatch, fake_semantic_cache_collection,
 ):
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: _FakeEmbedGateway([1.0, 0.0]))
@@ -624,7 +637,7 @@ async def test_both_mode_computes_query_embedding_once_and_reuses_for_both_looku
 ):
     fake_gateway = _CountingFakeEmbedGateway([1.0, 0.0])
 
-    monkeypatch.setattr(ws_module, "get_settings", lambda: object())
+    monkeypatch.setattr(ws_module, "get_settings", lambda: _fake_settings())
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: fake_gateway)

@@ -1,0 +1,49 @@
+[
+  {"id": "K01", "query": "Section 55", "category": "plain_keyword", "expected_label": "KEYWORD"},
+  {"id": "K02", "query": "Section 80C", "category": "plain_keyword", "expected_label": "KEYWORD"},
+  {"id": "K03", "query": "Rule 37CA", "category": "plain_keyword", "expected_label": "KEYWORD"},
+  {"id": "K04", "query": "Section 194O TDS", "category": "plain_keyword", "expected_label": "KEYWORD"},
+  {"id": "K05", "query": "u/s 68 cash credit", "category": "plain_keyword", "expected_label": "KEYWORD"},
+  {"id": "K06", "query": "CIT vs Ramesh Gupta", "category": "plain_keyword", "expected_label": "KEYWORD"},
+  {"id": "K07", "query": "Article 226 writ", "category": "plain_keyword", "expected_label": "KEYWORD"},
+  {"id": "K08", "query": "Section 143(3) assessment", "category": "plain_keyword", "expected_label": "KEYWORD"},
+
+  {"id": "Q01", "query": "what is section 55", "category": "question_filler_keyword", "expected_label": "HYBRID"},
+  {"id": "Q02", "query": "what is section 80C", "category": "question_filler_keyword", "expected_label": "HYBRID"},
+  {"id": "Q03", "query": "what does section 68 mean", "category": "question_filler_keyword", "expected_label": "HYBRID"},
+  {"id": "Q04", "query": "what is rule 37CA", "category": "question_filler_keyword", "expected_label": "HYBRID"},
+  {"id": "Q05", "query": "explain section 54F", "category": "question_filler_keyword", "expected_label": "KEYWORD"},
+  {"id": "Q06", "query": "tell me about section 143(3)", "category": "question_filler_keyword", "expected_label": "HYBRID"},
+
+  {"id": "H01", "query": "how can we use section 54F", "category": "how_to_use", "expected_label": "HYBRID"},
+  {"id": "H02", "query": "how do I apply section 80C", "category": "how_to_use", "expected_label": "HYBRID"},
+  {"id": "H03", "query": "how to claim section 54F exemption", "category": "how_to_use", "expected_label": "HYBRID"},
+  {"id": "H04", "query": "how does section 148 reassessment work", "category": "how_to_use", "expected_label": "HYBRID"},
+  {"id": "H05", "query": "can I use section 80C for HRA", "category": "how_to_use", "expected_label": "HYBRID"},
+
+  {"id": "I01", "query": "what can I do to reduce my tax liability", "category": "short_intent", "expected_label": "INTENT"},
+  {"id": "I02", "query": "what happens if I don't file my return on time", "category": "short_intent", "expected_label": "INTENT"},
+  {"id": "I03", "query": "what are the penalties for late GST filing", "category": "short_intent", "expected_label": "INTENT"},
+  {"id": "I04", "query": "what is the process for GST registration", "category": "short_intent", "expected_label": "INTENT"},
+  {"id": "I05", "query": "how can I save tax this year", "category": "short_intent", "expected_label": "INTENT"},
+  {"id": "I06", "query": "should I file ITR if I have no income", "category": "short_intent", "expected_label": "INTENT"},
+
+  {"id": "A01", "query": "capital gains exemption", "category": "short_ambiguous_no_signal", "expected_label": "KEYWORD"},
+  {"id": "A02", "query": "TDS on rent", "category": "short_ambiguous_no_signal", "expected_label": "KEYWORD"},
+  {"id": "A03", "query": "input tax credit reversal", "category": "short_ambiguous_no_signal", "expected_label": "KEYWORD"},
+  {"id": "A04", "query": "assessee definition", "category": "short_ambiguous_no_signal", "expected_label": "KEYWORD"},
+  {"id": "A05", "query": "reassessment", "category": "short_ambiguous_no_signal", "expected_label": "KEYWORD"},
+
+  {"id": "C01", "query": "Delhi High Court capital gains ruling", "category": "legal_term_gazetteer", "expected_label": "KEYWORD"},
+  {"id": "C02", "query": "landmark Supreme Court ruling on GST", "category": "legal_term_gazetteer", "expected_label": "KEYWORD"},
+  {"id": "C03", "query": "ITAT order on unexplained cash credit", "category": "legal_term_gazetteer", "expected_label": "KEYWORD"},
+
+  {"id": "B01", "query": "AIR 2023 SC 445", "category": "citation_style", "expected_label": "KEYWORD"},
+  {"id": "B02", "query": "(2022) 448 ITR 100 (Del)", "category": "citation_style", "expected_label": "KEYWORD"},
+
+  {"id": "E01", "query": "section 55 exemption for whom", "category": "edge_short_hybrid", "expected_label": "HYBRID"},
+  {"id": "E02", "query": "who can claim section 80C", "category": "edge_short_hybrid", "expected_label": "HYBRID"},
+  {"id": "E03", "query": "why section 148", "category": "edge_short_hybrid", "expected_label": "HYBRID"},
+  {"id": "E04", "query": "section 148 notice reply", "category": "edge_short_hybrid", "expected_label": "KEYWORD"},
+  {"id": "E05", "query": "is section 54F applicable to me", "category": "edge_short_hybrid", "expected_label": "HYBRID"}
+]

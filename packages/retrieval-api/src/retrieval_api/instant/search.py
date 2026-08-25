@@ -3,11 +3,12 @@ import asyncio
 
 from langfuse import get_client
 
-from common.es_client import build_query_preview, raw_search
+from common.es_client import build_query_preview, fetch_doc_categories, raw_search
 from common.instant_classifier import effective_label_with_confidence
 from common.instant_classifier.labels import routing_plan
 from common.legal_lexicon import fuzzy_correct_query
 from common.milvus_client import hybrid_search
+from common.query_tokenizer import build_dense_sparse_query, chunk_query
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.instant.rerank import rerank_instant_results
@@ -29,6 +30,18 @@ def _apply_elbow_cutoff(rows: list[dict]) -> list[dict]:
 
 def _apply_elbow_cutoff_per_collection(by_collection: dict[str, list[dict]]) -> dict[str, list[dict]]:
     return {collection: _apply_elbow_cutoff(rows) for collection, rows in by_collection.items()}
+
+
+def _all_doc_ids(
+    es_result: list[dict] | None, milvus_dense: dict[str, list[dict]] | None, milvus_sparse: dict[str, list[dict]] | None,
+) -> list[str]:
+    """Union of doc_ids across every source Instant mode can show a card for - the
+    reranked list is a fusion of exactly these three, so it needs no separate pass."""
+    ids: set[str] = {row["doc_id"] for row in es_result or []}
+    for by_collection in (milvus_dense, milvus_sparse):
+        for rows in (by_collection or {}).values():
+            ids.update(row["doc_id"] for row in rows)
+    return list(ids)
 
 
 async def _run_es(
@@ -59,26 +72,40 @@ async def _run_es(
 
 
 async def _run_milvus(
-    gateway, milvus_client, query: str, on_step: OnStep | None,
+    gateway, milvus_client, query: str, on_step: OnStep | None, milvus_sparse_enabled: bool = False,
 ) -> tuple[dict | None, dict | None, str | None]:
-    """Runs dense (Voyage embedding) and sparse (Milvus-native BM25) search
-    against every collection - the same two passes AI Mode's retrieve()
-    does - so Instant's trace surfaces exactly what each retriever fetched,
-    not just the dense results Instant's merged card list is built from."""
+    """Runs dense (Voyage embedding) and, when enabled, sparse (Milvus-native BM25) search
+    against every collection - the same two passes AI Mode's retrieve() does - so Instant's
+    trace surfaces exactly what each retriever fetched, not just the dense results Instant's
+    merged card list is built from.
+
+    milvus_sparse_enabled (common.config.Settings.milvus_sparse_enabled) is off by default -
+    same env-only kill switch AI Mode's retrieve() uses, no separate UI toggle. Instant has no
+    ES sparse-fallback mechanism (that's an AI-Mode-only gap-collection concern), so disabling
+    this skips the native sparse pass entirely with nothing else to fall back to.
+
+    `query` here is already the cleaned dense/sparse search text (see run_instant's
+    build_dense_sparse_query call) - not necessarily the user's raw sentence."""
     langfuse = get_client()
     with langfuse.start_as_current_observation(
         as_type="retriever", name="search-milvus", input={"query": query},
     ) as span:
         try:
             dense_vector = await gateway.embed(role="query_embed", text=query)
-            dense_result, sparse_result = await asyncio.gather(
-                hybrid_search(
+            if milvus_sparse_enabled:
+                dense_result, sparse_result = await asyncio.gather(
+                    hybrid_search(
+                        milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=dense_vector, sparse_query_text=query,
+                    ),
+                    hybrid_search(
+                        milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None, sparse_query_text=query,
+                    ),
+                )
+            else:
+                dense_result = await hybrid_search(
                     milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=dense_vector, sparse_query_text=query,
-                ),
-                hybrid_search(
-                    milvus_client, collections=MILVUS_COLLECTIONS, dense_vector=None, sparse_query_text=query,
-                ),
-            )
+                )
+                sparse_result = {}
             # snapshot pre-cutoff ranks before the elbow trims them, same reason
             # as _run_es: this is the only place that can show a gold doc_id's
             # rank when the elbow cutoff is what dropped it, versus the search
@@ -96,7 +123,11 @@ async def _run_milvus(
             })
             if on_step is not None:
                 await on_step("milvus_dense", collection_trace(dense_result))
-                await on_step("milvus_sparse", collection_trace(sparse_result))
+                # Nothing ran the sparse pass at all when disabled - an empty "Milvus
+                # sparse search" card with zero collections would just be noise (same
+                # reasoning as AI Mode's ai_milvus_sparse step, retrieve.py).
+                if milvus_sparse_enabled:
+                    await on_step("milvus_sparse", collection_trace(sparse_result))
             return dense_result, sparse_result, None
         except Exception as exc:  # noqa: BLE001 - branch isolation is the point
             span.update(level="ERROR", status_message=str(exc))
@@ -105,7 +136,7 @@ async def _run_milvus(
 
 async def run_instant(
     gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None,
-    rrf: bool = False, auto_route: bool = False, boost: bool = False,
+    rrf: bool = False, auto_route: bool = False, boost: bool = False, milvus_sparse_enabled: bool = False,
 ) -> dict:
     langfuse = get_client()
     with langfuse.start_as_current_observation(
@@ -131,6 +162,14 @@ async def run_instant(
         if on_step is not None:
             await on_step("query_analysis", build_query_preview(query, boost=boost))
 
+        # Instant mode has no LLM query-rewrite step (unlike AI Mode's extract_intent) to strip
+        # conversational scaffolding before searching - without this, "section 55" and "what is
+        # section 55" send identical text to ES's phrase-boost clauses (chunk_query already
+        # cleans those - see _PHRASE_BOOSTS) but different, noise-diluted text to Milvus
+        # dense/sparse, which searched the raw sentence verbatim. ES keeps searching the raw
+        # `query` (its own pipeline already handles this); only Milvus gets the cleaned text.
+        milvus_query = build_dense_sparse_query(chunk_query(query), fallback=query)
+
         label, confidence = effective_label_with_confidence(query)
         plan = routing_plan(label) if auto_route else {"es": True, "milvus": True, "fuse": False}
         # Surfaced in both trace systems - without this, a skipped ES/Milvus call (auto_route)
@@ -145,7 +184,10 @@ async def run_instant(
             await on_step("classifier", classifier_trace)
 
         es_task = _run_es(es_client, query, on_step, boost=boost) if plan["es"] else None
-        milvus_task = _run_milvus(gateway, milvus_client, query, on_step) if plan["milvus"] else None
+        milvus_task = (
+            _run_milvus(gateway, milvus_client, milvus_query, on_step, milvus_sparse_enabled=milvus_sparse_enabled)
+            if plan["milvus"] else None
+        )
 
         if es_task is not None and milvus_task is not None:
             (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(
@@ -166,6 +208,12 @@ async def run_instant(
             "milvus_sparse": milvus_sparse,
             "milvus_error": milvus_error,
         }
+
+        # Runs alongside reranking below, not after - a separate mget by doc_id, so it has
+        # no dependency on the fuse step's own output.
+        doc_meta_task = asyncio.create_task(
+            fetch_doc_categories(es_client, _all_doc_ids(es_result, milvus_dense, milvus_sparse)),
+        )
 
         effective_rrf = plan["fuse"] if auto_route else rrf
 
@@ -190,4 +238,11 @@ async def run_instant(
                     rerank_span.update(level="ERROR", status_message=reranked_error)
         result["reranked"] = reranked
         result["reranked_error"] = reranked_error
+
+        # A badge is a nice-to-have, not a reason to fail the whole search - degrade to no
+        # badges rather than propagate an mget error out of run_instant.
+        try:
+            result["doc_meta"] = await doc_meta_task
+        except Exception:  # noqa: BLE001 - branch isolation is the point
+            result["doc_meta"] = {}
     return result
