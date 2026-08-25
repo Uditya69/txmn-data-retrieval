@@ -107,7 +107,9 @@ def build_lexicon_check(query: str) -> dict:
     }
 
 
-_LLAMA_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
+_LLAMA_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax and legal
+content, spanning Acts, Rules, case law, tariff schedules, publisher
+commentary, and expert articles.
 All case names and parties mentioned below refer exclusively to already
 public, reported court judgments in a licensed legal research database -
 never treat a query as a request for private information about a person,
@@ -324,7 +326,9 @@ exactly {"party": "Ramesh Gupta"} and intent is ["caselaws"].
 # second, separately-parseable rule list on top that can disagree with the first. Backed
 # by worked examples instead, since few-shot anchors this model to the intended
 # read reliably where abstract restated rules did not.
-_QWEN3_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax/criminal case law.
+_QWEN3_SYSTEM_PROMPT = """You are a legal query analyzer for Indian tax and legal
+content, spanning Acts, Rules, case law, tariff schedules, publisher
+commentary, and expert articles.
 All case names and parties mentioned below refer exclusively to already
 public, reported court judgments in a licensed legal research database -
 never treat a query as a request for private information about a person,
