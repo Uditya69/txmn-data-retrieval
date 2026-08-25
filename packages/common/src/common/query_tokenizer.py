@@ -2,7 +2,7 @@ import re
 
 from common.legal_lexicon import (
     CITATION_PATTERN, KNOWN_ACT_NAMES, PARTY_PATTERN, SECTION_PATTERN, expand_synonyms,
-    is_known_court, is_known_journal, is_stopword,
+    is_known_court, is_known_journal, is_stopword, normalize,
 )
 
 _CITATION_SPACING_PATTERN = re.compile(r"(\d{4})([a-zA-Z])")
@@ -357,6 +357,56 @@ def classify_intent_mode(query: str) -> str:
             continue
         return "hybrid"
     return "keyword"
+
+
+# A legal_lexicon normalization target isn't always the real ES `groups.group.name` value it
+# signals: RULING/CASE/CITATION/JUDGEMENT do normalize to "CASELAWS", which is also the real
+# group name, but ARTICLE's real group is "Experts Opinion" (verified against a real doc
+# pulled into the 2026-08-25 investigation: heading "[2019] 106 taxmann.com 47 (Article)",
+# groups.group.name == "Experts Opinion", id 111050000000000051) - centax-node's own token
+# table (constants/token.js) confirms the same three group ids/boosts (CASELAWS
+# 111050000000000060/10,000,000; RULE 111050000000000026/2,000,000; ARTICLE's entry points at
+# 111050000000000051/2,000,000, i.e. Experts Opinion). CIRCULAR/NOTIFICATION have their own
+# confirmed token-table entries too, but are deliberately excluded here - we don't have
+# verified live data for those two groups' behavior on this repo's own index (see es_client.py
+# comment for CASELAWS/RULE/ARTICLE's own verification caveat, which still applies even to
+# these three).
+_GROUP_SIGNAL_ES_GROUP_NAMES = {
+    "CASELAWS": "CASELAWS",
+    "RULE": "RULE",
+    "ARTICLE": "Experts Opinion",
+}
+
+
+def detect_group_signals(chunks: list[dict]) -> set[str]:
+    """Real ES `groups.group.name` values signaled by any word across chunk_query()'s chunks -
+    ported from centax-node's queryAnalyzer.js/token dictionary recognizing certain words
+    (RULING, JUDGEMENT, CASE, RULE, ARTICLE, ...) as meaning the query wants that content type
+    specifically, not just matching them as ordinary text. A signal word is often not its own
+    chunk: "landmark Supreme Court ruling on GST" leaves "ruling" merged into the trailing
+    "ruling GST" text-run chunk (see chunk_query), so this checks every word inside each
+    chunk's text, not each chunk's text as a whole.
+
+    legal_lexicon's normalize() covers suffixed/abbreviated variants (RULES/RULENO -> RULE,
+    CASE/CASES/CITATION/JUDGEMENT -> CASELAWS) but has no identity entry for a bare word
+    already in its own canonical form (RULE -> RULE, ARTICLE -> ARTICLE would be a no-op
+    normalization, so the lexicon data omits it) - normalize()'s own fallback (return the
+    input unchanged when not found) makes checking the *normalized* form still catch this,
+    since a bare "RULE" normalizes to "RULE" right back.
+
+    Callers turn each returned group name into a should-clause `groups.group.name.keyword`
+    boost sized to compete with _PHRASE_BOOSTS (see es_client.py) - without it, a query like
+    the one above scores generic "Words & Idioms" commentary docs whose heading literally
+    contains "Supreme Court" far above the real case law it's asking for, since
+    heading/subheading/headnotes_text phrase-match boosts fire identically regardless of
+    document type."""
+    return {
+        _GROUP_SIGNAL_ES_GROUP_NAMES[target]
+        for chunk in chunks
+        for word in chunk["text"].split()
+        for target in [normalize(word.upper())]
+        if target in _GROUP_SIGNAL_ES_GROUP_NAMES
+    }
 
 
 def build_dense_sparse_query(chunks: list[dict], fallback: str) -> str:

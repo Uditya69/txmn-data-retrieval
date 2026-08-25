@@ -20,6 +20,7 @@ const STEP_LABELS: Record<string, string> = {
   rerank: 'Rerank',
   instant_reranked: 'Instant rerank',
   keyword_search: 'Keyword search (ES only)',
+  keyword_expansion: 'Keyword expansion',
   synthesis_prompt: 'Synthesis prompt',
 }
 
@@ -77,6 +78,7 @@ const STEP_DESCRIPTIONS: Record<string, string> = {
   rerank: 'Cross-encoder reranking of the merged candidates.',
   instant_reranked: 'Final result list for Instant mode after fusion/reranking.',
   keyword_search: 'A precise anchor lookup (bare section/rule/article reference, citation, court name, or Act name) - Milvus dense/sparse, RRF, and reranking are skipped entirely; these ES results go straight to synthesis.',
+  keyword_expansion: 'Optional SLM pass (env flag, off by default) - may add up to 2 legal keywords to broaden the ES search for a keyword-tagged query. An empty result here is the common, expected case.',
   synthesis_prompt: 'The prompt sent to the LLM to synthesize the final answer.',
 }
 
@@ -133,6 +135,10 @@ function summarize(step: TraceStep): string {
       return `${(d.hits ?? []).length} result(s)`
     case 'keyword_search':
       return `"${d.query}" — ${d.candidate_count} candidate(s), top ${d.top_doc_ids?.length ?? 0} kept`
+    case 'keyword_expansion': {
+      const added = d.added_keywords ?? []
+      return added.length === 0 ? 'no keywords added' : `+${added.length}: ${added.join(', ')}`
+    }
     case 'synthesis_prompt':
       return `${(d.prompt ?? '').length} chars`
     default:
@@ -333,6 +339,20 @@ function collapsibleLabel(step: string): string {
   return COLLAPSIBLE_LABELS[step] ?? 'Show results'
 }
 
+// A model's own chain-of-thought for why it decided what it did - carried unconditionally
+// on any trace step whose backend function captured one (e.g. keyword_expansion, intent),
+// regardless of what else that step renders below. Most useful exactly when the model
+// decided to do nothing (an empty added_keywords list, for instance) - that's the case a
+// step-specific body has nothing else to show for.
+function ReasoningDetails({ reasoning }: { reasoning: string }) {
+  return (
+    <details className={styles.details}>
+      <summary className={styles.detailsSummary}>Show reasoning</summary>
+      <pre className={styles.promptBlock}>{reasoning}</pre>
+    </details>
+  )
+}
+
 function StepBody({
   step, onOpenDocument, precedingChunks,
 }: {
@@ -341,41 +361,46 @@ function StepBody({
   precedingChunks: QueryChunk[] | null
 }) {
   const d = step.data as Record<string, any>
+  const reasoning = typeof d.reasoning === 'string' && d.reasoning.trim() ? d.reasoning : null
+
+  let specific: ReactNode = null
   if (step.step === 'query_analysis') {
-    return <QueryAnalysisBody data={d} />
-  }
-  if (step.step === 'classifier') {
-    return <ClassifierBody data={d} chunks={precedingChunks} />
-  }
-  if (
+    specific = <QueryAnalysisBody data={d} />
+  } else if (step.step === 'classifier') {
+    specific = <ClassifierBody data={d} chunks={precedingChunks} />
+  } else if (
     step.step === 'milvus_dense' || step.step === 'milvus_sparse' ||
     step.step === 'ai_milvus_dense' || step.step === 'ai_milvus_sparse'
   ) {
-    return <MilvusSparseDenseBody step={step.step} data={d} onOpenDocument={onOpenDocument} />
-  }
-
-  let body: ReactNode = null
-  if (step.step === 'es_search') {
-    body = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
+    specific = <MilvusSparseDenseBody step={step.step} data={d} onOpenDocument={onOpenDocument} />
+  } else if (step.step === 'es_search') {
+    specific = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'rrf_merge' || step.step === 'ai_rrf_merge') {
-    body = <TruncatedHitList hits={d.top_candidates ?? []} onOpenDocument={onOpenDocument} />
+    specific = <TruncatedHitList hits={d.top_candidates ?? []} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'rerank') {
-    body = <TruncatedHitList hits={d.top_chunks ?? []} onOpenDocument={onOpenDocument} />
+    specific = <TruncatedHitList hits={d.top_chunks ?? []} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'instant_reranked') {
-    body = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
+    specific = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'keyword_search') {
-    body = <TruncatedHitList hits={(d.top_doc_ids ?? []).map((id: string) => ({ doc_id: id }))} onOpenDocument={onOpenDocument} />
+    specific = <TruncatedHitList hits={(d.top_doc_ids ?? []).map((id: string) => ({ doc_id: id }))} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'synthesis_prompt') {
-    body = <pre className={styles.promptBlock}>{d.prompt}</pre>
+    specific = <pre className={styles.promptBlock}>{d.prompt}</pre>
   }
 
-  if (body === null) return null
-
-  return (
+  const wrappedSpecific = specific !== null ? (
     <details className={styles.details}>
       <summary className={styles.detailsSummary}>{collapsibleLabel(step.step)}</summary>
-      {body}
+      {specific}
     </details>
+  ) : null
+
+  if (wrappedSpecific === null && reasoning === null) return null
+
+  return (
+    <>
+      {wrappedSpecific}
+      {reasoning && <ReasoningDetails reasoning={reasoning} />}
+    </>
   )
 }
 

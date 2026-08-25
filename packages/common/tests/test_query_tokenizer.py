@@ -2,7 +2,7 @@ from common.query_tokenizer import (
     classify_query_shape, normalize_citation_spacing, merge_keyword_number,
     merge_court_city, merge_citation_span, strip_stopwords, extract_quoted_phrases,
     expand_query_synonyms, extract_boost_phrases, chunk_query, build_dense_sparse_query,
-    classify_intent_mode,
+    classify_intent_mode, detect_group_signals,
 )
 
 
@@ -230,6 +230,46 @@ def test_chunk_query_quoted_phrase_gets_exact_proximity():
 def test_chunk_query_single_leftover_word_still_becomes_its_own_text_chunk():
     chunks = chunk_query("goodwill")
     assert chunks == [{"text": "goodwill", "proximity": 5, "type": "text", "alt_text": None}]
+
+
+def test_detect_group_signals_true_for_ruling_inside_merged_text_chunk():
+    # "ruling" ends up merged into the trailing "ruling GST" text chunk (see chunk_query),
+    # not its own standalone chunk - the detector must scan words inside a chunk's text,
+    # not just compare each chunk's whole text against the lexicon.
+    chunks = chunk_query("landmark Supreme Court ruling on GST")
+    assert detect_group_signals(chunks) == {"CASELAWS"}
+
+
+def test_detect_group_signals_true_for_judgement_synonym():
+    chunks = chunk_query("Bombay High Court judgement on capital gains")
+    assert detect_group_signals(chunks) == {"CASELAWS"}
+
+
+def test_detect_group_signals_detects_bare_rule_word():
+    # legal_lexicon.json's normalizations dict has no identity entry for the bare canonical
+    # word ("RULE" -> "RULE" would be a no-op normalization, so the data curator skipped
+    # it - only suffixed/abbreviated forms like RULENO/RULES are listed) - centax-node's own
+    # token table (constants/token.js) has a dedicated entry for the bare word itself, so
+    # this must recognize it too, not just the normalize()-mapped variants.
+    chunks = chunk_query("landmark rule laid down by the tribunal")
+    assert detect_group_signals(chunks) == {"RULE"}
+
+
+def test_detect_group_signals_detects_bare_article_word_as_experts_opinion():
+    # ARTICLE's real ES groups.group.name is "Experts Opinion", not "ARTICLE" - verified
+    # against a real doc pulled into this investigation (heading "[2019] 106 taxmann.com 47
+    # (Article)", groups.group.name == "Experts Opinion", id 111050000000000051).
+    chunks = chunk_query("landmark article on GST reforms")
+    assert detect_group_signals(chunks) == {"Experts Opinion"}
+
+
+def test_detect_group_signals_false_when_no_signal_word_present():
+    chunks = chunk_query("Section 54F exemption eligibility")
+    assert detect_group_signals(chunks) == set()
+
+
+def test_detect_group_signals_false_for_empty_chunks():
+    assert detect_group_signals([]) == set()
 
 
 def test_chunk_query_empty_query_returns_no_chunks():

@@ -277,6 +277,58 @@ def test_build_query_preview_boost_false_default_leaves_es_query_unwrapped():
     assert "function_score" not in preview["es_query"]
 
 
+def test_build_query_preview_adds_caselaws_group_should_boost_for_ruling_query():
+    """Without this, "landmark Supreme Court ruling on GST" scores generic "Words & Idioms"
+    commentary docs whose heading literally contains "Supreme Court" far above real case law -
+    heading/subheading/headnotes_text _PHRASE_BOOSTS fire the same regardless of document
+    type. Unconditional (present even with boost=False, the default) since it lives at
+    _PHRASE_BOOSTS' should-clause scale, the same reason _CURRENT_EDITION_SHOULD_BOOST does -
+    a small function_score addition was verified too weak to move the ranking."""
+    preview = build_query_preview("landmark Supreme Court ruling on GST")
+
+    should = preview["es_query"]["bool"]["should"]
+    matches = [
+        clause for clause in should
+        if clause.get("term", {}).get("groups.group.name.keyword", {}).get("value") == "CASELAWS"
+    ]
+    assert len(matches) == 1
+    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 10_000_000.0
+
+
+def test_build_query_preview_skips_caselaws_group_should_boost_when_no_signal():
+    preview = build_query_preview("Section 54F exemption eligibility")
+
+    should = preview["es_query"]["bool"]["should"]
+    matches = [clause for clause in should if "groups.group.name.keyword" in clause.get("term", {})]
+    assert matches == []
+
+
+def test_build_query_preview_adds_rule_group_should_boost_for_bare_rule_word():
+    preview = build_query_preview("landmark rule laid down by the tribunal")
+
+    should = preview["es_query"]["bool"]["should"]
+    matches = [
+        clause for clause in should
+        if clause.get("term", {}).get("groups.group.name.keyword", {}).get("value") == "RULE"
+    ]
+    assert len(matches) == 1
+    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 2_000_000.0
+
+
+def test_build_query_preview_adds_experts_opinion_group_should_boost_for_article_word():
+    """ARTICLE's real ES groups.group.name is "Experts Opinion", not "ARTICLE" - see
+    query_tokenizer.detect_group_signals's docstring for the verification behind that."""
+    preview = build_query_preview("landmark article on GST reforms")
+
+    should = preview["es_query"]["bool"]["should"]
+    matches = [
+        clause for clause in should
+        if clause.get("term", {}).get("groups.group.name.keyword", {}).get("value") == "Experts Opinion"
+    ]
+    assert len(matches) == 1
+    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 2_000_000.0
+
+
 @pytest.mark.asyncio
 async def test_raw_search_boost_true_wraps_query_in_sum_mode_function_score():
     """The opt-in `boost` toggle wraps the query in function_score, but with score_mode/

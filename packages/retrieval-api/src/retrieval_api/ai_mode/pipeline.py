@@ -4,6 +4,7 @@ from common.config import get_settings
 from common.es_client import fetch_citations, keyword_mode_search
 from common.query_tokenizer import build_dense_sparse_query, chunk_query, classify_intent_mode
 from retrieval_api.ai_mode.intent import extract_intent, OnStep
+from retrieval_api.ai_mode.keyword_expansion import expand_keyword_terms
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
 from retrieval_api.ai_mode.retrieve import retrieve
 from retrieval_api.ai_mode.citations import rerank_and_prefetch
@@ -43,6 +44,21 @@ async def run_ai_mode(
                 # docstring), so ES gets "section 55", not "what is section 55".
                 chunks = chunk_query(query)
                 keyword_query = build_dense_sparse_query(chunks, fallback=query)
+
+                # Experimental, off by default (common.config.Settings.
+                # keyword_mode_expansion_enabled) - lets an SLM add up to 2 genuinely-confident
+                # legal keywords to broaden ES recall, without paying for (or risking) a full
+                # extract_intent()-style rewrite. Appended as extra OR terms, never replacing
+                # the cleaned anchor text above.
+                if get_settings().keyword_mode_expansion_enabled:
+                    with langfuse.start_as_current_observation(
+                        as_type="chain", name="keyword-expansion", input={"query": keyword_query},
+                    ) as span:
+                        added_keywords = await expand_keyword_terms(gateway, keyword_query, on_step=on_step)
+                        span.update(output={"added_keywords": added_keywords})
+                    if added_keywords:
+                        keyword_query = f"{keyword_query} {' '.join(added_keywords)}"
+
                 with langfuse.start_as_current_observation(
                     as_type="chain", name="keyword-search", input={"query": keyword_query},
                 ) as span:

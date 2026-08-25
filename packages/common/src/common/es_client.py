@@ -5,7 +5,7 @@ from elasticsearch import AsyncElasticsearch
 from common.config import Settings
 from common.instant_classifier import effective_label
 from common.instant_classifier.labels import boost_profile_key
-from common.query_tokenizer import chunk_query, expand_query_synonyms
+from common.query_tokenizer import chunk_query, detect_group_signals, expand_query_synonyms
 from common.schemas import (
     CATEGORY_DISPLAY_LABELS, ES_GROUP_FOR_COLLECTION, GROUP_DISPLAY_LABELS, MASTERINFO_CITATION_FIELDS,
 )
@@ -241,6 +241,30 @@ def get_es_client(settings: Settings) -> IndexedESClient:
 _CURRENT_EDITION_SUBGROUP_ID = "111050000000020042"
 _CURRENT_EDITION_SHOULD_BOOST = 20000.0
 
+# Group-signal boost - fixes a real query ("landmark Supreme Court ruling on GST") where
+# generic "Words & Idioms" commentary docs (heading literally "Appellate power - Supreme
+# Court", "Law - Declaration by Supreme Court", etc.) outscored actual GST case law by ~2x,
+# because _PHRASE_BOOSTS' heading/subheading/headnotes_text tiers fire identically regardless
+# of document type - a short commentary heading that happens to contain "Supreme Court" gets
+# the same +100000 as a real citation match. centax-node's own queryAnalyzer.js/token
+# dictionary (constants/token.js) recognizes RULING/JUDGEMENT/CASE/CITATION (-> CASELAWS),
+# RULE, and ARTICLE (-> Experts Opinion; see query_tokenizer.detect_group_signals) as signals
+# the query wants that content type specifically, and scopes each with its own flat
+# should-clause boost, all well above _PHRASE_BOOSTS' own 100,000 heading-tier constant. This
+# ports each group's constant as-is from centax-node's production token table; unlike
+# _STATIC_TAXONOMY_BOOSTS above, none of these are yet verified live against this repo's own
+# index - a follow-up should confirm each weight is still large enough (or not excessive)
+# against real query traffic before treating it as tuned. Unconditional, like _PHRASE_BOOSTS -
+# not gated behind `boost_enabled`, since the bug reproduces with boost=False (the default)
+# too. CIRCULAR and NOTIFICATION have their own confirmed token-table entries but are
+# deliberately left out - no verified data for how those two groups behave on this repo's own
+# index.
+_GROUP_SIGNAL_SHOULD_BOOSTS = {
+    "CASELAWS": 10_000_000.0,
+    "RULE": 2_000_000.0,
+    "Experts Opinion": 2_000_000.0,
+}
+
 
 def _build_field_query(query: str, shape: str, chunks: list[dict] = (), boost_enabled: bool = False) -> dict:
     """Query-shape-aware multi-field search (design doc section 1+3): every content field
@@ -285,6 +309,14 @@ def _build_field_query(query: str, shape: str, chunks: list[dict] = (), boost_en
             "term": {
                 "groups.group.subgroup.id": {
                     "value": _CURRENT_EDITION_SUBGROUP_ID, "boost": _CURRENT_EDITION_SHOULD_BOOST,
+                },
+            },
+        })
+    for group_name in detect_group_signals(chunks):
+        should.append({
+            "term": {
+                "groups.group.name.keyword": {
+                    "value": group_name, "boost": _GROUP_SIGNAL_SHOULD_BOOSTS[group_name],
                 },
             },
         })
