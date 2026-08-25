@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket
 from langfuse import get_client
@@ -12,9 +13,9 @@ from common.config import get_settings
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
 from persona.config import get_persona_settings
-from persona.db import get_mongo_client, get_personas_collection
+from persona.db import get_mongo_client, get_persona_events_collection, get_persona_topics_collection, get_personas_collection
 from persona.prompt import render_persona_context
-from persona.repository import get_persona
+from persona.repository import get_current_snapshot, migrate_legacy_persona
 from semantic_cache.config import get_semantic_cache_settings
 from semantic_cache.db import get_semantic_cache_collection, get_mongo_client as get_cache_mongo_client
 from semantic_cache.repository import lookup as cache_lookup, write as cache_write
@@ -117,22 +118,38 @@ async def search(websocket: WebSocket):
         logger.exception("Milvus connection failed; proceeding without Milvus for this request")
         milvus_client = None
 
-    personas_collection = None
+    persona_events_collection = None
+    persona_topics_collection = None
+    persona_settings = None
     persona_context = ""
     if user_id is not None:
         try:
             persona_settings = get_persona_settings()
             mongo_client = get_mongo_client(persona_settings)
-            personas_collection = get_personas_collection(mongo_client, persona_settings)
-            persona = await get_persona(personas_collection, user_id)
-            persona_context = render_persona_context(persona)
+            persona_events_collection = get_persona_events_collection(mongo_client, persona_settings)
+            persona_topics_collection = get_persona_topics_collection(mongo_client, persona_settings)
+            snapshot = await get_current_snapshot(persona_topics_collection, user_id)
+            if not snapshot:
+                # Lazy, on-first-touch cold start: a user with a pre-timeline
+                # flat persona document (PR #5) but no event history yet gets
+                # converted once here, read-only against `personas` (never
+                # deleted/written to) - design.md's Migration Plan.
+                legacy_personas_collection = get_personas_collection(mongo_client, persona_settings)
+                migrated = await migrate_legacy_persona(
+                    persona_events_collection, persona_topics_collection, legacy_personas_collection,
+                    user_id, datetime.now(timezone.utc), persona_settings,
+                )
+                if migrated:
+                    snapshot = await get_current_snapshot(persona_topics_collection, user_id)
+            persona_context = render_persona_context(snapshot, persona_settings)
         except Exception:
             # A down/unreachable persona store must never crash the request -
             # mirrors the milvus_client resilience pattern above. Degrade to
             # no persona context (as if the user were a guest for this request)
             # rather than failing the whole /ws/search round-trip.
             logger.exception("Persona lookup failed for user %r; proceeding without persona context", user_id)
-            personas_collection = None
+            persona_events_collection = None
+            persona_topics_collection = None
             persona_context = ""
 
     # Semantic cache: an unreachable/misconfigured Atlas cluster must never
@@ -277,11 +294,11 @@ async def search(websocket: WebSocket):
                         ai_mode_message["reasoning"] = ai_mode_result["reasoning"]
                     await send(ai_mode_message)
 
-                    if user_id is not None and personas_collection is not None:
+                    if user_id is not None and persona_events_collection is not None and persona_topics_collection is not None:
                         task = asyncio.create_task(
                             record_persona_signal(
-                                personas_collection, gateway, user_id, query,
-                                categories=ai_mode_result.get("intent", []),
+                                persona_events_collection, persona_topics_collection, gateway, user_id, query,
+                                ai_mode_result.get("intent", []), datetime.now(timezone.utc), persona_settings,
                             )
                         )
                         _background_tasks.add(task)

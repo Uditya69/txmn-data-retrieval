@@ -143,6 +143,56 @@ async def test_run_ai_mode_passes_persona_context_to_synthesize_and_returns_inte
 
 
 @pytest.mark.asyncio
+async def test_run_ai_mode_persona_context_never_reaches_retrieve_or_alters_routing(monkeypatch):
+    """persona_context (including ambiguous-query topic-hypothesis text) must
+    only ever reach extract_intent/synthesize's prompts, never retrieve()'s
+    collection-routing inputs - hard rule 4 / persona-context-rendering's
+    no-routing-side-effect requirement."""
+    import inspect
+
+    import retrieval_api.ai_mode.pipeline as module
+    from retrieval_api.ai_mode.retrieve import retrieve as real_retrieve
+
+    # Structural guarantee: retrieve() has no persona-shaped parameter at all -
+    # there is no code path by which persona_context/topic hypotheses could
+    # reach collection routing or RRF weighting.
+    assert "persona_context" not in inspect.signature(real_retrieve).parameters
+
+    retrieve_calls = []
+
+    async def fake_extract_intent(gateway, query, on_step=None, persona_context=""):
+        return {"original_query": query, "search_query": "rewritten", "intent": ["acts"], "filters": {}}
+
+    async def fake_resolve_allowlist(es_client, filters, on_step=None):
+        return None
+
+    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None, milvus_sparse_enabled=False):
+        retrieve_calls.append({"search_query": search_query, "intent": intent, "boost": boost})
+        return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
+
+    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
+        return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+        return {"answer": "final answer", "citations": citations}
+
+    monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_resolve_allowlist)
+    monkeypatch.setattr(module, "retrieve", fake_retrieve)
+    monkeypatch.setattr(module, "rerank_and_prefetch", fake_rerank_and_prefetch)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+
+    await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="q", persona_context="")
+    await run_ai_mode(
+        gateway=object(), es_client=object(), milvus_client=object(), query="q",
+        persona_context="This user is currently focused on: IBC (active). "
+                        "Possible topic interpretations for this query, by confidence: IBC 0.81; GST 0.19.",
+    )
+
+    assert retrieve_calls[0] == retrieve_calls[1]
+
+
+@pytest.mark.asyncio
 async def test_run_ai_mode_returns_error_on_any_stage_failure(monkeypatch):
     import retrieval_api.ai_mode.pipeline as module
 

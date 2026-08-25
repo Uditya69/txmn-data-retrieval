@@ -1,0 +1,585 @@
+<title>The Persona Timeline</title>
+<style>
+:root{
+  --bg:#f7f6f3;
+  --surface:#ffffff;
+  --surface-2:#f0eee8;
+  --ink:#1e2320;
+  --ink-soft:#4c534e;
+  --muted:#8a9089;
+  --border:#dfdcd2;
+  --accent:#3d6b8a;
+  --accent-soft:#dbe7ee;
+  --accent-ink:#204a63;
+  --teal:#2e7d6b;
+  --teal-soft:#dcefe9;
+  --amber:#b5701f;
+  --amber-soft:#f2e2c8;
+  --code-bg:#1e2320;
+  --code-ink:#e7e4da;
+  --code-accent:#7fb2d6;
+  --shadow:0 1px 2px rgba(30,35,32,0.06);
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --serif:Charter,"Iowan Old Style","Palatino Linotype",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12161a;
+    --surface:#181e23;
+    --surface-2:#1e252b;
+    --ink:#e7e6de;
+    --ink-soft:#aeb6b0;
+    --muted:#77807c;
+    --border:#293138;
+    --accent:#7fb2d6;
+    --accent-soft:#1c2e3a;
+    --accent-ink:#a9cee7;
+    --teal:#5cb39c;
+    --teal-soft:#1c2f2a;
+    --amber:#e0a45c;
+    --amber-soft:#3a3020;
+    --code-bg:#0e1215;
+    --code-ink:#e7e4da;
+    --code-accent:#7fb2d6;
+    --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12161a;
+  --surface:#181e23;
+  --surface-2:#1e252b;
+  --ink:#e7e6de;
+  --ink-soft:#aeb6b0;
+  --muted:#77807c;
+  --border:#293138;
+  --accent:#7fb2d6;
+  --accent-soft:#1c2e3a;
+  --accent-ink:#a9cee7;
+  --teal:#5cb39c;
+  --teal-soft:#1c2f2a;
+  --amber:#e0a45c;
+  --amber-soft:#3a3020;
+  --code-bg:#0e1215;
+  --code-ink:#e7e4da;
+  --code-accent:#7fb2d6;
+  --shadow:0 1px 3px rgba(0,0,0,0.4);
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--serif);
+  font-size:17px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent-soft);color:var(--accent-ink);}
+
+a{color:var(--accent-ink);text-decoration-thickness:1px;text-underline-offset:2px;}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+.shell{
+  max-width:1180px;
+  margin:0 auto;
+  padding:2.5rem 1.5rem 6rem;
+  display:grid;
+  grid-template-columns:220px minmax(0,760px);
+  gap:3rem;
+  justify-content:center;
+}
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr);}
+  nav.toc{display:none;}
+}
+
+header.hero{
+  grid-column:1/-1;
+  max-width:820px;
+  margin:0 auto 1rem;
+  padding-bottom:1.75rem;
+  border-bottom:1px solid var(--border);
+}
+.eyebrow{
+  font-family:var(--mono);
+  font-size:0.72rem;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--accent-ink);
+  font-weight:600;
+}
+h1{
+  font-family:var(--mono);
+  font-weight:700;
+  font-size:clamp(1.8rem,4vw,2.5rem);
+  letter-spacing:-0.01em;
+  margin:0.4rem 0 0.6rem;
+  text-wrap:balance;
+}
+.dek{
+  font-family:var(--serif);
+  font-size:1.1rem;
+  color:var(--ink-soft);
+  max-width:62ch;
+  margin:0;
+}
+
+.stats{
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.6rem;
+  margin-top:1.4rem;
+}
+.stat{
+  font-family:var(--mono);
+  font-size:0.78rem;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:5px;
+  padding:0.35rem 0.65rem;
+  color:var(--ink-soft);
+}
+.stat b{color:var(--ink);font-weight:600;}
+
+.status-banner{
+  grid-column:1/-1;
+  max-width:820px;
+  margin:0 auto 1.5rem;
+  background:var(--amber-soft);
+  border:1px solid var(--border);
+  border-left:3px solid var(--amber);
+  border-radius:6px;
+  padding:0.75rem 1.1rem;
+  font-family:var(--sans);
+  font-size:0.85rem;
+  color:var(--ink);
+}
+.status-banner b{color:var(--ink);}
+
+nav.toc{
+  position:sticky;
+  top:2rem;
+  align-self:start;
+  font-family:var(--mono);
+  font-size:0.8rem;
+}
+nav.toc .label{
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  color:var(--muted);
+  font-size:0.68rem;
+  margin-bottom:0.7rem;
+}
+nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:toc;}
+nav.toc li{counter-increment:toc;margin-bottom:0.55rem;}
+nav.toc a{
+  color:var(--ink-soft);
+  text-decoration:none;
+  display:flex;
+  gap:0.5rem;
+}
+nav.toc a:hover{color:var(--accent-ink);}
+nav.toc a::before{
+  content:counter(toc,decimal-leading-zero);
+  color:var(--accent);
+  font-weight:600;
+}
+
+main{min-width:0;}
+section{margin-bottom:3rem;scroll-margin-top:2rem;}
+section h2{
+  font-family:var(--mono);
+  font-size:1.15rem;
+  font-weight:700;
+  display:flex;
+  align-items:baseline;
+  gap:0.6rem;
+  margin:0 0 1rem;
+  padding-bottom:0.6rem;
+  border-bottom:1px solid var(--border);
+}
+section h2 .num{color:var(--accent);font-variant-numeric:tabular-nums;}
+h3{font-family:var(--sans);font-size:1rem;font-weight:700;margin:1.6rem 0 0.6rem;}
+p{margin:0 0 1rem;}
+ul,ol{padding-left:1.3rem;margin:0 0 1rem;}
+li{margin-bottom:0.35rem;}
+strong{font-weight:700;color:var(--ink);}
+code{
+  font-family:var(--mono);
+  font-size:0.86em;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:4px;
+  padding:0.1em 0.35em;
+}
+pre{
+  background:var(--code-bg);
+  color:var(--code-ink);
+  border-radius:8px;
+  padding:1rem 1.1rem;
+  overflow-x:auto;
+  font-family:var(--mono);
+  font-size:0.83rem;
+  line-height:1.55;
+  margin:0 0 1.1rem;
+  box-shadow:var(--shadow);
+}
+pre code{background:none;border:none;padding:0;color:inherit;}
+.kw{color:var(--code-accent);}
+
+.callout{
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-left:3px solid var(--teal);
+  border-radius:6px;
+  padding:0.9rem 1.1rem;
+  margin:0 0 1.1rem;
+  font-family:var(--sans);
+  font-size:0.92rem;
+}
+.callout.warn{border-left-color:var(--amber);}
+.callout .tag{
+  font-family:var(--mono);
+  font-size:0.68rem;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--teal);
+  font-weight:700;
+  display:block;
+  margin-bottom:0.3rem;
+}
+.callout.warn .tag{color:var(--amber);}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-family:var(--sans);
+  font-size:0.86rem;
+  margin:0 0 1.2rem;
+}
+caption{
+  caption-side:top;
+  text-align:left;
+  font-family:var(--mono);
+  font-size:0.72rem;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--muted);
+  margin-bottom:0.5rem;
+}
+th,td{
+  text-align:left;
+  padding:0.55rem 0.7rem;
+  border-bottom:1px solid var(--border);
+  vertical-align:top;
+}
+th{
+  font-family:var(--mono);
+  font-size:0.72rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--muted);
+  font-weight:600;
+}
+td code{white-space:nowrap;}
+.wide-table{overflow-x:auto;}
+
+.pill-row{display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.1rem;}
+.pill{
+  font-family:var(--mono);
+  font-size:0.78rem;
+  padding:0.3rem 0.7rem;
+  border-radius:999px;
+  border:1px solid var(--border);
+}
+.pill.state{background:var(--surface-2);color:var(--ink-soft);}
+.pill.state.active{background:var(--teal-soft);color:var(--teal);border-color:transparent;}
+.pill.state.dormant{background:var(--surface-2);color:var(--muted);}
+.pill.state.fading{background:var(--amber-soft);color:var(--amber);border-color:transparent;}
+
+.route-grid{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:0.5rem 1rem;
+  font-family:var(--mono);
+  font-size:0.85rem;
+  margin-bottom:1.2rem;
+}
+.route-grid dt{font-weight:700;color:var(--ink);}
+.route-grid dd{margin:0;color:var(--ink-soft);}
+
+.diagram{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:1.2rem;
+  margin-bottom:1.1rem;
+  overflow-x:auto;
+}
+
+.state-flow{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:0.4rem;
+  font-family:var(--mono);
+  font-size:0.82rem;
+  margin-bottom:1.1rem;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:1rem 1.1rem;
+}
+.state-flow .arrow{color:var(--muted);}
+
+footer{
+  grid-column:1/-1;
+  max-width:820px;
+  margin:2rem auto 0;
+  padding-top:1.5rem;
+  border-top:1px solid var(--border);
+  font-family:var(--mono);
+  font-size:0.78rem;
+  color:var(--muted);
+}
+
+@media (prefers-reduced-motion:no-preference){
+  section{scroll-behavior:smooth;}
+}
+</style>
+
+<div class="shell">
+  <header class="hero">
+    <span class="eyebrow">Knowledge Transfer &middot; Persona</span>
+    <h1>The Persona Timeline</h1>
+    <p class="dek">Every logged-in user's query becomes one evidence-weighted event. Events cluster into topics, topics accumulate a recency-decayed interest score, and a topic only gets called "active" once several separate sessions corroborate it &mdash; so a two-day rabbit hole never gets mistaken for a real shift in what someone actually researches.</p>
+    <div class="stats">
+      <span class="stat">Storage: <b>append-only events</b> + derived cache</span>
+      <span class="stat">Scoring: <b>exponential decay</b>, not lifetime average</span>
+      <span class="stat">States: <b>6</b> (discovered&rarr;&hellip;&rarr;dormant)</span>
+      <span class="stat">Model calls per query: <b>1</b> SLM + <b>1</b> embed</span>
+      <span class="stat">Routing/RRF effect: <b>zero</b></span>
+    </div>
+  </header>
+
+  <div class="status-banner"><b>Status:</b> implemented on <code>feat/persona-interest-timeline</code>, not yet merged to <code>dev</code>. It replaces the earlier flat, single-document persona (merged in PR #5) end to end &mdash; nothing runs both models at once.</div>
+
+  <nav class="toc" aria-label="Table of contents">
+    <div class="label">On this page</div>
+    <ol>
+      <li><a href="#what">What it's for</a></li>
+      <li><a href="#unit">The unit of evidence</a></li>
+      <li><a href="#cluster">Queries &rarr; topics</a></li>
+      <li><a href="#score">Topics &rarr; a score over time</a></li>
+      <li><a href="#states">The state machine</a></li>
+      <li><a href="#context">Reading it back: prompt context</a></li>
+      <li><a href="#flow">Request flow, end to end</a></li>
+      <li><a href="#migrate">Legacy users &amp; tuning</a></li>
+      <li><a href="#files">File map</a></li>
+      <li><a href="#faq">Gotchas &amp; FAQ</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <section id="what">
+      <h2><span class="num">01</span> What it's for</h2>
+      <p>Instant and AI Mode are stateless by default &mdash; every query is answered with no memory of who's asking. Persona is the opt-in exception: for a <strong>logged-in</strong> user only, it builds a lightweight, evolving picture of what they research, and feeds a short, hedged sentence about it into the AI Mode synthesis (and query-rewrite) prompts. A guest gets byte-identical behavior to a world where persona doesn't exist &mdash; no lookup, no write, no latency.</p>
+      <p>The thing this replaces (merged in PR #5, still on <code>dev</code> until this branch lands) kept one Mongo document per user: a lifetime <em>average</em> across six fixed category tags, plus a majority-vote expertise level. It worked, but it couldn't answer the question that actually matters for personalization: <strong>what is this user working on right now</strong>, as opposed to what they've ever asked about. A user who did six months of IBC research and pivoted to GST last month still read as "IBC-leaning" for a long time under a lifetime average.</p>
+      <p>This system answers that instead, by treating persona as a <strong>timeline</strong>, not a snapshot: every query is an event, events build up topics, and topics carry a state (is this newly discovered, sustained, fading, or dead) that only moves when the evidence for it is real.</p>
+    </section>
+
+    <section id="unit">
+      <h2><span class="num">02</span> The unit of evidence: one query, one event</h2>
+      <p>After every successful AI Mode response for a logged-in user, one background (fire-and-forget, never blocking the reply) call turns that query into a <strong>Query Understanding Record</strong> &mdash; a single cheap SLM call, same <code>role="slm"</code> the rest of AI Mode already uses:</p>
+      <pre><code>{
+  <span class="kw">"concepts"</span>: [<span class="kw">"director liability"</span>, <span class="kw">"corporate debt"</span>],
+  <span class="kw">"legal_entities"</span>: [<span class="kw">"IBC"</span>],
+  <span class="kw">"research_objective"</span>: [<span class="kw">"determine liability"</span>],
+  <span class="kw">"specificity"</span>: <span class="kw">0.84</span>,
+  <span class="kw">"confidence"</span>: <span class="kw">0.92</span>
+}</code></pre>
+      <p>That raw model output is never trusted as-is. <code>persona.understanding.validate_understanding()</code> strips anything outside the expected shape &mdash; wrong types, extra keys, oversized strings &mdash; before it's stored. This isn't paranoia for its own sake: the concepts/entities eventually get interpolated verbatim into a future synthesis prompt for that same account, so an unvalidated field is a same-account prompt-injection seam. A malformed or empty model response means <strong>no event is recorded at all</strong> for that query &mdash; same fail-closed instinct the old expertise-signal extractor used, just applied to a richer payload.</p>
+      <p>Alongside the understanding, one <code>evidence_weight</code> number captures how much this specific query is worth as a signal, from <code>persona.evidence</code>:</p>
+      <div class="wide-table">
+      <table>
+        <thead><tr><th>Signal</th><th>Weight</th></tr></thead>
+        <tbody>
+          <tr><td>Query submitted</td><td><code>+1</code> (always present, floor)</td></tr>
+          <tr><td>Result clicked</td><td><code>+2</code></td></tr>
+          <tr><td>Document opened</td><td><code>+3</code></td></tr>
+          <tr><td>Document read deeply</td><td><code>+4</code></td></tr>
+          <tr><td>Repeated related query</td><td><code>+5</code></td></tr>
+          <tr><td>Document saved</td><td><code>+6</code></td></tr>
+          <tr><td>Returned to topic later</td><td><code>+8</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Only "submitted" is wired up today &mdash; the frontend doesn't yet report clicks/opens/saves, so every event currently carries the floor weight. The other six signals exist because a search with no follow-up and a search that ends in a saved document shouldn't count the same, the moment that instrumentation lands upstream. Nothing downstream needs to change when it does.</p>
+    </section>
+
+    <section id="cluster">
+      <h2><span class="num">03</span> Queries become topics, not categories</h2>
+      <p>The old system's unit of affinity was one of six fixed tags (<code>acts</code>/<code>rules</code>/<code>caselaws</code>/&hellip;). This system's unit is a <strong>topic</strong>: an open-ended cluster the data itself creates, identified by nothing more than "queries that look and feel related." Every new event is scored against the user's existing topics on four signals, <code>persona.clustering.combined_similarity()</code>:</p>
+      <div class="wide-table">
+      <table>
+        <caption>weighted 0.5 / 0.25 / 0.15 / 0.10</caption>
+        <thead><tr><th>Signal</th><th>What it measures</th></tr></thead>
+        <tbody>
+          <tr><td>Embedding cosine similarity</td><td>Same Voyage <code>query_embed</code> call the rest of the repo uses (hard rule 1) &mdash; reused here purely as a vector for in-app comparison, never compared against the Milvus corpus</td></tr>
+          <tr><td>Legal-entity overlap</td><td>Jaccard over the extracted entities/concepts</td></tr>
+          <tr><td>Temporal proximity</td><td>Exponential falloff, ~0 by 48h apart &mdash; two queries five minutes apart look related; two queries three months apart don't, on this signal alone</td></tr>
+          <tr><td>Category overlap</td><td>Jaccard over AI Mode's own <code>intent</code> tags &mdash; free signal, no extra model call</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Score &ge; <code>persona_cluster_similarity_threshold</code> (default <strong>0.6</strong>) joins the closest existing topic; below it, a brand-new topic starts in the <code>discovered</code> state. There's no "closest, even if weak" fallback &mdash; an unrelated query never gets force-attached to whatever topic happens to be nearby.</p>
+      <p>Within one topic, a gap since the last event beyond <code>persona_episode_gap_hours</code> (default <strong>7 days</strong>) opens a new <strong>research episode</strong> under the same topic, rather than pretending it's continuous activity. A user who did "GST input tax credit" in January and comes back to "GST registration cancellation" in March gets one topic, two episodes &mdash; the topic-level identity persists, but the system doesn't claim they were thinking about GST every day in between.</p>
+      <div class="callout">
+        <span class="tag">Explainability</span>
+        Every stored event keeps its own winning <code>clustering_score</code> and the signal breakdown that produced it (<code>persona.repository.explain_assignment()</code>) &mdash; "why did this land in this topic" is always answerable from the event itself, no recomputation needed.
+      </div>
+    </section>
+
+    <section id="score">
+      <h2><span class="num">04</span> Topics get a score, and the score forgets on purpose</h2>
+      <p>The old <code>category_affinity</code> was a <em>cumulative mean</em> &mdash; after 500 queries, a genuine change in focus took hundreds more to move the number. <code>persona.scoring.interest_score()</code> replaces that with an <strong>exponentially decayed</strong> sum:</p>
+      <pre><code><span class="kw">score</span> = 1 - exp(-raw / 50),  <span class="kw">where</span> raw = &sum; evidence_weight&#7522; &middot; exp(-&lambda; &middot; age_in_days&#7522;)</code></pre>
+      <p>Two deliberate properties fall out of that one formula:</p>
+      <ul>
+        <li><strong>Old evidence fades smoothly.</strong> &lambda; (<code>persona_decay_lambda</code>, default <strong>0.03</strong>/day) controls how fast &mdash; no hard cliff at some fixed window, just a continuous discount. A topic quiet for three months scores lower than it did at its peak, without needing a "days since last event" special case anywhere.</li>
+        <li><strong>One event can't spike a topic to certainty.</strong> The <code>1 - exp(-raw/50)</code> wrapper saturates &mdash; even the single highest-weight possible event (all seven signals firing at once, raw weight 29) lands well under 1.0. Reaching a high score takes <em>repeated</em>, decay-surviving evidence, not one enthusiastic session.</li>
+      </ul>
+      <p>The whole function is pure: same event list, same "as of" timestamp, same &lambda; &rarr; same number, every time. No model call anywhere in the scoring path &mdash; the SLM call already happened at extraction time, and everything from here down is arithmetic.</p>
+    </section>
+
+    <section id="states">
+      <h2><span class="num">05</span> The state machine: hysteresis against rabbit holes</h2>
+      <p>A raw score crossing a threshold isn't enough to call a topic "active" &mdash; that would let one unusually engaged afternoon look identical to a sustained research focus. Every upward move also requires <code>persona_min_sessions_per_transition</code> (default <strong>2</strong>) distinct calendar days of corroborating evidence <em>since the topic's last transition</em>. Downward moves only need the score to actually decline.</p>
+      <div class="state-flow">
+        <span class="pill state">discovered</span><span class="arrow">&rarr;</span>
+        <span class="pill state">emerging</span><span class="arrow">&rarr;</span>
+        <span class="pill state active">active</span><span class="arrow">&rarr;</span>
+        <span class="pill state fading">fading</span><span class="arrow">&rarr;</span>
+        <span class="pill state dormant">dormant</span><span class="arrow">&rarr;</span>
+        <span class="pill state active">reactive</span><span class="arrow">&rarr;</span>
+        <span class="pill state active">active</span>
+      </div>
+      <p>Two edges are load-bearing, not incidental:</p>
+      <ul>
+        <li><strong>No <code>active &rarr; dormant</code> edge exists in the graph.</strong> A declining topic always passes through <code>fading</code> first &mdash; the state-transition function (<code>persona.state_machine.next_state()</code>) simply has no code path that skips it, so this is guaranteed by construction, not by a runtime check.</li>
+        <li><strong><code>dormant &rarr; reactive</code>, never straight back to <code>discovered</code>.</strong> A user who comes back to a dead topic six months later keeps its original discovery date and every past episode &mdash; the topic document is reused, not recreated. <code>reactive</code> then needs the same corroboration as any other promotion before it's trusted as <code>active</code> again.</li>
+      </ul>
+      <p><strong>Pivot detection</strong> (<code>persona.state_machine.detect_pivot()</code>) is just a read over two topics' states: one in <code>fading</code>/<code>dormant</code>, another independently in <code>active</code>/<code>reactive</code>. Because reaching <code>active</code>/<code>reactive</code> already required the corroboration above, a pivot can never be reported off a single day's score crossover &mdash; the guarantee is inherited, not re-implemented.</p>
+    </section>
+
+    <section id="context">
+      <h2><span class="num">06</span> Reading it back: what actually reaches the model</h2>
+      <p><code>persona.prompt.render_persona_context()</code> looks only at topics currently in <code>active</code>/<code>reactive</code> state above <code>persona_context_confidence_floor</code> (default <strong>0.15</strong>) &mdash; a topic that's <code>fading</code> or below the floor is invisible here, regardless of how dominant it was historically. A brand-new user, or one with nothing above the floor, gets an empty string: identical to a guest.</p>
+      <pre><code><span class="kw">"This user is currently focused on: GST (active); IBC (reactive)."</span></code></pre>
+      <p>That sentence is always followed by the same hedge (<code>RELEVANCE_INSTRUCTION</code>, unchanged verbatim from the earlier system): <em>this is a prior about typical usage, not a fact about this query &mdash; ignore it if the query's own content conflicts.</em> Persona is never allowed to overrule what the query actually says.</p>
+      <p>For a genuinely ambiguous current query, <code>render_topic_hypotheses()</code> can additionally surface weighted candidate readings &mdash; but only when <strong>two or more</strong> of the user's topics clear the confidence floor for that specific query's embedding. One clear candidate renders nothing extra; forcing a false choice would be worse than silence.</p>
+      <pre><code><span class="kw">"Possible topic interpretations for this query, by confidence: IBC 0.81; GST 0.19."</span></code></pre>
+      <div class="callout warn">
+        <span class="tag">Hard rule &mdash; don't touch</span>
+        Persona context (including hypothesis weighting) only ever reaches <code>extract_intent</code>'s and <code>synthesize</code>'s prompt text. <code>retrieve()</code> &mdash; the function that decides which Milvus collections get searched and at what RRF weight &mdash; has no <code>persona_context</code> parameter at all. There's no code path for persona to become a routing or fusion signal, structurally, not by convention. See <code>CLAUDE.md</code> rule 4 and <code>test_run_ai_mode_persona_context_never_reaches_retrieve_or_alters_routing</code>.
+      </div>
+    </section>
+
+    <section id="flow">
+      <h2><span class="num">07</span> Request flow, end to end</h2>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TD
+  A["WS: /ws/search<br/>access_token -&gt; user_id"] --> B{"user_id set?"}
+  B -- "no (guest)" --> G["persona_context = ''<br/>no read, no write"]
+  B -- "yes" --> C["get_current_snapshot(topics, user_id)"]
+  C --> D{"snapshot empty?"}
+  D -- "yes" --> E["migrate_legacy_persona()<br/>read-only against old personas doc"]
+  E --> C2["re-read snapshot"]
+  D -- "no" --> F["render_persona_context(snapshot)"]
+  C2 --> F
+  F --> H["run_ai_mode(..., persona_context)"]
+  G --> H
+  H --> I["extract_intent + synthesize<br/>see persona_context in prompt"]
+  H --> J["retrieve() -- NO persona_context param"]
+  I --> K["ai_mode_result {answer, intent, ...}"]
+  K -- "ok, user_id set" --> L["record_persona_signal()<br/>fire-and-forget asyncio.create_task"]
+  L --> M["extract_query_understanding (SLM)<br/>+ gateway.embed(query_embed)"]
+  M --> N["record_query_event()<br/>cluster -&gt; append event -&gt; rescore -&gt; transition"]
+        </pre>
+      </div>
+      <p>Where each hop lives:</p>
+      <ol>
+        <li><code>retrieval_api/ws.py</code> &mdash; resolves <code>user_id</code> from the WS message's <code>access_token</code>, reads the persona snapshot (with a lazy legacy-doc migration on first touch), renders context, and after a successful AI Mode reply schedules the write as a tracked background task.</li>
+        <li><code>retrieval_api/ai_mode/persona_signal.py</code> &mdash; <code>extract_query_understanding()</code> (the one SLM call) and <code>record_persona_signal()</code>, which wraps the whole write in a broad <code>except Exception</code> so a down Mongo or gateway can never surface into the websocket handler.</li>
+        <li><code>persona/repository.py::record_query_event()</code> &mdash; the actual pipeline: validate &rarr; cluster &rarr; append to <code>persona_events</code> &rarr; rescore the topic from its full event history &rarr; run the state machine &rarr; upsert <code>persona_topics</code>.</li>
+        <li><code>persona/repository.py::get_current_snapshot()</code> / <code>persona/prompt.py</code> &mdash; the read side, called at the top of the next request.</li>
+      </ol>
+      <p>Both the read and write sides degrade the same way on failure: an unreachable Mongo means empty persona context for that request, or a silently dropped write &mdash; never a crashed <code>/ws/search</code> call.</p>
+    </section>
+
+    <section id="migrate">
+      <h2><span class="num">08</span> Legacy users, tuning, and what's still open</h2>
+      <p>A user with a pre-existing flat <code>personas</code> document (from PR #5) isn't bulk-migrated. The first time their snapshot comes up empty, <code>migrate_legacy_persona()</code> reads that old document (never writes to it, never deletes it) and seeds one low-weight event per non-zero category it had &mdash; a synthetic starting point that decays away naturally under the new scoring instead of being thrown out or crashing the request.</p>
+      <p>Every threshold mentioned above is a <code>PersonaSettings</code> field with a default, overridable via env var without a code change:</p>
+      <div class="wide-table">
+      <table>
+        <thead><tr><th>Setting</th><th>Default</th><th>Controls</th></tr></thead>
+        <tbody>
+          <tr><td><code>PERSONA_DECAY_LAMBDA</code></td><td>0.03</td><td>How fast old evidence stops counting</td></tr>
+          <tr><td><code>PERSONA_CLUSTER_SIMILARITY_THRESHOLD</code></td><td>0.6</td><td>How closely a query must match to join an existing topic</td></tr>
+          <tr><td><code>PERSONA_EPISODE_GAP_HOURS</code></td><td>168 (7d)</td><td>Gap that starts a new episode within a topic</td></tr>
+          <tr><td><code>PERSONA_MIN_SESSIONS_PER_TRANSITION</code></td><td>2</td><td>Corroborating days required to promote a topic's state</td></tr>
+          <tr><td><code>PERSONA_CONTEXT_CONFIDENCE_FLOOR</code></td><td>0.15</td><td>Minimum score to appear in rendered context at all</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Nothing new to provision in Mongo or Milvus: <code>persona_events</code>/<code>persona_topics</code> are schemaless collections created on first write, their indexes are created idempotently at app startup (<code>main.py</code>'s <code>lifespan</code>, same pattern as auth's refresh-token indexes), and topic-similarity vectors are plain arrays compared in-process &mdash; no Atlas <code>$vectorSearch</code> index, no new Milvus collection, no new model-gateway role.</p>
+    </section>
+
+    <section id="files">
+      <h2><span class="num">09</span> File map</h2>
+      <div class="wide-table">
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>persona/understanding.py</code></td><td>Validates/sanitizes raw SLM output into a trustworthy Query Understanding Record</td></tr>
+          <tr><td><code>persona/evidence.py</code></td><td><code>evidence_weight()</code> &mdash; interaction signals &rarr; one number</td></tr>
+          <tr><td><code>persona/clustering.py</code></td><td>Cosine/Jaccard/temporal similarity, <code>find_best_topic()</code>, episode-gap check</td></tr>
+          <tr><td><code>persona/scoring.py</code></td><td><code>interest_score()</code> &mdash; the exponential-decay formula</td></tr>
+          <tr><td><code>persona/state_machine.py</code></td><td>The 6-state graph, hysteresis, reactivation, pivot detection</td></tr>
+          <tr><td><code>persona/repository.py</code></td><td><code>record_query_event()</code>, <code>get_current_snapshot()</code>, <code>migrate_legacy_persona()</code>, <code>explain_assignment()</code></td></tr>
+          <tr><td><code>persona/prompt.py</code></td><td><code>render_persona_context()</code>, <code>render_topic_hypotheses()</code>, <code>RELEVANCE_INSTRUCTION</code></td></tr>
+          <tr><td><code>persona/config.py</code> / <code>db.py</code></td><td>Tunable settings; <code>persona_events</code>/<code>persona_topics</code> collections + index setup</td></tr>
+          <tr><td><code>retrieval_api/ai_mode/persona_signal.py</code></td><td>The one SLM call + embed call + fire-and-forget write orchestration</td></tr>
+          <tr><td><code>retrieval_api/ws.py</code></td><td>Read/write wiring into <code>/ws/search</code>, guest short-circuit, failure isolation</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section id="faq">
+      <h2><span class="num">10</span> Gotchas &amp; FAQ</h2>
+      <dl class="route-grid">
+        <dt>Does this affect what gets retrieved?</dt>
+        <dd>Never. Persona only ever shapes prompt text for the LLM/SLM calls &mdash; see <a href="#context">&sect;06</a>'s hard rule. Milvus collection routing and RRF weights are identical with or without it.</dd>
+        <dt>Why not just re-ask an LLM "what's this user's persona?"</dt>
+        <dd>Expensive per query, non-deterministic, hard to test. Everything past the one extraction call &mdash; clustering, scoring, state transitions &mdash; is plain, reproducible arithmetic on purpose.</dd>
+        <dt>What if the frontend never adds click/open/save tracking?</dt>
+        <dd>Nothing breaks &mdash; every event still carries the "submitted" floor weight and the system works, just with a coarser evidence signal than it's designed to eventually use.</dd>
+        <dt>Can a topic's score hit exactly 1.0?</dt>
+        <dd>No, by construction &mdash; the saturating transform in <a href="#score">&sect;04</a> only approaches 1.0 asymptotically.</dd>
+        <dt>Is the old <code>personas</code> collection deleted?</dt>
+        <dd>No, and there's no plan to bulk-migrate or drop it. It's read once per user, lazily, on their first post-cutover request, and left alone after.</dd>
+      </dl>
+    </section>
+
+  </main>
+
+  <footer>
+    Source: <code>openspec/changes/persona-interest-timeline/</code> (proposal, specs, design) &middot; branch <code>feat/persona-interest-timeline</code> &middot; retrieval-system repo
+  </footer>
+</div>

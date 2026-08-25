@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from fastapi.testclient import TestClient
 
+from persona.config import get_persona_settings
 from retrieval_api.main import app
 import retrieval_api.ai_mode_analysis as ai_mode_analysis_module
 
@@ -31,7 +32,7 @@ def test_ai_mode_analysis_guest_query_has_no_persona(monkeypatch):
     assert body["intent"] == ["acts"]
     assert body["persona_found"] is False
     assert body["persona_context_used"] == ""
-    assert body["query_count"] is None
+    assert body["topic_count"] is None
     assert body["lexicon_check"]["has_anchor"] is True
     assert body["lexicon_check"]["shape"] == "provision"
 
@@ -45,26 +46,20 @@ def test_ai_mode_analysis_forwards_persona_context_when_trusted(monkeypatch):
 
     _patch_common(monkeypatch, fake_run_ai_mode)
 
-    async def fake_get_persona(personas_collection, user_id):
-        return {
-            "user_id": user_id,
-            "category_affinity": {"caselaws": 0.9},
-            "expertise_level": "expert",
-            "query_style": "precise-citation",
-            "query_count": 25,
-        }
+    async def fake_get_current_snapshot(topics_collection, user_id):
+        return [{"topic_id": "t1", "state": "active", "score": 0.9, "legal_entities": ["caselaws"], "categories": []}]
 
-    monkeypatch.setattr(ai_mode_analysis_module, "get_persona_settings", lambda: object())
+    monkeypatch.setattr(ai_mode_analysis_module, "get_persona_settings", lambda: get_persona_settings())
     monkeypatch.setattr(ai_mode_analysis_module, "get_mongo_client", lambda *_: object())
-    monkeypatch.setattr(ai_mode_analysis_module, "get_personas_collection", lambda *_: object())
-    monkeypatch.setattr(ai_mode_analysis_module, "get_persona", fake_get_persona)
+    monkeypatch.setattr(ai_mode_analysis_module, "get_persona_topics_collection", lambda *_: object())
+    monkeypatch.setattr(ai_mode_analysis_module, "get_current_snapshot", fake_get_current_snapshot)
 
     response = client.post("/v1/ai-mode-analysis", json={"query": "case law on X", "user_id": "user-2"})
 
     assert response.status_code == 200
     body = response.json()
     assert body["persona_found"] is True
-    assert body["query_count"] == 25
+    assert body["topic_count"] == 1
     assert body["persona_context_used"] != ""
     assert captured["persona_context"] == body["persona_context_used"]
 
@@ -100,7 +95,7 @@ def test_ai_mode_analysis_degrades_gracefully_when_persona_lookup_fails(monkeypa
     body = response.json()
     assert body["persona_found"] is False
     assert body["persona_context_used"] == ""
-    assert body["query_count"] is None
+    assert body["topic_count"] is None
 
 
 def test_ai_mode_analysis_closes_clients_on_success(monkeypatch):

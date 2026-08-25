@@ -5,9 +5,9 @@ from pydantic import BaseModel
 
 from common.config import get_settings
 from persona.config import get_persona_settings
-from persona.db import get_mongo_client, get_personas_collection
+from persona.db import get_mongo_client, get_persona_topics_collection
 from persona.prompt import render_persona_context
-from persona.repository import get_persona
+from persona.repository import get_current_snapshot
 from retrieval_api.ai_mode.intent import build_lexicon_check, extract_intent
 from retrieval_api.gateway_client import GatewayClient
 
@@ -35,25 +35,25 @@ async def get_intent_analysis(req: IntentAnalysisRequest):
 
     persona_found = False
     persona_context = ""
-    query_count = None
+    topic_count = None
 
     if req.user_id is not None:
         try:
             persona_settings = get_persona_settings()
             mongo_client = get_mongo_client(persona_settings)
-            personas_collection = get_personas_collection(mongo_client, persona_settings)
-            persona = await get_persona(personas_collection, req.user_id)
-            if persona is not None:
+            persona_topics_collection = get_persona_topics_collection(mongo_client, persona_settings)
+            snapshot = await get_current_snapshot(persona_topics_collection, req.user_id)
+            if snapshot:
                 persona_found = True
-                query_count = persona.get("query_count", 0)
-            persona_context = render_persona_context(persona)
+                topic_count = len(snapshot)
+            persona_context = render_persona_context(snapshot, persona_settings)
         except Exception:
             # A down/unreachable persona store must never crash this request - mirrors
             # the same degrade-to-guest pattern ws.py's /ws/search uses.
             logger.exception("Persona lookup failed for user %r; proceeding without persona context", req.user_id)
             persona_found = False
             persona_context = ""
-            query_count = None
+            topic_count = None
 
     result = await extract_intent(gateway, req.query, persona_context=persona_context)
     if not settings.expose_reasoning:
@@ -63,6 +63,6 @@ async def get_intent_analysis(req: IntentAnalysisRequest):
         **result,
         "persona_found": persona_found,
         "persona_context_used": persona_context,
-        "query_count": query_count,
+        "topic_count": topic_count,
         "lexicon_check": build_lexicon_check(req.query),
     }

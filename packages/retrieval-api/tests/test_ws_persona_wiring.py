@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from auth.config import get_auth_settings
 from auth.security import create_access_token
+from persona.config import get_persona_settings
 from retrieval_api.main import app
 import retrieval_api.ws as ws_module
 
@@ -22,42 +23,39 @@ def _patch_common(monkeypatch, fake_run_ai_mode):
     monkeypatch.setattr(ws_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_milvus_client", lambda *_: Mock())
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
-    # Never touch a real MongoDB connection - get_mongo_client/get_personas_collection
-    # are stubbed to sentinels that are only ever passed through to get_persona,
-    # which is itself stubbed below (per test).
-    monkeypatch.setattr(ws_module, "get_persona_settings", lambda: object())
+    # Never touch a real MongoDB connection - get_mongo_client/collection getters
+    # are stubbed to sentinels only ever passed through to get_current_snapshot/
+    # migrate_legacy_persona/record_persona_signal, which are themselves stubbed
+    # per test.
+    monkeypatch.setattr(ws_module, "get_persona_settings", lambda: get_persona_settings())
     monkeypatch.setattr(ws_module, "get_mongo_client", lambda *_: object())
+    monkeypatch.setattr(ws_module, "get_persona_events_collection", lambda *_: object())
+    monkeypatch.setattr(ws_module, "get_persona_topics_collection", lambda *_: object())
     monkeypatch.setattr(ws_module, "get_personas_collection", lambda *_: object())
 
 
-def test_ws_search_logged_in_user_with_persona_reaches_run_ai_mode_with_rendered_context(monkeypatch):
-    """A logged-in user (valid access_token) whose persona has real signal must
-    have that persona rendered into a non-empty persona_context string, and that
-    exact string must reach run_ai_mode - proving the seam from Mongo lookup ->
-    render_persona_context -> run_ai_mode wiring actually works end to end
-    (modulo Mongo itself, which is faked out)."""
+def test_ws_search_logged_in_user_with_active_topic_reaches_run_ai_mode_with_rendered_context(monkeypatch):
+    """A logged-in user whose current snapshot has an active topic above the
+    confidence floor must have that reflected in a non-empty persona_context
+    string, and that exact string must reach run_ai_mode - proving the seam
+    from Mongo snapshot -> render_persona_context -> run_ai_mode wiring works
+    end to end (modulo Mongo itself, which is faked out)."""
     captured = {}
 
-    async def fake_get_persona(personas_collection, user_id):
+    async def fake_get_current_snapshot(topics_collection, user_id):
         assert user_id == "user-123"
-        return {
-            "user_id": "user-123",
-            "category_affinity": {"caselaws": 0.9, "acts": 0.1},
-            "expertise_level": "expert",
-            "query_style": "precise-citation",
-            "query_count": 20,
-        }
+        return [{"topic_id": "t1", "state": "active", "score": 0.9, "legal_entities": ["GST"], "categories": ["acts"]}]
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         captured["persona_context"] = persona_context
-        return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
+        return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["acts"]}
 
     _patch_common(monkeypatch, fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_persona", fake_get_persona)
+    monkeypatch.setattr(ws_module, "get_current_snapshot", fake_get_current_snapshot)
 
     record_calls = []
 
-    async def fake_record_persona_signal(personas_collection, gateway, user_id, query, categories):
+    async def fake_record_persona_signal(events, topics, gateway, user_id, query, categories, timestamp, settings):
         record_calls.append((user_id, categories))
 
     monkeypatch.setattr(ws_module, "record_persona_signal", fake_record_persona_signal)
@@ -72,43 +70,88 @@ def test_ws_search_logged_in_user_with_persona_reaches_run_ai_mode_with_rendered
 
     assert response == {"type": "ai_mode_done", "answer": "final answer", "citations": {}}
     assert captured["persona_context"] != ""
-    assert "caselaws" in captured["persona_context"]
-    assert "expert" in captured["persona_context"]
-    assert "precise-citation" in captured["persona_context"]
+    assert "GST" in captured["persona_context"]
 
 
-def test_ws_search_logged_in_user_with_thin_persona_gets_empty_persona_context(monkeypatch):
-    """A logged-in user (valid access_token) whose persona has real category_affinity/
-    expertise_level/query_style signal but a query_count below the trust threshold
-    (query_count >= 20 in render_persona_context) must still reach run_ai_mode with
-    persona_context=="" - same as a guest. Proves the trust gate is actually wired
-    end to end (Mongo lookup -> render_persona_context -> run_ai_mode), not just
-    correct in render_persona_context's own unit tests."""
+def test_ws_search_logged_in_user_with_empty_snapshot_gets_empty_persona_context(monkeypatch):
+    """A logged-in user with no topics yet (and nothing to migrate) must
+    still reach run_ai_mode with persona_context=="" - same as a guest."""
     captured = {}
 
-    async def fake_get_persona(personas_collection, user_id):
+    async def fake_get_current_snapshot(topics_collection, user_id):
         assert user_id == "user-123"
-        return {
-            "user_id": "user-123",
-            "category_affinity": {"caselaws": 0.9, "acts": 0.1},
-            "expertise_level": "expert",
-            "query_style": "precise-citation",
-            "query_count": 3,
-        }
+        return []
+
+    async def fake_migrate_legacy_persona(*args, **kwargs):
+        return False
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         captured["persona_context"] = persona_context
         return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
 
     _patch_common(monkeypatch, fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_persona", fake_get_persona)
+    monkeypatch.setattr(ws_module, "get_current_snapshot", fake_get_current_snapshot)
+    monkeypatch.setattr(ws_module, "migrate_legacy_persona", fake_migrate_legacy_persona)
 
-    record_calls = []
+    auth_settings = get_auth_settings()
+    token = create_access_token("user-123", auth_settings)
 
-    async def fake_record_persona_signal(personas_collection, gateway, user_id, query, categories):
-        record_calls.append((user_id, categories))
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "gst rate", "mode": "ai_mode", "access_token": token})
+        response = websocket.receive_json()
 
-    monkeypatch.setattr(ws_module, "record_persona_signal", fake_record_persona_signal)
+    assert response == {"type": "ai_mode_done", "answer": "final answer", "citations": {}}
+    assert captured["persona_context"] == ""
+
+
+def test_ws_search_empty_snapshot_triggers_legacy_migration_then_rereads_snapshot(monkeypatch):
+    """A user with an empty snapshot but a migratable legacy document should
+    have migrate_legacy_persona invoked, and the snapshot re-read afterward."""
+    calls = {"migrate": 0, "snapshot": 0}
+    snapshots = [[], [{"topic_id": "t1", "state": "active", "score": 0.9, "legal_entities": ["IBC"], "categories": []}]]
+
+    async def fake_get_current_snapshot(topics_collection, user_id):
+        calls["snapshot"] += 1
+        return snapshots.pop(0)
+
+    async def fake_migrate_legacy_persona(*args, **kwargs):
+        calls["migrate"] += 1
+        return True
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
+        return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
+
+    _patch_common(monkeypatch, fake_run_ai_mode)
+    monkeypatch.setattr(ws_module, "get_current_snapshot", fake_get_current_snapshot)
+    monkeypatch.setattr(ws_module, "migrate_legacy_persona", fake_migrate_legacy_persona)
+
+    auth_settings = get_auth_settings()
+    token = create_access_token("user-123", auth_settings)
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws/search") as websocket:
+        websocket.send_json({"query": "gst rate", "mode": "ai_mode", "access_token": token})
+        websocket.receive_json()
+
+    assert calls["migrate"] == 1
+    assert calls["snapshot"] == 2
+
+
+def test_ws_search_persona_store_failure_degrades_to_guest_equivalent(monkeypatch):
+    """An unreachable persona store during the read path must degrade to
+    persona_context="" rather than crashing the request."""
+    captured = {}
+
+    async def fake_get_current_snapshot(topics_collection, user_id):
+        raise RuntimeError("mongo unreachable")
+
+    async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
+        captured["persona_context"] = persona_context
+        return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
+
+    _patch_common(monkeypatch, fake_run_ai_mode)
+    monkeypatch.setattr(ws_module, "get_current_snapshot", fake_get_current_snapshot)
 
     auth_settings = get_auth_settings()
     token = create_access_token("user-123", auth_settings)
@@ -128,19 +171,19 @@ def test_ws_search_guest_gets_empty_persona_context_and_no_persona_write(monkeyp
     must never be called for a guest, even on a successful AI Mode result."""
     captured = {}
 
-    async def fake_get_persona(personas_collection, user_id):
-        raise AssertionError("get_persona should never be called for a guest")
+    async def fake_get_current_snapshot(topics_collection, user_id):
+        raise AssertionError("get_current_snapshot should never be called for a guest")
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         captured["persona_context"] = persona_context
         return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
 
     _patch_common(monkeypatch, fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_persona", fake_get_persona)
+    monkeypatch.setattr(ws_module, "get_current_snapshot", fake_get_current_snapshot)
 
     record_calls = []
 
-    async def fake_record_persona_signal(personas_collection, gateway, user_id, query, categories):
+    async def fake_record_persona_signal(events, topics, gateway, user_id, query, categories, timestamp, settings):
         record_calls.append((user_id, categories))
 
     monkeypatch.setattr(ws_module, "record_persona_signal", fake_record_persona_signal)
@@ -160,18 +203,22 @@ def test_ws_search_logged_in_user_successful_ai_mode_schedules_persona_write(mon
     persona-write path invoked with the correct user_id and the categories from
     the AI Mode result's "intent" key."""
 
-    async def fake_get_persona(personas_collection, user_id):
-        return None
+    async def fake_get_current_snapshot(topics_collection, user_id):
+        return []
+
+    async def fake_migrate_legacy_persona(*args, **kwargs):
+        return False
 
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["acts", "rules"]}
 
     _patch_common(monkeypatch, fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_persona", fake_get_persona)
+    monkeypatch.setattr(ws_module, "get_current_snapshot", fake_get_current_snapshot)
+    monkeypatch.setattr(ws_module, "migrate_legacy_persona", fake_migrate_legacy_persona)
 
     record_calls = []
 
-    async def fake_record_persona_signal(personas_collection, gateway, user_id, query, categories):
+    async def fake_record_persona_signal(events, topics, gateway, user_id, query, categories, timestamp, settings):
         record_calls.append((user_id, categories))
 
     monkeypatch.setattr(ws_module, "record_persona_signal", fake_record_persona_signal)
@@ -205,11 +252,15 @@ def test_ws_search_accepts_access_token_field_without_crashing(monkeypatch):
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         raise AssertionError("ai_mode should not run in instant-only mode")
 
-    async def fake_get_persona(personas_collection, user_id):
-        return None
+    async def fake_get_current_snapshot(topics_collection, user_id):
+        return []
+
+    async def fake_migrate_legacy_persona(*args, **kwargs):
+        return False
 
     _patch_common(monkeypatch, fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_persona", fake_get_persona)
+    monkeypatch.setattr(ws_module, "get_current_snapshot", fake_get_current_snapshot)
+    monkeypatch.setattr(ws_module, "migrate_legacy_persona", fake_migrate_legacy_persona)
 
     settings = get_auth_settings()
     token = create_access_token("user-123", settings)
@@ -230,11 +281,11 @@ def test_ws_search_sends_session_expired_when_access_token_fails_to_decode(monke
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
         raise AssertionError("ai_mode should not run in instant-only mode")
 
-    async def fake_get_persona(personas_collection, user_id):
-        raise AssertionError("get_persona should never be called - user_id must resolve to None")
+    async def fake_get_current_snapshot(topics_collection, user_id):
+        raise AssertionError("get_current_snapshot should never be called - user_id must resolve to None")
 
     _patch_common(monkeypatch, fake_run_ai_mode)
-    monkeypatch.setattr(ws_module, "get_persona", fake_get_persona)
+    monkeypatch.setattr(ws_module, "get_current_snapshot", fake_get_current_snapshot)
 
     client = TestClient(app)
     with client.websocket_connect("/ws/search") as websocket:
