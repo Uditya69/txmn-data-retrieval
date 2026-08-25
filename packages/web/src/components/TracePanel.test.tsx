@@ -238,6 +238,50 @@ describe('TracePanel', () => {
     expect(screen.getByRole('button', { name: 'd2' })).toBeInTheDocument()
   })
 
+  it('renders a keyword_expansion step summary and its reasoning', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'keyword_expansion',
+        data: {
+          query: 'Section 55', added_keywords: ['deemed income', 'non-resident'],
+          reasoning: 'Section 55 concerns deemed income of non-residents, so both terms help.',
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.getByRole('heading', { level: 3, name: 'Keyword expansion' })).toBeInTheDocument()
+    expect(screen.getByText(/\+2: deemed income, non-resident/)).toBeInTheDocument()
+    expect(screen.getByText('Show reasoning')).toBeInTheDocument()
+    expect(screen.getByText(/deemed income of non-residents, so both terms help/)).toBeInTheDocument()
+  })
+
+  it('shows "no keywords added" and still surfaces reasoning when expansion added nothing', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'keyword_expansion',
+        data: {
+          query: 'Section 55', added_keywords: [],
+          reasoning: 'Already a precise anchor; no synonym adds real recall here.',
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.getByText('no keywords added')).toBeInTheDocument()
+    expect(screen.getByText('Show reasoning')).toBeInTheDocument()
+    expect(screen.getByText(/no synonym adds real recall here/)).toBeInTheDocument()
+  })
+
+  it('does not render a reasoning block when the step data has none', () => {
+    const steps: TraceStep[] = [
+      { step: 'keyword_search', data: { query: 'section 55', mode: 'keyword', candidate_count: 20, top_doc_ids: [] } },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.queryByText('Show reasoning')).not.toBeInTheDocument()
+  })
+
   it('labels ai_milvus_sparse as ES fallback only when every hit is ES-origin', () => {
     const steps: TraceStep[] = [
       {

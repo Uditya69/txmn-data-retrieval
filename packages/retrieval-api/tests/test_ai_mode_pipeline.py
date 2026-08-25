@@ -576,3 +576,63 @@ async def test_run_ai_mode_keyword_path_strips_conversational_filler_before_sear
     await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="what is section 55")
 
     assert seen_queries == ["section 55"]
+
+
+@pytest.mark.asyncio
+async def test_run_ai_mode_keyword_path_skips_expansion_by_default(monkeypatch):
+    """keyword_mode_expansion_enabled defaults to False - the keyword path must not call
+    expand_keyword_terms() at all unless the flag is explicitly on."""
+    import retrieval_api.ai_mode.pipeline as module
+
+    async def unexpected_expand_keyword_terms(*args, **kwargs):
+        raise AssertionError("expand_keyword_terms() must not be called when the flag is off")
+
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        return [{"doc_id": "d1", "score": 9.0, "text": "top hit"}]
+
+    async def fake_fetch_citations(client, doc_ids):
+        return {doc_id: {} for doc_id in doc_ids}
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+        return {"answer": "a", "citations": citations}
+
+    monkeypatch.setattr(module, "expand_keyword_terms", unexpected_expand_keyword_terms)
+    monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
+    monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+
+    await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="section 55")
+
+
+@pytest.mark.asyncio
+async def test_run_ai_mode_keyword_path_appends_expanded_keywords_when_flag_enabled(monkeypatch):
+    """keyword_mode_expansion_enabled=True lets the keyword path add up to 2 SLM-suggested
+    legal keywords to the ES query, appended after the cleaned anchor text - never
+    replacing it."""
+    import retrieval_api.ai_mode.pipeline as module
+    from unittest.mock import Mock
+
+    async def fake_expand_keyword_terms(gateway, query, on_step=None):
+        return ["cost of improvement"]
+
+    seen_queries = []
+
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        seen_queries.append(query)
+        return [{"doc_id": "d1", "score": 9.0, "text": "top hit"}]
+
+    async def fake_fetch_citations(client, doc_ids):
+        return {doc_id: {} for doc_id in doc_ids}
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+        return {"answer": "a", "citations": citations}
+
+    monkeypatch.setattr(module, "get_settings", lambda: Mock(keyword_mode_expansion_enabled=True))
+    monkeypatch.setattr(module, "expand_keyword_terms", fake_expand_keyword_terms)
+    monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
+    monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+
+    await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="section 55")
+
+    assert seen_queries == ["section 55 cost of improvement"]
