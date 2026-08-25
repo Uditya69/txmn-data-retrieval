@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # ai_mode_rerank_enabled above. False here forces every request onto
     # today's always-both-backends behavior regardless of what the client asks for.
     instant_mode_auto_route_enabled: bool = True
+    # Kill switch for AI Mode's native Milvus sparse (BM25 Function) search pass -
+    # off by default. ES sparse-fallback (sparse_fallback_search, for collections with
+    # no sparse_vector at all) is a separate mechanism and is NOT gated by this - it
+    # keeps running regardless. Env-only: no UI toggle exists for this one.
+    ai_mode_milvus_sparse_enabled: bool = False
     # Gates the local-only admin eval-runner UI (retrieval_api/admin_eval/) - unset
     # (the default) disables that feature entirely, so no deployment needs to think
     # about it unless it opts in.

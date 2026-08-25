@@ -17,7 +17,7 @@ async def test_run_ai_mode_success_path(monkeypatch):
 
     received_intent = {}
 
-    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None):
+    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None, milvus_sparse_enabled=False):
         received_intent["value"] = intent
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
@@ -51,7 +51,7 @@ async def test_run_ai_mode_forwards_boost_flag_to_retrieve(monkeypatch):
 
     seen_boost = []
 
-    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None):
+    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None, milvus_sparse_enabled=False):
         seen_boost.append(boost)
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
@@ -84,7 +84,7 @@ async def test_run_ai_mode_forwards_original_query_as_raw_query_to_retrieve(monk
 
     seen_raw_query = []
 
-    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None):
+    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None, milvus_sparse_enabled=False):
         seen_raw_query.append(raw_query)
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
@@ -115,7 +115,7 @@ async def test_run_ai_mode_passes_persona_context_to_synthesize_and_returns_inte
     async def fake_resolve_allowlist(es_client, filters, on_step=None):
         return None
 
-    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None):
+    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None, milvus_sparse_enabled=False):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
     async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
@@ -180,7 +180,7 @@ async def test_run_ai_mode_succeeds_with_party_only_filter(monkeypatch):
             "filters": {"party": "Reliance Industries"},
         }
 
-    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None):
+    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None, milvus_sparse_enabled=False):
         assert doc_id_allowlist == ["d1"]
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
@@ -217,7 +217,7 @@ async def test_run_ai_mode_forwards_on_step_to_every_stage(monkeypatch):
         received_on_steps.append(("resolve_allowlist", on_step))
         return None
 
-    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None):
+    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None, milvus_sparse_enabled=False):
         received_on_steps.append(("retrieve", on_step))
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
 
@@ -262,7 +262,7 @@ async def test_run_ai_mode_forwards_persona_context_to_extract_intent_and_synthe
     async def fake_resolve_allowlist(es_client, filters, on_step=None):
         return None
 
-    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None):
+    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None, milvus_sparse_enabled=False):
         return []
 
     async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):

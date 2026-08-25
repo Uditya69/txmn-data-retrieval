@@ -65,6 +65,7 @@ async def run_ai_mode(
                         gateway, milvus_client, es_client, intent_result["search_query"], doc_id_allowlist,
                         intent_result["intent"], on_step=on_step, boost=boost,
                         raw_query=intent_result["original_query"],
+                        milvus_sparse_enabled=get_settings().ai_mode_milvus_sparse_enabled,
                     )
                     span.update(output={"num_candidates": len(candidates)})
 

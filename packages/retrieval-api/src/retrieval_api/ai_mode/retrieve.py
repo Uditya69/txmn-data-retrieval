@@ -58,6 +58,7 @@ async def retrieve(
     on_step: OnStep | None = None,
     boost: bool = False,
     raw_query: str | None = None,
+    milvus_sparse_enabled: bool = False,
 ) -> list[dict]:
     collections = collections_for_intent(intent or [])
     gap_collections = [
@@ -102,15 +103,20 @@ async def retrieve(
                 })
             return {}
 
+    async def _run_milvus_sparse(allowlist):
+        if not milvus_sparse_enabled:
+            return {}
+        return await hybrid_search(
+            milvus_client, collections=collections, dense_vector=None,
+            sparse_query_text=search_query, doc_id_allowlist=allowlist, limit=50,
+        )
+
     dense_by_collection, sparse_by_collection, es_sparse_by_collection = await asyncio.gather(
         hybrid_search(
             milvus_client, collections=collections, dense_vector=dense_vector,
             sparse_query_text=search_query, doc_id_allowlist=doc_id_allowlist, limit=50,
         ),
-        hybrid_search(
-            milvus_client, collections=collections, dense_vector=None,
-            sparse_query_text=search_query, doc_id_allowlist=doc_id_allowlist, limit=50,
-        ),
+        _run_milvus_sparse(doc_id_allowlist),
         _run_es_fallback(doc_id_allowlist),
     )
     sparse_by_collection.update(es_sparse_by_collection)
@@ -135,10 +141,7 @@ async def retrieve(
                 milvus_client, collections=collections, dense_vector=dense_vector,
                 sparse_query_text=search_query, doc_id_allowlist=None, limit=50,
             ),
-            hybrid_search(
-                milvus_client, collections=collections, dense_vector=None,
-                sparse_query_text=search_query, doc_id_allowlist=None, limit=50,
-            ),
+            _run_milvus_sparse(None),
             _run_es_fallback(None),
         )
         sparse_by_collection.update(es_sparse_by_collection)
@@ -150,17 +153,23 @@ async def retrieve(
     # AI Mode's own retrieval trace into the Instant pane.
     if on_step is not None:
         await on_step("ai_milvus_dense", {**collection_trace(dense_by_collection), "query": search_query})
-        sparse_trace = {**collection_trace(sparse_by_collection), "milvus_query": search_query}
-        if gap_collections:
-            # es_query_text/boost/effective_allowlist are exactly what the real ES-fallback
-            # call(s) feeding this step's rows used - build_sparse_fallback_query_preview
-            # reconstructs the query body without re-running the search, same
-            # single-source-of-truth pattern Instant mode's query_analysis step uses.
-            sparse_trace["es_query"] = es_query_text
-            sparse_trace["es_query_body"] = build_sparse_fallback_query_preview(
-                es_query_text, es_groups, doc_id_allowlist=effective_allowlist, boost=boost,
-            )
-        await on_step("ai_milvus_sparse", sparse_trace)
+        # Nothing ran a sparse pass at all when native Milvus sparse is disabled
+        # (the common/default case - ai_mode_milvus_sparse_enabled) and no gap
+        # collections were routed (no ES fallback either) - an empty step here
+        # would show a "Milvus sparse search" card with zero collections and
+        # nothing to explain, so skip emitting it entirely rather than show it.
+        if milvus_sparse_enabled or gap_collections:
+            sparse_trace = {**collection_trace(sparse_by_collection), "milvus_query": search_query}
+            if gap_collections:
+                # es_query_text/boost/effective_allowlist are exactly what the real ES-fallback
+                # call(s) feeding this step's rows used - build_sparse_fallback_query_preview
+                # reconstructs the query body without re-running the search, same
+                # single-source-of-truth pattern Instant mode's query_analysis step uses.
+                sparse_trace["es_query"] = es_query_text
+                sparse_trace["es_query_body"] = build_sparse_fallback_query_preview(
+                    es_query_text, es_groups, doc_id_allowlist=effective_allowlist, boost=boost,
+                )
+            await on_step("ai_milvus_sparse", sparse_trace)
 
     # RRF fusion weight is always neutral - category does not drive dense/sparse
     # weighting (considered during brainstorming, explicitly rejected; see
