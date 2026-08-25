@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { highlightMatches } from '../lib/highlight'
 
 const DOC_FONT = 'Georgia, "Times New Roman", Times, serif'
 
@@ -19,9 +20,15 @@ export interface DocumentReaderProps {
   apiBaseUrl: string
   onClose: () => void
   onOpenDocument: (docId: string) => void
+  // The query whose result card the reader was opened from - same yellow-highlight
+  // treatment the result list already gives matched terms (lib/highlight.tsx), so a
+  // document opened from a search hit shows the same "why did this match" signal
+  // instead of losing it the moment you click through. null for context-free opens
+  // (e.g. a fresh page load with no prior search).
+  query: string | null
 }
 
-function renderSpans(spans: Span[], onOpenDocument: (docId: string) => void): ReactNode[] {
+function renderSpans(spans: Span[], onOpenDocument: (docId: string) => void, query: string | null): ReactNode[] {
   return spans.map((span, i) => {
     if (span.type === 'link') {
       return (
@@ -36,15 +43,21 @@ function renderSpans(spans: Span[], onOpenDocument: (docId: string) => void): Re
         </button>
       )
     }
-    let node: ReactNode = span.text
+    let node: ReactNode = query ? highlightMatches(span.text, query) : span.text
     if (span.bold) node = <strong key={i}>{node}</strong>
     if (span.italic) node = <em key={i}>{node}</em>
     return <span key={i}>{node}</span>
   })
 }
 
-function Block({ block, onOpenDocument }: { block: DocumentBlock; onOpenDocument: (docId: string) => void }) {
-  const content = renderSpans(block.spans, onOpenDocument)
+function Block({
+  block, onOpenDocument, query,
+}: {
+  block: DocumentBlock
+  onOpenDocument: (docId: string) => void
+  query: string | null
+}) {
+  const content = renderSpans(block.spans, onOpenDocument, query)
 
   switch (block.type) {
     case 'fact_label':
@@ -70,7 +83,7 @@ function Block({ block, onOpenDocument }: { block: DocumentBlock; onOpenDocument
   }
 }
 
-export default function DocumentReader({ docId, apiBaseUrl, onClose, onOpenDocument }: DocumentReaderProps) {
+export default function DocumentReader({ docId, apiBaseUrl, onClose, onOpenDocument, query }: DocumentReaderProps) {
   const [doc, setDoc] = useState<FullDocument | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -131,9 +144,13 @@ export default function DocumentReader({ docId, apiBaseUrl, onClose, onOpenDocum
 
           {!error && doc && (
             <div style={{ color: 'var(--text)', fontFamily: DOC_FONT }}>
-              <h2 className="text-xl font-bold text-center leading-snug">{doc.subheading || doc.heading || doc.doc_id}</h2>
+              <h2 className="text-xl font-bold text-center leading-snug">
+                {query
+                  ? highlightMatches(doc.subheading || doc.heading || doc.doc_id, query)
+                  : doc.subheading || doc.heading || doc.doc_id}
+              </h2>
               <div className="flex items-center justify-center gap-2 mt-2 mb-1 text-sm" style={{ color: 'var(--text-faint)' }}>
-                {doc.heading && <span>{doc.heading}</span>}
+                {doc.heading && <span>{query ? highlightMatches(doc.heading, query) : doc.heading}</span>}
                 {doc.year && <span>· {doc.year}</span>}
               </div>
               <span className="block text-right text-xs mb-4" style={{ color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
@@ -141,7 +158,7 @@ export default function DocumentReader({ docId, apiBaseUrl, onClose, onOpenDocum
               </span>
 
               {doc.blocks.map((block, index) => (
-                <Block key={index} block={block} onOpenDocument={onOpenDocument} />
+                <Block key={index} block={block} onOpenDocument={onOpenDocument} query={query} />
               ))}
             </div>
           )}

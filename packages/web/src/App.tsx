@@ -49,7 +49,18 @@ export default function App() {
   const [autoRoute, setAutoRoute] = useState(true)
   const [showReasoning, setShowReasoning] = useState(true)
   const [openDocId, setOpenDocId] = useState<string | null>(null)
+  // The query that led to the currently-open document, so DocumentReader can apply the
+  // same yellow-highlight treatment the result list already gives matched terms. Sticky
+  // across in-document cross-reference navigation (openDocument called with no query) -
+  // jumping to a linked section keeps the highlight context of the search that got you
+  // there, rather than losing it.
+  const [openDocQuery, setOpenDocQuery] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  function openDocument(docId: string, query?: string) {
+    if (query !== undefined) setOpenDocQuery(query)
+    setOpenDocId(docId)
+  }
 
   const pendingClassicRef = useRef<{ conversationId: string; assistantId: string } | null>(null)
 
@@ -240,7 +251,7 @@ export default function App() {
                   message={m}
                   devMode={devMode}
                   showReasoning={showReasoning}
-                  onOpenDocument={setOpenDocId}
+                  onOpenDocument={(docId) => openDocument(docId, m.role === 'assistant' ? m.question : undefined)}
                 />
               ))}
               <div ref={bottomRef} />
@@ -261,7 +272,16 @@ export default function App() {
         </main>
       </div>
 
-      <DocumentReader docId={openDocId} apiBaseUrl={apiBaseUrl} onClose={() => setOpenDocId(null)} onOpenDocument={setOpenDocId} />
+      <DocumentReader
+        docId={openDocId}
+        apiBaseUrl={apiBaseUrl}
+        query={openDocQuery}
+        onClose={() => {
+          setOpenDocId(null)
+          setOpenDocQuery(null)
+        }}
+        onOpenDocument={(docId) => openDocument(docId)}
+      />
     </div>
   )
 }

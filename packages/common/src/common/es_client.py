@@ -5,7 +5,9 @@ from elasticsearch import AsyncElasticsearch
 from common.config import Settings
 from common.instant_classifier import effective_label
 from common.instant_classifier.labels import boost_profile_key
-from common.query_tokenizer import chunk_query, detect_group_signals, expand_query_synonyms
+from common.query_tokenizer import (
+    chunk_query, detect_group_signals, expand_query_normalizations, expand_query_synonyms,
+)
 from common.schemas import (
     CATEGORY_DISPLAY_LABELS, ES_GROUP_FOR_COLLECTION, GROUP_DISPLAY_LABELS, MASTERINFO_CITATION_FIELDS,
 )
@@ -377,22 +379,34 @@ def _wrap_function_score(field_query: dict) -> dict:
     }
 
 
-# Recency ladder ported from centax-node's legacy query (query_legacy.json's function_score
-# functions array) - formatteddocumentdate is confirmed 100% populated on the live index
-# (docs/retrieval-flow-current-state.md), so this tier list is directly portable as-is.
-# Weights kept at legacy's own scale (single/low-double-digit) even though legacy combined
-# them under boost_mode "multiply" and _apply_boost below uses "sum" - under sum mode these
-# numbers only ever *add* to a query's BM25/phrase-boost score, never multiply it, so unlike
-# legacy there's no risk of a missing/zero date tier collapsing the whole score.
+# Recency ladder - corrected 2026-08-25. Originally ported from query_legacy.json (a saved
+# sample query, not live code) - that turned out to be the wrong source. centax-node's actual
+# live generic-search path (searchText.js's main query builder, function_score wrapping at
+# searchText.js:1078) calls searchText.js::functionAging(), a completely different 11-tier
+# ladder (verified by reading the real function body, not a sample query file). formatteddocumentdate
+# is confirmed 100% populated on the live index (docs/retrieval-flow-current-state.md), so this
+# tier list is directly portable as-is. Weights kept at legacy's own scale (single/low-double-digit)
+# even though legacy combines them under boost_mode "multiply" and _apply_boost below uses "sum" -
+# under sum mode these numbers only ever *add* to a query's BM25/phrase-boost score, never
+# multiply it, so unlike legacy there's no risk of a missing/zero date tier collapsing the whole
+# score. Deliberately excludes functionAging's groupId-conditional extras (year.name-range boosts,
+# categories.id/categories.subcategory.id EXCISE/STATE_GST penalty weights) - those only fire
+# when the UI itself scopes a search to one explicit group/category (a filter parameter this
+# repo's raw_search has no equivalent of yet), and the category weights are Centax-product-specific
+# taxonomy (several literally commented out in centax's own source) with no bearing on Taxmann's
+# index.
 _RECENCY_TIERS = [
-    ("now-1d", "now", 18.0),
-    ("now-7d", "now-1d", 15.0),
-    ("now-1M", "now-7d", 13.0),
-    ("now-3M", "now-1M", 10.0),
-    ("now-1y", "now-3M", 8.0),
-    ("now-2y", "now-1y", 5.0),
-    ("now-5y", "now-2y", 3.5),
-    ("now-150y", "now-5y", 1.5),
+    ("now-6M", "now", 11.0),
+    ("now-1y", "now-6M", 10.0),
+    ("now-2y", "now-1y", 9.0),
+    ("now-3y", "now-2y", 8.0),
+    ("now-6y", "now-3y", 7.0),
+    ("now-11y", "now-6y", 6.0),
+    ("now-26y", "now-11y", 5.0),
+    ("now-35y", "now-26y", 4.0),
+    ("now-51y", "now-35y", 3.0),
+    ("now-65y", "now-51y", 2.0),
+    ("now-85y", "now-65y", 1.0),
 ]
 
 # groups.group.name buckets to prefer when the query itself names a specific section/rule
@@ -517,7 +531,7 @@ def build_query_preview(query: str, boost: bool = False) -> dict:
     boost=True: `es_query` is wrapped via _apply_boost() - see that function's docstring for
     why (additive/sum-mode, not the disabled multiply-mode _wrap_function_score)."""
     shape = effective_label(query)
-    expanded_query = expand_query_synonyms(query)
+    expanded_query = expand_query_normalizations(expand_query_synonyms(query))
     chunks = chunk_query(query)
     field_query = _build_field_query(expanded_query, shape, chunks=chunks, boost_enabled=boost)
     if boost:

@@ -48,6 +48,40 @@ def expand_query_synonyms(query: str) -> str:
     return f"{query} {' '.join(extra)}" if extra else query
 
 
+# Targets already wired at a more specific point than generic query-text broadening -
+# expanding the raw query with the literal word "CASELAWS"/"RULE"/"ARTICLE" would inject a
+# group-name token that never appears in real document body text (see detect_group_signals'
+# should-clause boost, below), and SEC's "SECTION" target already only fires when adjacent to
+# a section number (see merge_keyword_number). Excluded here so expand_query_normalizations
+# doesn't double up on what those two already handle.
+_NORMALIZATION_EXPANSION_EXCLUDED_TARGETS = {"CASELAWS", "RULE", "ARTICLE", "SECTION"}
+
+
+def expand_query_normalizations(query: str) -> str:
+    """Broadens recall the same way expand_query_synonyms does, but from legal_lexicon's
+    separate `normalizations` dict (1299 entries, zero key overlap with `synonyms` -
+    confirmed) - plain abbreviation/department-name entries like ASST -> ASSISTANT,
+    DBODCIRCULAR -> DBOD, CHALLANNO -> CHALLAN that were sitting completely unwired
+    (normalize() was called nowhere in the real query-building pipeline before
+    detect_group_signals/merge_keyword_number). Restricted to single-word targets -
+    normalizations' ~1200 multi-word Act-name-expansion entries
+    (RESTRICTIVETRADEPRACTICESACT -> "RESTRICTIVE TRADE PRACTICES ACT") are deliberately left
+    out: unverified whether real queries ever contain the glued-together acronym form at all,
+    a much bigger/riskier lift than this. Only appends new terms - never reorders or removes
+    the original query, same contract as expand_query_synonyms."""
+    tokens = query.split()
+    seen = {t.upper() for t in tokens}
+    extra = []
+    for token in tokens:
+        target = normalize(token)
+        if target == token or " " in target or target in _NORMALIZATION_EXPANSION_EXCLUDED_TARGETS:
+            continue
+        if target.upper() not in seen:
+            seen.add(target.upper())
+            extra.append(target)
+    return f"{query} {' '.join(extra)}" if extra else query
+
+
 _SECTION_KEYWORDS = {"section", "sec", "sec.", "u/s", "rule", "article"}
 _SECTION_NUMBER_PATTERN = re.compile(r"^\d+[A-Za-z]*(\(\w+\))*$")
 # Normalizes EVERY separator variant between a section-type keyword and its number into a
@@ -99,7 +133,15 @@ def merge_keyword_number(tokens: list[str]) -> list[str]:
     merged phrase as a section reference when the keyword is its first word. Assumes
     normalize_section_dash already ran (see extract_quoted_phrases) - by the time tokens reach
     here, every dash variant is already collapsed to a plain space, so this only needs the two
-    clean adjacency shapes."""
+    clean adjacency shapes.
+
+    The keyword itself also runs through legal_lexicon's normalize() ("sec" -> "SECTION",
+    per legal_lexicon.json's normalizations dict) before joining - without this, "sec 55"
+    produced the merged phrase text "sec 55" verbatim, which never match_phrase-hits a real
+    doc heading written "Section 55" even though chunk-type detection already correctly
+    recognized "sec" as a section keyword for routing purposes. "u/s"/"sec." have no
+    normalizations entry (nothing verified to canonicalize them to) and pass through
+    unchanged - only wire what the lexicon actually backs, don't guess an expansion."""
     result = []
     i = 0
     while i < len(tokens):
@@ -108,14 +150,14 @@ def merge_keyword_number(tokens: list[str]) -> list[str]:
             and tokens[i].lower() in _SECTION_KEYWORDS
             and _SECTION_NUMBER_PATTERN.match(tokens[i + 1])
         ):
-            result.append(f"{tokens[i]} {tokens[i + 1]}")
+            result.append(f"{normalize(tokens[i])} {tokens[i + 1]}")
             i += 2
         elif (
             i + 1 < len(tokens)
             and tokens[i + 1].lower() in _SECTION_KEYWORDS
             and _SECTION_NUMBER_PATTERN.match(tokens[i])
         ):
-            result.append(f"{tokens[i + 1]} {tokens[i]}")
+            result.append(f"{normalize(tokens[i + 1])} {tokens[i]}")
             i += 2
         else:
             result.append(tokens[i])
