@@ -2,7 +2,7 @@ from langfuse import get_client
 
 from common.config import get_settings
 from common.es_client import fetch_citations, keyword_mode_search
-from common.query_tokenizer import classify_intent_mode
+from common.query_tokenizer import build_dense_sparse_query, chunk_query, classify_intent_mode
 from retrieval_api.ai_mode.intent import extract_intent, OnStep
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
 from retrieval_api.ai_mode.retrieve import retrieve
@@ -41,11 +41,21 @@ async def run_ai_mode(
             mode = classify_intent_mode(intent_result["original_query"])
 
             if mode == "keyword":
+                # classify_intent_mode already confirmed every surviving chunk (post
+                # chunk_query's own filler/stopword strip) is a precise anchor - but the
+                # raw original_query still carries whatever conversational scaffolding
+                # ("what is", "tell me about") the user typed around it. Searching ES with
+                # that raw text dilutes the query with noise words the anchor check itself
+                # already discarded; build_dense_sparse_query reconstructs the same cleaned
+                # anchor-only text Instant mode's own dense/sparse pass uses (see its
+                # docstring), so ES gets "section 55", not "what is section 55".
+                chunks = chunk_query(intent_result["original_query"])
+                keyword_query = build_dense_sparse_query(chunks, fallback=intent_result["original_query"])
                 with langfuse.start_as_current_observation(
-                    as_type="chain", name="keyword-search", input={"query": intent_result["original_query"]},
+                    as_type="chain", name="keyword-search", input={"query": keyword_query},
                 ) as span:
                     rows = await keyword_mode_search(
-                        es_client, intent_result["original_query"], doc_id_allowlist=doc_id_allowlist,
+                        es_client, keyword_query, doc_id_allowlist=doc_id_allowlist,
                         limit=_KEYWORD_MODE_ES_LIMIT, boost=boost,
                     )
                     top_rows = sorted(rows, key=lambda row: row["score"], reverse=True)[:_KEYWORD_MODE_TOP_N]
@@ -54,7 +64,7 @@ async def run_ai_mode(
                     span.update(output={"num_top_chunks": len(top_chunks), "num_citations": len(citations)})
                 if on_step is not None:
                     await on_step("keyword_search", {
-                        "query": intent_result["original_query"], "mode": mode,
+                        "query": keyword_query, "mode": mode,
                         "candidate_count": len(rows), "top_doc_ids": [row["doc_id"] for row in top_rows],
                     })
             else:

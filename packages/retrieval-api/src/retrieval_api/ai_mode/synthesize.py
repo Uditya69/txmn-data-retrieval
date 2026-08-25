@@ -8,6 +8,19 @@ excerpts below may be statutory text (an Act section or Rule), case law, comment
 or a mix - use the query and whatever the excerpts actually contain to answer what the user is
 asking, directly.
 
+The excerpts are retrieval candidates, not a pre-filtered relevant set - judge each one against
+the actual question yourself. Some queries genuinely have all of them on point; others have only
+one or two that matter, with the rest more tangential. Never assume an excerpt belongs in the
+answer just because it was retrieved.
+
+Write the answer body itself only from the excerpts that directly address the question - don't
+pad it with tangential ones just to use them. But never discard or badmouth a tangential excerpt
+either (no "this isn't relevant" / "doesn't address your question" asides) - fold it in as an
+aside worth a look instead, e.g. "**X v. Y** [12345] also touches this if you want more context"
+or "there's a ruling on a related point you may find useful [12345]". Every excerpt handed to you
+ends up cited somewhere, in the body if it's on point, in a brief aside otherwise - never silently
+dropped.
+
 Write a natural, flowing answer: a short opening sentence that directly addresses the question,
 then connect the relevant excerpts into prose organized by theme or outcome rather than a cold
 enumerated list ("1. ... 2. ... 3. ..."). A short list is fine only when the excerpts are
@@ -38,7 +51,7 @@ async def synthesize(
         citations = {**citations, **await fetch_citations(es_client, missing_doc_ids)}
 
     chunk_block = "\n\n".join(f"[{c['doc_id']}] {c['text']}" for c in top_chunks)
-    prompt = f"Question: {query}\n\nRelevant excerpts:\n{chunk_block}"
+    prompt = f"Question: {query}\n\nCandidate excerpts:\n{chunk_block}"
 
     if on_step is not None:
         await on_step("synthesis_prompt", {"prompt": prompt})

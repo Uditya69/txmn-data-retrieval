@@ -481,3 +481,39 @@ async def test_run_ai_mode_keyword_path_emits_keyword_search_trace_step(monkeypa
     keyword_step = next(data for step, data in collected if step == "keyword_search")
     assert keyword_step["mode"] == "keyword"
     assert keyword_step["top_doc_ids"] == ["d1"]
+
+
+@pytest.mark.asyncio
+async def test_run_ai_mode_keyword_path_strips_conversational_filler_before_searching_es(monkeypatch):
+    """"what is section 55" still classifies "keyword" (chunk_query's own stopword strip
+    already reduces it to a bare anchor), but the raw sentence - filler words included -
+    must never be what actually gets sent to ES; only the cleaned anchor text should."""
+    import retrieval_api.ai_mode.pipeline as module
+
+    async def fake_extract_intent(gateway, query, on_step=None, persona_context=""):
+        return {"original_query": query, "search_query": "rewritten", "intent": ["acts"], "filters": {}}
+
+    async def fake_resolve_allowlist(es_client, filters, on_step=None):
+        return None
+
+    seen_queries = []
+
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        seen_queries.append(query)
+        return [{"doc_id": "d1", "score": 9.0, "text": "top hit"}]
+
+    async def fake_fetch_citations(client, doc_ids):
+        return {doc_id: {} for doc_id in doc_ids}
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+        return {"answer": "a", "citations": citations}
+
+    monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_resolve_allowlist)
+    monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
+    monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+
+    await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="what is section 55")
+
+    assert seen_queries == ["section 55"]
