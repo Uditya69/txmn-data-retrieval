@@ -22,3 +22,15 @@
 {"query_text": "How is rental income taxed", "label": "INTENT", "source": "manual", "date_added": "2026-08-20"}
 {"query_text": "Can I claim tax benefit on education loan", "label": "INTENT", "source": "manual", "date_added": "2026-08-20"}
 {"query_text": "What is the due date for filing tax audit report", "label": "INTENT", "source": "manual", "date_added": "2026-08-20"}
+{"query_text": "explain Section 40A(3)", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "tell me about Article 21", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "describe CBDT circular 2023", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "definition of Rule 114E", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "I want to know about u/s 194J", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "explain how Rule 37CA procedure applies to unlisted companies", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "tell me about Section 54EC's lock-in period for capital gains bonds", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "is Article 14 violated by a retrospective tax amendment", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "how does NCLT Mumbai's order affect Section 68 additions", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "explain how NRIs should file their Indian tax return", "label": "INTENT", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "tell me about the tax implications of selling inherited property", "label": "INTENT", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "describe how to claim a refund for excess TDS deducted", "label": "INTENT", "source": "manual", "date_added": "2026-08-26"}

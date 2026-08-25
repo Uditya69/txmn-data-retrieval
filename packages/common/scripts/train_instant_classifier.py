@@ -35,13 +35,23 @@ def _sweep_threshold(pipeline, eval_texts: list[str], eval_labels: list[str]) ->
     dead code.
 
     Among thresholds whose kept-set accuracy is at least as good as the unfiltered
-    (overall) accuracy, picks the HIGHEST one - being more selective should never come
-    at the cost of the kept predictions being less reliable than just trusting every
-    prediction. If no threshold clears that bar (possible on a small/noisy eval set),
+    (overall) accuracy, picks whichever achieves the HIGHEST kept-set accuracy (never
+    settling for a threshold no more reliable than trusting every prediction); among
+    those tied at that best accuracy, picks the LOWEST threshold - once a given
+    reliability level is reached, going more selective from there only discards
+    additional correct predictions into resolve_routing()'s fallback branch for zero
+    reliability gain, so ties are broken toward keeping more queries on the confident
+    auto-routing path (same reasoning as the no-threshold-qualifies branch just below).
+    Picking the lowest threshold that merely clears the qualifying bar - without also
+    requiring it hit the best achievable accuracy - would wrongly prefer a threshold
+    near 0.1 whenever kept-set accuracy happens to equal overall accuracy at every low
+    threshold (it always does until enough low-confidence rows get filtered out to move
+    the number): a 3-class softmax's predict_proba().max() is never below ~1/3, so that
+    would leave resolve_routing()'s fallback branch permanently dead code. If no
+    threshold clears the qualifying bar at all (possible on a small/noisy eval set),
     falls back to whichever threshold has the best kept-set accuracy, ties broken
-    toward the lower threshold so more queries stay on the automatic-routing path
-    instead of falling back unnecessarily. Thresholds that would keep zero predictions
-    are skipped (undefined accuracy)."""
+    toward the lower threshold for the same reason. Thresholds that would keep zero
+    predictions are skipped (undefined accuracy)."""
     proba = pipeline.predict_proba(eval_texts)
     classes = pipeline.classes_
     predicted = [classes[row.argmax()] for row in proba]
@@ -60,7 +70,8 @@ def _sweep_threshold(pipeline, eval_texts: list[str], eval_labels: list[str]) ->
 
     qualifying = [c for c in candidates if c[1] >= overall_accuracy]
     if qualifying:
-        return max(qualifying, key=lambda c: c[0])
+        best_accuracy = max(c[1] for c in qualifying)
+        return min((c for c in qualifying if c[1] == best_accuracy), key=lambda c: c[0])
     return max(candidates, key=lambda c: (c[1], -c[0]))
 
 

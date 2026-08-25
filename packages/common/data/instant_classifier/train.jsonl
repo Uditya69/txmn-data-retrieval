@@ -58,3 +58,41 @@
 {"query_text": "What happens during a tax audit", "label": "INTENT", "source": "manual", "date_added": "2026-08-20"}
 {"query_text": "How can I save tax through investments", "label": "INTENT", "source": "manual", "date_added": "2026-08-20"}
 {"query_text": "Is gift from a relative taxable", "label": "INTENT", "source": "manual", "date_added": "2026-08-20"}
+{"query_text": "explain Section 194C", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "define Rule 8D", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "definition of Section 2(24)", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "describe Article 14", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "tell me about Section 80C", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "discuss Rule 37CA", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "elaborate on Section 43B", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "outline Section 54EC", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "clarify u/s 269SS", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "summarize Section 68", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "summarise Rule 6DD", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "tell me about 133 taxmann.com 196", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "please explain Section 54F", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "can you tell me about CIT vs Infosys Ltd", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "explain how Section 194C applies to sub-contractor payments", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "tell me about Section 80C's interaction with 80CCD", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "Dimension Data India Section 92C", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "is the Delhi High Court's Section 271 ruling still valid after the recent amendment", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "can Section 68 addition be deleted if the assessee proves genuineness of the cash credit", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "how should Rule 8D disallowance be computed when there is no exempt income", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "what is the impact of the Finance Act 2023 amendment on Section 194O", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "explain Section 54F exemption if the assessee purchases two residential houses", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "does CESTAT Chennai's order on Section 65 apply retrospectively", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "how does Section 143(1) intimation differ from Section 143(3) assessment", "label": "HYBRID", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "explain how I can save tax on my salary", "label": "INTENT", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "tell me about ways to reduce my GST liability", "label": "INTENT", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "describe the best tax-saving investment options for salaried employees", "label": "INTENT", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "define tax planning for a small business owner", "label": "INTENT", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "discuss how freelancers should pay advance tax", "label": "INTENT", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "outline the steps to respond to an income tax notice", "label": "INTENT", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "clarify how HRA exemption is calculated", "label": "INTENT", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "summarize the tax benefits available for a home loan", "label": "INTENT", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "explain Rule 6DD", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "tell me about Article 32", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "describe Section 68", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "definition of Article 21", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "discuss Section 194O", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}
+{"query_text": "clarify Rule 114E", "label": "KEYWORD", "source": "manual", "date_added": "2026-08-26"}

@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "train_examples": 60,
-  "eval_examples": 24,
-  "overall_eval_accuracy": 0.875,
+  "train_examples": 98,
+  "eval_examples": 36,
+  "overall_eval_accuracy": 0.8888888888888888,
   "confidence_threshold": 0.8,
   "accuracy_at_threshold": 1.0,
   "labels": [
