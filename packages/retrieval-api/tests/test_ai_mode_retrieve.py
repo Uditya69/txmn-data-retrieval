@@ -76,8 +76,12 @@ async def test_retrieve_embeds_search_query_and_merges_dense_sparse(monkeypatch)
             "chunk_id": "es:d1:0", "doc_id": "d1", "text": "t", "score": 5.0, "source": "es_fallback",
         }]}
 
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        return []
+
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
     monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+    monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
 
     result = await retrieve(
         gateway, milvus_client=object(), es_client=object(), search_query="q", doc_id_allowlist=["d1"],
@@ -112,7 +116,7 @@ async def test_retrieve_uses_raw_query_for_es_fallback_not_rewritten_search_quer
 
     await retrieve(
         gateway, milvus_client=object(), es_client=object(), search_query="rewritten by LLM",
-        doc_id_allowlist=None, intent=["acts"], raw_query="section 55",
+        doc_id_allowlist=None, intent=["acts"], raw_query="section 55", milvus_sparse_enabled=True,
     )
 
     gateway.embed.assert_awaited_once_with(role="query_embed", text="rewritten by LLM")
@@ -140,7 +144,7 @@ async def test_retrieve_falls_back_to_search_query_for_es_fallback_when_raw_quer
 
     await retrieve(
         gateway, milvus_client=object(), es_client=object(), search_query="rewritten by LLM",
-        doc_id_allowlist=None, intent=["acts"],
+        doc_id_allowlist=None, intent=["acts"], milvus_sparse_enabled=True,
     )
 
     assert seen_queries == ["rewritten by LLM"]
@@ -166,7 +170,7 @@ async def test_retrieve_forwards_boost_flag_to_sparse_fallback_search(monkeypatc
 
     await retrieve(
         gateway, milvus_client=object(), es_client=object(), search_query="q", doc_id_allowlist=None,
-        intent=["acts"], boost=True,
+        intent=["acts"], boost=True, milvus_sparse_enabled=True,
     )
 
     assert seen_boost == [True]
@@ -192,7 +196,7 @@ async def test_retrieve_defaults_boost_to_false(monkeypatch):
 
     await retrieve(
         gateway, milvus_client=object(), es_client=object(), search_query="q", doc_id_allowlist=None,
-        intent=["acts"],
+        intent=["acts"], milvus_sparse_enabled=True,
     )
 
     assert seen_boost == [False]
@@ -219,7 +223,7 @@ async def test_retrieve_calls_es_fallback_only_for_routed_gap_collections(monkey
     # intent "caselaws" routes to case_summary/digest/headnotes/facts/held/ruling/metadata -
     # "ruling" is the one gap collection in that set, mapped to ES group CASELAWS.
     await retrieve(gateway, milvus_client=object(), es_client=object(), search_query="q",
-                    doc_id_allowlist=None, intent=["caselaws"])
+                    doc_id_allowlist=None, intent=["caselaws"], milvus_sparse_enabled=True)
 
     assert es_calls == [["CASELAWS"]]
 
@@ -249,7 +253,7 @@ async def test_retrieve_skips_es_fallback_when_no_gap_collection_routed(monkeypa
     monkeypatch.setattr(module, "collections_for_intent", lambda intent: ["held"])
 
     await retrieve(gateway, milvus_client=object(), es_client=object(), search_query="q",
-                    doc_id_allowlist=None, intent=["caselaws"])
+                    doc_id_allowlist=None, intent=["caselaws"], milvus_sparse_enabled=True)
 
     assert es_calls == []
 
@@ -335,6 +339,7 @@ async def test_retrieve_ai_milvus_dense_trace_includes_the_query_it_searched_wit
     await module.retrieve(
         gateway, milvus_client=object(), es_client=object(), search_query="rewritten by LLM",
         doc_id_allowlist=None, intent=["acts"], on_step=on_step, raw_query="section 55",
+        milvus_sparse_enabled=True,
     )
 
     assert traces["ai_milvus_dense"]["query"] == "rewritten by LLM"
@@ -400,8 +405,12 @@ async def test_retrieve_always_uses_neutral_rrf_weighting(monkeypatch):
     async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None, boost=False):
         return {}
 
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        return []
+
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
     monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+    monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
     steps = []
 
     async def on_step(step, data):
@@ -509,6 +518,7 @@ async def test_retrieve_falls_back_to_unfiltered_when_allowlist_zeroes_everythin
     result = await module.retrieve(
         gateway, milvus_client=object(), es_client=object(), search_query="q",
         doc_id_allowlist=["wrong-doc-id"], intent=["caselaws"], on_step=on_step,
+        milvus_sparse_enabled=True,
     )
 
     assert result[0]["chunk_id"] == "a"
@@ -578,7 +588,7 @@ async def test_retrieve_survives_es_fallback_raising(monkeypatch):
 
     result = await module.retrieve(
         gateway, milvus_client=object(), es_client=object(), search_query="q",
-        doc_id_allowlist=None, intent=["caselaws"], on_step=on_step,
+        doc_id_allowlist=None, intent=["caselaws"], on_step=on_step, milvus_sparse_enabled=True,
     )
 
     assert [row["chunk_id"] for row in result] == ["a"]
@@ -666,7 +676,7 @@ async def test_retrieve_gap_only_intent_still_returns_ranked_results(monkeypatch
     monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
 
     result = await retrieve(gateway, milvus_client=object(), es_client=object(), search_query="q",
-                             doc_id_allowlist=None, intent=["acts"])
+                             doc_id_allowlist=None, intent=["acts"], milvus_sparse_enabled=True)
 
     chunk_ids = {row["chunk_id"] for row in result}
     assert chunk_ids == {"d1", "es:doc1:0"}
@@ -727,8 +737,12 @@ async def test_retrieve_skips_native_milvus_sparse_pass_by_default(monkeypatch):
     async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None, boost=False):
         return {}
 
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        return []
+
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
     monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+    monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
 
     result = await module.retrieve(
         gateway, milvus_client=object(), es_client=object(), search_query="q", doc_id_allowlist=None,
@@ -739,10 +753,11 @@ async def test_retrieve_skips_native_milvus_sparse_pass_by_default(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_retrieve_omits_ai_milvus_sparse_step_when_nothing_ran(monkeypatch):
-    """No gap collections routed and native Milvus sparse disabled means nothing
-    contributed to the sparse pass at all - the step must not be emitted (an empty
-    'Milvus sparse search' card with zero collections is useless noise)."""
+async def test_retrieve_uses_es_as_sole_sparse_source_by_default(monkeypatch):
+    """milvus_sparse_enabled off (the default) means ES alone covers the sparse role for
+    the WHOLE query, unscoped by collection/group - no gap-collection routing applies at
+    all, and this runs (and its trace step fires) even when the routed set has no gap
+    collections whatsoever, unlike the legacy flag-on mixed mode."""
     import retrieval_api.ai_mode.retrieve as module
 
     gateway = AsyncMock()
@@ -751,20 +766,33 @@ async def test_retrieve_omits_ai_milvus_sparse_step_when_nothing_ran(monkeypatch
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
         return {"held": [{"chunk_id": "a", "doc_id": "d1", "text": "t", "score": 0.9}]}
 
+    sparse_fallback_called = False
+
     async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None, boost=False):
+        nonlocal sparse_fallback_called
+        sparse_fallback_called = True
         return {}
+
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        return [{"doc_id": "d2", "score": 3.0, "text": "es hit"}]
 
     monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
     monkeypatch.setattr(module, "collections_for_intent", lambda intent: ["held"])
     monkeypatch.setattr(module, "sparse_fallback_search", fake_sparse_fallback_search)
+    monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
     steps = []
+    traces = {}
 
     async def on_step(step, data):
         steps.append(step)
+        traces[step] = data
 
-    await module.retrieve(
+    result = await module.retrieve(
         gateway, milvus_client=object(), es_client=object(), search_query="q",
         doc_id_allowlist=None, intent=["caselaws"], on_step=on_step,
     )
 
-    assert steps == ["ai_milvus_dense", "ai_rrf_merge"]
+    assert not sparse_fallback_called
+    assert steps == ["ai_milvus_dense", "ai_milvus_sparse", "ai_rrf_merge"]
+    assert traces["ai_milvus_sparse"]["es_query"] == "q"
+    assert {row["chunk_id"] for row in result} == {"a", "es:d2:0"}

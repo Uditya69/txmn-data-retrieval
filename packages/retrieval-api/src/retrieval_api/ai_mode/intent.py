@@ -139,6 +139,17 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     meaning, never substitute a different legal concept for the one
     asked about, never invent a party/court/date that isn't implied by
     what the user wrote.
+  - Default assumption for a bare section/rule number with no Act/Rule
+    named anywhere in the query: treat it as the Income-tax Act, 1961 -
+    this system's overwhelming default domain - and add "Income-tax Act
+    1961" to search_query. This applies no matter which intent category
+    below ends up tagged (acts, rules, commentary, or caselaws alike) -
+    the category only changes how search_query is phrased afterward
+    (see the "intent" rules below), not whether the Act name gets added.
+    Only skip this default when the query itself names a different Act,
+    or a different Act is unambiguously implied by other content in the
+    query (e.g. a court/case context that only makes sense under a
+    different Act).
   - If the query is already a clear, complete sentence, keep changes
     minimal - reordering/reframing what's already present is usually
     enough; only add something new when an obvious anchor is still
@@ -223,7 +234,15 @@ Given a user query, return ONLY a JSON object with exactly these keys:
       query names an author or asks for a published opinion/analysis,
       tag articles instead.
     - commentary vs acts: commentary is the explanation of a provision;
-      acts is the provision's own statutory text.
+      acts is the provision's own statutory text. When the query names a
+      specific section/rule number and asks to "explain"/"what is"/"tell
+      me about" it, tag BOTH acts and commentary together, not one
+      exclusively - the section's own text is exactly what the
+      commentary is explaining, so retrieving only the explanation and
+      never the provision itself would leave out the thing being
+      explained. Tag commentary alone only when the query is about a
+      broader mechanism/topic with no single section/rule anchor (e.g.
+      "how is depreciation computed").
     - tariff vs acts/rules: if the actual ask is an HSN code or duty
       rate for a specific good, tag tariff, even though the notification
       is technically issued under an Act or Rules.
@@ -320,6 +339,17 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     meaning, never substitute a different legal concept for the one
     asked about, never invent a party/court/date that isn't implied by
     what the user wrote.
+  - Default assumption for a bare section/rule number with no Act/Rule
+    named anywhere in the query: treat it as the Income-tax Act, 1961 -
+    this system's overwhelming default domain - and add "Income-tax Act
+    1961" to search_query. This applies no matter which intent category
+    below ends up tagged (acts, rules, commentary, or caselaws alike) -
+    the category only changes how search_query is phrased afterward
+    (see the "intent" rules below), not whether the Act name gets added.
+    Only skip this default when the query itself names a different Act,
+    or a different Act is unambiguously implied by other content in the
+    query (e.g. a court/case context that only makes sense under a
+    different Act).
   - If the query is already a clear, complete sentence, keep changes
     minimal - reordering/reframing what's already present is usually
     enough; only add something new when an obvious anchor is still
@@ -377,7 +407,14 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     may refer to relevant case law and other authorities. Queries
     requiring in-depth interpretation or comprehensive understanding of a
     provision or subject - with no named author and no real-world fact
-    pattern - relate to Commentary.
+    pattern - relate to Commentary. When the query names a specific
+    section/rule number and asks to "explain"/"what is"/"tell me about"
+    it, tag "acts" alongside "commentary", not commentary alone - the
+    section's own statutory text is exactly what the commentary explains,
+    so leaving it out would retrieve the explanation without the thing
+    being explained. Tag commentary alone only for a broader mechanism/
+    topic query with no single section/rule anchor (e.g. "how is
+    depreciation computed").
 
   - "tariff": Customs/GST tariff classification, HSN code, duty rate or
     exemption applicable to a specific good, product or service under the

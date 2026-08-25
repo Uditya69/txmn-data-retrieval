@@ -314,9 +314,16 @@ async def test_run_ai_mode_emits_all_seven_trace_steps_in_order_end_to_end(monke
     async def fake_sparse_fallback_search(client, query, groups, doc_id_allowlist=None, boost=False):
         return {}
 
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        # milvus_sparse_enabled defaults off - ES alone covers the sparse role now, not
+        # the native Milvus sparse pass (dense_vector=None) fake_hybrid_search above never
+        # actually gets called for.
+        return [{"doc_id": "d1", "score": 5.0, "text": "sparse text"}]
+
     monkeypatch.setattr(filter_resolve_module, "resolve_doc_id_allowlist", fake_resolve_doc_id_allowlist)
     monkeypatch.setattr(retrieve_module, "hybrid_search", fake_hybrid_search)
     monkeypatch.setattr(retrieve_module, "sparse_fallback_search", fake_sparse_fallback_search)
+    monkeypatch.setattr(retrieve_module, "keyword_mode_search", fake_keyword_mode_search)
     monkeypatch.setattr(citations_module, "fetch_citations", fake_fetch_citations)
     monkeypatch.setattr(synthesize_module, "fetch_citations", fake_fetch_citations)
 

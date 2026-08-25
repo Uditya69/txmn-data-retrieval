@@ -538,7 +538,7 @@ async def keyword_mode_search(
         fragments = hit.get("highlight", {}).get("fullcontent")
         if not fragments:
             continue
-        results.append({"doc_id": hit["_source"]["id"], "score": hit["_score"], "text": fragments[0]})
+        results.append({"doc_id": hit["_source"]["id"], "score": hit["_score"], "text": trim_to_token_budget(fragments[0])})
     return results
 
 

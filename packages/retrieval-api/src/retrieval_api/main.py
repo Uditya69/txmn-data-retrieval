@@ -15,6 +15,8 @@ from retrieval_api.documents import router as documents_router
 from retrieval_api.query_analysis import router as query_analysis_router
 from retrieval_api.intent_analysis import router as intent_analysis_router
 from retrieval_api.ai_mode_analysis import router as ai_mode_analysis_router
+from retrieval_api.mode_search import router as mode_search_router
+from retrieval_api.classifier_analysis import router as classifier_analysis_router
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,8 @@ app.include_router(documents_router)
 app.include_router(query_analysis_router)
 app.include_router(intent_analysis_router)
 app.include_router(ai_mode_analysis_router)
+app.include_router(mode_search_router)
+app.include_router(classifier_analysis_router)
 app.include_router(auth_router)
 app.include_router(chat_router)
 app.include_router(admin_eval_router)
