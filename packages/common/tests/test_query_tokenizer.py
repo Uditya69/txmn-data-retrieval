@@ -2,7 +2,7 @@ from common.query_tokenizer import (
     classify_query_shape, normalize_citation_spacing, merge_keyword_number,
     merge_court_city, merge_citation_span, strip_stopwords, extract_quoted_phrases,
     expand_query_synonyms, extract_boost_phrases, chunk_query, build_dense_sparse_query,
-    classify_intent_mode, detect_group_signals,
+    classify_intent_mode, detect_group_signals, expand_query_normalizations,
 )
 
 
@@ -51,6 +51,26 @@ def test_merge_keyword_number_merges_reversed_number_then_keyword_order():
     # downstream chunk-type detection (which checks the merged phrase's first word) works.
     assert merge_keyword_number(["Income", "55", "Section"]) == ["Income", "Section 55"]
     assert merge_keyword_number(["5(8)", "Section", "Income"]) == ["Section 5(8)", "Income"]
+
+
+def test_merge_keyword_number_normalizes_sec_abbreviation_to_section():
+    # "sec" is a recognized _SECTION_KEYWORDS variant so merging/routing already worked, but
+    # the merged phrase text used to stay literally "sec 55" - a real doc heading reads
+    # "Section 55", so that phrase-boost match_phrase never hit it. legal_lexicon.json's
+    # normalizations dict already has "SEC" -> "SECTION"; this wires it into the merge so
+    # "sec 55" and "section 55" produce the same phrase-boost text.
+    assert merge_keyword_number(["sec", "55", "Income"]) == ["SECTION 55", "Income"]
+
+
+def test_merge_keyword_number_normalizes_sec_abbreviation_in_reversed_order():
+    assert merge_keyword_number(["Income", "55", "sec"]) == ["Income", "SECTION 55"]
+
+
+def test_merge_keyword_number_leaves_unmapped_keyword_variants_unchanged():
+    # "u/s" and "sec." are recognized _SECTION_KEYWORDS (routing/classification still works)
+    # but have no legal_lexicon.json normalizations entry at all - nothing to canonicalize to,
+    # so the merge leaves them exactly as typed rather than guessing an unverified expansion.
+    assert merge_keyword_number(["u/s", "55", "Income"]) == ["u/s 55", "Income"]
 
 
 def test_merge_citation_span_merges_number_journal_number():
@@ -139,6 +159,43 @@ def test_expand_query_synonyms_leaves_query_unchanged_when_no_lexicon_entry():
 def test_expand_query_synonyms_does_not_duplicate_expansion_for_repeated_token():
     expanded = expand_query_synonyms("ACIT order ACIT appeal")
     assert expanded.count("ASSISTANT COMMISSIONER INCOME TAX") == 1
+
+
+def test_expand_query_normalizations_appends_department_abbreviation_expansion():
+    # legal_lexicon.json's normalizations dict (1299 entries, zero key overlap with the
+    # separate synonyms dict) was sitting completely unwired - normalize() was never called
+    # in the real pipeline before detect_group_signals/merge_keyword_number. This wires the
+    # plain abbreviation/department-name entries (ASST -> ASSISTANT, DBODCIRCULAR -> DBOD,
+    # CHALLANNO -> CHALLAN, ...) into the same query-broadening role expand_query_synonyms
+    # already plays for the `synonyms` dict.
+    expanded = expand_query_normalizations("ASST commissioner order")
+    assert "ASSISTANT" in expanded
+    assert expanded.startswith("ASST commissioner order")
+
+
+def test_expand_query_normalizations_leaves_query_unchanged_when_no_lexicon_entry():
+    assert expand_query_normalizations("can a company claim depreciation") == "can a company claim depreciation"
+
+
+def test_expand_query_normalizations_does_not_duplicate_expansion_for_repeated_token():
+    expanded = expand_query_normalizations("ASST order ASST appeal")
+    assert expanded.count("ASSISTANT") == 1
+
+
+def test_expand_query_normalizations_skips_multiword_act_name_expansions():
+    # ~1200 of the 1299 normalizations entries expand a glued-together acronym into a
+    # multi-word Act name (RESTRICTIVETRADEPRACTICESACT -> "RESTRICTIVE TRADE PRACTICES
+    # ACT") - deliberately left unwired here (unverified whether real queries ever contain
+    # that glued form at all), unlike the single-word abbreviation entries this targets.
+    assert expand_query_normalizations("RESTRICTIVETRADEPRACTICESACT") == "RESTRICTIVETRADEPRACTICESACT"
+
+
+def test_expand_query_normalizations_skips_group_signal_and_section_targets():
+    # CASELAWS/RULE/ARTICLE are already wired via detect_group_signals' should-clause boost,
+    # and SEC's SECTION target via merge_keyword_number's phrase-text canonicalization -
+    # expanding the raw query text with these too would just be redundant/noisy.
+    assert expand_query_normalizations("landmark ruling on GST") == "landmark ruling on GST"
+    assert expand_query_normalizations("sec 55 exemption") == "sec 55 exemption"
 
 
 def test_extract_boost_phrases_finds_merged_keyword_number():

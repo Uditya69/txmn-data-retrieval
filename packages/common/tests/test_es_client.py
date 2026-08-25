@@ -249,6 +249,16 @@ def test_build_query_preview_includes_expanded_query_when_synonym_applies():
     assert "ASSISTANT COMMISSIONER INCOME TAX" in preview["expanded_query"]
 
 
+def test_build_query_preview_includes_expanded_query_when_normalization_applies():
+    """expand_query_normalizations (legal_lexicon.json's separate normalizations dict,
+    previously unwired anywhere in the real pipeline) is chained after expand_query_synonyms
+    in build_query_preview - this is the end-to-end check that the wiring actually happened,
+    not just the unit-level query_tokenizer test."""
+    preview = build_query_preview("ASST commissioner order")
+    assert preview["expanded_query"] is not None
+    assert "ASSISTANT" in preview["expanded_query"]
+
+
 @pytest.mark.asyncio
 async def test_raw_search_does_not_wrap_query_in_function_score():
     """raw_search deliberately skips _wrap_function_score - see its docstring and the
@@ -357,7 +367,39 @@ async def test_raw_search_boost_true_includes_doctype_court_landmark_and_recency
     assert fields == {"documenttypeboost", "court_boost", "landmarkruling"}
     recency_functions = [fn for fn in functions if "field_value_factor" not in fn and "filter" in fn
                          and "range" in fn["filter"] and "formatteddocumentdate" in fn["filter"]["range"]]
-    assert len(recency_functions) == 8
+    assert len(recency_functions) == 11
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_recency_tiers_match_centax_functionaging_formula():
+    """_RECENCY_TIERS was originally ported from query_legacy.json (a saved sample query),
+    not from centax-node's actual live code - the real generic-search path's own recency
+    formula (searchText.js::functionAging(), called live at searchText.js:1078) is a
+    completely different 11-tier ladder. This pins the corrected, verified-against-source
+    tiers so a future edit can't silently drift back to the wrong (8-tier) formula."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    functions = client.search_calls[0]["function_score"]["functions"]
+    recency = [
+        (fn["filter"]["range"]["formatteddocumentdate"]["gte"], fn["filter"]["range"]["formatteddocumentdate"]["lte"], fn["weight"])
+        for fn in functions if "field_value_factor" not in fn and "filter" in fn
+        and "range" in fn["filter"] and "formatteddocumentdate" in fn["filter"]["range"]
+    ]
+    assert recency == [
+        ("now-6M", "now", 11.0),
+        ("now-1y", "now-6M", 10.0),
+        ("now-2y", "now-1y", 9.0),
+        ("now-3y", "now-2y", 8.0),
+        ("now-6y", "now-3y", 7.0),
+        ("now-11y", "now-6y", 6.0),
+        ("now-26y", "now-11y", 5.0),
+        ("now-35y", "now-26y", 4.0),
+        ("now-51y", "now-35y", 3.0),
+        ("now-65y", "now-51y", 2.0),
+        ("now-85y", "now-65y", 1.0),
+    ]
 
 
 @pytest.mark.asyncio
