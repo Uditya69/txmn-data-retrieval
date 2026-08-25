@@ -353,6 +353,16 @@ def test_classify_intent_mode_tags_act_name_with_year_as_keyword():
     assert classify_intent_mode("income tax act 1961") == "keyword"
 
 
+def test_classify_intent_mode_tags_framing_verb_plus_section_as_keyword():
+    # "explain"/"define"/etc. aren't general-English connectives (so weren't in the
+    # original stopword list), but they carry no lexical search value either - a query
+    # that's otherwise a pure anchor lookup shouldn't fall into the expensive hybrid
+    # path just because the user wrapped it in a framing verb instead of "what is".
+    assert classify_intent_mode("explain section 55") == "keyword"
+    assert classify_intent_mode("define section 55") == "keyword"
+    assert classify_intent_mode("definition of section 55") == "keyword"
+
+
 def test_classify_intent_mode_does_not_tag_synonym_lexicon_term_as_keyword():
     # "PE" is a recognized abbreviation (legal_lexicon.json synonyms -> Permanent
     # Establishment) but names a broad legal concept, not a precise lookup - synonym

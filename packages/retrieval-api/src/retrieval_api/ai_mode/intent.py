@@ -130,23 +130,29 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     template - real user input arrives in every casing, spacing,
     abbreviation, and misspelling imaginable, and must never be expected
     to match this prompt's own formatting choices.
-  - If the query is short, bare, or just a keyword/citation with little
-    surrounding context (e.g. "section 55", "cost of acquisition", "PE")
-    and you are CONFIDENT what it refers to, you may add closely related
-    supporting context to search_query - the Act/Rule name it belongs to,
-    the section/rule number, or the concept a bare term names - to make
-    the search more effective. Only add what you are genuinely confident
-    is correct and directly related to what's already there; when unsure,
-    leave the query as-is rather than guess. Never change the query's
-    meaning, never substitute a different legal concept for the one
-    asked about, never invent a party/court/date that isn't implied by
-    what the user wrote. This "add a related concept" allowance is for a
-    query with genuinely NO framing of its own (a bare section/term and
-    nothing else) - once the query already carries its own framing
-    ("explain", "what is", "how does X work", "tell me about") the user
-    has already told you what they want (the whole provision/topic, in
-    general) - do not also guess a narrower sub-topic on top of that; add
-    only the Act/Rule name, never a concept the query didn't ask for.
+  - If search_query, after every other rule below has been applied, would
+    still come out short/bare - just an Act/Rule name plus a section/rule
+    number, or a lone keyword/citation, with no descriptive content of its
+    own (e.g. "section 55", "cost of acquisition", "PE", "explain section
+    55", "what is section 55") - and you are CONFIDENT what the anchor
+    refers to, add its general topic/heading as supporting context (the
+    concept a bare term or section names). This applies whether or not a
+    framing word ("explain", "what is", "tell me about") is present -
+    thinness of the resulting search_query is what triggers this, not
+    whether the query happens to carry a framing word. A short embedding
+    string performs worse at semantic search than one with real
+    descriptive content, regardless of phrasing. Only add what you are
+    genuinely confident is correct and directly related to what's already
+    there; when unsure, leave the query as-is rather than guess. Never
+    change the query's meaning, never substitute a different legal concept
+    for the one asked about, never invent a party/court/date that isn't
+    implied by what the user wrote. Add only the section/provision's own
+    general subject matter (what it broadly covers) - never a narrower
+    angle, sub-topic, or fact pattern the query itself didn't ask for; a
+    query that already carries real descriptive content of its own (a
+    concrete situation, a named narrower angle, additional facts) is not
+    "short/bare" and gets no addition beyond what the other rules below
+    already call for.
   - Default assumption for a bare section/rule number with no Act/Rule
     named anywhere in the query: treat it as the Income-tax Act, 1961 -
     this system's overwhelming default domain - and add "Income-tax Act
@@ -168,22 +174,24 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     the Act/Rule name plus section/rule number form; if "caselaws"/
     "articles" is tagged, prefer party/court/precedent-style phrasing; if
     "commentary" alone is tagged, keep plain-language phrasing.
-  Example: query "section 55" with intent ["acts"] -> search_query
-  "Income-tax Act 1961 Section 55 cost of acquisition" (confident: section
-  55 of the Income-tax Act deals with cost of acquisition/improvement -
-  the Act name and year were added, nothing already in the query was
-  changed or removed). This example is for a genuinely bare query with no
-  framing word of its own - it is not a template to reapply verbatim to
-  every "section X" query regardless of context. When the query already
-  carries its own framing ("explain", "what is", "tell me about" - i.e.
-  "commentary" ends up tagged alongside "acts"), the user is asking about
-  the whole provision, not one specific angle inside it - keep
-  search_query to the Act name and section number plus the user's own
-  framing word, nothing guessed (e.g. "explain section 55" -> "explain
-  Section 55 Income-tax Act 1961", NOT "...Section 55 cost of
-  acquisition"). Never invent a narrower sub-topic than the query itself
-  asked for - that's what the tagged intent/routing is for, not a guess
-  baked into search_query.
+  Examples (two different sections, on purpose - these illustrate the
+  underlying reasoning, not a fill-in-the-blank template to reapply
+  verbatim to every query):
+  - query "section 55" with intent ["acts"] -> search_query "Income-tax
+    Act 1961 Section 55 cost of acquisition" (bare and thin - Act name,
+    year, and the section's general subject were added; confident because
+    section 55 of the Income-tax Act deals with cost of
+    acquisition/improvement; nothing already in the query was changed or
+    removed).
+  - query "explain section 194C" with intent ["acts", "commentary"] ->
+    search_query "explain Section 194C Income-tax Act 1961 TDS on payments
+    to contractors" (still thin even with "explain" present - Act name,
+    year, and the section's general subject were added the same way; the
+    user's own framing word was kept, nothing guessed beyond the section's
+    known general topic).
+  Never invent a narrower sub-topic, fact pattern, or angle than the query
+  itself asked for - that's what the tagged intent/routing is for, not a
+  guess baked into search_query.
 
 - "intent": Return one or more of the following categories only. Tag a
   category only when the query genuinely anchors on it - don't over-list.
@@ -349,23 +357,29 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     template - real user input arrives in every casing, spacing,
     abbreviation, and misspelling imaginable, and must never be expected
     to match this prompt's own formatting choices.
-  - If the query is short, bare, or just a keyword/citation with little
-    surrounding context (e.g. "section 55", "cost of acquisition", "PE")
-    and you are CONFIDENT what it refers to, you may add closely related
-    supporting context to search_query - the Act/Rule name it belongs to,
-    the section/rule number, or the concept a bare term names - to make
-    the search more effective. Only add what you are genuinely confident
-    is correct and directly related to what's already there; when unsure,
-    leave the query as-is rather than guess. Never change the query's
-    meaning, never substitute a different legal concept for the one
-    asked about, never invent a party/court/date that isn't implied by
-    what the user wrote. This "add a related concept" allowance is for a
-    query with genuinely NO framing of its own (a bare section/term and
-    nothing else) - once the query already carries its own framing
-    ("explain", "what is", "how does X work", "tell me about") the user
-    has already told you what they want (the whole provision/topic, in
-    general) - do not also guess a narrower sub-topic on top of that; add
-    only the Act/Rule name, never a concept the query didn't ask for.
+  - If search_query, after every other rule below has been applied, would
+    still come out short/bare - just an Act/Rule name plus a section/rule
+    number, or a lone keyword/citation, with no descriptive content of its
+    own (e.g. "section 55", "cost of acquisition", "PE", "explain section
+    55", "what is section 55") - and you are CONFIDENT what the anchor
+    refers to, add its general topic/heading as supporting context (the
+    concept a bare term or section names). This applies whether or not a
+    framing word ("explain", "what is", "tell me about") is present -
+    thinness of the resulting search_query is what triggers this, not
+    whether the query happens to carry a framing word. A short embedding
+    string performs worse at semantic search than one with real
+    descriptive content, regardless of phrasing. Only add what you are
+    genuinely confident is correct and directly related to what's already
+    there; when unsure, leave the query as-is rather than guess. Never
+    change the query's meaning, never substitute a different legal concept
+    for the one asked about, never invent a party/court/date that isn't
+    implied by what the user wrote. Add only the section/provision's own
+    general subject matter (what it broadly covers) - never a narrower
+    angle, sub-topic, or fact pattern the query itself didn't ask for; a
+    query that already carries real descriptive content of its own (a
+    concrete situation, a named narrower angle, additional facts) is not
+    "short/bare" and gets no addition beyond what the other rules below
+    already call for.
   - Default assumption for a bare section/rule number with no Act/Rule
     named anywhere in the query: treat it as the Income-tax Act, 1961 -
     this system's overwhelming default domain - and add "Income-tax Act
@@ -387,22 +401,24 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     the Act/Rule name plus section/rule number form; if "caselaws"/
     "articles" is tagged, prefer party/court/precedent-style phrasing; if
     "commentary" alone is tagged, keep plain-language phrasing.
-  Example: query "section 55" with intent ["acts"] -> search_query
-  "Income-tax Act 1961 Section 55 cost of acquisition" (confident: section
-  55 of the Income-tax Act deals with cost of acquisition/improvement -
-  the Act name and year were added, nothing already in the query was
-  changed or removed). This example is for a genuinely bare query with no
-  framing word of its own - it is not a template to reapply verbatim to
-  every "section X" query regardless of context. When the query already
-  carries its own framing ("explain", "what is", "tell me about" - i.e.
-  "commentary" ends up tagged alongside "acts"), the user is asking about
-  the whole provision, not one specific angle inside it - keep
-  search_query to the Act name and section number plus the user's own
-  framing word, nothing guessed (e.g. "explain section 55" -> "explain
-  Section 55 Income-tax Act 1961", NOT "...Section 55 cost of
-  acquisition"). Never invent a narrower sub-topic than the query itself
-  asked for - that's what the tagged intent/routing is for, not a guess
-  baked into search_query.
+  Examples (two different sections, on purpose - these illustrate the
+  underlying reasoning, not a fill-in-the-blank template to reapply
+  verbatim to every query):
+  - query "section 55" with intent ["acts"] -> search_query "Income-tax
+    Act 1961 Section 55 cost of acquisition" (bare and thin - Act name,
+    year, and the section's general subject were added; confident because
+    section 55 of the Income-tax Act deals with cost of
+    acquisition/improvement; nothing already in the query was changed or
+    removed).
+  - query "explain section 194C" with intent ["acts", "commentary"] ->
+    search_query "explain Section 194C Income-tax Act 1961 TDS on payments
+    to contractors" (still thin even with "explain" present - Act name,
+    year, and the section's general subject were added the same way; the
+    user's own framing word was kept, nothing guessed beyond the section's
+    known general topic).
+  Never invent a narrower sub-topic, fact pattern, or angle than the query
+  itself asked for - that's what the tagged intent/routing is for, not a
+  guess baked into search_query.
 
 - "intent": Return one or more of the categories below - never more than
   genuinely applies, never fewer. Judge each query against what the
