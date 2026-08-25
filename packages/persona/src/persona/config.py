@@ -15,8 +15,15 @@ class PersonaSettings(BaseSettings):
     persona_decay_lambda: float = 0.03
     # Minimum combined similarity (embedding cosine + entity overlap + temporal
     # proximity) for a new query event to join an existing topic rather than
-    # start a new one. See design.md decision #2.
-    persona_cluster_similarity_threshold: float = 0.6
+    # start a new one. See design.md decision #2. Lowered from an initial 0.6
+    # after real end-to-end testing against live model-gateway calls: a
+    # genuinely related pair of IBC queries (same underlying topic, phrased
+    # differently) measured combined ~0.45 even after fixing entity matching
+    # to be normalized/token-based (clustering.py's entity_similarity) -
+    # 0.6 was unreachable for real SLM output variance. A confirmed-unrelated
+    # pair (different legal domain entirely) measured ~0, so 0.4 keeps a
+    # real margin on both sides of the one measured data point we have.
+    persona_cluster_similarity_threshold: float = 0.4
     # Gap (hours) since a topic's last event beyond which a new event on that
     # topic starts a new research episode rather than extending the current one.
     persona_episode_gap_hours: float = 168.0  # 7 days

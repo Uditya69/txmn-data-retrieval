@@ -7,7 +7,15 @@ from persona.config import PersonaSettings
 
 @lru_cache
 def get_mongo_client(settings: PersonaSettings) -> AsyncIOMotorClient:
-    return AsyncIOMotorClient(settings.mongo_uri)
+    # tz_aware=True: BSON dates carry no tzinfo, so pymongo returns naive
+    # datetimes by default - but every timestamp this package writes
+    # (record_query_event's `timestamp` param) is tz-aware UTC. Without this,
+    # reading a stored event back and comparing it against a fresh tz-aware
+    # "now" in interest_score()/clustering's temporal_proximity() raises
+    # TypeError: can't subtract offset-naive and offset-aware datetimes -
+    # only surfaces against a real Mongo (BSON round-trip), not the
+    # in-memory fakes the test suite uses, so unit tests never catch it.
+    return AsyncIOMotorClient(settings.mongo_uri, tz_aware=True)
 
 
 def get_personas_collection(client: AsyncIOMotorClient, settings: PersonaSettings) -> AsyncIOMotorCollection:
