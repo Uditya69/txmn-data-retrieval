@@ -63,6 +63,21 @@ def test_render_topic_hypotheses_renders_weighted_candidates_for_ambiguous_query
     assert "GST" in result
 
 
+def test_render_persona_context_prefers_specific_entities_over_generic_phrases(persona_settings):
+    # Real bug found live: repository.py merges entities via a plain set()
+    # (arbitrary order), so the two weakest, most generic entities could win
+    # the label - "eligibility conditions, time limit" instead of "Section
+    # 17(5), GST" - even though the specific ones were present in the list.
+    snapshot = [_topic(
+        "gst", "active", 0.58,
+        entities=["eligibility conditions", "time limit", "Section 17(5)", "blocked credit", "GST", "input tax credit"],
+    )]
+    context = render_persona_context(snapshot, persona_settings)
+    assert "Section 17(5)" in context
+    assert "GST" in context
+    assert "eligibility conditions" not in context
+
+
 def test_relevance_instruction_is_a_nonempty_stable_string():
     assert isinstance(RELEVANCE_INSTRUCTION, str)
     assert "ignore" in RELEVANCE_INSTRUCTION.lower()

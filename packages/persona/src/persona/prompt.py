@@ -1,6 +1,39 @@
+import re
+
 from persona.clustering import cosine_similarity
 
 _ACTIVE_STATES = ("active", "reactive")
+
+_HAS_DIGIT_RE = re.compile(r"\d")
+_ACRONYM_RE = re.compile(r"^[A-Z]{2,6}$")
+
+
+def _entity_specificity_score(entity: str) -> int:
+    """Ranks a legal_entities string by how useful it is as a human/model-
+    facing topic label. repository.py merges entities into a topic via a
+    plain `set()` (arbitrary iteration order), so without this, a topic's
+    first two stored entities can just as easily be generic descriptive
+    phrases ("eligibility conditions", "time limit") as the actual
+    recognizable anchor ("GST", "Section 17(5)") - confirmed live: this
+    directly gated whether extract_intent's persona-aware search_query
+    expansion (intent.py) had anything concrete enough to expand into.
+    """
+    score = 0
+    if _HAS_DIGIT_RE.search(entity):
+        score += 3  # "Section 7", "Section 17(5)" - a citation-shaped anchor
+    words = entity.split()
+    if len(words) <= 2 and any(_ACRONYM_RE.match(w.strip("()")) for w in words):
+        score += 3  # "GST", "IBC", "TDS" - a short recognizable acronym
+    if entity[:1].isupper() and not entity.isupper():
+        score += 1  # Title Case - reads as a proper noun, not a generic phrase
+    if entity.islower():
+        score -= 1  # all-lowercase generic phrase - deprioritize
+    return score
+
+
+def _best_entities(entities: list[str], n: int) -> list[str]:
+    ranked = sorted(entities, key=_entity_specificity_score, reverse=True)
+    return ranked[:n]
 
 RELEVANCE_INSTRUCTION = (
     "The note above is a prior about this user's typical usage, not a "
@@ -16,7 +49,7 @@ _MAX_RENDERED_TOPICS = 3
 def _topic_label(topic: dict) -> str:
     entities = topic.get("legal_entities") or []
     if entities:
-        return ", ".join(entities[:2])
+        return ", ".join(_best_entities(entities, 2))
     categories = topic.get("categories") or []
     if categories:
         return ", ".join(categories[:2])
