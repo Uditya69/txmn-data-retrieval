@@ -12,7 +12,8 @@ _RESPONSE_FORMAT = {"type": "json_object"}
 _MAX_KEYWORDS = 2
 
 _SYSTEM_PROMPT = """You are assisting a lexical (BM25/Elasticsearch) search over Indian tax
-and legal documents. You are given a query that is already a precise anchor lookup (a bare
+and statutory documents such as Acts , Rules , Articles , Tariff , Commentaries , etc.
+You are given a query that is already a precise anchor lookup (a bare
 section/rule/citation reference, a court name, an Act name) - it does not need rewriting or
 reinterpreting. Your only job: suggest at most 2 additional real legal keywords or synonyms
 that would help the lexical search surface more relevant documents, if any genuinely apply.
@@ -32,6 +33,7 @@ else."""
 
 
 def _validate_keywords(existing_query: str, raw) -> list[str]:
+
     if not isinstance(raw, list):
         return []
     existing_lower = existing_query.lower()
