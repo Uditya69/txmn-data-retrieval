@@ -83,7 +83,7 @@ async def chat(req: ChatRequest, request: Request):
         trace_context=_trace_context_from_headers(request),
     ) as generation:
         content, usage_details, reasoning = await get_adapter(provider).chat(
-            model, req.messages, req.response_format, req.temperature,
+            model, req.messages, req.response_format, req.temperature, role=req.role,
         )
         generation.update(output=content, usage_details=usage_details)
         if reasoning:

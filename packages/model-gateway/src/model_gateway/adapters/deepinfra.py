@@ -32,7 +32,7 @@ class DeepInfraAdapter:
 
     async def chat(
         self, model: str, messages: list[dict], response_format: dict | None = None,
-        temperature: float | None = None,
+        temperature: float | None = None, role: str | None = None,  # noqa: ARG002 - interface parity with LocalAdapter, unused here
     ) -> tuple[str | None, dict[str, int], str | None]:
         payload = {"model": model, "messages": messages, "max_tokens": _CHAT_MAX_TOKENS}
         if response_format:

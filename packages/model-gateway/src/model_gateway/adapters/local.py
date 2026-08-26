@@ -4,6 +4,16 @@ import httpx
 # Chat-only: no embed/rerank routes exist on this server, so roles routed
 # here must never be "query_embed" or "reranker".
 _CHAT_MAX_TOKENS = 32768
+# "synthesis" gets a much larger completion budget than the default above. qwen3's hybrid
+# thinking mode spends this budget on <think> chain-of-thought before ever writing the answer,
+# and a synthesis prompt (system prompt + up to 5 full excerpts) reasons far longer than the
+# trivial prompts 32768 was sized against - observed live: the budget exhausted mid-reasoning,
+# cutting the response off by length with no finished answer at all, not a timeout (the outer
+# 600s/620s timeouts had ample room left). The model actually served here (qwen3, see
+# .env LOCAL_CHAT_MODEL_SYNTHESIS) has a 262144-token native context, so 32768 was leaving most
+# of that budget unused rather than reflecting any real limit - raised to stay comfortably
+# under context while giving reasoning + answer enough room to both complete normally.
+_CHAT_MAX_TOKENS_BY_ROLE = {"synthesis": 131072}
 
 
 def _openai_usage_details(usage: dict) -> dict[str, int]:
@@ -23,9 +33,10 @@ class LocalAdapter:
 
     async def chat(
         self, model: str, messages: list[dict], response_format: dict | None = None,
-        temperature: float | None = None,
+        temperature: float | None = None, role: str | None = None,
     ) -> tuple[str | None, dict[str, int], str | None]:
-        payload = {"model": model, "messages": messages, "max_tokens": _CHAT_MAX_TOKENS}
+        max_tokens = _CHAT_MAX_TOKENS_BY_ROLE.get(role, _CHAT_MAX_TOKENS)
+        payload = {"model": model, "messages": messages, "max_tokens": max_tokens}
         if response_format:
             payload["response_format"] = response_format
         if temperature is not None:

@@ -25,6 +25,13 @@ Rules:
   not confident is correct.
 - Never invent a party, court, date, section number, or citation that isn't already implied
   by the query. Never change what the query is about.
+- A bare section/rule number with no Act, court, or subject named (e.g. "section 52",
+  "rule 8") is ambiguous - the same number means a completely different provision in each Act
+  it appears in (tax, company, procedural, or otherwise), and you have no way to know which one
+  the query means. Never guess or assert what such a bare number "is about" or add a keyword
+  based on that guess - a wrong guess actively misdirects the lexical search toward the wrong
+  Act instead of leaving it to search on the number alone. Only add a keyword for a bare
+  section/rule number if the query itself also names the Act, court, or subject.
 - If you are not confident any term genuinely helps, output an empty list - this is the
   common, expected case, not a fallback to avoid.
 
