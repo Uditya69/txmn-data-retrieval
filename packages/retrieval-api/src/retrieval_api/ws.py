@@ -12,6 +12,7 @@ from chat.db import get_conversations_collection, get_mongo_client as get_chat_m
 from common.config import get_settings
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
+from common.query_tokenizer import strip_noise_characters
 from persona.config import get_persona_settings
 from persona.db import get_mongo_client, get_persona_events_collection, get_persona_topics_collection, get_personas_collection
 from persona.prompt import render_persona_context
@@ -94,7 +95,10 @@ async def _safe_cache_write(collection, mode: str, query: str, query_embedding: 
 async def search(websocket: WebSocket):
     await websocket.accept()
     message = await websocket.receive_json()
-    query = message["query"]
+    # Stripped once, here, before fuzzy_correct_query/classify_intent_mode/ES/embed calls ever
+    # see it - a stray noise character (e.g. a trailing "\") can otherwise defeat the
+    # section/citation anchor-merge regexes downstream (see strip_noise_characters' docstring).
+    query = strip_noise_characters(message["query"])
     mode = message.get("mode", "both")  # "instant" | "ai_mode" | "both"
     trace = message.get("trace", False)
     access_token = message.get("access_token")

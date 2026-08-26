@@ -15,6 +15,31 @@ def normalize_citation_spacing(query: str) -> str:
     return _CITATION_SPACING_PATTERN.sub(r"\1 \2", query)
 
 
+# Allowlist, not a denylist - SECTION_PATTERN/CITATION_PATTERN/PARTY_PATTERN (legal_lexicon.py)
+# and the merge rules above only ever produce/expect word chars, whitespace, and this fixed set
+# of legal-typography punctuation: . , - / ( ) " ' & : ; % (citation spacing "133 taxmann.com
+# 196", section subrefs "5(8)(a)", party names "Tata & Sons"/"O'Brien", quoted phrases, "u/s").
+# Any character outside that set never carries legal meaning here and, left glued to an
+# adjacent token (e.g. an accidental trailing "\" from a copy-paste), can defeat
+# merge_keyword_number's exact-shape match (_SECTION_NUMBER_PATTERN) - "55\" silently fails to
+# merge into a "section 55" anchor chunk, so classify_intent_mode falls through to "hybrid" and
+# the ES query body's own match_phrase boosts never fire, even though the user typed a precise
+# section lookup. An allowlist covers every such stray character (not just ones already seen
+# breaking something), rather than growing a denylist one incident at a time. Stripped once,
+# upstream of every consumer (chunk_query, the ES multi_match/match_phrase text, embed calls),
+# so none of them can see a different query text.
+_ALLOWED_QUERY_CHARS_PATTERN = re.compile(r"[^\w\s.,\-/()\"'&:;%]", re.UNICODE)
+
+
+def strip_noise_characters(query: str) -> str:
+    """Removes any character outside this domain's legal-typography allowlist (see comment
+    above) - anything that can't legitimately appear in a citation, section/rule reference, Act
+    name, party name, or court/journal token. Collapses any whitespace left behind by the strip
+    so it stays idempotent and doesn't introduce new stopword-shaped gaps."""
+    stripped = _ALLOWED_QUERY_CHARS_PATTERN.sub(" ", query)
+    return re.sub(r"\s+", " ", stripped).strip()
+
+
 def classify_query_shape(query: str) -> str:
     """Generic no-LLM citation/provision/plain query-shape classifier. No longer drives
     Instant mode's ES boost-profile selection (see common.instant_classifier.effective_label

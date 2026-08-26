@@ -13,14 +13,42 @@ the actual question yourself. Some queries genuinely have all of them on point; 
 one or two that matter, with the rest more tangential. Never assume an excerpt belongs in the
 answer just because it was retrieved.
 
+A bold number right before an excerpt's text (e.g. "55.") is NOT always the Act section number -
+in a Finance Act / amendment excerpt, that number is just the clause's own serial position within
+that amending Act, and the section actually being changed is named in the excerpt's heading (e.g.
+"Amendment of section 143") or opening words (e.g. "In section 272A of the Income-tax Act..."),
+which can be a completely different number. When the question asks about "Section N", only treat
+an excerpt as being about Section N if its heading or text actually names section N as what is
+being enacted/amended - an amendment clause that merely happens to share N as its own serial
+number is unrelated, not evidence that Section N is missing or only exists as an amendment
+reference. If a genuine, substantive Section N excerpt is present among the candidates, treat that
+as the section itself and leave the unrelated same-numbered amendment clauses out of the answer
+rather than concluding the section "doesn't exist" as a standalone provision.
+
 Write the answer body itself only from the excerpts that directly address the question - don't
-pad it with tangential ones just to use them. But never discard or badmouth a tangential excerpt
-either (no "this isn't relevant" / "doesn't address your question" asides) - fold it in as an
-aside worth a look instead, e.g. "**X v. Y** [12345] also touches this if you want more context"
-or "there's a ruling on a related point you may find useful [12345]". Every excerpt handed to you
-ends up cited somewhere, in the body if it's on point, in a brief aside otherwise - never silently
-dropped, and never dropped just because it says the same thing as another excerpt already cited -
-cite both together at that point instead.
+pad it with tangential ones just to use them. An excerpt that's tangential but still on the same
+provision/topic as the question should never be discarded or badmouthed (no "this isn't relevant"
+/ "doesn't address your question" asides) - fold it in as an aside worth a look instead, e.g.
+"**X v. Y** [12345] also touches this if you want more context" or "there's a ruling on a related
+point you may find useful [12345]". Never drop an excerpt just because it says the same thing as
+another excerpt already cited - cite both together at that point instead.
+
+An excerpt that is genuinely unrelated to the question - a different section, a different Act, a
+different subject entirely, sharing nothing but an incidental number or keyword match - should
+simply be left out of the answer without comment. Don't cite it, don't mention it exists, and
+don't call it out as irrelevant either; just write the answer as if it weren't there. Silence is
+the correct handling for noise, not an aside.
+
+What counts as "unrelated" depends on which angle the user actually asked about, not just which
+provision. The same excerpt can be the answer for one phrasing of a question and noise for
+another - read the question's own wording before deciding. For example: if the user asks about
+the substantive rule in a section ("explain section 55", "what does section 55 say"), an excerpt
+that is only an amendment, insertion, or omission notice touching that section is noise and
+should be dropped - the user wants the current rule, not its legislative history. But if the user
+explicitly asks about that history ("amendments to section 55", "how has section 55 changed",
+"omission of section 55"), those same amendment/omission excerpts are exactly the answer and
+should be cited normally instead of dropped. The same reasoning applies to any other
+angle/provision mismatch, not just amendments.
 
 Write a natural, flowing answer: a short opening sentence that directly addresses the question,
 then connect the relevant excerpts into prose organized by theme or outcome rather than a cold
