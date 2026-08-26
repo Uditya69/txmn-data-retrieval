@@ -931,6 +931,26 @@ async def test_sparse_fallback_search_strips_highlight_markup_tags():
 
 
 @pytest.mark.asyncio
+async def test_sparse_fallback_search_strips_fullcontent_markup_from_snippet_text():
+    """fullcontent stores case/section XML (`<para>`, `<link>`, `<b>`, ...), not plain
+    prose - that markup must be stripped before the snippet reaches the reranker/LLM,
+    the same guarantee document_parser.py provides for the document viewer."""
+    client = FakeAsyncES(search_hits=[
+        {
+            "_source": {"id": "d1", "groups": {"group": {"name": "CASELAWS"}}},
+            "_score": 9.0,
+            "highlight": {"fullcontent": ["<para>The <b>assessee</b> filed a <link href=\"d2\">return</link>.</para>"]},
+        },
+    ], index="researchindex_aic_test")
+
+    from common.es_client import sparse_fallback_search
+
+    result = await sparse_fallback_search(client, "query text", groups=["CASELAWS"])
+
+    assert result["ruling"][0]["text"] == "The assessee filed a return ."
+
+
+@pytest.mark.asyncio
 async def test_sparse_fallback_search_restricts_source_to_id_and_group():
     """sparse_fallback_search only ever reads source['id'] and
     source['groups']['group']['name'] - fullcontent (the full legal document text, 100%
@@ -1028,6 +1048,19 @@ async def test_keyword_mode_search_strips_highlight_markup_tags():
     highlight = client.highlight_calls[0]
     assert highlight["pre_tags"] == [""]
     assert highlight["post_tags"] == [""]
+
+
+@pytest.mark.asyncio
+async def test_keyword_mode_search_strips_fullcontent_markup_from_snippet_text():
+    client = FakeAsyncES(search_hits=[
+        {"_source": {"id": "d1"}, "_score": 9.0, "highlight": {"fullcontent": ["<para>Section <b>52</b> applies.</para>"]}},
+    ], index="researchindex_aic_test")
+
+    from common.es_client import keyword_mode_search
+
+    result = await keyword_mode_search(client, "section 52", limit=20)
+
+    assert result == [{"doc_id": "d1", "score": 9.0, "text": "Section 52 applies."}]
 
 
 @pytest.mark.asyncio

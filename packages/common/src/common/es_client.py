@@ -3,6 +3,7 @@ import functools
 from elasticsearch import AsyncElasticsearch
 
 from common.config import Settings
+from common.document_parser import strip_tags_to_text
 from common.instant_classifier import effective_label
 from common.instant_classifier.labels import boost_profile_key
 from common.query_tokenizer import (
@@ -159,7 +160,7 @@ async def sparse_fallback_search(
         row = {
             "chunk_id": f"es:{hit['_doc_id']}:0",
             "doc_id": hit["_doc_id"],
-            "text": trim_to_token_budget(hit["_snippet"]),
+            "text": trim_to_token_budget(strip_tags_to_text(hit["_snippet"])),
             "score": hit["_score"],
             "source": "es_fallback",
         }
@@ -584,7 +585,10 @@ async def keyword_mode_search(
         fragments = hit.get("highlight", {}).get("fullcontent")
         if not fragments:
             continue
-        results.append({"doc_id": hit["_source"]["id"], "score": hit["_score"], "text": trim_to_token_budget(fragments[0])})
+        results.append({
+            "doc_id": hit["_source"]["id"], "score": hit["_score"],
+            "text": trim_to_token_budget(strip_tags_to_text(fragments[0])),
+        })
     return results
 
 

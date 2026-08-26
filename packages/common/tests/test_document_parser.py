@@ -1,6 +1,6 @@
 import pytest
 
-from common.document_parser import parse_fullcontent
+from common.document_parser import parse_fullcontent, strip_tags_to_text
 
 
 def _text(s, bold=False, italic=False):
@@ -161,3 +161,17 @@ def test_parse_fullcontent_extracts_paragraphs_from_legacy_html_documents():
         {"type": "paragraph", "spans": [_text("[1991] 58 TAXMAN 216 (CAL)")]},
         {"type": "paragraph", "spans": [_text("Commissioner of Income-tax v. Arvind Investments Ltd.")]},
     ]
+
+
+def test_strip_tags_to_text_removes_markup_and_collapses_whitespace():
+    xml = '<para>The <b>assessee</b> filed a <link href="d2">return</link>.</para>'
+
+    assert strip_tags_to_text(xml) == "The assessee filed a return ."
+
+
+def test_strip_tags_to_text_unescapes_entities():
+    assert strip_tags_to_text("<para>Income &amp; expenditure &lt; 5</para>") == "Income & expenditure < 5"
+
+
+def test_strip_tags_to_text_returns_empty_string_for_blank_input():
+    assert strip_tags_to_text("<para>   </para>") == ""

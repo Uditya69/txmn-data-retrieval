@@ -75,10 +75,19 @@ def strip_tags_fallback(xml: str) -> list[dict]:
     strict XML and lenient HTML parsers (a genuinely mismatched tag at the
     source) - strips all markup and returns it as a single block so the
     document is still readable, just without paragraph/span/link structure."""
-    text = re.sub(r"\s+", " ", unescape(_TAG_RE.sub(" ", xml))).strip()
+    text = strip_tags_to_text(xml)
     if not text:
         return []
     return [{"type": "paragraph", "spans": [_text_span(text)]}]
+
+
+def strip_tags_to_text(xml: str) -> str:
+    """Strips fullcontent's embedded XML/HTML markup (`<para>`, `<link>`,
+    `<b>`, ...) down to plain text and unescapes entities - shared by
+    strip_tags_fallback above and by es_client's ES-highlight-fragment
+    snippet building, so raw markup from the `fullcontent` field never
+    reaches an LLM prompt the way it's kept out of the document viewer."""
+    return re.sub(r"\s+", " ", unescape(_TAG_RE.sub(" ", xml))).strip()
 
 
 def _text_span(text: str, bold: bool = False, italic: bool = False) -> dict:
