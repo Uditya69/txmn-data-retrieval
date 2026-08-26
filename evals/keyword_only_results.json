@@ -1,0 +1,682 @@
+[
+  {
+    "id": "K01",
+    "class": "keyword",
+    "query": "section 54",
+    "gold_doc_ids": [
+      "102120000000080277",
+      "102120000000010423",
+      "102120000000064610"
+    ],
+    "es_top_headings": [
+      "Section - 54",
+      "Section - 54",
+      "Section - 54"
+    ],
+    "es_top_scores": [
+      978230.94,
+      978230.56,
+      978230.56
+    ],
+    "pass_at": 5,
+    "milvus_dense_rank": null,
+    "hit": false,
+    "milvus_top_hits": [
+      {
+        "rank": 1,
+        "doc_id": "102120000000005407",
+        "collection": "act_section",
+        "score": 0.5762377381324768
+      },
+      {
+        "rank": 2,
+        "doc_id": "102120000000001850",
+        "collection": "act_section",
+        "score": 0.5370274186134338
+      },
+      {
+        "rank": 3,
+        "doc_id": "102120000000001864",
+        "collection": "act_section",
+        "score": 0.5293740034103394
+      },
+      {
+        "rank": 4,
+        "doc_id": "102120000000012938",
+        "collection": "act_section",
+        "score": 0.5272906422615051
+      },
+      {
+        "rank": 5,
+        "doc_id": "102120000000012883",
+        "collection": "act_section",
+        "score": 0.5272906422615051
+      },
+      {
+        "rank": 6,
+        "doc_id": "102120000000012880",
+        "collection": "act_section",
+        "score": 0.5272906422615051
+      },
+      {
+        "rank": 7,
+        "doc_id": "102120000000012893",
+        "collection": "act_section",
+        "score": 0.5272906422615051
+      },
+      {
+        "rank": 8,
+        "doc_id": "102120000000001858",
+        "collection": "act_section",
+        "score": 0.5244752764701843
+      },
+      {
+        "rank": 9,
+        "doc_id": "102120000000001851",
+        "collection": "act_section",
+        "score": 0.5209243893623352
+      },
+      {
+        "rank": 10,
+        "doc_id": "102120000000001856",
+        "collection": "act_section",
+        "score": 0.5197232961654663
+      }
+    ]
+  },
+  {
+    "id": "K02",
+    "class": "keyword",
+    "query": "section 55",
+    "gold_doc_ids": [
+      "102120000000010223",
+      "102120000000035978",
+      "102120000000074870"
+    ],
+    "es_top_headings": [
+      "Section - 55",
+      "Section - 55",
+      "Section - 55"
+    ],
+    "es_top_scores": [
+      969390.44,
+      969390.44,
+      969390.44
+    ],
+    "pass_at": 5,
+    "milvus_dense_rank": null,
+    "hit": false,
+    "milvus_top_hits": [
+      {
+        "rank": 1,
+        "doc_id": "102120000000001864",
+        "collection": "act_section",
+        "score": 0.46831679344177246
+      },
+      {
+        "rank": 2,
+        "doc_id": "102120000000001856",
+        "collection": "act_section",
+        "score": 0.46823686361312866
+      },
+      {
+        "rank": 3,
+        "doc_id": "102120000000001850",
+        "collection": "act_section",
+        "score": 0.4660344123840332
+      },
+      {
+        "rank": 4,
+        "doc_id": "102120000000001853",
+        "collection": "act_section",
+        "score": 0.4659383296966553
+      },
+      {
+        "rank": 5,
+        "doc_id": "102120000000001858",
+        "collection": "act_section",
+        "score": 0.4648347496986389
+      },
+      {
+        "rank": 6,
+        "doc_id": "102120000000001851",
+        "collection": "act_section",
+        "score": 0.4614409804344177
+      },
+      {
+        "rank": 7,
+        "doc_id": "101010000000382986",
+        "collection": "headnotes",
+        "score": 0.4605681002140045
+      },
+      {
+        "rank": 8,
+        "doc_id": "102120000000058984",
+        "collection": "act_section",
+        "score": 0.455987811088562
+      },
+      {
+        "rank": 9,
+        "doc_id": "102120000000058984",
+        "collection": "act_section",
+        "score": 0.454996794462204
+      },
+      {
+        "rank": 10,
+        "doc_id": "102120000000059788",
+        "collection": "act_section",
+        "score": 0.45365893840789795
+      }
+    ]
+  },
+  {
+    "id": "K03",
+    "class": "keyword",
+    "query": "section 43B",
+    "gold_doc_ids": [
+      "102120000000049876",
+      "107010000000362756",
+      "107010000000362781"
+    ],
+    "es_top_headings": [
+      "Section - 43B",
+      "SECTION 43B",
+      "SECTION 43B"
+    ],
+    "es_top_scores": [
+      1423335.8,
+      1423335.1,
+      1423331.9
+    ],
+    "pass_at": 5,
+    "milvus_dense_rank": 40,
+    "hit": false,
+    "milvus_top_hits": [
+      {
+        "rank": 1,
+        "doc_id": "101010000000015202",
+        "collection": "facts",
+        "score": 0.45756739377975464
+      },
+      {
+        "rank": 2,
+        "doc_id": "101010000000187637",
+        "collection": "case_summary",
+        "score": 0.4538906216621399
+      },
+      {
+        "rank": 3,
+        "doc_id": "102120000000077771",
+        "collection": "act_section",
+        "score": 0.44664186239242554
+      },
+      {
+        "rank": 4,
+        "doc_id": "101010000000184980",
+        "collection": "case_summary",
+        "score": 0.44626057147979736
+      },
+      {
+        "rank": 5,
+        "doc_id": "102120000000009711",
+        "collection": "act_section",
+        "score": 0.44495949149131775
+      },
+      {
+        "rank": 6,
+        "doc_id": "102120000000077773",
+        "collection": "act_section",
+        "score": 0.44325780868530273
+      },
+      {
+        "rank": 7,
+        "doc_id": "101010000000325961",
+        "collection": "case_summary",
+        "score": 0.4426097571849823
+      },
+      {
+        "rank": 8,
+        "doc_id": "102120000000009398",
+        "collection": "act_section",
+        "score": 0.43945109844207764
+      },
+      {
+        "rank": 9,
+        "doc_id": "101010000000340647",
+        "collection": "ruling",
+        "score": 0.43725723028182983
+      },
+      {
+        "rank": 10,
+        "doc_id": "101010000000092337",
+        "collection": "case_summary",
+        "score": 0.43680331110954285
+      }
+    ]
+  },
+  {
+    "id": "K04",
+    "class": "keyword",
+    "query": "section 61",
+    "gold_doc_ids": [
+      "102120000000009238",
+      "102120000000010230",
+      "102120000000074876"
+    ],
+    "es_top_headings": [
+      "Section - 61",
+      "Section - 61",
+      "Section - 61"
+    ],
+    "es_top_scores": [
+      992459.94,
+      992458.6,
+      992458.1
+    ],
+    "pass_at": 5,
+    "milvus_dense_rank": null,
+    "hit": false,
+    "milvus_top_hits": [
+      {
+        "rank": 1,
+        "doc_id": "101010000000377642",
+        "collection": "headnotes",
+        "score": 0.45564448833465576
+      },
+      {
+        "rank": 2,
+        "doc_id": "101010000000387878",
+        "collection": "headnotes",
+        "score": 0.44076767563819885
+      },
+      {
+        "rank": 3,
+        "doc_id": "103120000000007118",
+        "collection": "rule_section",
+        "score": 0.43893006443977356
+      },
+      {
+        "rank": 4,
+        "doc_id": "102120000000032918",
+        "collection": "act_section",
+        "score": 0.4358949065208435
+      },
+      {
+        "rank": 5,
+        "doc_id": "103120000000007250",
+        "collection": "rule_section",
+        "score": 0.43379783630371094
+      },
+      {
+        "rank": 6,
+        "doc_id": "102120000000006590",
+        "collection": "act_section",
+        "score": 0.4262996315956116
+      },
+      {
+        "rank": 7,
+        "doc_id": "103120000000029836",
+        "collection": "rule_section",
+        "score": 0.41530564427375793
+      },
+      {
+        "rank": 8,
+        "doc_id": "101010000000393413",
+        "collection": "headnotes",
+        "score": 0.4077779948711395
+      },
+      {
+        "rank": 9,
+        "doc_id": "103120000000007190",
+        "collection": "rule_section",
+        "score": 0.4074609577655792
+      },
+      {
+        "rank": 10,
+        "doc_id": "102120000000035279",
+        "collection": "act_section",
+        "score": 0.405273973941803
+      }
+    ]
+  },
+  {
+    "id": "K05",
+    "class": "keyword",
+    "query": "section 271",
+    "gold_doc_ids": [
+      "107010000000362901",
+      "102120000000098241",
+      "102120000000099294"
+    ],
+    "es_top_headings": [
+      "SECTION 271",
+      "Section - 271",
+      "Section - 271"
+    ],
+    "es_top_scores": [
+      1157309.8,
+      1157306.1,
+      1157306.1
+    ],
+    "pass_at": 5,
+    "milvus_dense_rank": null,
+    "hit": false,
+    "milvus_top_hits": [
+      {
+        "rank": 1,
+        "doc_id": "103120000000042147",
+        "collection": "rule_section",
+        "score": 0.38871556520462036
+      },
+      {
+        "rank": 2,
+        "doc_id": "102120000000052537",
+        "collection": "act_section",
+        "score": 0.37557274103164673
+      },
+      {
+        "rank": 3,
+        "doc_id": "101010000000016928",
+        "collection": "headnotes",
+        "score": 0.3588673770427704
+      },
+      {
+        "rank": 4,
+        "doc_id": "102120000000080337",
+        "collection": "act_section",
+        "score": 0.3565828800201416
+      },
+      {
+        "rank": 5,
+        "doc_id": "102120000000009550",
+        "collection": "act_section",
+        "score": 0.35488325357437134
+      },
+      {
+        "rank": 6,
+        "doc_id": "101010000000154349",
+        "collection": "case_summary",
+        "score": 0.3533574044704437
+      },
+      {
+        "rank": 7,
+        "doc_id": "102120000000009569",
+        "collection": "act_section",
+        "score": 0.3522385358810425
+      },
+      {
+        "rank": 8,
+        "doc_id": "102120000000079746",
+        "collection": "act_section",
+        "score": 0.3514261245727539
+      },
+      {
+        "rank": 9,
+        "doc_id": "101010000000154349",
+        "collection": "case_summary",
+        "score": 0.35094505548477173
+      },
+      {
+        "rank": 10,
+        "doc_id": "102120000000064605",
+        "collection": "act_section",
+        "score": 0.3502665162086487
+      }
+    ]
+  },
+  {
+    "id": "K06",
+    "class": "keyword",
+    "query": "rule 6",
+    "gold_doc_ids": [
+      "103120000000051010",
+      "103120000000019400",
+      "103120000000048822"
+    ],
+    "es_top_headings": [
+      "Rule - 6",
+      "Rule - 6",
+      "Rule - 6"
+    ],
+    "es_top_scores": [
+      5272386.0,
+      5272385.5,
+      5272384.0
+    ],
+    "pass_at": 5,
+    "milvus_dense_rank": null,
+    "hit": false,
+    "milvus_top_hits": [
+      {
+        "rank": 1,
+        "doc_id": "101010000000387412",
+        "collection": "ruling",
+        "score": 0.5971758365631104
+      },
+      {
+        "rank": 2,
+        "doc_id": "103120000000013921",
+        "collection": "rule_section",
+        "score": 0.5275409817695618
+      },
+      {
+        "rank": 3,
+        "doc_id": "103120000000024733",
+        "collection": "rule_section",
+        "score": 0.5060492157936096
+      },
+      {
+        "rank": 4,
+        "doc_id": "103120000000019275",
+        "collection": "rule_section",
+        "score": 0.478615939617157
+      },
+      {
+        "rank": 5,
+        "doc_id": "101010000000164846",
+        "collection": "ruling",
+        "score": 0.4640665650367737
+      },
+      {
+        "rank": 6,
+        "doc_id": "103120000000014704",
+        "collection": "rule_section",
+        "score": 0.4618123471736908
+      },
+      {
+        "rank": 7,
+        "doc_id": "103120000000015278",
+        "collection": "rule_section",
+        "score": 0.4609088897705078
+      },
+      {
+        "rank": 8,
+        "doc_id": "103120000000014165",
+        "collection": "rule_section",
+        "score": 0.4609088897705078
+      },
+      {
+        "rank": 9,
+        "doc_id": "103120000000045614",
+        "collection": "rule_section",
+        "score": 0.4609088897705078
+      },
+      {
+        "rank": 10,
+        "doc_id": "101010000000382331",
+        "collection": "headnotes",
+        "score": 0.4543270468711853
+      }
+    ]
+  },
+  {
+    "id": "K07",
+    "class": "keyword",
+    "query": "article 14",
+    "gold_doc_ids": [
+      "105010000000016313",
+      "105010000000011302",
+      "105010000000010334"
+    ],
+    "es_top_headings": [
+      "[2019] 103 taxmann.com 384 (Article)",
+      "[2014] 44 taxmann.com 249 (Article)",
+      "[2013] 37 taxmann.com 70 (Article)"
+    ],
+    "es_top_scores": [
+      8900594.0,
+      8480784.0,
+      8480784.0
+    ],
+    "pass_at": 5,
+    "milvus_dense_rank": null,
+    "hit": false,
+    "milvus_top_hits": [
+      {
+        "rank": 1,
+        "doc_id": "101010000000378373",
+        "collection": "headnotes",
+        "score": 0.49814897775650024
+      },
+      {
+        "rank": 2,
+        "doc_id": "103120000000015520",
+        "collection": "rule_section",
+        "score": 0.47276657819747925
+      },
+      {
+        "rank": 3,
+        "doc_id": "103120000000033584",
+        "collection": "rule_section",
+        "score": 0.47276657819747925
+      },
+      {
+        "rank": 4,
+        "doc_id": "103120000000024873",
+        "collection": "rule_section",
+        "score": 0.4682343006134033
+      },
+      {
+        "rank": 5,
+        "doc_id": "101010000000375159",
+        "collection": "headnotes",
+        "score": 0.46753111481666565
+      },
+      {
+        "rank": 6,
+        "doc_id": "105010000000014989",
+        "collection": "article_section",
+        "score": 0.46349430084228516
+      },
+      {
+        "rank": 7,
+        "doc_id": "103120000000003333",
+        "collection": "rule_section",
+        "score": 0.4566769599914551
+      },
+      {
+        "rank": 8,
+        "doc_id": "105010000000014989",
+        "collection": "article_section",
+        "score": 0.45615774393081665
+      },
+      {
+        "rank": 9,
+        "doc_id": "101010000000375159",
+        "collection": "headnotes",
+        "score": 0.4440898895263672
+      },
+      {
+        "rank": 10,
+        "doc_id": "105010000000014999",
+        "collection": "article_section",
+        "score": 0.4420296549797058
+      }
+    ]
+  },
+  {
+    "id": "K08",
+    "class": "keyword",
+    "query": "80HH",
+    "gold_doc_ids": [
+      "102120000000054401",
+      "102120000000053986",
+      "102120000000016383"
+    ],
+    "es_top_headings": [
+      "Section - 80HH",
+      "Section - 80HH",
+      "Section - 80HH"
+    ],
+    "es_top_scores": [
+      1212029.1,
+      1212028.1,
+      1212027.5
+    ],
+    "pass_at": 5,
+    "milvus_dense_rank": null,
+    "hit": false,
+    "milvus_top_hits": [
+      {
+        "rank": 1,
+        "doc_id": "103120000000022391",
+        "collection": "rule_section",
+        "score": 0.47594237327575684
+      },
+      {
+        "rank": 2,
+        "doc_id": "103120000000002580",
+        "collection": "rule_section",
+        "score": 0.465770423412323
+      },
+      {
+        "rank": 3,
+        "doc_id": "103120000000002422",
+        "collection": "rule_section",
+        "score": 0.465770423412323
+      },
+      {
+        "rank": 4,
+        "doc_id": "103120000000002421",
+        "collection": "rule_section",
+        "score": 0.465770423412323
+      },
+      {
+        "rank": 5,
+        "doc_id": "102120000000008745",
+        "collection": "act_section",
+        "score": 0.452659547328949
+      },
+      {
+        "rank": 6,
+        "doc_id": "102120000000002752",
+        "collection": "act_section",
+        "score": 0.44273149967193604
+      },
+      {
+        "rank": 7,
+        "doc_id": "107010000000382768",
+        "collection": "commentary_section",
+        "score": 0.44273149967193604
+      },
+      {
+        "rank": 8,
+        "doc_id": "103120000000002719",
+        "collection": "rule_section",
+        "score": 0.43938860297203064
+      },
+      {
+        "rank": 9,
+        "doc_id": "103120000000022390",
+        "collection": "rule_section",
+        "score": 0.43915510177612305
+      },
+      {
+        "rank": 10,
+        "doc_id": "103120000000022389",
+        "collection": "rule_section",
+        "score": 0.4334944486618042
+      }
+    ]
+  }
+]

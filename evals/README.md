@@ -14,6 +14,23 @@ in prose for humans skimming a PR or deciding what to test manually.
   10-query hand-picked sample (5 fresh cases, direct+indirect+mixed variants of each) for
   manually A/B-testing Instant mode's `rerank` on/off toggle.
 
+## Milvus dense-only diagnostics
+
+- `milvus_dense_only_eval.py` / `milvus_dense_only_results.{json,csv}` — runs a
+  straight query_embed → Voyage → Milvus `dense_vector` search (no ES, no
+  sparse, no rerank, no RRF) over a ~66%-direct/34%-indirect mix of
+  `retrieval_cases.json` + `statutory_cases.json`. Diagnostic for how dense
+  alone performs in isolation.
+- `keyword_only_probe.py` / `keyword_only_cases.json` /
+  [`keyword-only-queries.md`](keyword-only-queries.md) /
+  `keyword_only_results.{json,csv}` — bare 1-3 word statutory-reference queries
+  (`section 55`, `rule 6`, `80HH`) with no other context, comparing ES BM25
+  (which nails literal heading matches) against Milvus dense (which had 0/8
+  hits at `pass_at=5` on the 2026-08-25 run — see the `.md` for detail and a
+  caveat on the `article 14` case). Gold here is regenerated live from ES on
+  each run rather than hand-curated, since these queries are inherently
+  multi-way ambiguous.
+
 ## Statutory retrieval (acts / rules / articles / commentary)
 
 - `statutory_cases.json` / [`statutory-eval-queries.md`](statutory-eval-queries.md) — 40

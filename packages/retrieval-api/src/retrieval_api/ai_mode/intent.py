@@ -670,7 +670,26 @@ async def extract_intent(
             "party pattern was recognized anywhere in this query."
         )
     if persona_context:
-        user_message += f"\n\n{persona_context}\n{RELEVANCE_INSTRUCTION}"
+        # The system prompt's search_query confidence rule only ever talks about
+        # what's confident/"directly related to what's already there" IN THE QUERY -
+        # it has no notion that a persona note could be a legitimate basis for
+        # expansion at all, so without this the model has no permission to ever use
+        # persona for search_query, only for tone. This grants that permission
+        # narrowly (only for a short/bare/ambiguous query, only additive, never
+        # overriding a query that's already clear) - additive-only and gated on
+        # persona_context being non-empty, so guest traffic and every intent-eval
+        # run (which never passes persona_context - see intent_eval.py/
+        # slm_intent_eval.py) are completely unaffected by this text existing.
+        user_message += (
+            f"\n\n{persona_context}\n{RELEVANCE_INSTRUCTION}\n"
+            "If the query above is short/bare/ambiguous on its own (per the "
+            "system prompt's own confident-expansion rule for search_query), you "
+            "may treat the user-focus note above as a legitimate basis for that "
+            "confident, closely-related expansion - same standard as any other "
+            "confident expansion: only when it doesn't contradict what's already "
+            "in the query, never when the query is already a complete, "
+            "unambiguous sentence that answers its own scope."
+        )
     response, reasoning = await gateway.chat_with_reasoning(
         role="slm",
         messages=[

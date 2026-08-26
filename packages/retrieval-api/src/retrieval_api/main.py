@@ -8,6 +8,8 @@ from auth.config import get_auth_settings
 from auth.db import ensure_refresh_token_indexes, get_mongo_client, get_refresh_tokens_collection
 from auth.router import router as auth_router
 from common.instant_classifier import classify
+from persona.config import get_persona_settings
+from persona.db import ensure_persona_indexes, get_mongo_client as get_persona_mongo_client
 from chat.router import router as chat_router
 from retrieval_api.admin_eval.router import router as admin_eval_router
 from retrieval_api.ws import router
@@ -40,6 +42,12 @@ async def lifespan(app: FastAPI):
         await ensure_refresh_token_indexes(get_refresh_tokens_collection(client, settings))
     except Exception:
         logger.exception("Failed to ensure refresh-token indexes at startup - continuing without them")
+    try:
+        persona_settings = get_persona_settings()
+        persona_client = get_persona_mongo_client(persona_settings)
+        await ensure_persona_indexes(persona_client, persona_settings)
+    except Exception:
+        logger.exception("Failed to ensure persona indexes at startup - continuing without them")
     yield
 
 

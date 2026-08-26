@@ -1,0 +1,170 @@
+[
+  {
+    "id": "K01",
+    "class": "keyword",
+    "query": "section 54",
+    "gold_doc_ids": [
+      "102120000000080277",
+      "102120000000010423",
+      "102120000000064610"
+    ],
+    "es_top_headings": [
+      "Section - 54",
+      "Section - 54",
+      "Section - 54"
+    ],
+    "es_top_scores": [
+      978230.94,
+      978230.56,
+      978230.56
+    ],
+    "pass_at": 5
+  },
+  {
+    "id": "K02",
+    "class": "keyword",
+    "query": "section 55",
+    "gold_doc_ids": [
+      "102120000000010223",
+      "102120000000035978",
+      "102120000000074870"
+    ],
+    "es_top_headings": [
+      "Section - 55",
+      "Section - 55",
+      "Section - 55"
+    ],
+    "es_top_scores": [
+      969390.44,
+      969390.44,
+      969390.44
+    ],
+    "pass_at": 5
+  },
+  {
+    "id": "K03",
+    "class": "keyword",
+    "query": "section 43B",
+    "gold_doc_ids": [
+      "102120000000049876",
+      "107010000000362756",
+      "107010000000362781"
+    ],
+    "es_top_headings": [
+      "Section - 43B",
+      "SECTION 43B",
+      "SECTION 43B"
+    ],
+    "es_top_scores": [
+      1423335.8,
+      1423335.1,
+      1423331.9
+    ],
+    "pass_at": 5
+  },
+  {
+    "id": "K04",
+    "class": "keyword",
+    "query": "section 61",
+    "gold_doc_ids": [
+      "102120000000009238",
+      "102120000000010230",
+      "102120000000074876"
+    ],
+    "es_top_headings": [
+      "Section - 61",
+      "Section - 61",
+      "Section - 61"
+    ],
+    "es_top_scores": [
+      992459.94,
+      992458.6,
+      992458.1
+    ],
+    "pass_at": 5
+  },
+  {
+    "id": "K05",
+    "class": "keyword",
+    "query": "section 271",
+    "gold_doc_ids": [
+      "107010000000362901",
+      "102120000000098241",
+      "102120000000099294"
+    ],
+    "es_top_headings": [
+      "SECTION 271",
+      "Section - 271",
+      "Section - 271"
+    ],
+    "es_top_scores": [
+      1157309.8,
+      1157306.1,
+      1157306.1
+    ],
+    "pass_at": 5
+  },
+  {
+    "id": "K06",
+    "class": "keyword",
+    "query": "rule 6",
+    "gold_doc_ids": [
+      "103120000000051010",
+      "103120000000019400",
+      "103120000000048822"
+    ],
+    "es_top_headings": [
+      "Rule - 6",
+      "Rule - 6",
+      "Rule - 6"
+    ],
+    "es_top_scores": [
+      5272386.0,
+      5272385.5,
+      5272384.0
+    ],
+    "pass_at": 5
+  },
+  {
+    "id": "K07",
+    "class": "keyword",
+    "query": "article 14",
+    "gold_doc_ids": [
+      "105010000000016313",
+      "105010000000011302",
+      "105010000000010334"
+    ],
+    "es_top_headings": [
+      "[2019] 103 taxmann.com 384 (Article)",
+      "[2014] 44 taxmann.com 249 (Article)",
+      "[2013] 37 taxmann.com 70 (Article)"
+    ],
+    "es_top_scores": [
+      8900594.0,
+      8480784.0,
+      8480784.0
+    ],
+    "pass_at": 5
+  },
+  {
+    "id": "K08",
+    "class": "keyword",
+    "query": "80HH",
+    "gold_doc_ids": [
+      "102120000000054401",
+      "102120000000053986",
+      "102120000000016383"
+    ],
+    "es_top_headings": [
+      "Section - 80HH",
+      "Section - 80HH",
+      "Section - 80HH"
+    ],
+    "es_top_scores": [
+      1212029.1,
+      1212028.1,
+      1212027.5
+    ],
+    "pass_at": 5
+  }
+]

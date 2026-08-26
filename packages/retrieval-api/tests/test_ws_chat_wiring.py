@@ -25,8 +25,10 @@ def _patch_common(monkeypatch, fake_run_ai_mode, fake_conversations_collection):
     monkeypatch.setattr(ws_module, "get_gateway_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ws_module, "get_persona_settings", lambda: object())
     monkeypatch.setattr(ws_module, "get_mongo_client", lambda *_: object())
-    monkeypatch.setattr(ws_module, "get_personas_collection", lambda *_: object())
-    monkeypatch.setattr(ws_module, "get_persona", AsyncMock(return_value=None))
+    monkeypatch.setattr(ws_module, "get_persona_events_collection", lambda *_: object())
+    monkeypatch.setattr(ws_module, "get_persona_topics_collection", lambda *_: object())
+    monkeypatch.setattr(ws_module, "get_current_snapshot", AsyncMock(return_value=[]))
+    monkeypatch.setattr(ws_module, "migrate_legacy_persona", AsyncMock(return_value=False))
     monkeypatch.setattr(ws_module, "record_persona_signal", AsyncMock())
 
     monkeypatch.setattr(ws_module, "get_chat_settings", lambda: object())
