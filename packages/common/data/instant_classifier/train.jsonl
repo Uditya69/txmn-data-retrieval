@@ -296,3 +296,7 @@
 {"query_text": "135 taxman 327", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-26"}
 {"query_text": "Notification No. 12/2017-Central Tax (Rate) dated 28-06-2017", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-26"}
 {"query_text": "madras HC NARMADA", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-26"}
+{"query_text": "itat order delay after hearing", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "paymentallied", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "103 taxmann.com 75", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "27 taxman 267", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
