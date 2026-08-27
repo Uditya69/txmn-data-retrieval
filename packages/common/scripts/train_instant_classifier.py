@@ -2,12 +2,42 @@ import json
 from pathlib import Path
 
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import StratifiedKFold, cross_val_score
 
-from common.instant_classifier.pipeline import build_pipeline, save_artifact
+from common.instant_classifier.pipeline import build_calibrated_pipeline, build_pipeline, save_artifact
 
 _DATA_DIR = Path(__file__).parent.parent / "data" / "instant_classifier"
 _TRAIN_PATH = _DATA_DIR / "train.jsonl"
 _EVAL_PATH = _DATA_DIR / "eval_frozen.jsonl"
+
+# Small grid, not exhaustive - this dataset's size (a few hundred rows) doesn't support
+# tuning more knobs than this without the CV estimate itself becoming noisy.
+_C_GRID = [0.1, 0.3, 1.0, 3.0, 10.0]
+_MIN_DF_GRID = [1, 2]
+_CV_FOLDS = 5
+
+
+def _select_hyperparameters(train_texts: list[str], train_labels: list[str]) -> dict:
+    """Picks (C, word_min_df, char_min_df) by mean accuracy over stratified CV folds on
+    the TRAINING set only - never touches eval_frozen.jsonl, which stays reserved for the
+    final held-out accuracy number. A single train/eval split is too small (a few hundred
+    rows) to trust for hyperparameter selection - a couple of flipped predictions swing the
+    single-split accuracy enough to make sklearn's untuned default C look no worse than a
+    genuinely better one. CV averages that noise out over multiple folds."""
+    splitter = StratifiedKFold(n_splits=_CV_FOLDS, shuffle=True, random_state=0)
+    best = None
+    for c in _C_GRID:
+        for word_min_df in _MIN_DF_GRID:
+            for char_min_df in _MIN_DF_GRID:
+                pipeline = build_pipeline(C=c, word_min_df=word_min_df, char_min_df=char_min_df)
+                scores = cross_val_score(pipeline, train_texts, train_labels, cv=splitter, scoring="accuracy")
+                mean_score = scores.mean()
+                candidate = {
+                    "C": c, "word_min_df": word_min_df, "char_min_df": char_min_df, "cv_accuracy": mean_score,
+                }
+                if best is None or mean_score > best["cv_accuracy"]:
+                    best = candidate
+    return best
 
 
 def _load_jsonl(path: Path) -> tuple[list[str], list[str]]:
@@ -79,7 +109,17 @@ def main() -> None:
     train_texts, train_labels = _load_jsonl(_TRAIN_PATH)
     eval_texts, eval_labels = _load_jsonl(_EVAL_PATH)
 
-    pipeline = build_pipeline()
+    best_hyperparams = _select_hyperparameters(train_texts, train_labels)
+
+    # Calibrated (Platt-scaled) for the committed artifact - resolve_routing()'s confidence
+    # threshold is meaningless as a reliability cutoff unless predict_proba().max() reflects
+    # an actual estimated correctness probability rather than raw softmax output.
+    pipeline = build_calibrated_pipeline(
+        C=best_hyperparams["C"],
+        word_min_df=best_hyperparams["word_min_df"],
+        char_min_df=best_hyperparams["char_min_df"],
+        cv=_CV_FOLDS,
+    )
     pipeline.fit(train_texts, train_labels)
 
     predictions = pipeline.predict(eval_texts)
@@ -87,9 +127,11 @@ def main() -> None:
     threshold, accuracy_at_threshold = _sweep_threshold(pipeline, eval_texts, eval_labels)
 
     meta = {
-        "version": 1,
+        "version": 2,
         "train_examples": len(train_texts),
         "eval_examples": len(eval_texts),
+        "hyperparameters": best_hyperparams,
+        "calibration": "sigmoid",
         "overall_eval_accuracy": overall_accuracy,
         "confidence_threshold": threshold,
         "accuracy_at_threshold": accuracy_at_threshold,

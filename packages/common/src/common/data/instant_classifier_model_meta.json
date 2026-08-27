@@ -1,9 +1,16 @@
 {
-  "version": 1,
+  "version": 2,
   "train_examples": 298,
   "eval_examples": 36,
-  "overall_eval_accuracy": 0.9166666666666666,
-  "confidence_threshold": 0.7,
+  "hyperparameters": {
+    "C": 10.0,
+    "word_min_df": 1,
+    "char_min_df": 2,
+    "cv_accuracy": 0.8290395480225989
+  },
+  "calibration": "sigmoid",
+  "overall_eval_accuracy": 0.9722222222222222,
+  "confidence_threshold": 0.6,
   "accuracy_at_threshold": 1.0,
   "labels": [
     "HYBRID",

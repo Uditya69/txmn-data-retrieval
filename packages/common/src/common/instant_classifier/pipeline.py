@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import joblib
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 
@@ -12,11 +13,28 @@ _DEFAULT_MODEL_PATH = _DATA_DIR / "instant_classifier_model.joblib"
 _DEFAULT_META_PATH = _DATA_DIR / "instant_classifier_model_meta.json"
 
 
-def build_pipeline() -> Pipeline:
+def build_pipeline(C: float = 1.0, word_min_df: int = 1, char_min_df: int = 1) -> Pipeline:
     return Pipeline([
-        ("features", build_feature_union()),
-        ("clf", LogisticRegression(class_weight="balanced", max_iter=1000)),
+        ("features", build_feature_union(word_min_df=word_min_df, char_min_df=char_min_df)),
+        ("clf", LogisticRegression(class_weight="balanced", max_iter=1000, C=C)),
     ])
+
+
+def build_calibrated_pipeline(
+    C: float = 1.0, word_min_df: int = 1, char_min_df: int = 1, cv: int = 5,
+) -> CalibratedClassifierCV:
+    """Wraps build_pipeline() (features + LogisticRegression) in Platt-scaling
+    calibration so predict_proba().max() reflects an actual estimated probability of
+    correctness, not just raw softmax output - resolve_routing()'s confidence_threshold
+    was empirically swept against raw softmax values, which don't need to correspond to
+    real likelihoods. Sigmoid (Platt), not isotonic, because isotonic needs more calibration
+    samples per class than this dataset's size to avoid overfitting the calibration curve
+    itself. Wrapping the whole feature+classifier Pipeline (not just the classifier) means
+    each CV fold refits the TF-IDF vocabulary independently - no leakage from eval-fold
+    queries into the vocabulary used to score them."""
+    return CalibratedClassifierCV(
+        build_pipeline(C=C, word_min_df=word_min_df, char_min_df=char_min_df), method="sigmoid", cv=cv,
+    )
 
 
 def save_artifact(pipeline: Pipeline, meta: dict, model_path: Path = None, meta_path: Path = None) -> None:
