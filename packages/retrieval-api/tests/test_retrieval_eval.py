@@ -30,10 +30,10 @@ def test_explicit_output_keeps_snapshot_beside_result():
 def test_repository_eval_dataset_spans_1936_to_2026_and_has_stress_cases():
     root = Path(__file__).parents[3]
     cases = load_cases(root / "evals" / "retrieval_cases.json")
-    assert len(cases) == 53
+    assert len(cases) == 71
     assert {case["class"] for case in cases} == {"direct", "indirect", "adversarial"}
     assert cases[20]["id"] == "Q21"
-    assert cases[-1]["id"] == "Q53"
+    assert cases[-1]["id"] == "Q71"
 
 
 def test_doc_rank_dedupes_chunks_and_returns_first_gold_document_rank():
