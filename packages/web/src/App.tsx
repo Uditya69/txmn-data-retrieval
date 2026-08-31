@@ -141,7 +141,7 @@ export default function App() {
   }
 
   async function handleDeleteConversation(id: string) {
-    if (!window.confirm('Delete this conversation? This cannot be undone.')) return
+    // Sidebar already confirmed via its own dialog before calling this.
     // remove() itself no-ops for a guest (no token) - always safe to call, and
     // this still needs to drop the conversation from local-only state either way.
     await remoteConversations.remove(id)

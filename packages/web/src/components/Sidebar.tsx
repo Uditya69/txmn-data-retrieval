@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import type { Conversation } from '../types'
+import ConfirmDialog from './ConfirmDialog'
 
 type Props = {
   conversations: Conversation[]
@@ -40,6 +42,8 @@ function TrashIcon() {
 }
 
 export default function Sidebar({ conversations, activeId, collapsed, onToggleCollapsed, onSelect, onNewChat, onDelete }: Props) {
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null)
+
   if (collapsed) {
     return (
       <div
@@ -86,7 +90,7 @@ export default function Sidebar({ conversations, activeId, collapsed, onToggleCo
 
       <ul className="flex-1 overflow-y-auto space-y-0.5 -mx-1">
         {conversations.map((c) => (
-          <li key={c.id} className="flex items-center gap-1">
+          <li key={c.id} className="group flex items-center gap-1">
             <button
               onClick={() => onSelect(c.id)}
               className="text-sm text-left truncate block w-full rounded-lg px-2.5 py-2 cursor-pointer"
@@ -105,11 +109,15 @@ export default function Sidebar({ conversations, activeId, collapsed, onToggleCo
               // row is later wrapped in a single clickable container).
               onClick={(e) => {
                 e.stopPropagation()
-                onDelete(c.id)
+                setPendingDelete({ id: c.id, title: c.title })
               }}
               aria-label={`Delete "${c.title}"`}
               title="Delete conversation"
-              className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center cursor-pointer"
+              // Hidden until the row is hovered/focused - a permanently-visible
+              // trash icon next to every single chat title is noisy for an
+              // action almost never taken. focus-visible keeps it reachable
+              // via keyboard nav despite the hover gate.
+              className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity duration-150"
               style={{ color: 'var(--text-faint)' }}
             >
               <TrashIcon />
@@ -117,6 +125,19 @@ export default function Sidebar({ conversations, activeId, collapsed, onToggleCo
           </li>
         ))}
       </ul>
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title={`Delete "${pendingDelete.title}"?`}
+          message="This cannot be undone."
+          confirmLabel="Delete"
+          onConfirm={() => {
+            onDelete(pendingDelete.id)
+            setPendingDelete(null)
+          }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   )
 }
