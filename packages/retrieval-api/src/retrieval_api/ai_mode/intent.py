@@ -680,15 +680,57 @@ async def extract_intent(
         # persona_context being non-empty, so guest traffic and every intent-eval
         # run (which never passes persona_context - see intent_eval.py/
         # slm_intent_eval.py) are completely unaffected by this text existing.
+        #
+        # Made directive rather than merely permissive (2026-08-31): live testing
+        # showed the model repeatedly identifying a valid persona-based expansion in
+        # its own reasoning, then still declining to apply it - stacking this
+        # instruction's old hedges ("may", "only when", "never when already
+        # complete/unambiguous") on top of the base prompt's own "when unsure, leave
+        # as-is" and the Lexicon-check note (intended only to gate "intent", but
+        # reused by the model as a reason to also skip search_query expansion) gave
+        # it too many independent excuses to self-reject. "timelimit" (no space)
+        # expanded using the persona note while "time limit" (with space) did not,
+        # same persona context both times - purely a phrasing/caution-framing
+        # difference, not a real distinction. Tightened to one clear rule with an
+        # inline worked example so the model has a concrete pattern to match
+        # instead of reasoning about permission from scratch each time.
+        # 2026-08-31 (second pass): the directive rewrite above fixed the
+        # inconsistent-expansion problem, but live testing surfaced a new failure
+        # in the other direction - given a persona note reading only "Section 54F,
+        # Income-tax Act 1961" (no asset type, no fact pattern), the model expanded
+        # "deduction eligibility" into "...capital gains on transfer of agricultural
+        # land", inventing a specific asset type that appears in neither the query
+        # nor the note. That's exactly the fabrication the base prompt's "never
+        # invent a narrower sub-topic/fact pattern" rule (see search_query rules
+        # above) exists to block. The fix is NOT "never add anything beyond the
+        # note's literal text" - the base prompt already legitimizes using the
+        # model's own legal knowledge of a section's general subject matter (its
+        # own "section 55" -> "cost of acquisition" example is exactly this,
+        # applied to a bare section number instead of a persona note). The
+        # distinction that matters is the same one those examples already draw:
+        # general subject matter (what the section broadly covers) is fine and
+        # expected; a specific narrower fact pattern, asset type, or transaction
+        # detail invented beyond that is not - "agricultural land" is the latter,
+        # not the former, for a note that never named an asset type at all.
         user_message += (
             f"\n\n{persona_context}\n{RELEVANCE_INSTRUCTION}\n"
-            "If the query above is short/bare/ambiguous on its own (per the "
-            "system prompt's own confident-expansion rule for search_query), you "
-            "may treat the user-focus note above as a legitimate basis for that "
-            "confident, closely-related expansion - same standard as any other "
-            "confident expansion: only when it doesn't contradict what's already "
-            "in the query, never when the query is already a complete, "
-            "unambiguous sentence that answers its own scope."
+            "If the query above is short/bare/ambiguous on its own (per the system "
+            "prompt's own confident-expansion rule for search_query), you SHOULD "
+            "expand search_query using the user-focus note above - do not leave it "
+            "unexpanded just because the query alone doesn't name the topic; that's "
+            "exactly the situation this note exists to resolve. The Lexicon check "
+            "note above (if present) governs \"intent\" only - it never overrides "
+            "this instruction or blocks a persona-based search_query expansion. "
+            "Only skip the expansion if the query already names a different, "
+            "unrelated Act/section/topic of its own (a real conflict), or is "
+            "already a complete sentence that fully states its own scope. When you "
+            "do expand, add the Act/Rule name, section/rule number, and (using "
+            "your own legal knowledge, same as the section-55/cost-of-acquisition "
+            "rule above) that section's known GENERAL subject matter - never a "
+            "specific asset type, fact pattern, transaction detail, or narrower "
+            "angle that isn't itself named in the note, even if it sounds like a "
+            "plausible example of that section; add the section's broad subject, "
+            "not one instance of it."
         )
     response, reasoning = await gateway.chat_with_reasoning(
         role="slm",
@@ -703,14 +745,19 @@ async def extract_intent(
         # role moved to it (CHAT_PROVIDER=local) - near-greedy decoding on a Thinking model
         # is a plausible contributor to the self-contradicting reasoning loops observed in
         # its reasoning_content (e.g. re-deriving the same "Section 52" verdict five times
-        # before landing on the wrong one). 0.6/top_p=0.95/top_k=20/min_p=0 is Qwen's own
-        # recommended sampling config for the -Thinking variant - only temperature is
-        # plumbed through this call today, so only that moves here. Determinism across
-        # identical calls (the original reason for pinning near-zero - collections_for_
-        # intent() routing depends on a stable "intent" list) is no longer guaranteed at
-        # this setting; re-evaluate against evals/intent_filter_cases.json before relying
-        # on this for routing-sensitive comparisons. https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507
-        temperature=0.6,
+        # before landing on the wrong one). Raised to 0.6 (Qwen's own recommended
+        # top_p=0.95/top_k=20/min_p=0 sampling config for the -Thinking variant, though only
+        # temperature is plumbed through this call today) to escape that regime - then
+        # dropped back to 0.1 experimentally (2026-08-31) to test whether it reduces the
+        # observed run-to-run inconsistency in persona-based search_query expansion (e.g.
+        # "timelimit" expanding while "time limit" doesn't, same persona context both times -
+        # see docs/testing-notes.md). If self-contradicting reasoning loops reappear at this
+        # setting, revert to 0.6. Determinism across identical calls (the original reason for
+        # pinning near-zero - collections_for_intent() routing depends on a stable "intent"
+        # list) is not guaranteed at either setting; re-evaluate against
+        # evals/intent_filter_cases.json before relying on this for routing-sensitive
+        # comparisons. https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507
+        temperature=0.1,
     )
     try:
         result = json.loads(response)
