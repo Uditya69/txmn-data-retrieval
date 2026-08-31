@@ -195,6 +195,11 @@ Given a user query, return ONLY a JSON object with exactly these keys:
 
 - "intent": Return one or more of the following categories only. Tag a
   category only when the query genuinely anchors on it - don't over-list.
+  A query often carries more than one genuine anchor at once - e.g. it
+  names a court/party/precedent AND cites a specific section or rule
+  number - and each anchor you actually see gets its own tag; picking only
+  the most salient anchor and dropping the rest is under-tagging, not
+  focus.
 
   - "acts"
       The law itself, as enacted by Parliament - the section, sub-section,
@@ -204,6 +209,13 @@ Given a user query, return ONLY a JSON object with exactly these keys:
           Act, CGST Act, Customs Act, BNS, etc.)
         - Query uses "section", "as per the Act", "definition under"
       Example: "What does section 80C of the Income-tax Act cover?"
+      Rewrite patterns for search_query (pick whichever fits what's actually
+      in the query - not an exhaustive or required list, just the shapes
+      that work well for this category):
+        - "<Act name> Section <N>" (bare anchor, e.g. "Income-tax Act 1961
+          Section 54F")
+        - "definition of <term> under <Act name>"
+        - "as per section <N> of <Act name>, <topic>"
 
   - "rules"
       Subordinate rules issued under an Act - procedure, computation
@@ -214,6 +226,11 @@ Given a user query, return ONLY a JSON object with exactly these keys:
           mechanics (Income-tax Rules, CGST Rules, Customs Valuation Rules)
       Example: "Which form is prescribed under Rule 12 of the Income-tax
       Rules?"
+      Rewrite patterns for search_query (pick whichever fits - not
+      exhaustive):
+        - "Rule <N> of the <Act> Rules"
+        - "form/procedure prescribed under Rule <N> for <topic>"
+        - "manner of <compliance action> under Rule <N>"
 
   - "caselaws"
       A judicial decision - what a court actually decided for a real
@@ -225,6 +242,19 @@ Given a user query, return ONLY a JSON object with exactly these keys:
           legally happen ("is X taxable when Y", "can a court order Z")
       Example: "Is compensation received for compulsory land acquisition
       taxable?"
+      Rewrite patterns for search_query (pick whichever fits - not
+      exhaustive; use whichever anchor the query actually gives you):
+        - party-vs-party: "<Party A> vs <Party B>" / "<Party A> v.
+          <Party B>"
+        - court/bench + topic: "<Court name> ruling on <topic>",
+          "<Tribunal> on <topic>"
+        - citation string, if one is present, kept verbatim
+        - precedent phrasing: "case law / precedent on <topic>", "held
+          that <proposition>"
+        - fact-pattern question, when no name/court/citation exists: "is
+          <situation> taxable/allowable/liable" - keep the fact pattern
+          intact, don't force it into a party or court shape it doesn't
+          have
 
   - "articles"
       A named expert's own published opinion or analysis - not binding
@@ -234,6 +264,13 @@ Given a user query, return ONLY a JSON object with exactly these keys:
           on...", or names an author
       Example: "Any recent articles on the impact of the new TDS rules on
       freelancers?"
+      Rewrite patterns for search_query (pick whichever fits - not
+      exhaustive):
+        - "article on <topic>"
+        - "<author name>'s opinion/analysis on <topic>", when an author is
+          named
+        - "expert analysis/commentary on <topic>" (recent developments,
+          impact framing)
 
   - "commentary"
       The publisher's own plain-language, provision-by-provision
@@ -242,6 +279,11 @@ Given a user query, return ONLY a JSON object with exactly these keys:
         - Query asks what a provision means or how it works in the
           abstract: "explain section X", "how is Y computed"
       Example: "How is depreciation computed under the Income-tax Act?"
+      Rewrite patterns for search_query (pick whichever fits - not
+      exhaustive):
+        - "how is <mechanism> computed/determined"
+        - "meaning/scope of <term/section>" (no Act-name emphasis needed)
+        - "practical application of <provision/topic>"
 
   - "tariff"
       Customs/GST tariff classification and rates for one specific good.
@@ -249,6 +291,11 @@ Given a user query, return ONLY a JSON object with exactly these keys:
         - Query asks for an HSN code, duty rate, rate schedule, or
           exemption notification tied to a specific good or tariff heading
       Example: "What is the customs duty rate for imported solar panels?"
+      Rewrite patterns for search_query (pick whichever fits - not
+      exhaustive):
+        - "customs duty rate for <good>"
+        - "HSN code for <good>"
+        - "exemption notification for <good>"
 
   Boundary cases - when a query could match more than one category, use
   these to decide:
@@ -423,28 +470,54 @@ Given a user query, return ONLY a JSON object with exactly these keys:
 - "intent": Return one or more of the categories below - never more than
   genuinely applies, never fewer. Judge each query against what the
   category actually IS, not a checklist of trigger phrases; the definitions
-  below are written to be sufficient on their own.
+  below are written to be sufficient on their own. A query often carries
+  more than one genuine anchor at once - e.g. it names a court/party/
+  precedent AND cites a specific section or rule number - and each anchor
+  you actually see gets its own tag; picking only the most salient anchor
+  and dropping the rest is under-tagging, not focus. This isn't a special
+  pairing rule to memorize, it's the same "judge what's actually there"
+  principle applied to every anchor in the query, not just one.
 
   - "acts": A primary legislation enacted by Parliament or a State
     Legislature. It contains the main substantive law, including
-    definitions, rights, obligations, powers, procedures and penalties.
-    Queries asking about a section, statutory provision, legal requirement,
-    eligibility, liability or interpretation of the Act itself relate to
-    an Act.
+    definitions, rights, obligations, powers, procedures and
+    penalties. Queries asking about a section, statutory provision, legal
+    requirement, eligibility, liability or interpretation of the Act itself
+    relate to an Act. When you tag "acts", write search_query in whichever
+    of these shapes actually fits the query's own anchor - a bare
+    "<Act name> Section <N>" form, a "definition of <term> under <Act>"
+    form, or an "as per section <N> of <Act>, <topic>" form - these are
+    illustrative shapes, not the only three possible; use your own
+    judgment for a query that fits none exactly.
 
   - "rules": A subordinate/delegated legislation made under the authority
     of an Act by the Government or another competent authority. Rules
     generally prescribe the detailed procedure, conditions, forms, manner,
     timelines or implementation mechanism for provisions of the Act.
     Queries referring to a rule, prescribed procedure, form, manner,
-    condition or compliance requirement relate to Rules.
+    condition or compliance requirement relate to Rules. When you tag
+    "rules", search_query shapes like "Rule <N> of the <Act> Rules", "form/
+    procedure prescribed under Rule <N> for <topic>", or "manner of
+    <compliance action> under Rule <N>" fit well - again illustrative, not
+    exhaustive.
 
   - "caselaws": The law and legal principles emerging from judgments,
     orders or decisions of courts, tribunals or other judicial/quasi-
     judicial authorities. Case law is relevant where a customer seeks
     judicial interpretation, legal precedent, applicability of a judgment,
     treatment of a factual situation by courts, or the current judicial
-    position on an issue.
+    position on an issue. Case law queries arrive in many different
+    shapes, and search_query should follow whichever shape the query
+    itself gives you rather than forcing one fixed template: a
+    party-vs-party form ("<Party A> vs <Party B>" / "<Party A> v.
+    <Party B>") when named parties exist; a court/bench-plus-topic form
+    ("<Court name> ruling on <topic>", "<Tribunal> on <topic>") when a
+    court or bench is named without a party; a citation string kept
+    verbatim when one is present; a precedent-phrasing form ("case law /
+    precedent on <topic>", "held that <proposition>"); or, when the query
+    names no party, court, or citation at all, a fact-pattern question
+    left intact ("is <situation> taxable/allowable/liable") rather than
+    forced into a party or court shape it doesn't have.
 
   - "articles": An explanatory or analytical publication written by a
     subject-matter expert discussing a legal, tax, regulatory or practical
@@ -453,6 +526,10 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     seeking explanation, analysis, practical understanding, overview,
     implications or expert discussion of a topic - especially one naming
     an author or asking for a published opinion - may relate to an Article.
+    search_query shapes like "article on <topic>", "<author name>'s
+    opinion/analysis on <topic>" when an author is named, or "expert
+    analysis/commentary on <topic>" fit well here - illustrative, not
+    exhaustive.
 
   - "commentary": A detailed expert explanation and interpretation of a
     specific Act, provision, rule or legal subject, usually organised
@@ -468,14 +545,20 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     so leaving it out would retrieve the explanation without the thing
     being explained. Tag commentary alone only for a broader mechanism/
     topic query with no single section/rule anchor (e.g. "how is
-    depreciation computed").
+    depreciation computed"). search_query shapes like "how is <mechanism>
+    computed/determined", "meaning/scope of <term/section>", or "practical
+    application of <provision/topic>" fit well here - illustrative, not
+    exhaustive.
 
   - "tariff": Customs/GST tariff classification, HSN code, duty rate or
     exemption applicable to a specific good, product or service under the
     Customs Tariff Act, GST law or related notifications. Tariff is
     relevant where a customer seeks HSN classification, applicable
     duty/tax rate, exemption notification, or the correct tariff heading
-    for a particular good or import/export transaction.
+    for a particular good or import/export transaction. search_query
+    shapes like "customs duty rate for <good>", "HSN code for <good>", or
+    "exemption notification for <good>" fit well here - illustrative, not
+    exhaustive.
 
   Output an empty list when no category confidently applies. Never output
   any other value. If the user message below includes a "Lexicon check" note
