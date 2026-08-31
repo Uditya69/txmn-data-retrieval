@@ -123,6 +123,7 @@ function TraceSection({
 const PAGE_SIZE = 10
 
 function InstantPane({ result, devMode, onOpenDocument, query }: { result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void; query: string }) {
+  const status = result?.status ?? 'loading'
   const instant = result?.instant
   const isReranked = Boolean(instant?.reranked)
   const allCards = useMemo(
@@ -248,7 +249,16 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
         </div>
       )}
 
-      {!instant && <LoadingDots />}
+      {!instant && status !== 'done' && <LoadingDots />}
+      {!instant && status === 'done' && (
+        // Reopened conversations only carry the final answer's citations, not
+        // the live Instant hit cards (never persisted - see chat/repository.py) -
+        // without this, a finished-but-instant-less message rendered `!instant`
+        // as "still loading" forever instead of "nothing to show here".
+        <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
+          Instant matches aren't saved for past conversations.
+        </p>
+      )}
       {instant && cards.length === 0 && (
         <p className="text-sm" style={{ color: 'var(--text-faint)' }}>No matches.</p>
       )}

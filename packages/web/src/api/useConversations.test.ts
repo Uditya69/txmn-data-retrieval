@@ -82,6 +82,31 @@ describe('useConversations', () => {
     }
   })
 
+  it('loadConversation hydrates a stored assistant citations dict into aiMode.citations', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'conv-1', title: 'q1', created_at: 'x', updated_at: 'x',
+        messages: [
+          { role: 'user', text: 'what is section 80HH' },
+          {
+            role: 'assistant', text: 'Section 80HH provides a deduction...',
+            citations: { 'doc-1': { heading: 'Section 80HH' } },
+          },
+        ],
+      }),
+    } as Response)
+
+    const { result } = renderHook(() => useConversations('http://api', 'token-123'))
+    const messages = await result.current.loadConversation('conv-1')
+
+    const assistant = messages.find((m) => m.role === 'assistant')
+    expect(assistant?.results.classic?.aiMode).toEqual({
+      ok: true, answer: 'Section 80HH provides a deduction...',
+      citations: { 'doc-1': { heading: 'Section 80HH' } },
+    })
+  })
+
   it('remove calls DELETE and drops the conversation from local state', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] } as Response)
     vi.stubGlobal('fetch', fetchMock)

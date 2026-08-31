@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import type { ChatMessage } from '../types'
+import type { AiModeCitation } from './useSearch'
 
 export interface ConversationSummary {
   id: string
@@ -15,6 +16,10 @@ export interface ConversationSummary {
 interface StoredMessage {
   role: 'user' | 'assistant'
   text: string
+  // Only present on assistant messages, and only for turns saved after
+  // retrieval-trace persistence landed - older stored conversations won't
+  // have it, so this stays optional and hydration falls back to `{}`.
+  citations?: Record<string, AiModeCitation>
 }
 
 interface ConversationDetail extends ConversationSummary {
@@ -43,7 +48,7 @@ export function hydrateStoredMessages(conversationId: string, stored: StoredMess
       results: {
         classic: {
           status: 'done',
-          aiMode: { ok: true, answer: m.text, citations: {} },
+          aiMode: { ok: true, answer: m.text, citations: m.citations ?? {} },
           traceSteps: [],
         },
       },

@@ -43,7 +43,7 @@ def _patch_common(monkeypatch, fake_run_ai_mode, fake_conversations_collection, 
 
 def test_ws_search_logged_in_user_persists_conversation_turn(monkeypatch, fake_conversations_collection):
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context="", **_kwargs):
-        return {"ok": True, "answer": "final answer", "citations": {}, "intent": ["caselaws"]}
+        return {"ok": True, "answer": "final answer", "citations": {"d1": {"heading": "Section 80HH"}}, "intent": ["caselaws"]}
 
     _patch_common(monkeypatch, fake_run_ai_mode, fake_conversations_collection)
 
@@ -55,7 +55,9 @@ def test_ws_search_logged_in_user_persists_conversation_turn(monkeypatch, fake_c
         })
         response = websocket.receive_json()
 
-    assert response == {"type": "ai_mode_done", "answer": "final answer", "citations": {}}
+    assert response == {
+        "type": "ai_mode_done", "answer": "final answer", "citations": {"d1": {"heading": "Section 80HH"}},
+    }
 
     from chat.repository import get_conversation
     import asyncio
@@ -65,6 +67,13 @@ def test_ws_search_logged_in_user_persists_conversation_turn(monkeypatch, fake_c
         if stored is not None:
             break
         time.sleep(0.01)
+
+    # The stored assistant message must carry the same citations the client
+    # saw live - otherwise reopening this conversation renders the answer
+    # with no citation strip and no clickable [n] markers (see
+    # useConversations.ts's hydrateStoredMessages).
+    assistant_message = next(m for m in stored["messages"] if m["role"] == "assistant")
+    assert assistant_message["citations"] == {"d1": {"heading": "Section 80HH"}}
 
     assert stored is not None
     assert stored["title"] == "gst rate"

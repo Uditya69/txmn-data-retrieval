@@ -385,6 +385,7 @@ async def search(websocket: WebSocket):
                                         {
                                             "role": "assistant", "text": ai_mode_result["answer"],
                                             "langfuse_trace_id": langfuse_trace_id,
+                                            "citations": ai_mode_result["citations"],
                                         },
                                     ],
                                 )
