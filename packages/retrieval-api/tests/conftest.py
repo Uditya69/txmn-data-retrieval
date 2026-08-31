@@ -229,3 +229,25 @@ class _DeleteResult:
 @pytest.fixture
 def fake_conversations_collection():
     return FakeConversationsCollection()
+
+
+class FakeRetrievalTracesCollection:
+    """Mirrors packages/chat/tests/conftest.py's fixture of the same shape -
+    each package's test fakes live directly in its own tests/conftest.py."""
+
+    def __init__(self):
+        self.documents: list[dict] = []
+
+    async def insert_one(self, document: dict) -> "_InsertOneResult":
+        self.documents.append(document)
+        return _InsertOneResult(document.get("_id"))
+
+
+class _InsertOneResult:
+    def __init__(self, inserted_id):
+        self.inserted_id = inserted_id
+
+
+@pytest.fixture
+def fake_retrieval_traces_collection():
+    return FakeRetrievalTracesCollection()

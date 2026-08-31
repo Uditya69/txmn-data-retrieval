@@ -10,6 +10,8 @@ from auth.router import router as auth_router
 from common.instant_classifier import classify
 from persona.config import get_persona_settings
 from persona.db import ensure_persona_indexes, get_mongo_client as get_persona_mongo_client
+from chat.config import get_chat_settings
+from chat.db import ensure_retrieval_traces_indexes, get_mongo_client as get_chat_mongo_client
 from chat.router import router as chat_router
 from retrieval_api.admin_eval.router import router as admin_eval_router
 from retrieval_api.ws import router
@@ -48,6 +50,12 @@ async def lifespan(app: FastAPI):
         await ensure_persona_indexes(persona_client, persona_settings)
     except Exception:
         logger.exception("Failed to ensure persona indexes at startup - continuing without them")
+    try:
+        chat_settings = get_chat_settings()
+        chat_client = get_chat_mongo_client(chat_settings)
+        await ensure_retrieval_traces_indexes(chat_client, chat_settings)
+    except Exception:
+        logger.exception("Failed to ensure retrieval-trace indexes at startup - continuing without them")
     yield
 
 

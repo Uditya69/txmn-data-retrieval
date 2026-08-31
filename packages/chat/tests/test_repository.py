@@ -7,6 +7,7 @@ from chat.repository import (
     delete_conversation,
     get_conversation,
     list_conversations,
+    save_retrieval_trace,
 )
 
 
@@ -123,3 +124,33 @@ async def test_delete_conversation_removes_only_owners_document(fake_conversatio
     assert await delete_conversation(conversations, "conv-1", "user-2") is False
     assert await delete_conversation(conversations, "conv-1", "user-1") is True
     assert await get_conversation(conversations, "conv-1", "user-1") is None
+
+
+@pytest.mark.asyncio
+async def test_save_retrieval_trace_stores_instant_document(fake_retrieval_traces_collection):
+    traces = fake_retrieval_traces_collection
+    doc = await save_retrieval_trace(
+        traces, "conv-1", "user-1", "instant", "what is section 54F",
+        "trace-abc", "obs-abc", instant={"reranked": [{"doc_id": "d1"}]},
+    )
+    assert doc["conversation_id"] == "conv-1"
+    assert doc["user_id"] == "user-1"
+    assert doc["mode"] == "instant"
+    assert doc["query"] == "what is section 54F"
+    assert doc["langfuse_trace_id"] == "trace-abc"
+    assert doc["langfuse_observation_id"] == "obs-abc"
+    assert doc["instant"] == {"reranked": [{"doc_id": "d1"}]}
+    assert doc["ai_mode"] is None
+    assert traces.documents == [doc]
+
+
+@pytest.mark.asyncio
+async def test_save_retrieval_trace_stores_ai_mode_document(fake_retrieval_traces_collection):
+    traces = fake_retrieval_traces_collection
+    doc = await save_retrieval_trace(
+        traces, "conv-1", "user-1", "ai_mode", "what is section 54F",
+        "trace-xyz", "obs-xyz", ai_mode={"citations": {"d1": {}}, "rrf_candidates": {"candidate_count": 3}},
+    )
+    assert doc["mode"] == "ai_mode"
+    assert doc["instant"] is None
+    assert doc["ai_mode"] == {"citations": {"d1": {}}, "rrf_candidates": {"candidate_count": 3}}

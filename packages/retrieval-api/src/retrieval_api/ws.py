@@ -8,7 +8,9 @@ from langfuse import get_client
 from auth.config import get_auth_settings
 from auth.security import decode_access_token
 from chat.config import get_chat_settings
-from chat.db import get_conversations_collection, get_mongo_client as get_chat_mongo_client
+from chat.db import (
+    get_conversations_collection, get_retrieval_traces_collection, get_mongo_client as get_chat_mongo_client,
+)
 from common.config import get_settings
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
@@ -20,7 +22,7 @@ from persona.repository import get_current_snapshot, migrate_legacy_persona
 from semantic_cache.config import get_semantic_cache_settings
 from semantic_cache.db import get_semantic_cache_collection, get_mongo_client as get_cache_mongo_client
 from semantic_cache.repository import lookup as cache_lookup, write as cache_write
-from retrieval_api.ai_mode.chat_signal import record_conversation_turn
+from retrieval_api.ai_mode.chat_signal import record_conversation_turn, record_retrieval_trace
 from retrieval_api.ai_mode.persona_signal import record_persona_signal
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.instant.search import run_instant
@@ -76,6 +78,30 @@ async def _emit_trace_step(send, step: str, data: dict) -> None:
         await send({"type": "ai_mode_trace", "step": step, "data": data})
     except Exception as exc:
         logger.warning("trace step %r dropped: %s", step, exc)
+
+
+def _extract_instant_trace(instant_result: dict) -> dict:
+    """Persisted Instant-mode trace payload: just the final reranked/fused doc_id
+    order, not the full per-hit dicts (score/heading/text/etc across es/milvus/
+    milvus_sparse/reranked/doc_meta) - those are already visible live over the
+    websocket and would otherwise dominate this collection's storage for no
+    benefit this repo currently needs."""
+    return {"doc_ids": [row["doc_id"] for row in instant_result.get("reranked") or []]}
+
+
+def _extract_ai_mode_trace(steps: list[dict], citations: dict, intent: list[str]) -> dict:
+    """Builds the persisted AI Mode retrieval-trace payload from whatever on_step
+    calls run_ai_mode actually made this turn - "ai_rrf_merge"/"rerank" for the
+    intent-classified path, "keyword_search" for the keyword-anchor path (they're
+    mutually exclusive per turn, see pipeline.py's mode branch)."""
+    by_step = {entry["step"]: entry["data"] for entry in steps}
+    return {
+        "rrf_candidates": by_step.get("ai_rrf_merge"),
+        "reranked_chunks": by_step.get("rerank"),
+        "keyword_search": by_step.get("keyword_search"),
+        "citations": citations,
+        "intent": intent,
+    }
 
 
 async def _safe_cache_write(collection, mode: str, query: str, query_embedding: list[float], result: dict) -> None:
@@ -226,6 +252,12 @@ async def search(websocket: WebSocket):
         with langfuse.start_as_current_observation(
             as_type="span", name="ws-search", input={"query": query, "mode": mode},
         ) as root_span:
+            # Captured once, up front, for this turn's retrieval-trace persistence
+            # below - both are None when Langfuse tracing isn't configured, which
+            # save_retrieval_trace/record_conversation_turn store as-is.
+            langfuse_trace_id = langfuse.get_current_trace_id()
+            langfuse_observation_id = langfuse.get_current_observation_id()
+
             instant_task = (
                 asyncio.create_task(
                     run_instant(
@@ -237,11 +269,24 @@ async def search(websocket: WebSocket):
                 )
                 if mode in ("instant", "both") and instant_cache_hit is None else None
             )
+
+            # Always collected (regardless of the client's `trace` toggle) so a full
+            # AI Mode retrieval trace (RRF candidates, reranked chunks) can be
+            # persisted to retrieval_traces even when the client never asked to see
+            # it live - client-facing emission over the websocket stays gated on
+            # `trace` exactly as before.
+            ai_mode_steps: list[dict] = []
+
+            async def collect_ai_mode_step(step: str, data: dict) -> None:
+                ai_mode_steps.append({"step": step, "data": data})
+                if trace:
+                    await _emit_trace_step(send, step, data)
+
             ai_mode_task = (
                 asyncio.create_task(
                     run_ai_mode(
                         gateway, es_client, milvus_client, query,
-                        on_step=emit_trace_step if trace else None,
+                        on_step=collect_ai_mode_step,
                         persona_context=persona_context, boost=boost,
                     )
                 )
@@ -276,6 +321,25 @@ async def search(websocket: WebSocket):
                     "instant_milvus_error": instant_result["milvus_error"] or "",
                 })
                 await send({"type": "instant_result", **instant_result})
+
+                if user_id is not None and conversation_id is not None:
+                    try:
+                        chat_settings = get_chat_settings()
+                        chat_mongo_client = get_chat_mongo_client(chat_settings)
+                        retrieval_traces_collection = get_retrieval_traces_collection(chat_mongo_client, chat_settings)
+                        instant_trace_task = asyncio.create_task(
+                            record_retrieval_trace(
+                                retrieval_traces_collection, conversation_id, user_id, "instant", query,
+                                langfuse_trace_id, langfuse_observation_id,
+                                instant=_extract_instant_trace(instant_result),
+                            )
+                        )
+                        _background_tasks.add(instant_trace_task)
+                        instant_trace_task.add_done_callback(_background_tasks.discard)
+                    except Exception:
+                        # A down/unreachable chat store must never crash the request -
+                        # mirrors the AI Mode conversation write's resilience pattern below.
+                        logger.exception("Failed to schedule instant retrieval-trace write for user %r", user_id)
 
             if ai_mode_cache_hit is not None or ai_mode_task is not None:
                 if ai_mode_cache_hit is not None:
@@ -317,13 +381,35 @@ async def search(websocket: WebSocket):
                                 record_conversation_turn(
                                     conversations_collection, conversation_id, user_id, _title_from_query(query),
                                     [
-                                        {"role": "user", "text": query},
-                                        {"role": "assistant", "text": ai_mode_result["answer"]},
+                                        {"role": "user", "text": query, "langfuse_trace_id": langfuse_trace_id},
+                                        {
+                                            "role": "assistant", "text": ai_mode_result["answer"],
+                                            "langfuse_trace_id": langfuse_trace_id,
+                                        },
                                     ],
                                 )
                             )
                             _background_tasks.add(chat_task)
                             chat_task.add_done_callback(_background_tasks.discard)
+
+                            # ai_mode_task is None on a semantic-cache hit - no fresh
+                            # on_step calls were made this turn, so there's no RRF/rerank
+                            # trace to persist (the cache doesn't store it either).
+                            if ai_mode_task is not None:
+                                retrieval_traces_collection = get_retrieval_traces_collection(
+                                    chat_mongo_client, chat_settings,
+                                )
+                                ai_mode_trace_task = asyncio.create_task(
+                                    record_retrieval_trace(
+                                        retrieval_traces_collection, conversation_id, user_id, "ai_mode", query,
+                                        langfuse_trace_id, langfuse_observation_id,
+                                        ai_mode=_extract_ai_mode_trace(
+                                            ai_mode_steps, ai_mode_result["citations"], ai_mode_result.get("intent", []),
+                                        ),
+                                    )
+                                )
+                                _background_tasks.add(ai_mode_trace_task)
+                                ai_mode_trace_task.add_done_callback(_background_tasks.discard)
                         except Exception:
                             # A down/unreachable chat store must never crash the request -
                             # mirrors the persona lookup's resilience pattern above.
