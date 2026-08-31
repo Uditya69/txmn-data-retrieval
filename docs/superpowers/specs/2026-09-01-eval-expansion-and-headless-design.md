@@ -58,11 +58,23 @@ Target sizes (existing → new):
   `retrieval_eval.py --dataset <file>`.
 
 Combined total ≈ 425. New cases for the three SLM datasets cover, deliberately mixed
-in: each of the six intent categories solo and in multi-label combination; genuinely
-vague queries expecting the safe-empty fallback; colloquial/typo/Hinglish phrasing;
-filter-heavy queries (dates, courts, party names, section numbers); and sibling-section
-confusion probes (e.g. 54F vs 54B — tracking the known SLM section-conflation risk over
-a larger sample instead of a handful of cases). New retrieval-eval cases keep the
+in: each of the six intent categories solo and in multi-label combination; filter-heavy
+queries (dates, courts, party names, section numbers); and sibling-section confusion
+probes (e.g. 54F vs 54B — tracking the known SLM section-conflation risk over a larger
+sample instead of a handful of cases). Two distinct "vague" subtypes get separate
+coverage, since they're different failure modes:
+
+- **Vague-but-answerable** (`expect: "confident"`) — plain, colloquial, non-jargon
+  phrasing that still has real legal meaning underneath (e.g. "boss won't give me
+  credit for the tax I already paid abroad" instead of "foreign tax credit under
+  section 91"). The classifier has to extract the legal concept from lay language and
+  route correctly, not just pattern-match on statutory terminology. This is the
+  regression-relevant slice: it stress-tests whether extract_intent() actually
+  understands the query versus keyword-matching known legal terms.
+- **Genuinely ambiguous** (`expect: "vague"`) — no recoverable legal signal at all;
+  the safe-empty fallback is the correct answer, not a cop-out.
+
+New retrieval-eval cases keep the
 existing direct/indirect/adversarial structure per gold doc (see
 `evals/retrieval-eval-queries.md`'s protocol) so pass/fail bands stay comparable to the
 existing 53/40-case runs.
