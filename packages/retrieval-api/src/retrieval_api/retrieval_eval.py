@@ -227,6 +227,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             rewritten_sparse = cached["rewritten_sparse"]
             merged = cached["merged"]
             reranked = cached["reranked"]
+            reasoning = cached.get("reasoning")
             timings["stage_cache"] = 0.0
         else:
             es_rows = await measured("es", raw_search(es_client, query, limit=limit, boost=boost)) or []
@@ -241,6 +242,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             )) or {name: [] for name in MILVUS_COLLECTIONS}
 
             intent = await measured("intent", extract_intent(gateway, query, model=slm_model))
+            reasoning = intent.get("reasoning") if intent else None
             rewritten_query = intent.get("search_query", query) if intent else query
             routed_collections = collections_for_intent(intent.get("intent") or []) if intent else MILVUS_COLLECTIONS
             allowlist = await measured("filters", resolve_allowlist(es_client, intent.get("filters", {}))) if intent else None
@@ -278,6 +280,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                     "es_rows": es_rows, "raw_dense": raw_dense, "raw_sparse": raw_sparse,
                     "rewritten_query": rewritten_query, "rewritten_dense": rewritten_dense,
                     "rewritten_sparse": rewritten_sparse, "merged": merged, "reranked": reranked,
+                    "reasoning": reasoning,
                 })
 
         dense_flat = _flatten(rewritten_dense)
@@ -327,7 +330,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
         result = {
             "id": case["id"], "pair": case.get("pair"), "class": case["class"],
             "query": query, "gold_doc_ids": case["gold_doc_ids"],
-            "rewritten_query": rewritten_query, "pass_at": case["pass_at"],
+            "rewritten_query": rewritten_query, "reasoning": reasoning, "pass_at": case["pass_at"],
             "ranks": ranks,
             "collection_ranks": {
                 "raw_dense": _collection_ranks(raw_dense, gold),

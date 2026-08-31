@@ -106,7 +106,10 @@ async def run(
         try:
             result = await extract_intent(gateway, case["query"], model=model)
         except Exception as exception:
-            record = {"id": case["id"], "expect": case["expect"], "outcome": None, "error": f"{exception}"}
+            record = {
+                "id": case["id"], "query": case["query"], "expect": case["expect"],
+                "outcome": None, "error": f"{exception}",
+            }
             print(f"ERROR {case['id']}: {exception}")
             records.append(record)
             if output:
@@ -115,7 +118,7 @@ async def run(
         actual = result["intent"]
         outcome = check_routing_case(case["expected_categories"], actual)
         record = {
-            "id": case["id"], "expect": case["expect"], "outcome": outcome,
+            "id": case["id"], "query": case["query"], "expect": case["expect"], "outcome": outcome,
             "expected_categories": case["expected_categories"], "actual_categories": actual,
             "reasoning": result.get("reasoning"), "error": None,
         }

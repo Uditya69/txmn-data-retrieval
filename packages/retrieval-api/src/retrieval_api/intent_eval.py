@@ -57,7 +57,7 @@ async def run(
         try:
             result = await extract_intent(gateway, case["query"], model=model)
         except Exception as exception:
-            record = {"id": case["id"], "ok": None, "error": f"{exception}"}
+            record = {"id": case["id"], "query": case["query"], "ok": None, "error": f"{exception}"}
             print(f"ERROR {case['id']}: {exception}")
             records.append(record)
             if output:
@@ -69,7 +69,7 @@ async def run(
         )
         ok = filters_ok and categories_ok
         record = {
-            "id": case["id"], "ok": ok, "error": None,
+            "id": case["id"], "query": case["query"], "ok": ok, "error": None,
             "expected_filters": case["expected_filters"], "actual_filters": result["filters"],
             "expected_categories": case["expected_categories"], "actual_categories": result["intent"],
             "reasoning": result.get("reasoning"),
