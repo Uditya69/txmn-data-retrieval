@@ -93,12 +93,13 @@ committed, confirming the gold doc actually surfaces (not necessarily top-1 — 
 what the eval measures — but present in the corpus and reachable).
 
 `gold_doc_ids` stays exact-match grading (no similarity/fuzzy scoring added) — but
-mining should curate it liberally: where more than one real corpus doc genuinely
-answers a query equally well (e.g. several rulings on the same point of law, several
-sections that all govern the same fact pattern), list all of them in that case's
-`gold_doc_ids` rather than picking one arbitrarily. The schema already supports this
-(it's a list); this just means using it deliberately during mining instead of
-defaulting to a single doc per case.
+mining should curate it liberally where it's genuinely warranted: where more than one
+real corpus doc equally answers a query (e.g. several rulings on the same point of
+law, several sections that all govern the same fact pattern), list all of them in that
+case's `gold_doc_ids` rather than picking one arbitrarily. This is opportunistic, not a
+quota — most cases will still have exactly one gold doc, same as today's datasets; only
+add a second/third id when the corpus actually contains an equally-valid alternate
+answer, never pad a case with a weaker doc just to inflate the list.
 
 ## Shared incremental/resumable output — `retrieval_api/eval_io.py`
 
