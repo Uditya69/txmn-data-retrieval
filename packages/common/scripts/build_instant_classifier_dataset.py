@@ -38,7 +38,7 @@ _CHECKPOINT_PATH = _DATA_DIR / "llm_dataset_checkpoint.json"
 _TABLES = ["TAXMANNUSERSEARCHHISTORY"]
 _RESEARCH_PATH_PREFIX = "https://www.taxmann.com/research/%"
 _BATCH_SIZE = 10
-_TARGET_COUNT = 4  # tops the LLM-labeled total up to 200 (196 written so far)
+_TARGET_COUNT = 500  # bulk top-up requested to grow the training set meaningfully
 _DEEPINFRA_URL = "https://api.deepinfra.com/v1/openai/chat/completions"
 
 

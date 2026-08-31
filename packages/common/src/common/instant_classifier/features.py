@@ -4,7 +4,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.pipeline import FeatureUnion
 
 from common.legal_lexicon import (
-    CITATION_PATTERN, PARTY_PATTERN, SECTION_PATTERN, expand_synonyms, is_known_court, is_known_journal,
+    CITATION_PATTERN, PARTY_PATTERN, SECTION_PATTERN, expand_synonyms, is_known_court, is_known_journal, is_stopword,
 )
 
 _QUESTION_WORDS = {"what", "where", "when", "why", "who", "how", "which", "whose"}
@@ -54,6 +54,42 @@ class GazetteerFeaturizer(BaseEstimator, TransformerMixin):
         return np.array(rows)
 
 
+class ElaborationFeaturizer(BaseEstimator, TransformerMixin):
+    """Counts non-stopword content words trailing the last section/citation match in a
+    query - e.g. "explain Section 194C" has none, "explain how Section 194C applies to
+    sub-contractor payments" has three ("applies", "sub-contractor", "payments").
+
+    Added because bare "wrapper + section ref" queries (KEYWORD) and "wrapper + section
+    ref + elaborating clause" queries (HYBRID) were only distinguishable to the rest of
+    the feature union via raw word-overlap - the model could fit both patterns but
+    stayed under-confident on the boundary between them (see instant_classifier_model
+    training-data eval misses, all landing in the 0.5-0.7 confidence band). This gives
+    that specific, labeling-consistent distinction an explicit signal instead of making
+    LogisticRegression reconstruct it from TF-IDF token counts alone."""
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        rows = []
+        for text in X:
+            match = None
+            for pattern in (SECTION_PATTERN, CITATION_PATTERN):
+                for m in pattern.finditer(text):
+                    if match is None or m.end() > match.end():
+                        match = m
+            if match is None:
+                rows.append([0.0])
+                continue
+            trailing = text[match.end():]
+            count = sum(
+                1.0 for token in trailing.split()
+                if (stripped := token.strip(".,;:\"'()?")) and not is_stopword(stripped)
+            )
+            rows.append([count])
+        return np.array(rows)
+
+
 class StructuralFeaturizer(BaseEstimator, TransformerMixin):
     """Token count, trailing '?', quote presence. Runs on text that's already been
     through query_tokenizer's normalization upstream, so a stray leftover symbol and
@@ -94,12 +130,13 @@ class IntentLanguageFeaturizer(BaseEstimator, TransformerMixin):
         return np.array(rows)
 
 
-def build_feature_union() -> FeatureUnion:
+def build_feature_union(word_min_df: int = 1, char_min_df: int = 1) -> FeatureUnion:
     return FeatureUnion([
         ("regex", RegexFeaturizer()),
         ("gazetteer", GazetteerFeaturizer()),
+        ("elaboration", ElaborationFeaturizer()),
         ("structural", StructuralFeaturizer()),
         ("intent_language", IntentLanguageFeaturizer()),
-        ("tfidf_word", TfidfVectorizer(analyzer="word", ngram_range=(1, 2), min_df=1)),
-        ("tfidf_char", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=1)),
+        ("tfidf_word", TfidfVectorizer(analyzer="word", ngram_range=(1, 2), min_df=word_min_df)),
+        ("tfidf_char", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=char_min_df)),
     ])

@@ -1,7 +1,8 @@
 import numpy as np
 
 from common.instant_classifier.features import (
-    GazetteerFeaturizer, IntentLanguageFeaturizer, RegexFeaturizer, StructuralFeaturizer, build_feature_union,
+    ElaborationFeaturizer, GazetteerFeaturizer, IntentLanguageFeaturizer, RegexFeaturizer, StructuralFeaturizer,
+    build_feature_union,
 )
 
 
@@ -33,6 +34,21 @@ def test_intent_language_featurizer_detects_question_words_and_first_person():
     assert rows[0][0] == 1.0 and rows[0][1] == 1.0  # "how", "i"
     assert rows[1].tolist() == [0.0, 0.0, 0.0, 0.0]
     assert rows[2][2] == 1.0 and rows[2][3] == 1.0  # "should", "if"
+
+
+def test_elaboration_featurizer_counts_content_words_trailing_a_legal_ref():
+    rows = ElaborationFeaturizer().transform([
+        "Section 80C",
+        "explain Section 194C",
+        "explain how Section 194C applies to sub-contractor payments",
+        "tell me about Section 80C's interaction with 80CCD",
+        "plain text query with no legal reference",
+    ])
+    assert rows[0][0] == 0.0  # bare section ref, nothing trailing
+    assert rows[1][0] == 0.0  # "explain" precedes the ref, nothing trails it
+    assert rows[2][0] > 0.0  # "applies to sub-contractor payments" trails the ref
+    assert rows[3][0] > 0.0  # "interaction with 80CCD" trails the ref
+    assert rows[4][0] == 0.0  # no legal ref at all -> no signal
 
 
 def test_build_feature_union_transforms_a_batch_of_queries_to_a_2d_array():

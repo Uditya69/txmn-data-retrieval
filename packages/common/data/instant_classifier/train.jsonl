@@ -296,3 +296,438 @@
 {"query_text": "135 taxman 327", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-26"}
 {"query_text": "Notification No. 12/2017-Central Tax (Rate) dated 28-06-2017", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-26"}
 {"query_text": "madras HC NARMADA", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-26"}
+{"query_text": "itat order delay after hearing", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "paymentallied", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "103 taxmann.com 75", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "27 taxman 267", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "form 11", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "TS-303-ITAT-2023(CHNY", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "ramaiah", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "the admissibility of loose paper showing payment of cash by a person", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "2000(3) SCC 242", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Section 44BBA", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "47 ctr 277", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "TENANCY RIGHT SURRENDER PURCHASE PROPERTY", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "IBBI/2022-23/GN/REG97", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "352AB", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Atul Shrivastava", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Section 221 machinery", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Delay 3cl", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "firm + company + slump sale", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "section - 41(2)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Cinestaan Entertainment (P.) Ltd.", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "GST Caselaws on Employee Benefits", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Work contract services", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "433 ITR 82", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "271ca", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "nandhi dhal", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "DEMAT SHARES", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Arcadia", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "SEBI original documents", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "income of partner taxed again in hands of partnership after dissolution of firm", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "international taxation", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "rainbow", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Surya Textech", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "95 taxmann.com 225", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "pallav pradyumnnarang", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "RSCG", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Dilip N. Shroff", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "(2015) 51 GST 763", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "kumar pappu singh", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "381 itr 117 (delhi)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "251 ELT 279", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "risk management strategy + rms", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "18 GSTL 583", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Employee share purchase plan", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "155 taxmann.com 322", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "gotla", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Notification no. GSR 666 (E)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "girish ahuja", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "valuation not possible", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "article 12 usa", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "change in share of partners", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "of books", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "cuticorin", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "reimbursement incentive", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "interest  + Article 11 + DTAA", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Minutes of proceedings of general meeting, meeting of Board of Directors and other meeting and resolutions passed by postal ballot", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "9983", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "44 SOT 368", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "94 itr 616", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "tds on rental by individual", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "281 foreign company", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Linde AG, Linde Engineering Division", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Ratnaswami", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "IND AS 34", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "73 ITR 53", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "interest on gratuity", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "58 taxmann.com 254", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "No question of law arise if Tribunal refused to accept new grounds during appeal", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Bharti Airtel Ltd", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2017] 78 taxmann.com 156", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2022] 145 taxmann.com 386", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2003] 47 SCL 241", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "67A", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "proviso", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "9963 SAC", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "140B", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "visual soft time barring", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2013] 35 taxmann.com 368", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "education hiring students", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "133(6) notices to creditors return unserved", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Condonation of delay for trusts late filing", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "NOTIFICATION NO. G.S.R. 206(E)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "capital gains exemption in India Mauritius DTAA based on tax residency certificate", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Press Release: 2023-2024/539", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "396 itr 696 (sc)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "liquidation process for income tax", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "noorjehan", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "1/1/2017-IGST", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "8 Taxman 25", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "scheduled offence PMLA", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2023] 149 taxmann.com 399", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "share split", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "balmer lawrie", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "healthcare services", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "rule 17b", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "bogus invoices", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Madras Industrial Investment Corporation Limited", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Notification No. SEBI/LAD-NRO/GN/2023/149", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "118 ITR 60", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "404 itr 526", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "109 taxmann.com 292", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "CIRCULAR NO.7/2009", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Hello", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2006] 99 ITD 91", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "refund is granted", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "interest on gst allowability u/s 37", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Section 10(23G)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "warehouse maintain for stock delivery", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "rights issue 56(2)(x)", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "404 itr 539", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Credit of CGST charged in one state not available in another state", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "section 10(14) allowance", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "cracker", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "\"Usance interest\"", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "(2010) 1 ITR (Trib.) 484", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "MAT Foreign", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "lower than fmv", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "risk adjustment", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "35(1)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "288 itr 408 (sc)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "104 taxmann.com 44", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "electra paper", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Registered office of company", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "91 taxmann.com 219", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "contingent sale of shares", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "114 ITR 388", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "229 itr 394", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2021] 131 taxmann.com 319", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "matter cannot be remanded as assessment is getting time barred", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "sec 80ee", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "326 itr 1", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Notification S.O. 2119 (E)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "3CEB", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "janta tiles v acit", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "145 taxmann.com 187", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "taxability of fair value loss recognized on investment held for sale", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "validity of LUT", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Unlisted share valuation", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Renting of immovable property government", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "e comm", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "complete guide on real estate", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "be filed", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "69B with 153C", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "business reorganisation", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "kamdhenu", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "rule 37A analysis", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "dr. ratan kumar singh", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "(2002) 255 ITR 220", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "export turnover filter", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "152 taxmann.com 186", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "best judgment assessment", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2021] 129 taxmann.com 393", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Habib Hussein", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "subletting lease", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "94 itd 242", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "102 taxmann.com 191", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Press Release: 2023-2024/1543", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "192 ITR 382", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "346 itr 570 (sc)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "PARTNERSHIP FORMS", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "ITA No 154 of 2014", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2019] 110 taxmann.com 182", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "additional depreciation", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "145", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "hometrail buildtech (p.) ltd.", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "33 Taxman 229", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "tax audit", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Circular No. RBI/2023-24/85 DOR.STR.REC.57/21.06.001/2023-24", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Galaxy Tech nosys Pvt. Ltd. v. ITO, Ward-10(1)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Section 11 not to apply in certain cases", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "(2005) 2 STT 34", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "228A", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2010] 187 Taxman 44", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "1996 taxmann.com 138", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "section 192 vs 194A", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "115A DTAA return of income", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "service apartment", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "TDS applicability payment to regulatory body", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Ranchi club", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "per diem allowance", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "AIR 1937 Mad 19", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "(1995) 55 ITD 372", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "123 taxmann.com 125", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "rectification", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "126 taxmann.com 77", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "cross holding dividend", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2017] 82 taxmann.com 155", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2013] 34 taxmann.com 75 (mumbai)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "harman connected", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "job work", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "vouchers under GST", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "mysore minerals sc", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Kamalini Khatau", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "infomile technologies", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Vodafone M-Pesa Ltd", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Vodafone M-Pesa Ltd.", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Central Goods and Services Tax Act, 2017", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "macrotech", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "ashish agarwal", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "No Pan requirement", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "46A", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "poonam naram", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "rama industries", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "(2004) 270 ITR 523", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "capital loss + mauritius + carry forward", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "3)\tHapag Lloyd India", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "section - 194h", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "97/97", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "moot case", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "controversies in capital gain", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "125 taxmann.com 42", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "73239390", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "25/2019-Central Tax (Rate)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "NISM", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "prem brothers infras", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "fair market value as cost", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "173 Taxman 322", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Dresser rand", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "promotor gift share TO  LLP", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "itc block credit", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "142 taxmann.com 168", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "sundaram clayton", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[1997] 92 Taxman 152", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "General provisions relating to determination of tax", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Abuse of Dominant Position", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "loss due to fire accident", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "bharti hexicom", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "cadila pharma", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "cadila pharmacauticals", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "15 taxmann.com 351", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "KARTAR SINGH", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "inconsistencies between the ITR and Form 3CD under section 43B", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "154(3) opportunity Commissioner of income tax", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "emcure pharmacauticals", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Capital gains", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "\"meaning of repay\"", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "124 taxmann.com 401", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "gazette notification", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "411 ITR 207", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "RBI penalty section 11(3)", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "ozoneland", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "453 ITR 661", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "wankaner", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "accrue arise", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "2019] 106 taxmann.com 108", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "depreciation on lease premium", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "59 Taxman 17", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Interest on GST", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "deductees not filed returns", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2021] 126 taxmann.com 69 (SC)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "115bbj", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "(2017) 87 taxmann.com 275", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "115bae", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Rameshwaram Strong Glass (P.) Ltd.", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Eli Lily", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[1963] 48 itr 577 (bombay)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "internet leaseline", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "sec 17(5)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "representative", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Trade Notice 01/2022", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "11jb is a separate code", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2021] 124 taxmann.com 56", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "net offsetting", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "457 ITR 1", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "cit vs gtz securities", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Freight, import", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2002] 122 Taxman 897 (Delhi)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "foreign company buyback", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "section 64", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "nism", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "269ss", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "nism 15", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "3CEAA", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "CII", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "New bar act", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "buyback regulation", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "(1986) 26 Taxman 452", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "gopal plastics", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "excess net profit", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "179 Taxman 326", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "foreign exchange loss on revenue", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "gst on irrigation works contract", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "accor hotels", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Voltas Limited", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "form 71", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "115bac", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Mani Square Ltd.", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2011] 16 taxmann.com 371 (delhi)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "tds on interest on gratuity", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "appeal", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2023] 148 taxmann.com 352", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "457 ITR 15", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "interest paid on borrowed capital cost of acquisition", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Magadh Sugar & Energy Ltd", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "conversion of partnership firm to company", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2019] 104 taxmann.com 161", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "bir bahadur singh sijwali reported in 68 sot 197 del", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "13794/2020", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "petty cash expense", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2023] 147 taxmann.com 373 (Bangalore - Trib.)[19-12-2022]", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "less time given to respond to SCN violation of natural justice", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "C.J. International hotels Ltd.", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Prahalad Singh", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "whether interest cost added to cost of acquisition of unlisted shares while computing capital gains", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "350 ITR 266 (Guj.)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Trust income taxable when there is no exemption", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "gst on works contracts", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "264", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "2002", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Sec 194c", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "alumna", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "location test", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "kalvinator", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "kalvinator india", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "kelvinator india", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "133 taxmann.com 367", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "MAT Foreign Companies", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "AIR 1978 SC 1272", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[1993] 67 Taxman 486", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "(1997) 227 iTR 880", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "ORDER WITHOUT SHOW CAUSE NOTICE", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "(1997) (227) ITR 880", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "227 ITR 880", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "227 itr 40", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "227 ITR 40", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "TDS in the case LTCG", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "149 ITAT 2020", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "the", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2022] 140 taxmann.com 325", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "everest canto", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "brandix mauritius", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "222 taxman 203", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Circular No. 34/8/2018-GST", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Information utility", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "RITA", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "financing of acquisition of shares", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "notification no. GSR 802(E)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "partnership interest", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "44", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "11 taxmann.com 216", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Aseem Chawla", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "SECTION 176", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "kalpesh synthetic", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "186 Taxman 161", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "jai laxmi rice mills", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Haji Aziz", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "limited scrutiny without permission cit", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "3 SCC 57", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "46 taxmann.com 35 (gujarat)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "co operative bank", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Circular No. 15/2023", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "allegis 80G", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "G.S.R. 401(E)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "scrutiny from limited to complete", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "capital expenditure", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "236 ITR 1003", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "State Government", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Instruction No. 01/2022 dated 11.05.2022", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Reverse charge", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "maran", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "CREDIT AGRICOLE INDOSUEZ", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "credit to bank turnover unexplained", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "115jb", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Section 56(2)(x) waiver", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "126 taxmann.com 132", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Vehicle Rental Services gst rate", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "tds return application", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2010] 188 Taxman 39", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "455 ITR 157", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "foreign investment", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "valuation officer reference section 50C", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2002] 83 ITD 511", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Lord venkateshwar ladies educational and welfare Trust", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Lord venkateshwar ladies", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "debentures + Optiinally convertible", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2023] 157 taxmann.com 668 (bangalore - trib.)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Praveen Gupta", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "59 taxmann.com 359 (punjab & haryana)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "20 taxmann.com 153 (mumbai)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "423 itr 13", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Lease agreements", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "92 taxmann.com 134", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "\"time limit\" AND \"mandatory\"", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "IND AS 2023", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "[2018] 95 taxmann.com 327", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Rental services of road vehicles including buses, coaches, cars, trucks and other motor vehicles, with or without operator", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "maturity proceeds of insurance policy paid by employer taxability", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "49 taxmann.com 249", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "circular 3/2018", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "448 itr 318 (madras)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "ajmera housing", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "122", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Spreadsheet Skills For Finance Professionals", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "48 taxmann.com 447", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "inoperative", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "44A", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "115BBE", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "gst advance ruling", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "PRESUMPTIVE", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "91 ITR 170", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Circular No. 12/2022, dated 16-06-2022", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "RBI/2023-24/44 IDMD.CDD.No.S650/14.04.050/2023-24", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "106 taxmann.com 1 (article)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Notification No. 1/2017-CT (Rate)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "71B", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "95 taxmann.com 44", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "penalty for ITR not filed", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "penalty", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "penalty under", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "penalty under section 274", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "virtual book", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "cash", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "capital", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "penalty for under reporting of income", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "55 ITR 312", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "change in reasons for reopening", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "penalty under reporting return not filed", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "294 Taxman 284", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "turnover 9971", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "deemed dividend", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "281 sop", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "RNOR foreign income and assets", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Engineering Analysis", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "G.S.R. 818(E)", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Rotark Controls", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "2022] 141 taxmann.com 366", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "condonation of delay in filing return of income", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "314 ITR 662", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "carry forward of loss 78", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "2021] 126 taxmann.com 287", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "DETAILS OF DONATIONS", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "micro link", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "Biocon Ltd.", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "\"Fresh claim\" ESOP", "label": "HYBRID", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "pallav pradyumn narang", "label": "KEYWORD", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
+{"query_text": "tds on lumpsum payment of royalty", "label": "INTENT", "source": "llm:google/gemma-4-26B-A4B-it", "date_added": "2026-08-27"}
