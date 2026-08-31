@@ -13,30 +13,39 @@ _EVAL_PATH = _DATA_DIR / "eval_frozen.jsonl"
 # Small grid, not exhaustive - this dataset's size (a few hundred rows) doesn't support
 # tuning more knobs than this without the CV estimate itself becoming noisy.
 _C_GRID = [0.1, 0.3, 1.0, 3.0, 10.0]
-_MIN_DF_GRID = [1, 2]
+# word_min_df is pinned to 1, not searched: at min_df=2 on the 733-row real-traffic set,
+# CV picked word_min_df=2 and INTENT accuracy on eval_frozen collapsed 98.77% -> 68.63%.
+# Many real INTENT queries are one-off topic nouns ("dematerialization", "invoice
+# discounting") whose words appear in exactly 1 training document - min_df=2 prunes them
+# from the TF-IDF vocabulary entirely, leaving those queries with almost no word-level
+# signal to separate INTENT from bare KEYWORD terms. char_min_df stays searched since the
+# char n-gram vocabulary is large enough that pruning singletons there doesn't remove an
+# entire query's signal the way it does for whole words.
+_WORD_MIN_DF = 1
+_CHAR_MIN_DF_GRID = [1, 2]
 _CV_FOLDS = 5
 
 
 def _select_hyperparameters(train_texts: list[str], train_labels: list[str]) -> dict:
-    """Picks (C, word_min_df, char_min_df) by mean accuracy over stratified CV folds on
-    the TRAINING set only - never touches eval_frozen.jsonl, which stays reserved for the
-    final held-out accuracy number. A single train/eval split is too small (a few hundred
-    rows) to trust for hyperparameter selection - a couple of flipped predictions swing the
+    """Picks (C, char_min_df) by mean accuracy over stratified CV folds on the TRAINING
+    set only - never touches eval_frozen.jsonl, which stays reserved for the final
+    held-out accuracy number. A single train/eval split is too small (a few hundred rows)
+    to trust for hyperparameter selection - a couple of flipped predictions swing the
     single-split accuracy enough to make sklearn's untuned default C look no worse than a
-    genuinely better one. CV averages that noise out over multiple folds."""
+    genuinely better one. CV averages that noise out over multiple folds. word_min_df is
+    pinned (see _WORD_MIN_DF), not part of the grid."""
     splitter = StratifiedKFold(n_splits=_CV_FOLDS, shuffle=True, random_state=0)
     best = None
     for c in _C_GRID:
-        for word_min_df in _MIN_DF_GRID:
-            for char_min_df in _MIN_DF_GRID:
-                pipeline = build_pipeline(C=c, word_min_df=word_min_df, char_min_df=char_min_df)
-                scores = cross_val_score(pipeline, train_texts, train_labels, cv=splitter, scoring="accuracy")
-                mean_score = scores.mean()
-                candidate = {
-                    "C": c, "word_min_df": word_min_df, "char_min_df": char_min_df, "cv_accuracy": mean_score,
-                }
-                if best is None or mean_score > best["cv_accuracy"]:
-                    best = candidate
+        for char_min_df in _CHAR_MIN_DF_GRID:
+            pipeline = build_pipeline(C=c, word_min_df=_WORD_MIN_DF, char_min_df=char_min_df)
+            scores = cross_val_score(pipeline, train_texts, train_labels, cv=splitter, scoring="accuracy")
+            mean_score = scores.mean()
+            candidate = {
+                "C": c, "word_min_df": _WORD_MIN_DF, "char_min_df": char_min_df, "cv_accuracy": mean_score,
+            }
+            if best is None or mean_score > best["cv_accuracy"]:
+                best = candidate
     return best
 
 

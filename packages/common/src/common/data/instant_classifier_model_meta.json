@@ -4,9 +4,9 @@
   "eval_examples": 36,
   "hyperparameters": {
     "C": 1.0,
-    "word_min_df": 2,
+    "word_min_df": 1,
     "char_min_df": 2,
-    "cv_accuracy": 0.836231478892927
+    "cv_accuracy": 0.8294101202124686
   },
   "calibration": "sigmoid",
   "overall_eval_accuracy": 0.9444444444444444,
