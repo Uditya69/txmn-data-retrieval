@@ -79,6 +79,7 @@ async def run_ai_mode(
                         "candidate_count": len(rows), "top_doc_ids": [row["doc_id"] for row in top_rows],
                     })
                 intent_categories: list[str] = []
+                synth_search_query = keyword_query
             else:
                 with langfuse.start_as_current_observation(
                     as_type="chain", name="extract-intent", input={"query": query},
@@ -113,11 +114,12 @@ async def run_ai_mode(
                         rerank_enabled=get_settings().ai_mode_rerank_enabled,
                     )
                     span.update(output={"num_top_chunks": len(top_chunks), "num_citations": len(citations)})
+                synth_search_query = intent_result["search_query"]
 
             with langfuse.start_as_current_observation(as_type="chain", name="synthesize", input={"query": query}) as span:
                 synthesis = await synthesize(
                     gateway, es_client, query, top_chunks, citations, on_step=on_step,
-                    persona_context=persona_context,
+                    persona_context=persona_context, search_query=synth_search_query,
                 )
                 span.update(output=synthesis["answer"])
                 if synthesis.get("reasoning"):

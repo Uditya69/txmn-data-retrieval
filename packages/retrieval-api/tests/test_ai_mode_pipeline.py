@@ -24,7 +24,7 @@ async def test_run_ai_mode_success_path(monkeypatch):
     async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         return {"answer": "final answer", "citations": citations}
 
     monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
@@ -58,7 +58,7 @@ async def test_run_ai_mode_forwards_boost_flag_to_retrieve(monkeypatch):
     async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         return {"answer": "final answer", "citations": citations}
 
     monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
@@ -91,7 +91,7 @@ async def test_run_ai_mode_forwards_original_query_as_raw_query_to_retrieve(monk
     async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         return {"answer": "final answer", "citations": citations}
 
     monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
@@ -123,7 +123,7 @@ async def test_run_ai_mode_passes_persona_context_to_synthesize_and_returns_inte
 
     received_persona_context = {}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         received_persona_context["value"] = persona_context
         return {"answer": "final answer", "citations": citations}
 
@@ -140,6 +140,42 @@ async def test_run_ai_mode_passes_persona_context_to_synthesize_and_returns_inte
 
     assert received_persona_context["value"] == "This user frequently asks about acts."
     assert result["intent"] == ["acts"]
+
+
+@pytest.mark.asyncio
+async def test_run_ai_mode_passes_extract_intents_search_query_to_synthesize(monkeypatch):
+    import retrieval_api.ai_mode.pipeline as module
+
+    async def fake_extract_intent(gateway, query, on_step=None, persona_context=""):
+        return {
+            "original_query": query, "search_query": "rewritten Section 54F Income-tax Act 1961",
+            "intent": ["acts"], "filters": {},
+        }
+
+    async def fake_resolve_allowlist(es_client, filters, on_step=None):
+        return None
+
+    async def fake_retrieve(gateway, milvus_client, es_client, search_query, doc_id_allowlist, intent, on_step=None, boost=False, raw_query=None, milvus_sparse_enabled=False):
+        return [{"chunk_id": "a", "doc_id": "d1", "text": "t", "rrf_score": 0.9}]
+
+    async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
+        return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
+
+    received = {}
+
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
+        received["search_query"] = search_query
+        return {"answer": "final answer", "citations": citations}
+
+    monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_resolve_allowlist)
+    monkeypatch.setattr(module, "retrieve", fake_retrieve)
+    monkeypatch.setattr(module, "rerank_and_prefetch", fake_rerank_and_prefetch)
+    monkeypatch.setattr(module, "synthesize", fake_synthesize)
+
+    await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="q")
+
+    assert received["search_query"] == "rewritten Section 54F Income-tax Act 1961"
 
 
 @pytest.mark.asyncio
@@ -173,7 +209,7 @@ async def test_run_ai_mode_persona_context_never_reaches_retrieve_or_alters_rout
     async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         return {"answer": "final answer", "citations": citations}
 
     monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
@@ -237,7 +273,7 @@ async def test_run_ai_mode_succeeds_with_party_only_filter(monkeypatch):
     async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         return {"answer": "final answer", "citations": citations}
 
     monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
@@ -275,7 +311,7 @@ async def test_run_ai_mode_forwards_on_step_to_every_stage(monkeypatch):
         received_on_steps.append(("rerank_and_prefetch", on_step))
         return [{"chunk_id": "a", "doc_id": "d1", "text": "t"}], {"d1": {}}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         received_on_steps.append(("synthesize", on_step))
         return {"answer": "final answer", "citations": citations}
 
@@ -318,7 +354,7 @@ async def test_run_ai_mode_forwards_persona_context_to_extract_intent_and_synthe
     async def fake_rerank_and_prefetch(gateway, es_client, query, candidates, on_step=None, rerank_enabled=True):
         return [], {}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         received["synth_persona"] = persona_context
         return {"answer": "a", "citations": {}}
 
@@ -445,7 +481,7 @@ async def test_run_ai_mode_keyword_tagged_query_skips_retrieve_and_rerank(monkey
 
     received_synthesize_args = {}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         received_synthesize_args["top_chunks"] = top_chunks
         received_synthesize_args["citations"] = citations
         return {"answer": "final answer", "citations": citations}
@@ -488,7 +524,7 @@ async def test_run_ai_mode_keyword_path_caps_at_top_five_by_score(monkeypatch):
 
     received = {}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         received["top_chunks"] = top_chunks
         return {"answer": "a", "citations": citations}
 
@@ -519,7 +555,7 @@ async def test_run_ai_mode_keyword_path_emits_keyword_search_trace_step(monkeypa
     async def fake_fetch_citations(client, doc_ids):
         return {doc_id: {} for doc_id in doc_ids}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         return {"answer": "a", "citations": citations}
 
     monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
@@ -564,7 +600,7 @@ async def test_run_ai_mode_keyword_path_strips_conversational_filler_before_sear
     async def fake_fetch_citations(client, doc_ids):
         return {doc_id: {} for doc_id in doc_ids}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         return {"answer": "a", "citations": citations}
 
     monkeypatch.setattr(module, "extract_intent", fake_extract_intent)
@@ -593,7 +629,7 @@ async def test_run_ai_mode_keyword_path_skips_expansion_by_default(monkeypatch):
     async def fake_fetch_citations(client, doc_ids):
         return {doc_id: {} for doc_id in doc_ids}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         return {"answer": "a", "citations": citations}
 
     monkeypatch.setattr(module, "expand_keyword_terms", unexpected_expand_keyword_terms)
@@ -624,7 +660,7 @@ async def test_run_ai_mode_keyword_path_appends_expanded_keywords_when_flag_enab
     async def fake_fetch_citations(client, doc_ids):
         return {doc_id: {} for doc_id in doc_ids}
 
-    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context=""):
+    async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         return {"answer": "a", "citations": citations}
 
     monkeypatch.setattr(module, "get_settings", lambda: Mock(keyword_mode_expansion_enabled=True))

@@ -191,3 +191,63 @@ async def test_synthesize_appends_relevance_instruction_when_persona_context_pre
     system_prompt = gateway.chat_with_reasoning.await_args.kwargs["messages"][0]["content"]
     assert "This user frequently asks about caselaws." in system_prompt
     assert RELEVANCE_INSTRUCTION in system_prompt
+
+
+@pytest.mark.asyncio
+async def test_synthesize_surfaces_search_query_when_it_differs_from_question(monkeypatch):
+    import retrieval_api.ai_mode.synthesize as module
+
+    monkeypatch.setattr(module, "fetch_citations", AsyncMock(return_value={}))
+
+    gateway = AsyncMock()
+    gateway.chat_with_reasoning.return_value = ("Answer.", None)
+
+    await synthesize(
+        gateway, es_client=object(), query="time limit",
+        top_chunks=[{"chunk_id": "a", "doc_id": "d1", "text": "chunk text"}],
+        citations={"d1": {}},
+        search_query="time limit Section 54F Income-tax Act 1961",
+    )
+
+    user_prompt = gateway.chat_with_reasoning.await_args.kwargs["messages"][1]["content"]
+    assert "Question: time limit" in user_prompt
+    assert "Search was run for: time limit Section 54F Income-tax Act 1961" in user_prompt
+
+
+@pytest.mark.asyncio
+async def test_synthesize_omits_search_query_line_when_identical_to_question(monkeypatch):
+    import retrieval_api.ai_mode.synthesize as module
+
+    monkeypatch.setattr(module, "fetch_citations", AsyncMock(return_value={}))
+
+    gateway = AsyncMock()
+    gateway.chat_with_reasoning.return_value = ("Answer.", None)
+
+    await synthesize(
+        gateway, es_client=object(), query="time limit",
+        top_chunks=[{"chunk_id": "a", "doc_id": "d1", "text": "chunk text"}],
+        citations={"d1": {}},
+        search_query="time limit",
+    )
+
+    user_prompt = gateway.chat_with_reasoning.await_args.kwargs["messages"][1]["content"]
+    assert "Search was run for:" not in user_prompt
+
+
+@pytest.mark.asyncio
+async def test_synthesize_omits_search_query_line_when_not_provided(monkeypatch):
+    import retrieval_api.ai_mode.synthesize as module
+
+    monkeypatch.setattr(module, "fetch_citations", AsyncMock(return_value={}))
+
+    gateway = AsyncMock()
+    gateway.chat_with_reasoning.return_value = ("Answer.", None)
+
+    await synthesize(
+        gateway, es_client=object(), query="time limit",
+        top_chunks=[{"chunk_id": "a", "doc_id": "d1", "text": "chunk text"}],
+        citations={"d1": {}},
+    )
+
+    user_prompt = gateway.chat_with_reasoning.await_args.kwargs["messages"][1]["content"]
+    assert "Search was run for:" not in user_prompt

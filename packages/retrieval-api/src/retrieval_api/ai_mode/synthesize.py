@@ -13,6 +13,12 @@ the actual question yourself. Some queries genuinely have all of them on point; 
 one or two that matter, with the rest more tangential. Never assume an excerpt belongs in the
 answer just because it was retrieved.
 
+If a "Search was run for:" line appears below the question, it is the (possibly expanded) text
+actually used to fetch the excerpts - not a second question, not a fact to cite, and not
+necessarily something the user said. Use it only as context for why a particular excerpt (e.g.
+naming a specific Act/section) showed up; always answer the "Question:" line itself, never the
+search text.
+
 A bold number right before an excerpt's text (e.g. "55.") is NOT always the Act section number -
 in a Finance Act / amendment excerpt, that number is just the clause's own serial position within
 that amending Act, and the section actually being changed is named in the excerpt's heading (e.g.
@@ -74,6 +80,7 @@ Formatting:
 async def synthesize(
     gateway, es_client, query: str, top_chunks: list[dict], citations: dict,
     on_step: OnStep | None = None, model: str | None = None, persona_context: str = "",
+    search_query: str = "",
 ) -> dict:
     missing_doc_ids = [c["doc_id"] for c in top_chunks if c["doc_id"] not in citations]
     if missing_doc_ids:
@@ -81,6 +88,16 @@ async def synthesize(
 
     chunk_block = "\n\n".join(f"[{c['doc_id']}] {c['text']}" for c in top_chunks)
     prompt = f"Question: {query}\n\nCandidate excerpts:\n{chunk_block}"
+    # search_query is extract_intent's (possibly persona-expanded) rewrite used to actually
+    # retrieve the excerpts above - grounding only, never a substitute for the user's real
+    # question. Surfaced only when it differs from the raw query: identical text would just
+    # be noise, and the model must still answer what the user literally asked, not the
+    # internal search string. This is additive alongside persona_context below, not a
+    # replacement for it - persona_context carries the user's standing focus (may matter
+    # even when this turn's search_query didn't need to expand), while search_query explains
+    # why these particular excerpts were retrieved for THIS turn.
+    if search_query.strip() and search_query.strip() != query.strip():
+        prompt = f"Question: {query}\n\nSearch was run for: {search_query}\n\nCandidate excerpts:\n{chunk_block}"
 
     if on_step is not None:
         await on_step("synthesis_prompt", {"prompt": prompt})
