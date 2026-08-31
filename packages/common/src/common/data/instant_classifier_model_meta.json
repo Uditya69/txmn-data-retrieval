@@ -1,16 +1,16 @@
 {
   "version": 2,
-  "train_examples": 302,
+  "train_examples": 733,
   "eval_examples": 36,
   "hyperparameters": {
-    "C": 10.0,
-    "word_min_df": 1,
+    "C": 1.0,
+    "word_min_df": 2,
     "char_min_df": 2,
-    "cv_accuracy": 0.8414207650273223
+    "cv_accuracy": 0.836231478892927
   },
   "calibration": "sigmoid",
-  "overall_eval_accuracy": 0.9722222222222222,
-  "confidence_threshold": 0.5,
+  "overall_eval_accuracy": 0.9444444444444444,
+  "confidence_threshold": 0.6,
   "accuracy_at_threshold": 1.0,
   "labels": [
     "HYBRID",
