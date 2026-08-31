@@ -140,6 +140,15 @@ export default function App() {
     setActiveId(null)
   }
 
+  async function handleDeleteConversation(id: string) {
+    if (!window.confirm('Delete this conversation? This cannot be undone.')) return
+    // remove() itself no-ops for a guest (no token) - always safe to call, and
+    // this still needs to drop the conversation from local-only state either way.
+    await remoteConversations.remove(id)
+    setConversations((prev) => prev.filter((c) => c.id !== id))
+    if (activeId === id) setActiveId(null)
+  }
+
   async function handleSelectConversation(id: string) {
     if (auth.token) {
       const existing = conversations.find((c) => c.id === id)
@@ -204,6 +213,7 @@ export default function App() {
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
         onSelect={handleSelectConversation}
         onNewChat={handleNewChat}
+        onDelete={handleDeleteConversation}
       />
 
       <div className="flex-1 flex flex-col min-w-0">

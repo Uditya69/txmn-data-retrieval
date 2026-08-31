@@ -7,6 +7,7 @@ type Props = {
   onToggleCollapsed: () => void
   onSelect: (id: string) => void
   onNewChat: () => void
+  onDelete: (id: string) => void
 }
 
 function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
@@ -26,7 +27,19 @@ function PlusIcon() {
   )
 }
 
-export default function Sidebar({ conversations, activeId, collapsed, onToggleCollapsed, onSelect, onNewChat }: Props) {
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  )
+}
+
+export default function Sidebar({ conversations, activeId, collapsed, onToggleCollapsed, onSelect, onNewChat, onDelete }: Props) {
   if (collapsed) {
     return (
       <div
@@ -73,7 +86,7 @@ export default function Sidebar({ conversations, activeId, collapsed, onToggleCo
 
       <ul className="flex-1 overflow-y-auto space-y-0.5 -mx-1">
         {conversations.map((c) => (
-          <li key={c.id}>
+          <li key={c.id} className="flex items-center gap-1">
             <button
               onClick={() => onSelect(c.id)}
               className="text-sm text-left truncate block w-full rounded-lg px-2.5 py-2 cursor-pointer"
@@ -83,6 +96,23 @@ export default function Sidebar({ conversations, activeId, collapsed, onToggleCo
               }}
             >
               {c.title}
+            </button>
+            <button
+              // stopPropagation isn't actually load-bearing here - this button
+              // is a sibling of the select button, not nested inside it, so a
+              // click on it was never going to bubble into onSelect. Kept
+              // anyway as a guard against that ever changing (e.g. if this
+              // row is later wrapped in a single clickable container).
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(c.id)
+              }}
+              aria-label={`Delete "${c.title}"`}
+              title="Delete conversation"
+              className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center cursor-pointer"
+              style={{ color: 'var(--text-faint)' }}
+            >
+              <TrashIcon />
             </button>
           </li>
         ))}
