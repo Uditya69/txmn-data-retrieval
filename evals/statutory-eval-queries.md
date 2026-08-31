@@ -2,12 +2,14 @@
 
 This is a diagnostic retrieval benchmark built from the source statutory JSON files in
 `tm-dp/data` (acts, rules, articles, commentary — `tariff` excluded, its Milvus
-collection is parked and not live per `CLAUDE.md`). It contains 40 queries grouped into
-20 matched pairs (`evals/statutory_cases.json` is the machine-readable source of truth;
+collection is parked and not live per `CLAUDE.md`). It contains 80 queries grouped into
+40 matched pairs (`evals/statutory_cases.json` is the machine-readable source of truth;
 this document mirrors it). Each pair targets the same gold document twice: once with
 direct lexical signals (act/rule/regulation name, section number, distinctive terms of
 art) and once through an indirect paraphrase of the same content with those identifiers
-stripped out. Five gold documents were picked from each of the four document types.
+stripped out. Ten gold documents were picked from each of the four document types (Pairs
+1-20 are the original set; Pairs 21-40 were added in the same style, five more per
+category, with `gold_doc_ids` mined from the live ES/Milvus corpus).
 
 Unlike the case-law eval (`evals/retrieval-eval-queries.md`), this set is **Milvus-only**.
 `ES_INDEX` defaults to `taxmann_caselaw` (`packages/common/src/common/config.py`) — the
@@ -375,6 +377,354 @@ Gold document:
 | Q39 | Direct | `Hydraulic Jack Entry 84 sub-entry 211(d) DVAT Act 2004 tools and dies clarification` | `commentary_section` | Gold `doc_id` in top 5 |
 | Q40 | Indirect | `Under Delhi VAT, are hydraulic jacks taxed as industrial tools under the 'tools and dies' entry, and at what rate?` | `commentary_section` | Gold `doc_id` in top 10 |
 
+### Pair 21 — capital-gain exemption on sale of agricultural land (Income-tax Act, amending provision)
+
+Gold document:
+
+- `doc_id`: `102120000000010383`
+- Source: Finance Act amendment clause, "Amendment of section 54B" (Income-tax Act, 1961)
+- Content: amends section 54B(1) to extend the agricultural-land capital-gain exemption
+  from "the assessee or a parent of his" to "the assessee being an individual or his
+  parent, or a Hindu undivided family", effective 1 April 2013 — broadening eligibility to
+  HUFs.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q41 | Direct | `amendment of section 54B Income-tax Act sale of agricultural land capital gain exemption` | `act_section` | Gold `doc_id` in top 5 |
+| Q42 | Indirect | `If I sell agricultural land and reinvest the proceeds in new farmland, is the capital gain exempt under a specific Income-tax Act section, and how is that different from the residential-house exemption under section 54F?` | `act_section` | Gold `doc_id` in top 10 |
+
+### Pair 22 — TDS on payments to sub-contractors (Income-tax Act, amending provision)
+
+Gold document:
+
+- `doc_id`: `102120000000009662`
+- Source: Finance Act amendment clause, "Amendment of section 194C" (Income-tax Act, 1961)
+- Content: inserts a proviso into section 194C after sub-section (2), effective 1 June
+  2002, bringing individuals/HUFs whose turnover exceeds the section 44AB tax-audit
+  threshold within the obligation to deduct TDS on payments to sub-contractors.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q43 | Direct | `amendment of section 194C Income-tax Act TDS payments to contractors sub-section (2)` | `act_section` | Gold `doc_id` in top 5 |
+| Q44 | Indirect | `Was there a change to the TDS rule that applies when a company pays a sub-contractor, and what proviso got added?` | `act_section` | Gold `doc_id` in top 10 |
+
+### Pair 23 — mode of repayment of loans/deposits (Income-tax Act, amending provision)
+
+Gold document:
+
+- `doc_id`: `102120000000009688`
+- Source: Finance Act amendment clause substituting section 269T, "Mode of repayment of
+  certain loans or deposits" (Income-tax Act, 1961)
+- Content: substitutes a new section 269T, effective 1 June 2002, requiring repayment of
+  a loan or deposit of Rs. 20,000 or more (including accrued interest, or aggregated
+  across loans/deposits with the same branch) to be made only by account-payee cheque or
+  account-payee bank draft (or by crediting the payee's account at the same branch).
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q45 | Direct | `substitution of section 269T Income-tax Act mode of repayment of certain deposits` | `act_section` | Gold `doc_id` in top 5 |
+| Q46 | Indirect | `Which section restricts how a company or firm can repay a deposit above a threshold in cash?` | `act_section` | Gold `doc_id` in top 10 |
+
+### Pair 24 — arm's length price computation (Income-tax Act, amending provision)
+
+Gold document:
+
+- `doc_id`: `102120000000009625`
+- Source: Finance Act amendment clause, "Amendment of section 92C" (Income-tax Act, 1961)
+- Content: substitutes the proviso to section 92C(2) to introduce the tolerance-band
+  concept for arm's length price (arithmetical mean of prices under the most appropriate
+  method, or a price within 5% of that mean at the assessee's option), and amends the
+  second proviso to sub-section (4) to cover income "deductible" and not just "deducted".
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q47 | Direct | `amendment of section 92C Income-tax Act arm's length price transfer pricing proviso` | `act_section` | Gold `doc_id` in top 5 |
+| Q48 | Indirect | `What provision governs how the arm's length price is computed for related-party transactions, and was the tolerance-band proviso amended?` | `act_section` | Gold `doc_id` in top 10 |
+
+### Pair 25 — deduction for contribution to pension scheme (Income-tax Act, amending provision)
+
+Gold document:
+
+- `doc_id`: `102120000000009806`
+- Source: Finance Act amendment clause inserting new section 80CCD, "Deduction in respect
+  of contribution to pension scheme of Central Government" (Income-tax Act, 1961)
+- Content: inserts section 80CCD after section 80CCC, allowing a Central Government
+  employee (joining on or after 1 January 2004) a deduction for amounts paid or deposited
+  into a notified pension-scheme account, up to 10% of salary, with a matching deduction
+  for the Government's own contribution — the statutory basis for the NPS deduction.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q49 | Direct | `insertion of new section 80CCD Income-tax Act deduction pension scheme` | `act_section` | Gold `doc_id` in top 5 |
+| Q50 | Indirect | `Which section lets an employee claim a deduction for contributing to a notified pension scheme like NPS?` | `act_section` | Gold `doc_id` in top 10 |
+
+### Pair 26 — notifying a recognised association for the speculative-transaction exception (Income-tax Rules)
+
+Gold document:
+
+- `doc_id`: `103120000000009655`
+- Source: Income-tax Rules, 1962, rule 6DDD, "Notification of a recognised association
+  for the purposes of clause (e) of the proviso to clause (5) of section 43"
+- Content: an association seeking notification (to bring its members' derivative trades
+  within the section 43(5) proviso exception, i.e. out of "speculative transaction")
+  applies to the Member (Income Tax), CBDT, with FMC trading approval, its rules/bye-laws,
+  and confirmation of the rule 6DDC conditions; the Central Government then notifies or
+  rejects the application within four months of the month-end.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q51 | Direct | `rule 6DDD notification of recognised association clause (e) proviso clause (5) section 43` | `rule_section` | Gold `doc_id` in top 5 |
+| Q52 | Indirect | `What is the procedure for an association to get itself notified as recognised for the purposes of the speculative transaction exception?` | `rule_section` | Gold `doc_id` in top 10 |
+
+### Pair 27 — fair market value of property other than immovable property (Income-tax Rules)
+
+Gold document:
+
+- `doc_id`: `103120000000024961`
+- Source: Income-tax Rules, 1962, rule 11UA, "Determination of fair market value"
+- Content: for section 56 purposes, prescribes valuation methods for jewellery,
+  archaeological collections/art, and other specified property (invoice value if bought
+  from a registered dealer on the valuation date; registered-valuer report otherwise for
+  higher-value items) — the sibling provision to rule 11UB, which values immovable
+  property.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q53 | Direct | `Income-tax Rule 11UA determination of fair market value of property other than immovable property section 56` | `rule_section` | Gold `doc_id` in top 5 |
+| Q54 | Indirect | `How is the fair market value of unquoted shares or property (not land/building) worked out for section 56 purposes, and is that the same rule that values immovable property under 11UB?` | `rule_section` | Gold `doc_id` in top 10 |
+
+### Pair 28 — transactions requiring PAN to be quoted (Income-tax Rules)
+
+Gold document:
+
+- `doc_id`: `103120000000007541`
+- Source: Income-tax Rules, 1962, rule 114B, "Transactions in relation to which permanent
+  account number is to be quoted in all documents for the purpose of clause (c) of
+  sub-section (5) of section 139A"
+- Content: sets out (in a table) the categories of transactions — property/vehicle sales,
+  bank deposits and account opening, hotel/foreign-travel payments, and other high-value
+  dealings — that require quoting PAN.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q55 | Direct | `rule 114B transactions requiring permanent account number to be quoted section 139A(5)(c)` | `rule_section` | Gold `doc_id` in top 5 |
+| Q56 | Indirect | `Which transactions require quoting PAN on the documents, under the Income-tax Rules?` | `rule_section` | Gold `doc_id` in top 10 |
+
+### Pair 29 — certificate for claiming DTAA relief (Income-tax Rules)
+
+Gold document:
+
+- `doc_id`: `103120000000007365`
+- Source: Income-tax Rules, 1962, rule 21AB, "Certificate for claiming relief under an
+  agreement referred to in sections 90 and 90A"
+- Content: for sections 90(5)/90A(5), a non-resident assessee must furnish prescribed
+  information (status, nationality/place of incorporation, foreign tax-ID, residency
+  period, foreign address) in Form No. 10F, supplementing the tax-residency certificate
+  under section 90(4)/90A(4), unless that certificate already contains the information.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q57 | Direct | `rule 21AB certificate for claiming relief under agreement sections 90 90A tax residency` | `rule_section` | Gold `doc_id` in top 5 |
+| Q58 | Indirect | `What certificate does a non-resident need to claim DTAA relief, and which rule prescribes its form?` | `rule_section` | Gold `doc_id` in top 10 |
+
+### Pair 30 — FEMA scheme for ADR/GDR issuance ("Euro Issue")
+
+Gold document:
+
+- `doc_id`: `103120000000000010`
+- Source: FEMA circular/scheme text, "Euro Issue" — guidelines for Indian companies
+  issuing GDRs, FCCBs and ordinary shares to international investors via the Depository
+  Receipt Mechanism (per the 12 November 1993 notification)
+- Content: sets out the restrictive policy on FCCBs (as external debt until conversion),
+  treatment of Euro Issues as direct foreign investment requiring FIPB clearance above
+  51%, and the one-issue-per-company-per-year limit; downstream provisions cover
+  custodian/company-secretary verification with NSDL/CDSL of aggregate non-resident
+  holding against the sectoral investment cap.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q59 | Direct | `FEMA ADR GDR scheme custodian verification with company secretary NSDL CDSL total cap breach` | `rule_section` | Gold `doc_id` in top 5 |
+| Q60 | Indirect | `Under FEMA, who verifies whether the overall sectoral investment cap is being breached when ADRs/GDRs are issued to non-residents?` | `rule_section` | Gold `doc_id` in top 10 |
+
+### Pair 31 — launch of the faceless assessment scheme (article)
+
+Gold document:
+
+- `doc_id`: `105010000000018368`
+- Source: Taxmann Advisory & Research Team (Income Tax) article analysing the "Transparent
+  Taxation – Honoring the Honest" platform, incorporating CBDT Notification 60/2020 dated
+  13-08-2020
+- Content: covers the Prime Minister's 13 August 2020 launch of Faceless Assessment,
+  Faceless Appeal, and the Taxpayers' Charter — replacing manual scrutiny/best-judgment/
+  income-escaping/search assessments (sections 143(3)/144/147/153A) with an e-governed,
+  no-human-interface process.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q61 | Direct | `faceless assessment scheme launch August 2020 Transparent Taxation Prime Minister taxmann advisory` | `article_section` | Gold `doc_id` in top 5 |
+| Q62 | Indirect | `What scheme did the government launch to remove human interface between the tax officer and the assessee during scrutiny?` | `article_section` | Gold `doc_id` in top 10 |
+
+### Pair 32 — ESOP cost as deductible business expenditure (article)
+
+Gold document:
+
+- `doc_id`: `105010000000001884`
+- Source: "ESOP Benefit - An Employee Welfare Expenditure Allowable as Business
+  Expenditure" by V. Prabhakar, `[2004] 136 Taxman 61 (Art.)`
+- Content: argues the expenditure/loss a company incurs on ESOP/ESOS benefits granted to
+  employees (i.e. shares issued below intrinsic/market value) is an employee-welfare
+  measure allowable as business expenditure, not capital in nature — drawing on cases
+  allowing welfare-store losses and jubilee-gift expenditure as business expenditure.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q63 | Direct | `ESOP benefit employee welfare expenditure allowable business expenditure V Prabhakar tax literature` | `article_section` | Gold `doc_id` in top 5 |
+| Q64 | Indirect | `Is the cost of an employee stock option scheme treated as a deductible business expense for the company?` | `article_section` | Gold `doc_id` in top 10 |
+
+### Pair 33 — amalgamation and minimum alternate tax (article)
+
+Gold document:
+
+- `doc_id`: `105010000000002700`
+- Source: "Amalgamation Put under MAT!" by Chythanya K.K., `[2004] 141 Taxman 104 (Art.)`
+- Content: examines whether an amalgamated/merged company can carry forward the
+  amalgamating company's business loss or unabsorbed depreciation while computing book
+  profit for section 115JB MAT purposes, drawing on ICAI Accounting Standards and
+  *Apollo Tyres Ltd. v. CIT* [2002] 255 ITR 273.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q65 | Direct | `amalgamation put under MAT Chythanya minimum alternate tax taxation of companies article` | `article_section` | Gold `doc_id` in top 5 |
+| Q66 | Indirect | `When two companies amalgamate, does the resulting entity get pulled into minimum alternate tax on the scheme?` | `article_section` | Gold `doc_id` in top 10 |
+
+### Pair 34 — Vivad se Vishwas Act preamble and objectives (article)
+
+Gold document:
+
+- `doc_id`: `105010000000017382`
+- Source: article by J.V. Kodhandapani (FCA) and Venkatesh K. Pani (Advocate) on the
+  Direct Tax Vivad se Vishwas Act, 2020, opening with the Act's preamble/statement of
+  objects and reasons
+- Content: explains that the Finance Minister introduced the Act to address the rising
+  pendency of tax appeals (appeals filed outpacing appeals disposed, locking up large
+  disputed-tax arrears) by letting taxpayers settle pending direct-tax disputes for a
+  reduced amount.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q67 | Direct | `Direct Tax Vivad se Vishwas Act 2020 preamble statement of objects and reasons finance minister` | `article_section` | Gold `doc_id` in top 5 |
+| Q68 | Indirect | `What scheme let taxpayers settle pending direct tax disputes by paying a reduced amount, and why was it introduced?` | `article_section` | Gold `doc_id` in top 10 |
+
+### Pair 35 — equalisation levy and the OECD digital-economy work (article)
+
+Gold document:
+
+- `doc_id`: `105010000000013171`
+- Source: article by Vineet Sodhani (CA) and Deepshikha Sodhani (CA) on Union Budget
+  2016-17 (presented 29-2-2016), covering the equalisation levy on digital transactions
+- Content: introduces the equalisation levy on payments to non-residents for specified
+  digital services, situating it against the OECD's BEPS Action 1 work on the digital
+  economy and India's enhanced-observer engagement with the OECD's technical advisory
+  work.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q69 | Direct | `equalisation levy OECD technical advisory group India enhanced observer status digital economy` | `article_section` | Gold `doc_id` in top 5 |
+| Q70 | Indirect | `What levy did India introduce on digital transactions with foreign companies, and how does that relate to OECD's work on the digital economy?` | `article_section` | Gold `doc_id` in top 10 |
+
+### Pair 36 — validity of acts of the board of directors (Companies Act commentary)
+
+Gold document:
+
+- `doc_id`: `107010000000334155`
+- Source: commentary on section 290, Companies Act — "Validity of the acts of the board
+  of directors [Section 290]"
+- Content: explains that section 290's validation provision (an application of the
+  doctrine of indoor management — a director's acts remain valid even if the appointment
+  is later found defective/terminated) is an exception, not the rule, and does not cover
+  a total absence of appointment or a fraudulent usurpation of authority, citing
+  *M. Moorthy v. Drivers & Conductors Bus Service (P.) Ltd.* (1991) 71 Comp. Cas. 136
+  (Mad.) and *Col. Kuldip Singh Dhillon v. Paragaon Utility Financiers (P.) Ltd.* (1988)
+  64 Comp. Cas. 19 (Punj. & Har.).
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q71 | Direct | `validity of acts of board of directors section 290 Companies Act validation provision exception not rule` | `commentary_section` | Gold `doc_id` in top 5 |
+| Q72 | Indirect | `If a company later discovers a director's appointment was defective, are the board decisions that director took part in still valid?` | `commentary_section` | Gold `doc_id` in top 10 |
+
+### Pair 37 — jurisdiction of the Company Court (Companies Act commentary)
+
+Gold document:
+
+- `doc_id`: `107010000000333765`
+- Source: commentary — "Administration of Law and Justice: Company Court", under the
+  Companies Act
+- Content: explains the Company Court is primarily the High Court of the state where the
+  company's registered office sits (or a jurisdictional District Court where the Central
+  Government has conferred that jurisdiction under section 10(1)(b)), and traces the
+  subsequent shift of company-law adjudication to the NCLT/NCLAT, replacing the Company
+  Law Board, with appeal from NCLAT lying to the Supreme Court on questions of law.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q73 | Direct | `Company Court primarily High Court of state registered office administration of law and justice winding up` | `commentary_section` | Gold `doc_id` in top 5 |
+| Q74 | Indirect | `Which court has jurisdiction over a company's winding-up petition, and is that the same court hearing NCLT/NCLAT matters?` | `commentary_section` | Gold `doc_id` in top 10 |
+
+### Pair 38 — SEBI's power to issue directions under section 12A (SEBI commentary)
+
+Gold document:
+
+- `doc_id`: `107010000000334000`
+- Source: commentary — "SEBI's power to issue directions", on section 12A (inserted by
+  the Securities Laws (Amendment) Act, 2004, effective 12-10-2004)
+- Content: explains SEBI's sweeping power under section 12A to direct stock
+  exchanges/clearing corporations/agencies/persons in the securities market, or listed
+  companies, in the interest of orderly market development or investor protection —
+  exercisable only after SEBI makes or causes an inquiry.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q75 | Direct | `SEBI power to issue directions section 12A Securities Laws Amendment Act 2004 sweeping power` | `commentary_section` | Gold `doc_id` in top 5 |
+| Q76 | Indirect | `What power lets SEBI issue directions to protect investors under section 12A - and is that the same section 12A that governs a charitable trust's income-tax registration?` | `commentary_section` | Gold `doc_id` in top 10 |
+
+### Pair 39 — taxable event and supply by a court receiver (GST commentary)
+
+Gold document:
+
+- `doc_id`: `107010000000371807`
+- Source: commentary — "Taxable event in GST", covering the meaning of 'taxable event'
+  and 'supply' under Article 366(12A) of the Constitution, citing *Goodyear India Ltd.
+  v. State of Haryana* (1990) 76 STC 71 (SC) and *State of Kerala v. Alex George* (2004)
+  AIR SCW 6552
+- Content: a large commentary section explaining that GST's taxable event is 'supply of
+  goods or services or both' (not sale or manufacture); within its broader discussion it
+  covers when activities carried on by a court-appointed receiver running a business
+  count as taxable supply under Schedule III/CGST Act.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q77 | Direct | `court receiver GST supply Schedule III CGST Act business activities liable to pay tax` | `commentary_section` | Gold `doc_id` in top 5 |
+| Q78 | Indirect | `If a court-appointed receiver runs a business, do the activities count as a taxable supply under GST?` | `commentary_section` | Gold `doc_id` in top 10 |
+
+### Pair 40 — rectification of the register of members (Companies Act commentary)
+
+Gold document:
+
+- `doc_id`: `107010000000372159`
+- Source: commentary — "Rectification of Register of Members", on section 59, Companies
+  Act, 2013 (corresponding to section 111(4) of the 1956 Act)
+- Content: explains that a person wrongly entered in, or removed from, the register of
+  members (or where entry of membership status is unnecessarily delayed) can seek
+  rectification from the NCLT, on application by the aggrieved person, any member, or the
+  company itself; also covers rectification where a transfer of securities violated SCRA,
+  the SEBI Act, or the Companies Act — e.g. where allotment consideration (a share-payment
+  cheque) was dishonoured.
+
+| ID | Class | User query | Collection | Pass criterion |
+|---|---|---|---|---|
+| Q79 | Direct | `rectification of register deleting name of members dishonoured cheque share allotment company law` | `commentary_section` | Gold `doc_id` in top 5 |
+| Q80 | Indirect | `Can a company remove a member's name from its share register if the cheque for the shares bounced?` | `commentary_section` | Gold `doc_id` in top 10 |
+
 ## Result capture template
 
 | Query | Milvus dense rank | Notes |
@@ -419,6 +769,46 @@ Gold document:
 | Q38 | | |
 | Q39 | | |
 | Q40 | | |
+| Q41 | | |
+| Q42 | | |
+| Q43 | | |
+| Q44 | | |
+| Q45 | | |
+| Q46 | | |
+| Q47 | | |
+| Q48 | | |
+| Q49 | | |
+| Q50 | | |
+| Q51 | | |
+| Q52 | | |
+| Q53 | | |
+| Q54 | | |
+| Q55 | | |
+| Q56 | | |
+| Q57 | | |
+| Q58 | | |
+| Q59 | | |
+| Q60 | | |
+| Q61 | | |
+| Q62 | | |
+| Q63 | | |
+| Q64 | | |
+| Q65 | | |
+| Q66 | | |
+| Q67 | | |
+| Q68 | | |
+| Q69 | | |
+| Q70 | | |
+| Q71 | | |
+| Q72 | | |
+| Q73 | | |
+| Q74 | | |
+| Q75 | | |
+| Q76 | | |
+| Q77 | | |
+| Q78 | | |
+| Q79 | | |
+| Q80 | | |
 
 ## Reading failures
 
