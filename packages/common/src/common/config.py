@@ -29,13 +29,15 @@ class Settings(BaseSettings):
     # on restores the legacy split (native Milvus sparse + ES fallback scoped to gap
     # collections, AI Mode only). Env-only: no UI toggle exists for this one.
     milvus_sparse_enabled: bool = False
-    # Opt-in SLM pass for AI Mode's keyword path (classify_intent_mode == "keyword") - that
-    # path otherwise skips the SLM entirely (see ai_mode/pipeline.py) to avoid paying for a
-    # rewrite/intent/filters extraction it never uses. When on, an extra small SLM call
-    # (ai_mode/keyword_expansion.py) may suggest up to 2 genuinely-confident additional legal
-    # keywords to broaden the ES lexical search - never a query rewrite. Off by default: this
-    # is an experimental recall booster being evaluated, not yet trusted as the default
-    # behavior. Env-only: no UI toggle exists for this one.
+    # Opt-in SLM pass (ai_mode/keyword_expansion.py) that may suggest up to 2
+    # genuinely-confident additional legal keywords to broaden the ES lexical search - never a
+    # query rewrite. Runs in two places: AI Mode's keyword branch (classify_intent_mode ==
+    # "keyword"; that branch otherwise skips the SLM entirely - see ai_mode/pipeline.py - to
+    # avoid paying for a rewrite/intent/filters extraction it never uses), and AI Mode's hybrid
+    # branch, on es_query_text right before its ES sparse call (ai_mode/retrieve.py) - never
+    # touches dense_vector/search_query in either branch. Off by default: this is an
+    # experimental recall booster being evaluated, not yet trusted as the default behavior.
+    # Env-only: no UI toggle exists for this one.
     keyword_mode_expansion_enabled: bool = False
     # Gates the local-only admin eval-runner UI (retrieval_api/admin_eval/) - unset
     # (the default) disables that feature entirely, so no deployment needs to think

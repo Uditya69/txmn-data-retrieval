@@ -1,13 +1,17 @@
 import asyncio
 from itertools import zip_longest
 
+from langfuse import get_client
+
 from common.es_client import (
     build_keyword_search_query_preview, build_sparse_fallback_query_preview,
     keyword_mode_search, sparse_fallback_search,
 )
 from common.milvus_client import hybrid_search
+from common.query_tokenizer import chunk_query
 from common.schemas import ES_GROUP_FOR_COLLECTION, SPARSE_VECTOR_COLLECTIONS, collections_for_intent
 from retrieval_api.ai_mode.intent import OnStep
+from retrieval_api.ai_mode.keyword_expansion import expand_keyword_terms
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.trace_utils import collection_trace
 
@@ -67,6 +71,7 @@ async def retrieve(
     boost: bool = False,
     raw_query: str | None = None,
     milvus_sparse_enabled: bool = False,
+    keyword_mode_expansion_enabled: bool = False,
 ) -> list[dict]:
     collections = collections_for_intent(intent or [])
     # Gap collections (act_section/rule_section/article_section/commentary_section/ruling)
@@ -89,6 +94,33 @@ async def retrieve(
     # boosts depend on. Falls back to search_query if no raw_query was given (keeps existing
     # callers/tests working unchanged).
     es_query_text = raw_query if raw_query is not None else search_query
+
+    # Same opt-in recall booster as the keyword branch (ai_mode/pipeline.py,
+    # common.config.Settings.keyword_mode_expansion_enabled) - runs here too now, on
+    # es_query_text (the raw/user text ES searches, never the LLM-rewritten search_query -
+    # see the comment above this block), before the ES sparse call below so ES gets the
+    # expanded text, not the raw one. Never touches dense_vector/search_query - this is an ES
+    # lexical-recall booster only, same scope as the keyword branch.
+    #
+    # Gated on chunk_query finding at least one structural (non-"text") chunk - a citation,
+    # section/rule number, court/city, or quoted phrase - the same anchor signal
+    # classify_intent_mode requires every chunk to satisfy before a query even reaches the
+    # keyword branch. Without this gate the hybrid branch would call expand_keyword_terms on
+    # every query regardless of content, including a plain fact-pattern sentence with nothing
+    # to hang a keyword off of - keyword_expansion.py's own system prompt explicitly assumes
+    # "a query that is already a precise anchor lookup", so a query with no anchor at all
+    # isn't this feature's job and shouldn't pay for the extra SLM round-trip.
+    has_lexical_anchor = any(chunk["type"] != "text" for chunk in chunk_query(es_query_text))
+    if keyword_mode_expansion_enabled and has_lexical_anchor:
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="chain", name="keyword-expansion", input={"query": es_query_text},
+        ) as span:
+            added_keywords = await expand_keyword_terms(gateway, es_query_text, on_step=on_step)
+            span.update(output={"added_keywords": added_keywords})
+        if added_keywords:
+            es_query_text = f"{es_query_text} {' '.join(added_keywords)}"
+
     # Tracks whichever doc_id_allowlist the sparse ES call actually last ran with (None
     # once/if the zero-hit-allowlist retry below fires) - needed to rebuild an accurate query
     # preview for the trace step after the fact, without re-running the search.

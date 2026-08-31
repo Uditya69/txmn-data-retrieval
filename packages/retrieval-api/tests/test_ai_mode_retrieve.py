@@ -796,3 +796,108 @@ async def test_retrieve_uses_es_as_sole_sparse_source_by_default(monkeypatch):
     assert steps == ["ai_milvus_dense", "ai_milvus_sparse", "ai_rrf_merge"]
     assert traces["ai_milvus_sparse"]["es_query"] == "q"
     assert {row["chunk_id"] for row in result} == {"a", "es:d2:0"}
+
+
+async def _run_retrieve_with_expansion_fixtures(monkeypatch, raw_query, keyword_mode_expansion_enabled, expand_side_effect):
+    """Shared harness for the hybrid-branch keyword-expansion gate tests below - wires up
+    the same minimal fakes test_retrieve_uses_es_as_sole_sparse_source_by_default uses, plus
+    a fake expand_keyword_terms, and captures whatever query text keyword_mode_search
+    (the ES sparse-global call the expansion is meant to feed) actually ran with."""
+    import retrieval_api.ai_mode.retrieve as module
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {}
+
+    seen_es_queries = []
+
+    async def fake_keyword_mode_search(client, query, doc_id_allowlist=None, limit=20, boost=False):
+        seen_es_queries.append(query)
+        return []
+
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(module, "collections_for_intent", lambda intent: ["held"])
+    monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
+    monkeypatch.setattr(module, "expand_keyword_terms", expand_side_effect)
+
+    await module.retrieve(
+        gateway, milvus_client=object(), es_client=object(), search_query="rewritten search query",
+        doc_id_allowlist=None, intent=["caselaws"], raw_query=raw_query,
+        keyword_mode_expansion_enabled=keyword_mode_expansion_enabled,
+    )
+    return seen_es_queries
+
+
+@pytest.mark.asyncio
+async def test_retrieve_expands_es_query_when_flag_on_and_lexical_anchor_present(monkeypatch):
+    """Hybrid branch, flag on, raw_query carries a real structural anchor (court_city chunk
+    here) - expand_keyword_terms must be called on es_query_text (raw_query, never the
+    LLM-rewritten search_query) and its suggestions must land in the text keyword_mode_search
+    actually searches with, appended after the original text."""
+    raw_query = "recent Bombay High Court rulings on GST for exporters"
+
+    async def fake_expand_keyword_terms(gateway, query, on_step=None):
+        assert query == raw_query
+        return ["case law"]
+
+    seen_es_queries = await _run_retrieve_with_expansion_fixtures(
+        monkeypatch, raw_query, keyword_mode_expansion_enabled=True,
+        expand_side_effect=fake_expand_keyword_terms,
+    )
+
+    assert seen_es_queries == [f"{raw_query} case law"]
+
+
+@pytest.mark.asyncio
+async def test_retrieve_skips_expansion_when_flag_on_but_no_lexical_anchor(monkeypatch):
+    """Hybrid branch, flag on, but raw_query has no structural anchor at all (chunk_query
+    returns only a "text" chunk) - expand_keyword_terms must not be called, and ES must
+    search the raw, unmodified query text."""
+    raw_query = "is compensation for land acquisition taxable"
+
+    async def unexpected_expand_keyword_terms(gateway, query, on_step=None):
+        raise AssertionError("expand_keyword_terms() must not be called with no lexical anchor")
+
+    seen_es_queries = await _run_retrieve_with_expansion_fixtures(
+        monkeypatch, raw_query, keyword_mode_expansion_enabled=True,
+        expand_side_effect=unexpected_expand_keyword_terms,
+    )
+
+    assert seen_es_queries == [raw_query]
+
+
+@pytest.mark.asyncio
+async def test_retrieve_skips_expansion_when_flag_off_even_with_lexical_anchor(monkeypatch):
+    """Hybrid branch, flag off (the default) - expand_keyword_terms must not be called even
+    though raw_query carries a real structural anchor."""
+    raw_query = "recent Bombay High Court rulings on GST for exporters"
+
+    async def unexpected_expand_keyword_terms(gateway, query, on_step=None):
+        raise AssertionError("expand_keyword_terms() must not be called when the flag is off")
+
+    seen_es_queries = await _run_retrieve_with_expansion_fixtures(
+        monkeypatch, raw_query, keyword_mode_expansion_enabled=False,
+        expand_side_effect=unexpected_expand_keyword_terms,
+    )
+
+    assert seen_es_queries == [raw_query]
+
+
+@pytest.mark.asyncio
+async def test_retrieve_skips_appending_when_expansion_returns_no_keywords(monkeypatch):
+    """expand_keyword_terms is free to abstain (empty list, e.g. a bare anchor it's not
+    confident about) - es_query_text must stay exactly the raw query, no trailing space or
+    empty append."""
+    raw_query = "recent Bombay High Court rulings on GST for exporters"
+
+    async def fake_expand_keyword_terms(gateway, query, on_step=None):
+        return []
+
+    seen_es_queries = await _run_retrieve_with_expansion_fixtures(
+        monkeypatch, raw_query, keyword_mode_expansion_enabled=True,
+        expand_side_effect=fake_expand_keyword_terms,
+    )
+
+    assert seen_es_queries == [raw_query]
