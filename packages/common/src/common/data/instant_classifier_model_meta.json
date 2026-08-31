@@ -1,15 +1,15 @@
 {
   "version": 2,
-  "train_examples": 733,
+  "train_examples": 1167,
   "eval_examples": 36,
   "hyperparameters": {
-    "C": 1.0,
+    "C": 10.0,
     "word_min_df": 1,
     "char_min_df": 2,
-    "cv_accuracy": 0.8294101202124686
+    "cv_accuracy": 0.8560397637650856
   },
   "calibration": "sigmoid",
-  "overall_eval_accuracy": 0.9444444444444444,
+  "overall_eval_accuracy": 0.9166666666666666,
   "confidence_threshold": 0.6,
   "accuracy_at_threshold": 1.0,
   "labels": [
