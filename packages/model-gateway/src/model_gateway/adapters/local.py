@@ -13,7 +13,18 @@ _CHAT_MAX_TOKENS = 32768
 # .env LOCAL_CHAT_MODEL_SYNTHESIS) has a 262144-token native context, so 32768 was leaving most
 # of that budget unused rather than reflecting any real limit - raised to stay comfortably
 # under context while giving reasoning + answer enough room to both complete normally.
-_CHAT_MAX_TOKENS_BY_ROLE = {"synthesis": 131072}
+#
+# "slm" (intent extraction, extract_intent) hit the identical failure mode: observed live via
+# Langfuse, a reasoning trace cut off mid-thought with no closing JSON, which json.loads then
+# rejects, silently triggering intent.py's _fallback_intent (search_query passed through
+# unchanged, intent: []) - indistinguishable from the model genuinely declining to expand
+# unless you go read the reasoning trace and notice it never finished. temperature=0.6 (see
+# extract_intent's call site) makes the Thinking model's reasoning length variable run to run,
+# so this wasn't reliably triggered by any specific query. Given the same 131072 budget as
+# synthesis rather than a smaller one, since intent's reasoning length is driven by the same
+# Thinking-mode chain-of-thought behavior, not by prompt size - no evidence the two roles'
+# worst-case reasoning length differs enough to size them apart.
+_CHAT_MAX_TOKENS_BY_ROLE = {"synthesis": 131072, "slm": 131072}
 
 
 def _openai_usage_details(usage: dict) -> dict[str, int]:
