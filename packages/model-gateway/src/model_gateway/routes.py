@@ -5,12 +5,18 @@ from pydantic import BaseModel
 from model_gateway.adapters.deepinfra import DeepInfraAdapter
 from model_gateway.adapters.local import LocalAdapter
 from model_gateway.adapters.voyage import VoyageAdapter
-from model_gateway.config import build_role_model_map, build_role_provider_map, get_gateway_settings
+from model_gateway.config import (
+    build_role_model_map,
+    build_role_provider_map,
+    build_role_reasoning_map,
+    get_gateway_settings,
+)
 
 router = APIRouter()
 
 ROLE_MODEL_MAP: dict[str, str] = build_role_model_map(get_gateway_settings())
 ROLE_PROVIDER_MAP: dict[str, str] = build_role_provider_map(get_gateway_settings())
+ROLE_REASONING_MAP: dict[str, bool] = build_role_reasoning_map(get_gateway_settings())
 
 # Matches the headers retrieval_api.gateway_client sets so this generation
 # nests under the caller's trace instead of starting a new one.
@@ -73,17 +79,19 @@ class RerankRequest(BaseModel):
 async def chat(req: ChatRequest, request: Request):
     default_model, provider = _resolve(req.role)
     model = req.model or default_model
+    reasoning_enabled = ROLE_REASONING_MAP.get(req.role, True)
     langfuse = get_client()
     with langfuse.start_as_current_observation(
         as_type="generation",
         name=f"chat:{req.role}",
         model=model,
         input=req.messages,
-        metadata={"provider": provider},
+        metadata={"provider": provider, "reasoning_enabled": reasoning_enabled},
         trace_context=_trace_context_from_headers(request),
     ) as generation:
         content, usage_details, reasoning = await get_adapter(provider).chat(
-            model, req.messages, req.response_format, req.temperature, role=req.role,
+            model, req.messages, req.response_format, req.temperature,
+            role=req.role, reasoning_enabled=reasoning_enabled,
         )
         generation.update(output=content, usage_details=usage_details)
         if reasoning:

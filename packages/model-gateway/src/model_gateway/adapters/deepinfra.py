@@ -32,13 +32,21 @@ class DeepInfraAdapter:
 
     async def chat(
         self, model: str, messages: list[dict], response_format: dict | None = None,
-        temperature: float | None = None, role: str | None = None,  # noqa: ARG002 - interface parity with LocalAdapter, unused here
+        temperature: float | None = None,
+        role: str | None = None,  # noqa: ARG002 - interface parity with LocalAdapter, unused here
+        reasoning_enabled: bool = True,
     ) -> tuple[str | None, dict[str, int], str | None]:
         payload = {"model": model, "messages": messages, "max_tokens": _CHAT_MAX_TOKENS}
         if response_format:
             payload["response_format"] = response_format
         if temperature is not None:
             payload["temperature"] = temperature
+        if not reasoning_enabled:
+            # DeepInfra passes this through to vLLM for the Qwen3 models it hosts -
+            # same toggle as LocalAdapter. Best-effort on other models/providers: an
+            # unrecognized extra field in an OpenAI-compatible request body, not
+            # something every model DeepInfra serves is guaranteed to honor.
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{_BASE_URL}/openai/chat/completions",

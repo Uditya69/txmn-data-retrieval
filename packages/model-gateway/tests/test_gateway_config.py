@@ -1,4 +1,9 @@
-from model_gateway.config import GatewaySettings, build_role_model_map, build_role_provider_map
+from model_gateway.config import (
+    GatewaySettings,
+    build_role_model_map,
+    build_role_provider_map,
+    build_role_reasoning_map,
+)
 
 
 def _settings(**overrides):
@@ -49,3 +54,19 @@ def test_chat_provider_never_affects_query_embed_or_reranker():
 
     assert provider_map["query_embed"] == "voyage"
     assert provider_map["reranker"] == "deepinfra"
+
+
+def test_reasoning_map_defaults_both_roles_enabled():
+    settings = _settings()
+
+    reasoning_map = build_role_reasoning_map(settings)
+
+    assert reasoning_map == {"slm": True, "synthesis": True}
+
+
+def test_reasoning_map_respects_per_role_overrides():
+    settings = _settings(slm_reasoning_enabled=False, synthesis_reasoning_enabled=True)
+
+    reasoning_map = build_role_reasoning_map(settings)
+
+    assert reasoning_map == {"slm": False, "synthesis": True}

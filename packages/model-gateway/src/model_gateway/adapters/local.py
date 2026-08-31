@@ -44,7 +44,7 @@ class LocalAdapter:
 
     async def chat(
         self, model: str, messages: list[dict], response_format: dict | None = None,
-        temperature: float | None = None, role: str | None = None,
+        temperature: float | None = None, role: str | None = None, reasoning_enabled: bool = True,
     ) -> tuple[str | None, dict[str, int], str | None]:
         max_tokens = _CHAT_MAX_TOKENS_BY_ROLE.get(role, _CHAT_MAX_TOKENS)
         payload = {"model": model, "messages": messages, "max_tokens": max_tokens}
@@ -52,6 +52,12 @@ class LocalAdapter:
             payload["response_format"] = response_format
         if temperature is not None:
             payload["temperature"] = temperature
+        if not reasoning_enabled:
+            # vLLM's standard toggle for Qwen3's hybrid thinking mode - skips the
+            # <think> chain-of-thought entirely rather than just hiding it, so this
+            # also sidesteps the max_tokens-exhausted-mid-reasoning failure mode
+            # documented above, not just its latency/token cost.
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
         # Self-hosted qwen3 observed taking 30-70s even on a trivial 2-line prompt
         # (verified via Postman: 69.4s) - AI Mode's synthesis prompt is far larger, so
         # the old 60s timeout here raced the model's own response time and lost.

@@ -124,3 +124,31 @@ async def test_chat_omits_response_format_key_when_not_given():
 
     sent = json.loads(route.calls.last.request.content)
     assert "response_format" not in sent
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_chat_omits_chat_template_kwargs_when_reasoning_enabled():
+    route = respx.post("https://api.deepinfra.com/v1/openai/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": "hi"}}]})
+    )
+    adapter = DeepInfraAdapter(api_key="k")
+
+    await adapter.chat("some-model", [{"role": "user", "content": "hi"}], reasoning_enabled=True)
+
+    sent = json.loads(route.calls.last.request.content)
+    assert "chat_template_kwargs" not in sent
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_chat_disables_thinking_when_reasoning_disabled():
+    route = respx.post("https://api.deepinfra.com/v1/openai/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": "hi"}}]})
+    )
+    adapter = DeepInfraAdapter(api_key="k")
+
+    await adapter.chat("some-model", [{"role": "user", "content": "hi"}], reasoning_enabled=False)
+
+    sent = json.loads(route.calls.last.request.content)
+    assert sent["chat_template_kwargs"] == {"enable_thinking": False}
