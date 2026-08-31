@@ -80,28 +80,26 @@ async def _emit_trace_step(send, step: str, data: dict) -> None:
         logger.warning("trace step %r dropped: %s", step, exc)
 
 
-def _extract_instant_trace(instant_result: dict) -> dict:
-    """Persisted Instant-mode trace payload: just the final reranked/fused doc_id
-    order, not the full per-hit dicts (score/heading/text/etc across es/milvus/
-    milvus_sparse/reranked/doc_meta) - those are already visible live over the
-    websocket and would otherwise dominate this collection's storage for no
-    benefit this repo currently needs."""
-    return {"doc_ids": [row["doc_id"] for row in instant_result.get("reranked") or []]}
-
-
-def _extract_ai_mode_trace(steps: list[dict], citations: dict, intent: list[str]) -> dict:
-    """Builds the persisted AI Mode retrieval-trace payload from whatever on_step
-    calls run_ai_mode actually made this turn - "ai_rrf_merge"/"rerank" for the
-    intent-classified path, "keyword_search" for the keyword-anchor path (they're
-    mutually exclusive per turn, see pipeline.py's mode branch)."""
-    by_step = {entry["step"]: entry["data"] for entry in steps}
+def _extract_instant_trace(instant_result: dict, steps: list[dict]) -> dict:
+    """Persisted Instant-mode trace payload: `doc_ids` is the compact final
+    reranked/fused order (cheap to read back for a doc list); `steps` is every
+    on_step call this turn made (query_correction/query_analysis/classifier/
+    es_search/milvus_dense/milvus_sparse/rrf_merge/instant_reranked - see
+    instant/search.py) - the same data the live dev-mode trace panel shows,
+    now captured unconditionally so a reopened conversation can show it too."""
     return {
-        "rrf_candidates": by_step.get("ai_rrf_merge"),
-        "reranked_chunks": by_step.get("rerank"),
-        "keyword_search": by_step.get("keyword_search"),
-        "citations": citations,
-        "intent": intent,
+        "doc_ids": [row["doc_id"] for row in instant_result.get("reranked") or []],
+        "steps": steps,
     }
+
+
+def _extract_ai_mode_trace(steps: list[dict], citations: dict, intent: list[str], reasoning: str | None) -> dict:
+    """Persisted AI Mode trace payload: `steps` is every on_step call this turn
+    made (extract_intent/resolve_allowlist/ai_milvus_dense/ai_milvus_sparse/
+    ai_rrf_merge/rerank/keyword_search/synthesis_prompt - see pipeline.py/
+    retrieve.py/citations.py), captured unconditionally regardless of the
+    client's live-trace toggle - the full dev-mode debug trace, not a subset."""
+    return {"steps": steps, "citations": citations, "intent": intent, "reasoning": reasoning}
 
 
 async def _safe_cache_write(collection, mode: str, query: str, query_embedding: list[float], result: dict) -> None:
@@ -237,9 +235,6 @@ async def search(websocket: WebSocket):
         async with send_lock:
             await websocket.send_json(payload)
 
-    async def emit_trace_step(step: str, data: dict) -> None:
-        await _emit_trace_step(send, step, data)
-
     if access_token and user_id is None:
         # A token was sent but didn't decode (see _resolve_user_id's log line) -
         # surface it to the client instead of silently proceeding as guest, so a
@@ -258,11 +253,22 @@ async def search(websocket: WebSocket):
             langfuse_trace_id = langfuse.get_current_trace_id()
             langfuse_observation_id = langfuse.get_current_observation_id()
 
+            # Always collected (regardless of the client's `trace` toggle) so the full
+            # Instant/AI Mode dev-mode trace can be persisted to retrieval_traces even
+            # when the client never asked to see it live - client-facing emission over
+            # the websocket stays gated on `trace` exactly as before.
+            instant_steps: list[dict] = []
+
+            async def collect_instant_step(step: str, data: dict) -> None:
+                instant_steps.append({"step": step, "data": data})
+                if trace:
+                    await _emit_trace_step(send, step, data)
+
             instant_task = (
                 asyncio.create_task(
                     run_instant(
                         gateway, es_client, milvus_client, query,
-                        on_step=emit_trace_step if trace else None, rrf=rrf,
+                        on_step=collect_instant_step, rrf=rrf,
                         auto_route=auto_route, boost=boost,
                         milvus_sparse_enabled=settings.milvus_sparse_enabled,
                     )
@@ -270,11 +276,6 @@ async def search(websocket: WebSocket):
                 if mode in ("instant", "both") and instant_cache_hit is None else None
             )
 
-            # Always collected (regardless of the client's `trace` toggle) so a full
-            # AI Mode retrieval trace (RRF candidates, reranked chunks) can be
-            # persisted to retrieval_traces even when the client never asked to see
-            # it live - client-facing emission over the websocket stays gated on
-            # `trace` exactly as before.
             ai_mode_steps: list[dict] = []
 
             async def collect_ai_mode_step(step: str, data: dict) -> None:
@@ -331,7 +332,7 @@ async def search(websocket: WebSocket):
                             record_retrieval_trace(
                                 retrieval_traces_collection, conversation_id, user_id, "instant", query,
                                 langfuse_trace_id, langfuse_observation_id,
-                                instant=_extract_instant_trace(instant_result),
+                                instant=_extract_instant_trace(instant_result, instant_steps),
                             )
                         )
                         _background_tasks.add(instant_trace_task)
@@ -406,6 +407,7 @@ async def search(websocket: WebSocket):
                                         langfuse_trace_id, langfuse_observation_id,
                                         ai_mode=_extract_ai_mode_trace(
                                             ai_mode_steps, ai_mode_result["citations"], ai_mode_result.get("intent", []),
+                                            ai_mode_result.get("reasoning"),
                                         ),
                                     )
                                 )

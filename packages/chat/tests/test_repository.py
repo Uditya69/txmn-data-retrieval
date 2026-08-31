@@ -7,6 +7,7 @@ from chat.repository import (
     delete_conversation,
     get_conversation,
     list_conversations,
+    list_retrieval_traces,
     save_retrieval_trace,
 )
 
@@ -154,3 +155,15 @@ async def test_save_retrieval_trace_stores_ai_mode_document(fake_retrieval_trace
     assert doc["mode"] == "ai_mode"
     assert doc["instant"] is None
     assert doc["ai_mode"] == {"citations": {"d1": {}}, "rrf_candidates": {"candidate_count": 3}}
+
+
+@pytest.mark.asyncio
+async def test_list_retrieval_traces_returns_oldest_first_and_only_this_conversation(fake_retrieval_traces_collection):
+    traces = fake_retrieval_traces_collection
+    await save_retrieval_trace(traces, "conv-1", "user-1", "instant", "q1", None, None, instant={"doc_ids": []})
+    await save_retrieval_trace(traces, "conv-1", "user-1", "ai_mode", "q2", None, None, ai_mode={"citations": {}})
+    await save_retrieval_trace(traces, "conv-2", "user-1", "instant", "q3", None, None, instant={"doc_ids": []})
+
+    docs = await list_retrieval_traces(traces, "conv-1", "user-1")
+
+    assert [d["mode"] for d in docs] == ["instant", "ai_mode"]

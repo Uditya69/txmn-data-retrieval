@@ -40,16 +40,19 @@ describe('useConversations', () => {
     // Realistic server response: chat/repository.py persists flat
     // {role, text} dicts, not the frontend's rich ChatMessage shape (which
     // only ever exists in-memory - results, activeMode, trace steps, etc).
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        id: 'conv-1', title: 'q1', created_at: 'x', updated_at: 'x',
-        messages: [
-          { role: 'user', text: 'what is section 80HH' },
-          { role: 'assistant', text: 'Section 80HH provides a deduction...' },
-        ],
-      }),
-    } as Response)
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      if (String(url).endsWith('/traces')) return { ok: true, json: async () => [] } as Response
+      return {
+        ok: true,
+        json: async () => ({
+          id: 'conv-1', title: 'q1', created_at: 'x', updated_at: 'x',
+          messages: [
+            { role: 'user', text: 'what is section 80HH' },
+            { role: 'assistant', text: 'Section 80HH provides a deduction...' },
+          ],
+        }),
+      } as Response
+    })
 
     const { result } = renderHook(() => useConversations('http://api', 'token-123'))
     const messages = await result.current.loadConversation('conv-1')
@@ -64,7 +67,7 @@ describe('useConversations', () => {
         results: {
           classic: {
             status: 'done',
-            aiMode: { ok: true, answer: 'Section 80HH provides a deduction...', citations: {} },
+            aiMode: { ok: true, answer: 'Section 80HH provides a deduction...', citations: {}, reasoning: null },
             traceSteps: [],
           },
         },
@@ -83,19 +86,22 @@ describe('useConversations', () => {
   })
 
   it('loadConversation hydrates a stored assistant citations dict into aiMode.citations', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        id: 'conv-1', title: 'q1', created_at: 'x', updated_at: 'x',
-        messages: [
-          { role: 'user', text: 'what is section 80HH' },
-          {
-            role: 'assistant', text: 'Section 80HH provides a deduction...',
-            citations: { 'doc-1': { heading: 'Section 80HH' } },
-          },
-        ],
-      }),
-    } as Response)
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      if (String(url).endsWith('/traces')) return { ok: true, json: async () => [] } as Response
+      return {
+        ok: true,
+        json: async () => ({
+          id: 'conv-1', title: 'q1', created_at: 'x', updated_at: 'x',
+          messages: [
+            { role: 'user', text: 'what is section 80HH' },
+            {
+              role: 'assistant', text: 'Section 80HH provides a deduction...',
+              citations: { 'doc-1': { heading: 'Section 80HH' } },
+            },
+          ],
+        }),
+      } as Response
+    })
 
     const { result } = renderHook(() => useConversations('http://api', 'token-123'))
     const messages = await result.current.loadConversation('conv-1')
@@ -103,8 +109,69 @@ describe('useConversations', () => {
     const assistant = messages.find((m) => m.role === 'assistant')
     expect(assistant?.results.classic?.aiMode).toEqual({
       ok: true, answer: 'Section 80HH provides a deduction...',
-      citations: { 'doc-1': { heading: 'Section 80HH' } },
+      citations: { 'doc-1': { heading: 'Section 80HH' } }, reasoning: null,
     })
+  })
+
+  it('loadConversation hydrates saved Instant doc_ids and full dev-mode trace steps', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      if (String(url).endsWith('/traces')) {
+        return {
+          ok: true,
+          json: async () => [
+            {
+              mode: 'instant',
+              instant: {
+                doc_ids: ['doc-1'],
+                steps: [
+                  { step: 'classifier', data: { label: 'semantic' } },
+                  {
+                    step: 'instant_reranked',
+                    data: { hits: [{ doc_id: 'doc-1', score: 0.8, heading: 'Section 80HH', subheading: 'sub' }] },
+                  },
+                ],
+              },
+            },
+            {
+              mode: 'ai_mode',
+              ai_mode: {
+                steps: [{ step: 'ai_rrf_merge', data: { candidate_count: 1 } }],
+                citations: {}, intent: ['caselaws'], reasoning: 'because the text says so',
+              },
+            },
+          ],
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          id: 'conv-1', title: 'q1', created_at: 'x', updated_at: 'x',
+          messages: [
+            { role: 'user', text: 'what is section 80HH' },
+            { role: 'assistant', text: 'Section 80HH provides a deduction...', citations: {} },
+          ],
+        }),
+      } as Response
+    })
+
+    const { result } = renderHook(() => useConversations('http://api', 'token-123'))
+    const messages = await result.current.loadConversation('conv-1')
+
+    const assistant = messages.find((m) => m.role === 'assistant')
+    const classic = assistant?.results.classic
+
+    expect(classic?.instant?.reranked).toEqual([
+      { doc_id: 'doc-1', score: 0.8, heading: 'Section 80HH', subheading: 'sub' },
+    ])
+    expect(classic?.aiMode).toMatchObject({ reasoning: 'because the text says so' })
+    expect(classic?.traceSteps).toEqual([
+      { step: 'classifier', data: { label: 'semantic' } },
+      {
+        step: 'instant_reranked',
+        data: { hits: [{ doc_id: 'doc-1', score: 0.8, heading: 'Section 80HH', subheading: 'sub' }] },
+      },
+      { step: 'ai_rrf_merge', data: { candidate_count: 1 } },
+    ])
   })
 
   it('remove calls DELETE and drops the conversation from local state', async () => {

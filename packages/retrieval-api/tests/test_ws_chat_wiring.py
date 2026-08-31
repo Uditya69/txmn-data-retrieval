@@ -12,6 +12,8 @@ import retrieval_api.ws as ws_module
 
 def _patch_common(monkeypatch, fake_run_ai_mode, fake_conversations_collection, fake_retrieval_traces_collection=None):
     async def fake_run_instant(gateway, es_client, milvus_client, query, on_step=None, **_kwargs):
+        if on_step is not None:
+            await on_step("classifier", {"label": "semantic", "confidence": 0.9})
         return {
             "es": [{"doc_id": "d1", "score": 1.0}], "es_error": None,
             "milvus": {}, "milvus_error": None, "reranked": [{"doc_id": "d1", "score": 1.0}],
@@ -125,11 +127,16 @@ def test_ws_search_logged_in_user_persists_instant_and_ai_mode_retrieval_traces(
     instant_doc = docs_by_mode["instant"]
     assert instant_doc["conversation_id"] == "conv-1"
     assert instant_doc["user_id"] == "user-123"
-    assert instant_doc["instant"] == {"doc_ids": ["d1"]}
+    assert instant_doc["instant"]["doc_ids"] == ["d1"]
+    assert instant_doc["instant"]["steps"] == [
+        {"step": "classifier", "data": {"label": "semantic", "confidence": 0.9}},
+    ]
 
     ai_mode_doc = docs_by_mode["ai_mode"]
-    assert ai_mode_doc["ai_mode"]["rrf_candidates"] == {"candidate_count": 3, "top_candidates": [{"doc_id": "d1"}]}
-    assert ai_mode_doc["ai_mode"]["reranked_chunks"] == {"reranked": True, "top_chunks": [{"doc_id": "d1", "rerank_score": 0.9}]}
+    assert ai_mode_doc["ai_mode"]["steps"] == [
+        {"step": "ai_rrf_merge", "data": {"candidate_count": 3, "top_candidates": [{"doc_id": "d1"}]}},
+        {"step": "rerank", "data": {"reranked": True, "top_chunks": [{"doc_id": "d1", "rerank_score": 0.9}]}},
+    ]
     assert ai_mode_doc["ai_mode"]["citations"] == {"d1": {}}
     assert ai_mode_doc["ai_mode"]["intent"] == ["caselaws"]
 

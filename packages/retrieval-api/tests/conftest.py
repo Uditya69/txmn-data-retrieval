@@ -242,6 +242,33 @@ class FakeRetrievalTracesCollection:
         self.documents.append(document)
         return _InsertOneResult(document.get("_id"))
 
+    def find(self, filter: dict):
+        matches = [
+            d for d in self.documents
+            if d.get("conversation_id") == filter.get("conversation_id") and d.get("user_id") == filter.get("user_id")
+        ]
+
+        class _Cursor:
+            def __init__(self, docs):
+                self._docs = docs
+
+            def sort(self, field, direction):
+                reverse = direction < 0
+                self._docs = sorted(self._docs, key=lambda d: d[field], reverse=reverse)
+                return self
+
+            def __aiter__(self):
+                self._iter = iter(self._docs)
+                return self
+
+            async def __anext__(self):
+                try:
+                    return next(self._iter)
+                except StopIteration:
+                    raise StopAsyncIteration
+
+        return _Cursor(matches)
+
 
 class _InsertOneResult:
     def __init__(self, inserted_id):

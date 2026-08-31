@@ -6,10 +6,14 @@ import chat.router as chat_router_module
 from retrieval_api.main import app
 
 
-def _patch_conversations(monkeypatch, fake_conversations_collection):
+def _patch_conversations(monkeypatch, fake_conversations_collection, fake_retrieval_traces_collection=None):
     monkeypatch.setattr(chat_router_module, "get_chat_settings", lambda: object())
     monkeypatch.setattr(chat_router_module, "get_mongo_client", lambda *_: object())
     monkeypatch.setattr(chat_router_module, "get_conversations_collection", lambda *_: fake_conversations_collection)
+    if fake_retrieval_traces_collection is not None:
+        monkeypatch.setattr(
+            chat_router_module, "get_retrieval_traces_collection", lambda *_: fake_retrieval_traces_collection,
+        )
 
 
 def test_list_conversations_requires_auth(monkeypatch, fake_conversations_collection):
@@ -73,6 +77,59 @@ def test_delete_conversation_404s_for_other_users_conversation(monkeypatch, fake
     assert client.get(
         "/conversations/conv-1", headers={"Authorization": f"Bearer {owner_token}"}
     ).status_code == 200
+
+
+def test_list_retrieval_traces_returns_oldest_first_for_own_conversation(
+    monkeypatch, fake_conversations_collection, fake_retrieval_traces_collection,
+):
+    _patch_conversations(monkeypatch, fake_conversations_collection, fake_retrieval_traces_collection)
+    from chat.repository import save_retrieval_trace
+    import asyncio
+
+    asyncio.run(
+        save_retrieval_trace(
+            fake_retrieval_traces_collection, "conv-1", "user-1", "instant", "q1", None, None,
+            instant={"doc_ids": ["d1"], "steps": []},
+        )
+    )
+    asyncio.run(
+        save_retrieval_trace(
+            fake_retrieval_traces_collection, "conv-1", "user-1", "ai_mode", "q2", None, None,
+            ai_mode={"steps": [], "citations": {}, "intent": [], "reasoning": None},
+        )
+    )
+
+    token = create_access_token("user-1", get_auth_settings())
+    client = TestClient(app)
+    response = client.get("/conversations/conv-1/traces", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    docs = response.json()
+    assert [d["mode"] for d in docs] == ["instant", "ai_mode"]
+    assert docs[0]["instant"] == {"doc_ids": ["d1"], "steps": []}
+    assert docs[1]["ai_mode"]["citations"] == {}
+
+
+def test_list_retrieval_traces_returns_empty_for_other_users_conversation(
+    monkeypatch, fake_conversations_collection, fake_retrieval_traces_collection,
+):
+    _patch_conversations(monkeypatch, fake_conversations_collection, fake_retrieval_traces_collection)
+    from chat.repository import save_retrieval_trace
+    import asyncio
+
+    asyncio.run(
+        save_retrieval_trace(
+            fake_retrieval_traces_collection, "conv-1", "user-1", "instant", "q1", None, None,
+            instant={"doc_ids": ["d1"], "steps": []},
+        )
+    )
+
+    token = create_access_token("user-2", get_auth_settings())
+    client = TestClient(app)
+    response = client.get("/conversations/conv-1/traces", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 def test_delete_conversation_removes_it(monkeypatch, fake_conversations_collection):

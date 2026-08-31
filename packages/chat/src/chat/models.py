@@ -24,3 +24,16 @@ def to_detail(doc: dict) -> ConversationDetail:
         id=doc["_id"], title=doc["title"], messages=doc["messages"],
         created_at=doc["created_at"], updated_at=doc["updated_at"],
     )
+
+
+def to_trace_summary(doc: dict) -> dict:
+    """No `id` field - insert_one's generated `_id` never gets read back onto
+    `doc` by this repo's fakes, and the frontend only ever needs these
+    positionally (oldest-first, zipped against conversations.messages)."""
+    return {
+        "mode": doc["mode"],
+        "query": doc["query"],
+        "created_at": doc["created_at"],
+        "instant": doc.get("instant"),
+        "ai_mode": doc.get("ai_mode"),
+    }

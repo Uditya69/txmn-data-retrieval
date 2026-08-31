@@ -70,3 +70,10 @@ async def save_retrieval_trace(
     }
     await retrieval_traces.insert_one(doc)
     return doc
+
+
+async def list_retrieval_traces(retrieval_traces, conversation_id: str, user_id: str) -> list[dict]:
+    """Oldest-first, so a caller can zip these positionally against
+    `conversations.messages`' turn order (see chat/router.py's docstring)."""
+    cursor = retrieval_traces.find({"conversation_id": conversation_id, "user_id": user_id}).sort("created_at", 1)
+    return [doc async for doc in cursor]
