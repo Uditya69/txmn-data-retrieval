@@ -5,6 +5,7 @@ from pathlib import Path
 
 from common.schemas import collections_for_intent
 from retrieval_api.ai_mode.intent import extract_intent
+from retrieval_api.eval_io import append_result, filter_pending, load_completed_ids, read_records
 from retrieval_api.gateway_client import GatewayClient
 
 _VALID_EXPECT = {"confident", "vague"}
@@ -55,38 +56,30 @@ def check_routing_case(expected_categories: list[str], actual_categories: list[s
     return "wrong"
 
 
-async def run(gateway_url: str, model: str | None, dataset_path: str | Path) -> None:
-    cases = load_routing_cases(dataset_path)
-    gateway = GatewayClient(base_url=gateway_url, trace_enabled=False)
+def tally_routing_records(records: list[dict]) -> dict:
     tally = {"exact": 0, "superset": 0, "safe-empty": 0, "wrong": 0}
     by_expect = {
         "confident": {"exact": 0, "superset": 0, "safe-empty": 0, "wrong": 0},
         "vague": {"exact": 0, "superset": 0, "safe-empty": 0, "wrong": 0},
     }
-
-    for case in cases:
-        try:
-            result = await extract_intent(gateway, case["query"], model=model)
-        except Exception as exception:
-            print(f"ERROR {case['id']}: {exception}")
+    errors = 0
+    for record in records:
+        if record.get("error"):
+            errors += 1
             continue
-        actual = result["intent"]
-        outcome = check_routing_case(case["expected_categories"], actual)
-        tally[outcome] += 1
-        by_expect[case["expect"]][outcome] += 1
-        status = "PASS" if outcome != "wrong" else "FAIL"
-        searched = collections_for_intent(actual)
-        print(
-            f"{status} {case['id']} ({outcome}) [{case['expect']}]: "
-            f"expected={case['expected_categories']} actual={actual} "
-            f"searched_collections={len(searched)}"
-        )
+        tally[record["outcome"]] += 1
+        by_expect[record["expect"]][record["outcome"]] += 1
+    return {"total": len(records), "errors": errors, "tally": tally, "by_expect": by_expect}
 
+
+def print_routing_summary(records: list[dict]) -> None:
+    summary = tally_routing_records(records)
+    tally, by_expect = summary["tally"], summary["by_expect"]
     passed = tally["exact"] + tally["superset"] + tally["safe-empty"]
-    total = sum(tally.values())
+    ran = summary["total"] - summary["errors"]
     print(
-        f"\n{passed}/{total} passed  (exact={tally['exact']} superset={tally['superset']} "
-        f"safe-empty={tally['safe-empty']} wrong={tally['wrong']})"
+        f"\n{passed}/{ran} passed  (exact={tally['exact']} superset={tally['superset']} "
+        f"safe-empty={tally['safe-empty']} wrong={tally['wrong']}, errors={summary['errors']})"
     )
     for expect_label, counts in by_expect.items():
         expect_total = sum(counts.values())
@@ -99,6 +92,47 @@ async def run(gateway_url: str, model: str | None, dataset_path: str | Path) -> 
             )
 
 
+async def run(
+    gateway_url: str, model: str | None, dataset_path: str | Path,
+    output: Path | None = None, resume: bool = False,
+) -> None:
+    cases = load_routing_cases(dataset_path)
+    records: list[dict] = read_records(output) if (output and resume) else []
+    if output and resume:
+        cases = filter_pending(cases, load_completed_ids(output))
+    gateway = GatewayClient(base_url=gateway_url, trace_enabled=False)
+
+    for case in cases:
+        try:
+            result = await extract_intent(gateway, case["query"], model=model)
+        except Exception as exception:
+            record = {"id": case["id"], "expect": case["expect"], "outcome": None, "error": f"{exception}"}
+            print(f"ERROR {case['id']}: {exception}")
+            records.append(record)
+            if output:
+                append_result(output, record)
+            continue
+        actual = result["intent"]
+        outcome = check_routing_case(case["expected_categories"], actual)
+        record = {
+            "id": case["id"], "expect": case["expect"], "outcome": outcome,
+            "expected_categories": case["expected_categories"], "actual_categories": actual,
+            "reasoning": result.get("reasoning"), "error": None,
+        }
+        records.append(record)
+        if output:
+            append_result(output, record)
+        status = "PASS" if outcome != "wrong" else "FAIL"
+        searched = collections_for_intent(actual)
+        print(
+            f"{status} {case['id']} ({outcome}) [{case['expect']}]: "
+            f"expected={case['expected_categories']} actual={actual} "
+            f"searched_collections={len(searched)}"
+        )
+
+    print_routing_summary(records)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Collection-routing accuracy check: intent must either exactly match the "
@@ -108,8 +142,16 @@ def main() -> None:
     parser.add_argument("--gateway-url", default="http://localhost:8011")
     parser.add_argument("--model", default=None, help="Override the slm role's model")
     parser.add_argument("--dataset", default="evals/collection_routing_cases.json")
+    parser.add_argument("--output", type=Path, help="append per-case results to this JSONL file as they complete")
+    parser.add_argument("--resume", action="store_true", help="skip case IDs already present in --output")
+    parser.add_argument("--summarize", type=Path, help="print the summary for an existing JSONL results file and exit - no gateway calls")
     args = parser.parse_args()
-    asyncio.run(run(args.gateway_url, args.model, args.dataset))
+    if args.summarize:
+        print_routing_summary(read_records(args.summarize))
+        return
+    if args.resume and not args.output:
+        parser.error("--resume requires --output")
+    asyncio.run(run(args.gateway_url, args.model, args.dataset, output=args.output, resume=args.resume))
 
 
 if __name__ == "__main__":

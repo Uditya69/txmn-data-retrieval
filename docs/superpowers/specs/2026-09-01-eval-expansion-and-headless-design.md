@@ -22,11 +22,12 @@ Scripts and datasets in scope:
 
 ## Goals
 
-1. Expand all four datasets with diverse query types, total ≈350-430 cases across the
+1. Expand all four datasets with diverse query types, total ≈365 cases across the
    set (exact split below).
-2. `retrieval_eval.py`'s coverage extends past caselaw/acts into rules, articles,
-   commentary, and tariff, using **real `gold_doc_id`s mined from the live ES/Milvus
-   corpus** (not fabricated, not sourced from the sibling repo's raw files).
+2. `retrieval_eval.py`'s coverage deepens across caselaw, acts, rules, articles, and
+   commentary (tariff excluded — see below), using **real `gold_doc_id`s mined from the
+   live ES/Milvus corpus** (not fabricated, not sourced from the sibling repo's raw
+   files).
 3. All four scripts get incremental, crash-safe output (`--output`, `--resume`,
    `--summarize`), sharing one small helper module instead of four bespoke
    implementations.
@@ -51,13 +52,21 @@ Target sizes (existing → new):
 - `intent_filter_cases.json`: 18 → 40
 - `collection_routing_cases.json`: 18 → 80
 - `retrieval_cases.json` (caselaw): 53 → 70
-- `statutory_cases.json` (acts): 40 → 55
-- New: `evals/rule_cases.json`, `evals/article_cases.json`,
-  `evals/commentary_cases.json`, `evals/tariff_cases.json` — ~20 cases each, same
-  schema as `statutory_cases.json` (adds a `category` field), runnable via
-  `retrieval_eval.py --dataset <file>`.
+- `statutory_cases.json` — **correction**: already covers acts/rules/articles/commentary
+  (10 cases each, 40 total, `category` field), not acts-only as first assumed. Expand
+  within those same 4 categories instead of creating new per-category files: 40 → 80
+  (20 cases each).
+- **Tariff dropped from the retrieval/synthesis eval entirely** — `tariff_section` is
+  not a live Milvus collection (parked in the ingestion pipeline's
+  `_disabled_collections`, not indexed; see `common/schemas.py`'s routing-table
+  comment and CLAUDE.md hard rule 4). There is no real corpus to mine gold docs from.
+  Tariff stays represented only in the three SLM-level datasets (as an
+  `expected_categories` tag) since intent classification doesn't require the target
+  collection to actually be searchable — the moment tariff is enabled here, it fits
+  the same `statutory_cases.json` pattern.
 
-Combined total ≈ 425. New cases for the three SLM datasets cover, deliberately mixed
+Combined total ≈ 365 (down from the earlier ≈425 estimate, since the 4 new per-category
+files are no longer needed). New cases for the three SLM datasets cover, deliberately mixed
 in: each of the six intent categories solo and in multi-label combination; filter-heavy
 queries (dates, courts, party names, section numbers); and sibling-section confusion
 probes (e.g. 54F vs 54B — tracking the known SLM section-conflation risk over a larger
@@ -141,10 +150,11 @@ evals/run_headless.sh status <name>
 evals/run_headless.sh stop <name>
 ```
 
-`start` launches the given command via `setsid ... > .eval-results/headless/<name>.log 2>&1 &`,
-writes `.eval-results/headless/<name>.pid`. `status` checks whether that PID is alive.
-`stop` sends `SIGTERM`. Nothing more — tmux/screen remains an equally valid choice on
-the user's server; this just gives a scriptable non-interactive option.
+`start` launches the given command via `nohup ... > .eval-results/headless/<name>.log 2>&1 &`
+(portable across macOS and Linux, unlike `setsid` which is Linux-only), writes
+`.eval-results/headless/<name>.pid`. `status` checks whether that PID is alive. `stop`
+sends `SIGTERM`. Nothing more — tmux/screen remains an equally valid choice on the
+user's server; this just gives a scriptable non-interactive option.
 
 ## Testing
 
