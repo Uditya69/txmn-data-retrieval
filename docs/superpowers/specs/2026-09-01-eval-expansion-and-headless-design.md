@@ -92,6 +92,14 @@ Each new case is validated by running it once through `retrieval_eval.py` before
 committed, confirming the gold doc actually surfaces (not necessarily top-1 — that's
 what the eval measures — but present in the corpus and reachable).
 
+`gold_doc_ids` stays exact-match grading (no similarity/fuzzy scoring added) — but
+mining should curate it liberally: where more than one real corpus doc genuinely
+answers a query equally well (e.g. several rulings on the same point of law, several
+sections that all govern the same fact pattern), list all of them in that case's
+`gold_doc_ids` rather than picking one arbitrarily. The schema already supports this
+(it's a list); this just means using it deliberately during mining instead of
+defaulting to a single doc per case.
+
 ## Shared incremental/resumable output — `retrieval_api/eval_io.py`
 
 New helper module used by all four scripts:
