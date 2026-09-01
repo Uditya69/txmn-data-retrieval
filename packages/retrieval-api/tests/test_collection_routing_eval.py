@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from retrieval_api.collection_routing_eval import check_routing_case, load_routing_cases
+from retrieval_api.collection_routing_eval import check_routing_case, load_routing_cases, tally_routing_records
 
 
 def test_repository_routing_dataset_has_cases_and_unique_ids():
@@ -95,3 +95,20 @@ def test_check_routing_case_nonempty_result_on_vague_case_is_wrong():
     # A confidently-tagged result on a genuinely vague query is the exact failure mode
     # this eval exists to catch - never treated as a pass just because it's "plausible."
     assert check_routing_case([], ["caselaws"]) == "wrong"
+
+
+def test_tally_routing_records_counts_outcomes_and_errors():
+    records = [
+        {"id": "R1", "expect": "confident", "outcome": "exact", "error": None},
+        {"id": "R2", "expect": "confident", "outcome": "wrong", "error": None},
+        {"id": "R3", "expect": "vague", "outcome": "safe-empty", "error": None},
+        {"id": "R4", "expect": "confident", "outcome": None, "error": "boom"},
+    ]
+
+    result = tally_routing_records(records)
+
+    assert result["total"] == 4
+    assert result["errors"] == 1
+    assert result["tally"] == {"exact": 1, "superset": 0, "safe-empty": 1, "wrong": 1}
+    assert result["by_expect"]["confident"] == {"exact": 1, "superset": 0, "safe-empty": 0, "wrong": 1}
+    assert result["by_expect"]["vague"] == {"exact": 0, "superset": 0, "safe-empty": 1, "wrong": 0}

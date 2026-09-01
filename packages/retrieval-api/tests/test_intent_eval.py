@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from retrieval_api.intent_eval import check_intent_case, load_intent_cases
+from retrieval_api.intent_eval import check_intent_case, load_intent_cases, tally_intent_records
 
 
 def test_repository_intent_filter_dataset_has_cases_and_unique_ids():
@@ -68,3 +68,15 @@ def test_check_intent_case_category_match_is_order_independent():
         {}, {}, ["acts", "caselaws"], ["caselaws", "acts"],
     )
     assert categories_ok is True
+
+
+def test_tally_intent_records_counts_pass_fail_and_errors():
+    records = [
+        {"id": "F1", "ok": True, "error": None},
+        {"id": "F2", "ok": False, "error": None},
+        {"id": "F3", "ok": None, "error": "boom"},
+    ]
+
+    result = tally_intent_records(records)
+
+    assert result == {"total": 3, "errors": 1, "passed": 1, "ran": 2}

@@ -22,6 +22,7 @@ from retrieval_api.ai_mode.intent import extract_intent
 from retrieval_api.ai_mode.rerank import rerank_top_chunks
 from retrieval_api.ai_mode.retrieve import _flatten, rrf_merge
 from retrieval_api.ai_mode.synthesize import synthesize
+from retrieval_api.eval_io import append_result, filter_pending, load_completed_ids, read_records
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.score_cutoff import elbow_cutoff
 
@@ -226,6 +227,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             rewritten_sparse = cached["rewritten_sparse"]
             merged = cached["merged"]
             reranked = cached["reranked"]
+            reasoning = cached.get("reasoning")
             timings["stage_cache"] = 0.0
         else:
             es_rows = await measured("es", raw_search(es_client, query, limit=limit, boost=boost)) or []
@@ -240,6 +242,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             )) or {name: [] for name in MILVUS_COLLECTIONS}
 
             intent = await measured("intent", extract_intent(gateway, query, model=slm_model))
+            reasoning = intent.get("reasoning") if intent else None
             rewritten_query = intent.get("search_query", query) if intent else query
             routed_collections = collections_for_intent(intent.get("intent") or []) if intent else MILVUS_COLLECTIONS
             allowlist = await measured("filters", resolve_allowlist(es_client, intent.get("filters", {}))) if intent else None
@@ -277,6 +280,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                     "es_rows": es_rows, "raw_dense": raw_dense, "raw_sparse": raw_sparse,
                     "rewritten_query": rewritten_query, "rewritten_dense": rewritten_dense,
                     "rewritten_sparse": rewritten_sparse, "merged": merged, "reranked": reranked,
+                    "reasoning": reasoning,
                 })
 
         dense_flat = _flatten(rewritten_dense)
@@ -326,7 +330,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
         result = {
             "id": case["id"], "pair": case.get("pair"), "class": case["class"],
             "query": query, "gold_doc_ids": case["gold_doc_ids"],
-            "rewritten_query": rewritten_query, "pass_at": case["pass_at"],
+            "rewritten_query": rewritten_query, "reasoning": reasoning, "pass_at": case["pass_at"],
             "ranks": ranks,
             "collection_ranks": {
                 "raw_dense": _collection_ranks(raw_dense, gold),
@@ -387,6 +391,8 @@ async def _run(args) -> int:
         cases = [case for case in cases if case["id"] in wanted]
     if not cases:
         raise ValueError("no eval cases selected")
+    if args.jsonl_resume:
+        cases = filter_pending(cases, load_completed_ids(args.jsonl_output))
 
     created_at = datetime.now(timezone.utc)
     result_path, snapshot_path, latest_path, latest_snapshot_path = _run_paths(
@@ -404,7 +410,7 @@ async def _run(args) -> int:
     gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=not args.no_langfuse)
     langfuse = get_client()
     try:
-        results = []
+        results = read_records(args.jsonl_output) if args.jsonl_resume else []
         for index, case in enumerate(cases, start=1):
             print(f"[{index}/{len(cases)}] Running {case['id']} ({case['class']})...", flush=True)
             result = await evaluate_case(
@@ -415,6 +421,8 @@ async def _run(args) -> int:
                 rerank_enabled=rerank_enabled, skip_synthesis=args.skip_synthesis, boost=args.boost,
             )
             results.append(result)
+            if args.jsonl_output:
+                append_result(args.jsonl_output, result)
             ranks = result["ranks"]
             print(
                 f"[{index}/{len(cases)}] {case['id']} done: "
@@ -487,7 +495,25 @@ def main() -> None:
     parser.add_argument("--langfuse-base-url", help="override LANGFUSE_BASE_URL for host-side runs")
     parser.add_argument("--output", type=Path, help="exact result path; default creates a timestamped archive")
     parser.add_argument("--no-langfuse", action="store_true")
+    parser.add_argument(
+        "--jsonl-output", type=Path,
+        help="append each case's result to this JSONL file as it completes - survives a crash/kill mid-run "
+        "(the --output full-payload JSON is still written once at the end, this is in addition to it)",
+    )
+    parser.add_argument(
+        "--resume", dest="jsonl_resume", action="store_true",
+        help="skip case IDs already present in --jsonl-output",
+    )
+    parser.add_argument(
+        "--summarize", type=Path,
+        help="print the per-stage pass/fail summary for an existing --jsonl-output file and exit - no live calls",
+    )
     args = parser.parse_args()
+    if args.summarize:
+        _print_summary(read_records(args.summarize))
+        return
+    if args.jsonl_resume and not args.jsonl_output:
+        parser.error("--resume requires --jsonl-output")
     raise SystemExit(asyncio.run(_run(args)))
 
 

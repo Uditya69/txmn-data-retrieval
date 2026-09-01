@@ -1,14 +1,15 @@
 # Case-law retrieval evaluation set
 
 This is a diagnostic retrieval benchmark built from the source case-law JSON files in
-`/Users/uditya/dev/taxmann/data-extraction-pipeline/data`. It contains 53 queries grouped
-into 21 matched pairs (`evals/retrieval_cases.json` is the machine-readable source of
-truth; this document mirrors it). Pairs 1-10 target the same gold document twice: once
-with direct lexical signals and once through an indirect factual or legal paraphrase.
-Pairs 11-21 add a third leg per pair, `adversarial` - a noisy variant of the same fact
-pattern (typos, telegraphic/Hinglish phrasing, acronym-only queries, or a bare compressed
-fact contrast) that stresses retrieval under degraded query quality rather than clean
-paraphrase.
+`/Users/uditya/dev/taxmann/data-extraction-pipeline/data`, plus gold docs mined directly
+from the live indexed corpus for the pairs added since. It contains 71 queries grouped
+into 24 matched pairs (`evals/retrieval_cases.json` is the machine-readable source of
+truth; this document mirrors it). Pairs 1-21 target the same gold document with a direct
+lexical-signal query and an indirect factual/legal paraphrase, each also carrying a third
+`adversarial` leg (a noisy variant - typos, telegraphic/Hinglish phrasing, acronym-only
+queries, or a bare compressed fact contrast - that stresses retrieval under degraded
+query quality rather than clean paraphrase), except Pair 24 which has only direct+indirect
+(see that pair's note). Pairs 22-24 are the most recently added.
 
 The `expected strongest` column is a hypothesis, not ground truth. Its purpose is to make
 failures interpretable when comparing Elasticsearch, Milvus sparse BM25, and Milvus dense
@@ -33,9 +34,10 @@ here reflect plain BM25 text relevance, not the boosted formula the original des
   investigate, not an automatic test failure.
 - For a direct query, treat gold rank <= 5 as a pass and rank 6-10 as a weak pass.
 - For an indirect query, treat gold rank <= 10 as a pass and rank 11-20 as a weak pass.
-- For an adversarial query (pairs 11-21 only - typos, telegraphic/Hinglish phrasing,
-  acronym-only, or bare fact contrast), treat gold rank <= 20 as a pass. There is no weak
-  pass band; the query is deliberately degraded, so anything outside top 20 is a fail.
+- For an adversarial query (every pair except Pair 24 - typos, telegraphic/Hinglish
+  phrasing, acronym-only, or bare fact contrast), treat gold rank <= 20 as a pass. There
+  is no weak pass band; the query is deliberately degraded, so anything outside top 20
+  is a fail.
 - All seven Milvus collections should be queried every time, in accordance with system
   behavior. `relevant collections` below means where a useful gold hit is most expected,
   not which collections should be routed.
@@ -58,9 +60,11 @@ Gold document:
 |---|---|---|---|---|---|
 | Q01 | Direct | `Rai Bahadur L Panna Lal 2 ITC 432 Lahore standard rate 10 per cent assessment` | `metadata`, `headnotes`, `held` | ES / Milvus sparse | Gold `doc_id` in top 5 |
 | Q02 | Indirect | `Can a tax officer estimate a contractor's profit at a flat percentage when accounts for one year cannot be separated, without revealing the material used or allowing rebuttal?` | `facts`, `held`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+| Q54 | Adversarial | `contractr profit flat rate 10 pct no proof rebutal chance 1927 lahore standard rate case` | `headnotes`, `facts`, `held` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
 
 Diagnostic intent: Q01 has rare party/citation tokens; Q02 removes them while preserving
-the factual pattern and ratio.
+the factual pattern and ratio. Q54 (`telegraphic_typos`) compresses the same fact pattern
+with typos (“contractr”, “rebutal”) and drops the party name entirely.
 
 ### Pair 2 — compensation for giving up a managing agency
 
@@ -78,9 +82,12 @@ Gold document:
 |---|---|---|---|---|---|
 | Q03 | Direct | `32 ITR 190 Provident Investment managing agency section 12B capital gains` | `metadata`, `headnotes` | ES / Milvus sparse | Gold `doc_id` in top 5 |
 | Q04 | Indirect | `Is money received for resigning from a managing agency taxable as capital gains when the agency itself was never sold or transferred?` | `held`, `ruling`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+| Q55 | Adversarial | `managing agency chhod diya paisa mila capital gain lagega kya agency becha hi nahi tha` | `headnotes`, `held`, `case_summary` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
 
 Diagnostic intent: tests historical section 12B language against the modern capital-gains
-concept and a semantic description of relinquishment.
+concept and a semantic description of relinquishment. Q55 (`hinglish_typos`) restates the
+same fact pattern in Hindi-English code-switched phrasing with no citation or section
+anchor.
 
 ### Pair 3 — CBEC circular and demurrage in customs valuation
 
@@ -98,9 +105,12 @@ Gold document:
 |---|---|---|---|---|---|
 | Q05 | Direct | `Commissioner of Customs Indian Oil 136 Taxman 491 demurrage section 14 151A` | `metadata`, `headnotes` | ES / Milvus sparse | Gold `doc_id` in top 5 |
 | Q06 | Indirect | `Can the customs department ignore its own still-operative Board circular and add port delay charges to the assessable value of imported goods?` | `digest`, `held`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+| Q56 | Adversarial | `customs board circular ignore port delay charge assessable value add sakte kya indian oil` | `digest`, `held`, `case_summary` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
 
 Diagnostic intent: Q06 replaces the corpus term “demurrage” with “port delay charges,” a
-strong sparse-versus-dense discrimination test.
+strong sparse-versus-dense discrimination test. Q56 (`compressed_contrast`) compresses
+that same paraphrase further with Hinglish phrasing while keeping the party-name anchor
+“indian oil.”
 
 ### Pair 4 — Modvat credit on an invoice addressed to head office
 
@@ -118,9 +128,11 @@ Gold document:
 |---|---|---|---|---|---|
 | Q07 | Direct | `Gharda Chemicals Rule 57G Modvat invoice head office Dombivli plant` | `metadata`, `headnotes` | ES / Milvus sparse | Gold `doc_id` in top 5 |
 | Q08 | Indirect | `May a factory claim excise input credit when the supplier's invoice names the company's head office but the goods reached the factory and the office endorsed the invoice to it?` | `facts`, `held`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+| Q57 | Adversarial | `modvat credit invoice head office naam factory pahuchi endorse kiya allowed gharda` | `facts`, `held`, `case_summary` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
 
 Diagnostic intent: tests legacy “Modvat” terminology versus the modern paraphrase “input
-credit,” without turning the query into a GST question.
+credit,” without turning the query into a GST question. Q57 (`telegraphic`) keeps the
+party-name anchor “gharda” but telegraphs the rest in Hinglish shorthand.
 
 ### Pair 5 — court-ordered investigation behind a fraudulent corporate veil
 
@@ -138,9 +150,11 @@ Gold document:
 |---|---|---|---|---|---|
 | Q09 | Direct | `Ali Jawad Rizvi Indo French Biotech 1025 per cent return corporate veil` | `metadata`, `headnotes`, `facts` | ES / Milvus sparse | Gold `doc_id` in top 5 |
 | Q10 | Indirect | `Can a court order investigators to trace and seize a company's property when many investors appear to have been defrauded through an investment scheme, even if no statute expressly grants that power?` | `facts`, `held`, `ruling` | Milvus dense | Gold `doc_id` in top 10 |
+| Q58 | Adversarial | `investrs ka paisa fraud company property trace order without statute power court de sakta kya` | `facts`, `held`, `ruling` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
 
 Diagnostic intent: long fact-pattern query with few exact case identifiers; useful for
-testing dense retrieval over facts and operative holdings.
+testing dense retrieval over facts and operative holdings. Q58 (`hinglish_typos`) restates
+the same fact pattern with a typo (“investrs”) and Hindi-English code-switching.
 
 ### Pair 6 — cheque liability of a non-signatory spouse
 
@@ -158,9 +172,11 @@ Gold document:
 |---|---|---|---|---|---|
 | Q11 | Direct | `Alka Khandu Avhad section 138 141 non signatory wife joint liability cheque` | `metadata`, `headnotes`, `held` | ES / Milvus sparse | Gold `doc_id` in top 5 |
 | Q12 | Indirect | `A husband issued a cheque for a jointly owed debt and it bounced. Can his wife also be criminally prosecuted when she did not sign it and the bank account was not joint?` | `facts`, `held`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+| Q59 | Adversarial | `cheque bounce husband ne sign kiya wife criminal liable nahi signatory joint account bhi nahi` | `headnotes`, `facts`, `held` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
 
 Diagnostic intent: distinguishes liability for joint debt from the statutory requirement
-that the accused draw the cheque on an account maintained by that person.
+that the accused draw the cheque on an account maintained by that person. Q59
+(`hinglish_typos`) restates the same fact pattern in Hinglish with no party name.
 
 ### Pair 7 — routine provisional attachment of nearly empty GST accounts
 
@@ -178,9 +194,11 @@ Gold document:
 |---|---|---|---|---|---|
 | Q13 | Direct | `Vinodkumar Chechani section 83 rule 159 provisional attachment bank accounts 22000` | `metadata`, `headnotes`, `facts` | ES / Milvus sparse | Gold `doc_id` in top 5 |
 | Q14 | Indirect | `Should GST authorities freeze every bank account as a routine revenue-protection step when the accounts hold only a small balance and there is no demonstrated need for such a drastic measure?` | `held`, `ruling`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+| Q60 | Adversarial | `gst dept sabhi bank account freeze kar sakta chota balance bina zarurat provisional attachment 83` | `held`, `ruling`, `case_summary` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
 
 Diagnostic intent: Q14 omits party, section, rule, court, citation, and exact monetary
-amount while retaining the ratio.
+amount while retaining the ratio. Q60 (`telegraphic`) keeps the section-83 anchor but
+telegraphs the rest in Hinglish shorthand.
 
 ### Pair 8 — software licences recharged at cost under India-USA DTAA
 
@@ -199,9 +217,12 @@ Gold document:
 |---|---|---|---|---|---|
 | Q15 | Direct | `Husco International 133 taxmann.com 196 article 12 India USA DTAA software royalty PE` | `metadata`, `headnotes`, `digest` | ES / Milvus sparse | Gold `doc_id` in top 5 |
 | Q16 | Indirect | `A US parent buys off-the-shelf software seats and recovers the exact cost from its Indian affiliate without giving any reproduction rights. Is that receipt royalty or taxable business income in India if the parent has no local establishment?` | `facts`, `held`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+| Q61 | Adversarial | `software seat cost recover no repro rights royalty ya business income no PE us parent india husco` | `facts`, `held`, `case_summary` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
 
 Diagnostic intent: tests semantic matching between “software seats/off-the-shelf” and the
 corpus language “licences/copyrighted articles,” plus “local establishment” versus PE.
+Q61 (`compressed_contrast`) compresses Q16's paraphrase into a telegraphic, Hinglish-
+inflected query while keeping the party-name anchor “husco.”
 
 ### Pair 9 — GST rate for an airport authority staff colony
 
@@ -219,9 +240,12 @@ Gold document:
 |---|---|---|---|---|---|
 | Q17 | Direct | `B G Shirke Airport Authority residential colony 12 percent GST Notification 11/2017 entry 3(vi)(c)` | `metadata`, `headnotes`, `digest` | ES / Milvus sparse | Gold `doc_id` in top 5 |
 | Q18 | Indirect | `What GST rate applies when a contractor builds staff housing for employees of the Airports Authority of India?` | `facts`, `held`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+| Q62 | Adversarial | `airport authority employee housing banane pe gst rate kitna 12 ya 18 percent bg shirke` | `facts`, `held`, `case_summary` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
 
 Diagnostic intent: a short natural-language query with a clear answer embedded in the
-facts and holding; also tests “staff housing” versus “residential colony.”
+facts and holding; also tests “staff housing” versus “residential colony.” Q62
+(`short_vague`) is a bare Hinglish rate question naming a wrong candidate rate (18%)
+alongside the right one (12%).
 
 ### Pair 10 — unreliable segment data in transfer-pricing comparables
 
@@ -239,9 +263,12 @@ Gold document:
 |---|---|---|---|---|---|
 | Q19 | Direct | `Dimension Data India section 92C ITES comparables unreliable segmental results outsourcing` | `metadata`, `headnotes`, `digest` | ES / Milvus sparse | Gold `doc_id` in top 5 |
 | Q20 | Indirect | `For an arm's-length analysis, should a mixed-service company with untrustworthy segment accounts be compared with an IT-enabled-services provider, especially when one outsources the work and the other performs it in-house?` | `facts`, `held`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+| Q63 | Adversarial | `tp comparable mix service company untrustworthy segment ites outsource vs inhouse allowed dimension data` | `facts`, `held`, `case_summary` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
 
 Diagnostic intent: concept-heavy query expected to benefit from dense similarity while
-still retaining a few useful sparse anchors such as “arm's-length” and “outsources.”
+still retaining a few useful sparse anchors such as “arm's-length” and “outsources.” Q63
+(`telegraphic`) compresses the same concepts into abbreviation-heavy shorthand (“tp”,
+“ites”) while keeping the party-name anchor “dimension data.”
 
 ### Pair 11 — court-approved capital reduction distributing a capitalised reserve
 
@@ -497,6 +524,74 @@ Gold document:
 
 Diagnostic intent: tests the section 69C (1961 Act) to section 105 (2025 Act) crosswalk
 under a compressed, half-citation-style query.
+
+### Pair 22 — TDS credit despite the employer's non-deposit
+
+Gold document:
+
+- `doc_id`: `101010000000421649`
+- Case: *Aditya Ramniwas Dhoot v. Deputy Commissioner of Income-tax*
+- Citation: `[2026] 187 taxmann.com 429 (Mumbai - Trib.)`
+- Source: `data/2026/101010000000421649.json`
+- Corpus evidence: An employer deducted TDS from the assessee's salary but never deposited
+  it with the government. The Tribunal held the employee could not be denied credit for
+  tax already deducted at source merely because the employer defaulted on depositing it;
+  recovery lies against the defaulting employer, not against the employee.
+
+| ID | Class | User query | Relevant collections | Expected strongest | Pass criterion |
+|---|---|---|---|---|---|
+| Q64 | Direct | `Aditya Ramniwas Dhoot 187 taxmann.com 429 Mumbai Tribunal TDS credit employer default recovery` | `metadata`, `headnotes`, `digest` | ES / Milvus sparse | Gold `doc_id` in top 5 |
+| Q65 | Indirect | `If an employer deducts TDS from an employee's salary but never deposits it with the government, can the tax department deny the employee credit for that TDS and instead go after the employer for recovery?` | `facts`, `held`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+| Q66 | Adversarial | `employr tds kata deposit nahi kiya employee credit milega ya nahi recovery kisse ho` | `headnotes`, `held`, `facts` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
+
+Diagnostic intent: a fact pattern many salaried queriers phrase in plain, non-jargon
+language (Q65/Q66) versus the citation-heavy Q64; tests whether "employer defaulted on
+depositing TDS" resolves to the same doc as the natural-language framing.
+
+### Pair 23 — GST rate on a railway-station works contract
+
+Gold document:
+
+- `doc_id`: `101010000000316427`
+- Case: *Bindu Projects & Co., In re*
+- Citation: `[2021] 130 taxmann.com 372 (AAR - Karnataka)`
+- Source: `data/2021/101010000000316427.json`
+- Corpus evidence: A contractor engaged to construct a new railway station and allied
+  service buildings for the railways under a works contract was held liable to GST at 12
+  percent, not the general 18 percent rate, under the concessional entry for railway
+  infrastructure works contracts.
+
+| ID | Class | User query | Relevant collections | Expected strongest | Pass criterion |
+|---|---|---|---|---|---|
+| Q67 | Direct | `Bindu Projects Co 130 taxmann.com 372 AAR Karnataka 12 percent GST railway station construction works contract` | `metadata`, `headnotes`, `digest` | ES / Milvus sparse | Gold `doc_id` in top 5 |
+| Q68 | Indirect | `What GST rate applies to a contractor building a new railway station and service buildings for the railways under a works contract?` | `facts`, `held`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+| Q69 | Adversarial | `railway station banane wale works contract pe gst rate 12 ya 18 kitna new building` | `headnotes`, `held`, `digest` | Milvus dense (robustness hypothesis) | Gold `doc_id` in top 20 |
+
+Diagnostic intent: pairs with Pair 9's airport-authority GST-rate question as a same-
+shape, different-fact-pattern discriminator; Q69 names both the right rate (12%) and a
+wrong candidate (18%), same stress shape as Q62.
+
+### Pair 24 — time-barred section 148 reassessment notice
+
+Gold document:
+
+- `doc_id`: `101010000000338012`
+- Case: *Income-tax Officer v. Tapan Kumar Ghadei*
+- Citation: `[2023] 153 taxmann.com 577 (SC)`
+- Source: `data/2023/101010000000338012.json`
+- Corpus evidence: The Supreme Court dismissed the Revenue's SLP against a High Court
+  order quashing a section 148 reassessment notice issued after the limitation period for
+  that assessment year had expired.
+
+| ID | Class | User query | Relevant collections | Expected strongest | Pass criterion |
+|---|---|---|---|---|---|
+| Q70 | Direct | `Income-tax Officer v Tapan Kumar Ghadei 153 taxmann.com 577 Supreme Court section 148 reassessment notice limitation SLP dismissed` | `metadata`, `headnotes` | ES / Milvus sparse | Gold `doc_id` in top 5 |
+| Q71 | Indirect | `If a reassessment notice under section 148 is issued after the limitation period for that assessment year has expired, is the notice and everything that follows from it invalid?` | `headnotes`, `digest`, `case_summary` | Milvus dense | Gold `doc_id` in top 10 |
+
+Diagnostic intent: only two legs (no adversarial) - the gold document is a terse Supreme
+Court SLP-dismissal order with empty `facts`/`held` fields in the corpus, leaving
+insufficient distinct content to construct a meaningfully different degraded-phrasing
+variant beyond Q71's paraphrase.
 
 ## Result capture template
 

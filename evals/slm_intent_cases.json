@@ -808,5 +808,485 @@
     "expected_categories": ["rules", "caselaws"],
     "expected_filters": {"court": "Telangana High Court", "date_range": {"gte": "2021-07-01", "lte": "2022-06-30"}},
     "rewrite_must_contain": ["89(4)", "2021", "2022"]
+  },
+  {
+    "id": "S101",
+    "query": "boss won't give me credit for the tax I already paid abroad",
+    "expect": "confident",
+    "expected_categories": ["acts", "commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S102",
+    "query": "my landlord sold the house and now says I have to pay tax on the profit",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S103",
+    "query": "the tax officer wants proof for every rupee I spent, is that even allowed",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S104",
+    "query": "company gave me shares for free at work, do I owe anything on that",
+    "expect": "confident",
+    "expected_categories": ["acts", "rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S105",
+    "query": "I run a small shop, do I really need to register for GST",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S106",
+    "query": "got a notice saying my old tax return is being reopened after five years",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S107",
+    "query": "can customs charge me extra just because they think I undervalued my import",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S108",
+    "query": "my dad passed away and left me his flat, will I have to pay tax when I sell it",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S109",
+    "query": "the tribunal already decided this exact issue for another company, does that help my case",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S110",
+    "query": "what happens to the extra GST I paid if I can't use it all",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S111",
+    "query": "the department says my accounts don't add up so they're just guessing my income",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S112",
+    "query": "government charges extra duty when I bring gold back from a trip abroad, how much",
+    "expect": "confident",
+    "expected_categories": ["tariff"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S113",
+    "query": "written explanation somewhere of why a share deal counts as one whole business sold, not separate assets",
+    "expect": "confident",
+    "expected_categories": ["commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S114",
+    "query": "is there a news piece about the government changing GST rates on online gaming",
+    "expect": "confident",
+    "expected_categories": ["articles"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S115",
+    "query": "found a step by step guide for the paperwork needed to deduct tax when paying a foreign vendor",
+    "expect": "confident",
+    "expected_categories": ["rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S116",
+    "query": "someone challenged in court whether the tax rules can apply the same way retroactively",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S117",
+    "query": "want the paperwork that says how to value free perks like a company car",
+    "expect": "confident",
+    "expected_categories": ["rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S118",
+    "query": "is my inherited farmland treated differently for tax than land I bought myself",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S119",
+    "query": "what about last year",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S120",
+    "query": "is that normal",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S121",
+    "query": "same question as before",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S122",
+    "query": "can you check",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S123",
+    "query": "I don't understand any of this",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S124",
+    "query": "what now",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S125",
+    "query": "just curious",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S126",
+    "query": "any updates",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S127",
+    "query": "why though",
+    "expect": "vague",
+    "expected_categories": [],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S128",
+    "query": "exemption on capital gains from compulsory acquisition of urban agricultural land under section 54B",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["54B"]
+  },
+  {
+    "id": "S129",
+    "query": "deduction limit under section 80CCC for pension fund contributions",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["80CCC"]
+  },
+  {
+    "id": "S130",
+    "query": "penalty under section 271AAA for undisclosed income found during search",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["271AAA"]
+  },
+  {
+    "id": "S131",
+    "query": "disallowance under section 40A(3) for cash payments exceeding the prescribed limit",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["40A(3)"]
+  },
+  {
+    "id": "S132",
+    "query": "scope of assessment under section 143(3) scrutiny proceedings",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["143(3)"]
+  },
+  {
+    "id": "S133",
+    "query": "addition under section 69A for unexplained money found during survey",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["69A"]
+  },
+  {
+    "id": "S134",
+    "query": "taxability of maturity proceeds under section 10(10D) for life insurance policies",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["10(10D)"]
+  },
+  {
+    "id": "S135",
+    "query": "time limit for issuing notice under section 149 for reassessment",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["149"]
+  },
+  {
+    "id": "S136",
+    "query": "Rule 128 procedure and case law on denial of foreign tax credit for late filing of Form 67",
+    "expect": "confident",
+    "expected_categories": ["rules", "caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["128"]
+  },
+  {
+    "id": "S137",
+    "query": "commentary and recent tribunal rulings on faceless assessment penalty proceedings",
+    "expect": "confident",
+    "expected_categories": ["commentary", "caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S138",
+    "query": "GST Act provisions and tariff classification for restaurant services during outdoor catering",
+    "expect": "confident",
+    "expected_categories": ["acts", "tariff"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S139",
+    "query": "article plus case law on the Supreme Court's stance on Vodafone-style retrospective amendments",
+    "expect": "confident",
+    "expected_categories": ["articles", "caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S140",
+    "query": "Rule 11UA valuation method and article discussing its recent amendment for startups",
+    "expect": "confident",
+    "expected_categories": ["rules", "articles"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["11UA"]
+  },
+  {
+    "id": "S141",
+    "query": "section 92C computation methods and commentary explaining safe harbour rules",
+    "expect": "confident",
+    "expected_categories": ["acts", "commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["92C"]
+  },
+  {
+    "id": "S142",
+    "query": "Customs Tariff heading for drones plus any rulings on their classification dispute",
+    "expect": "confident",
+    "expected_categories": ["tariff", "caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S143",
+    "query": "Rule 6(3)(c) reversal mechanism and commentary on its practical difficulties",
+    "expect": "confident",
+    "expected_categories": ["rules", "commentary"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["6(3)(c)"]
+  },
+  {
+    "id": "S144",
+    "query": "section 12AA registration and case law on cancellation for commercial activity by trusts",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["12AA"]
+  },
+  {
+    "id": "S145",
+    "query": "article on new TDS rules under section 194R plus the rule prescribing valuation of benefits",
+    "expect": "confident",
+    "expected_categories": ["articles", "rules"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["194R"]
+  },
+  {
+    "id": "S146",
+    "query": "Calcutta High Court ruling on section 54EC bonds exemption decided between 2016-01-01 and 2018-12-31",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {"court": "Calcutta High Court", "date_range": {"gte": "2016-01-01", "lte": "2018-12-31"}},
+    "rewrite_must_contain": ["54EC", "2016", "2018"]
+  },
+  {
+    "id": "S147",
+    "query": "case involving Sanjay Mehta and Vikram Mehta on undisclosed foreign bank account under the Black Money Act decided by the Mumbai Bench of ITAT",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"party": "Sanjay Mehta", "bench": "Mumbai"},
+    "rewrite_must_contain": ["Sanjay Mehta"]
+  },
+  {
+    "id": "S148",
+    "query": "Patna High Court decision dated between 2012-04-01 and 2013-03-31 on entry tax constitutional validity",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"court": "Patna High Court", "date_range": {"gte": "2012-04-01", "lte": "2013-03-31"}},
+    "rewrite_must_contain": ["2012", "2013"]
+  },
+  {
+    "id": "S149",
+    "query": "Rule 3A medical facility valuation ruling by the Chennai Bench of ITAT for the Meera Nair case",
+    "expect": "confident",
+    "expected_categories": ["rules", "caselaws"],
+    "expected_filters": {"party": "Meera Nair", "bench": "Chennai"},
+    "rewrite_must_contain": ["3A", "Meera Nair"]
+  },
+  {
+    "id": "S150",
+    "query": "Jharkhand High Court judgment authored by Justice Rongon Mukhopadhyay on mining lease royalty",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"court": "Jharkhand High Court", "judge": "Rongon Mukhopadhyay"},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S151",
+    "query": "Section 194J TDS on professional fees dispute involving Kavita Rao decided between 2017-01-01 and 2017-12-31 by Ahmedabad Bench",
+    "expect": "confident",
+    "expected_categories": ["acts", "caselaws"],
+    "expected_filters": {"party": "Kavita Rao", "bench": "Ahmedabad Bench", "date_range": {"gte": "2017-01-01", "lte": "2017-12-31"}},
+    "rewrite_must_contain": ["194J"]
+  },
+  {
+    "id": "S152",
+    "query": "Andhra Pradesh High Court ruling on Rule 86A blocking of electronic credit ledger",
+    "expect": "confident",
+    "expected_categories": ["rules", "caselaws"],
+    "expected_filters": {"court": "Andhra Pradesh High Court"},
+    "rewrite_must_contain": ["86A"]
+  },
+  {
+    "id": "S153",
+    "query": "case of Ashok Bansal versus Deepak Bansal partition dispute decided by Principal Bench of ITAT between 2019-01-01 and 2019-06-30",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {"party": "Ashok Bansal", "bench": "Principal Bench", "date_range": {"gte": "2019-01-01", "lte": "2019-06-30"}},
+    "rewrite_must_contain": ["Ashok Bansal"]
+  },
+  {
+    "id": "S154",
+    "query": "54F capitl gain exemtion invest new hous",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["54F"]
+  },
+  {
+    "id": "S155",
+    "query": "gst itc reversl rule 6 3 c bombay hc",
+    "expect": "confident",
+    "expected_categories": ["rules", "caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S156",
+    "query": "sir ye 143(3) scrutiny ka notice aaya hai kya karu",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["143(3)"]
+  },
+  {
+    "id": "S157",
+    "query": "271(1)(c) penalty case laa do jaldi",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["271(1)(c)"]
+  },
+  {
+    "id": "S158",
+    "query": "customs duty gold laptop dono ka rate batao",
+    "expect": "confident",
+    "expected_categories": ["tariff"],
+    "expected_filters": {},
+    "rewrite_must_contain": []
+  },
+  {
+    "id": "S159",
+    "query": "TDS 194C works cntrct paymnt disallowd 40a ia",
+    "expect": "confident",
+    "expected_categories": ["acts"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["194C"]
+  },
+  {
+    "id": "S160",
+    "query": "suprem court 148 notice reopn old case help",
+    "expect": "confident",
+    "expected_categories": ["caselaws"],
+    "expected_filters": {},
+    "rewrite_must_contain": ["148"]
   }
 ]

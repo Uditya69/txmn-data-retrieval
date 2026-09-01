@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 
 from retrieval_api.ai_mode.intent import extract_intent
+from retrieval_api.eval_io import append_result, filter_pending, load_completed_ids, read_records
 from retrieval_api.gateway_client import GatewayClient
 
 _VALID_EXPECT = {"confident", "vague"}
@@ -103,35 +104,83 @@ def check_filters(expected_filters: dict, actual_filters: dict) -> bool:
     )
 
 
-async def run(gateway_url: str, model: str | None, dataset_path: str | Path, limit: int | None) -> None:
+def tally_slm_records(records: list[dict]) -> dict:
+    cat_tally = {"exact": 0, "superset": 0, "safe-empty": 0, "wrong": 0}
+    rewrite_pass = filters_pass = all_pass = errors = 0
+    for record in records:
+        if record.get("error"):
+            errors += 1
+            continue
+        cat_tally[record["category_outcome"]] += 1
+        rewrite_pass += bool(record["rewrite_ok"])
+        filters_pass += bool(record["filters_ok"])
+        all_pass += bool(record["case_ok"])
+    cat_passed = cat_tally["exact"] + cat_tally["superset"] + cat_tally["safe-empty"]
+    return {
+        "total": len(records), "errors": errors, "ran": len(records) - errors,
+        "cat_tally": cat_tally, "cat_passed": cat_passed,
+        "rewrite_pass": rewrite_pass, "filters_pass": filters_pass, "all_pass": all_pass,
+    }
+
+
+def print_slm_summary(records: list[dict]) -> None:
+    summary = tally_slm_records(records)
+    ran, total = summary["ran"], summary["total"]
+    cat_tally = summary["cat_tally"]
+    print("\n--- summary ---")
+    print(f"cases run: {ran}/{total} (errors={summary['errors']})")
+    if ran:
+        print(
+            f"categories: {summary['cat_passed']}/{ran} passed "
+            f"(exact={cat_tally['exact']} superset={cat_tally['superset']} "
+            f"safe-empty={cat_tally['safe-empty']} wrong={cat_tally['wrong']})"
+        )
+        print(f"rewrite:    {summary['rewrite_pass']}/{ran} passed")
+        print(f"filters:    {summary['filters_pass']}/{ran} passed")
+        print(f"overall:    {summary['all_pass']}/{ran} passed (all three checks)")
+
+
+async def run(
+    gateway_url: str, model: str | None, dataset_path: str | Path, limit: int | None,
+    output: Path | None = None, resume: bool = False,
+) -> None:
     cases = load_cases(dataset_path)
     if limit is not None:
         cases = cases[:limit]
+    records: list[dict] = read_records(output) if (output and resume) else []
+    if output and resume:
+        cases = filter_pending(cases, load_completed_ids(output))
     gateway = GatewayClient(base_url=gateway_url, trace_enabled=False)
-
-    cat_tally = {"exact": 0, "superset": 0, "safe-empty": 0, "wrong": 0}
-    rewrite_pass = 0
-    filters_pass = 0
-    all_pass = 0
-    errors = 0
 
     for case in cases:
         try:
             result = await extract_intent(gateway, case["query"], model=model)
         except Exception as exception:
+            record = {"id": case["id"], "expect": case["expect"], "error": f"{exception}"}
             print(f"ERROR {case['id']}: {exception}")
-            errors += 1
+            records.append(record)
+            if output:
+                append_result(output, record)
             continue
 
         cat_outcome = check_categories(case["expected_categories"], result["intent"])
-        cat_tally[cat_outcome] += 1
         rewrite_ok, rewrite_reasons = check_rewrite(case, result["search_query"])
         filters_ok = check_filters(case["expected_filters"], result["filters"])
-
-        rewrite_pass += rewrite_ok
-        filters_pass += filters_ok
         case_ok = cat_outcome != "wrong" and rewrite_ok and filters_ok
-        all_pass += case_ok
+
+        record = {
+            "id": case["id"], "expect": case["expect"], "error": None,
+            "category_outcome": cat_outcome,
+            "expected_categories": case["expected_categories"], "actual_categories": result["intent"],
+            "rewrite_ok": rewrite_ok, "rewrite_reasons": rewrite_reasons,
+            "original_query": case["query"], "rewritten_query": result["search_query"],
+            "filters_ok": filters_ok,
+            "expected_filters": case["expected_filters"], "actual_filters": result["filters"],
+            "case_ok": case_ok, "reasoning": result.get("reasoning"),
+        }
+        records.append(record)
+        if output:
+            append_result(output, record)
 
         status = "PASS" if case_ok else "FAIL"
         print(
@@ -142,20 +191,7 @@ async def run(gateway_url: str, model: str | None, dataset_path: str | Path, lim
             f"  filters: {'ok' if filters_ok else 'FAIL'} (expected={case['expected_filters']} actual={result['filters']})"
         )
 
-    total = len(cases)
-    ran = total - errors
-    cat_passed = cat_tally["exact"] + cat_tally["superset"] + cat_tally["safe-empty"]
-    print("\n--- summary ---")
-    print(f"cases run: {ran}/{total} (errors={errors})")
-    if ran:
-        print(
-            f"categories: {cat_passed}/{ran} passed "
-            f"(exact={cat_tally['exact']} superset={cat_tally['superset']} "
-            f"safe-empty={cat_tally['safe-empty']} wrong={cat_tally['wrong']})"
-        )
-        print(f"rewrite:    {rewrite_pass}/{ran} passed")
-        print(f"filters:    {filters_pass}/{ran} passed")
-        print(f"overall:    {all_pass}/{ran} passed (all three checks)")
+    print_slm_summary(records)
 
 
 def main() -> None:
@@ -172,10 +208,18 @@ def main() -> None:
         help="Run only the first N cases of the dataset (e.g. --limit 10 out of 50 total). "
         "Default: run all cases.",
     )
+    parser.add_argument("--output", type=Path, help="append per-case results to this JSONL file as they complete")
+    parser.add_argument("--resume", action="store_true", help="skip case IDs already present in --output")
+    parser.add_argument("--summarize", type=Path, help="print the summary for an existing JSONL results file and exit - no gateway calls")
     args = parser.parse_args()
     if args.limit is not None and args.limit <= 0:
         parser.error("--limit must be a positive integer")
-    asyncio.run(run(args.gateway_url, args.model, args.dataset, args.limit))
+    if args.summarize:
+        print_slm_summary(read_records(args.summarize))
+        return
+    if args.resume and not args.output:
+        parser.error("--resume requires --output")
+    asyncio.run(run(args.gateway_url, args.model, args.dataset, args.limit, output=args.output, resume=args.resume))
 
 
 if __name__ == "__main__":
