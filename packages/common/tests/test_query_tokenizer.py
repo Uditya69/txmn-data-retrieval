@@ -3,6 +3,7 @@ from common.query_tokenizer import (
     merge_court_city, merge_citation_span, strip_stopwords, extract_quoted_phrases,
     expand_query_synonyms, extract_boost_phrases, chunk_query, build_dense_sparse_query,
     classify_intent_mode, detect_group_signals, expand_query_normalizations,
+    default_act_suffix,
 )
 
 
@@ -383,3 +384,34 @@ def test_classify_intent_mode_tags_party_name_plus_section_as_hybrid():
 
 def test_classify_intent_mode_tags_empty_query_as_hybrid():
     assert classify_intent_mode("") == "hybrid"
+
+
+def test_default_act_suffix_defaults_bare_section_to_income_tax_act():
+    query = "Section 55"
+    assert default_act_suffix(chunk_query(query), query) == " Income-tax Act 1961"
+
+
+def test_default_act_suffix_defaults_bare_rule_to_income_tax_rules_not_act():
+    # A Rule is delegated legislation under the Income-tax Rules, 1962 - a different
+    # instrument from the Income-tax Act, 1961 itself. Defaulting it to "Act 1961"
+    # would point ES at the wrong document type entirely.
+    query = "Rule 6"
+    assert default_act_suffix(chunk_query(query), query) == " Income-tax Rules 1962"
+
+
+def test_default_act_suffix_skips_bare_article_entirely():
+    # A bare "Article N" almost always means the Constitution of India, not anything
+    # Income-tax related - guessing an Income-tax instrument here would be a
+    # confidently wrong guess, worse than leaving it unbiased.
+    query = "Article 14"
+    assert default_act_suffix(chunk_query(query), query) == ""
+
+
+def test_default_act_suffix_skips_when_a_different_act_is_named():
+    query = "Rule 6 of the CGST Act"
+    assert default_act_suffix(chunk_query(query), query) == ""
+
+
+def test_default_act_suffix_skips_when_no_section_chunk_present():
+    query = "Gharda Chemicals Dombivli plant"
+    assert default_act_suffix(chunk_query(query), query) == ""

@@ -427,17 +427,33 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     concrete situation, a named narrower angle, additional facts) is not
     "short/bare" and gets no addition beyond what the other rules below
     already call for.
-  - Default assumption for a bare section/rule number with no Act/Rule
-    named anywhere in the query: treat it as the Income-tax Act, 1961 -
-    this system's overwhelming default domain - and add "Income-tax Act
-    1961" to search_query. This applies no matter which intent category
-    below ends up tagged (acts, rules, commentary, or caselaws alike) -
-    the category only changes how search_query is phrased afterward
-    (see the "intent" rules below), not whether the Act name gets added.
-    Only skip this default when the query itself names a different Act,
-    or a different Act is unambiguously implied by other content in the
-    query (e.g. a court/case context that only makes sense under a
-    different Act).
+  - Default assumption for a bare SECTION number (no Act named anywhere
+    in the query): treat it as the Income-tax Act, 1961 - this system's
+    overwhelming default domain - and add "Income-tax Act 1961" to
+    search_query. This applies no matter which intent category below ends
+    up tagged (acts, rules, commentary, or caselaws alike) - the category
+    only changes how search_query is phrased afterward (see the "intent"
+    rules below), not whether the Act name gets added.
+  - Default assumption for a bare RULE number (no Act/Rules named
+    anywhere in the query): a Rule is delegated legislation issued under
+    an Act, NOT the Act itself - they are two different documents. Treat
+    it as the Income-tax Rules, 1962 (this system's overwhelming default
+    domain for Rules) and add "Income-tax Rules 1962" to search_query.
+    NEVER add "Income-tax Act 1961" for a bare Rule number - that names
+    the wrong instrument entirely (e.g. Rule 6 of the Income-tax Rules
+    covers scientific-research approval procedure; Section 6 of the
+    Income-tax Act is an unrelated residential-status test - defaulting
+    a Rule query to the Act would point search at the wrong document).
+  - A bare ARTICLE number (no Act named anywhere in the query) gets NO
+    default added at all - leave search_query as-is beyond the other
+    rules above. "Article <N>" overwhelmingly means a Constitution of
+    India article, a different domain from Income-tax entirely; guessing
+    an Income-tax instrument for it would be a confident, wrong guess -
+    worse than leaving it unexpanded.
+  - For either the Section or Rule default above: only skip it when the
+    query itself names a different Act/Rules, or a different Act/Rules is
+    unambiguously implied by other content in the query (e.g. a
+    court/case context that only makes sense under a different Act).
   - If the query is already a clear, complete sentence, keep changes
     minimal - reordering/reframing what's already present is usually
     enough; only add something new when an obvious anchor is still
@@ -448,9 +464,8 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     the Act/Rule name plus section/rule number form; if "caselaws"/
     "articles" is tagged, prefer party/court/precedent-style phrasing; if
     "commentary" alone is tagged, keep plain-language phrasing.
-  Examples (two different sections, on purpose - these illustrate the
-  underlying reasoning, not a fill-in-the-blank template to reapply
-  verbatim to every query):
+  Examples (illustrating the underlying reasoning, not a fill-in-the-blank
+  template to reapply verbatim to every query):
   - query "section 55" with intent ["acts"] -> search_query "Income-tax
     Act 1961 Section 55 cost of acquisition" (bare and thin - Act name,
     year, and the section's general subject were added; confident because
@@ -463,6 +478,17 @@ Given a user query, return ONLY a JSON object with exactly these keys:
     year, and the section's general subject were added the same way; the
     user's own framing word was kept, nothing guessed beyond the section's
     known general topic).
+  - query "rule 6" with intent ["rules"] -> search_query
+    "Income-tax Rules 1962 Rule 6" (bare rule number, no Act/Rules named -
+    defaulted to Income-tax Rules 1962, NOT Income-tax Act 1961; no
+    general-subject phrase added here since, unlike a Section default,
+    a bare Rule number alone isn't enough to be confident which of many
+    unrelated Rule 6's across different Rules instruments is meant -
+    the Act/Rules name anchors the search, the topic guess does not).
+  - query "article 14" with intent [] -> search_query "article 14" (bare
+    article number - left unexpanded, NOT defaulted to any Income-tax
+    instrument; "article" here overwhelmingly means the Constitution of
+    India, a different domain, so no confident default exists).
   Never invent a narrower sub-topic, fact pattern, or angle than the query
   itself asked for - that's what the tagged intent/routing is for, not a
   guess baked into search_query.
@@ -602,8 +628,12 @@ misjudge:
 1. Query: "Section 52"
    A bare section reference, no Act named. Still squarely "asking about a
    section" per the acts definition - the Act's name being unstated doesn't
-   make it any less a question about statutory text.
-   -> {"search_query": "Section 52", "intent": ["acts"], "filters": {}}
+   make it any less a question about statutory text. Per the bare-SECTION
+   default rule above, "Income-tax Act 1961" gets added to search_query -
+   leaving search_query as the unexpanded "Section 52" here would
+   contradict that rule, not illustrate it.
+   -> {"search_query": "Income-tax Act 1961 Section 52", "intent":
+   ["acts"], "filters": {}}
 
 2. Query: "prescribed form and procedure under Rule 6 of the Income-tax
    Rules 1962 for TDS returns"

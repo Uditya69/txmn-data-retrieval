@@ -466,14 +466,80 @@ def detect_group_signals(chunks: list[dict]) -> set[str]:
     the one above scores generic "Words & Idioms" commentary docs whose heading literally
     contains "Supreme Court" far above the real case law it's asking for, since
     heading/subheading/headnotes_text phrase-match boosts fire identically regardless of
-    document type."""
+    document type.
+
+    Skips `section`/`citation` chunks - those name a specific provision number ("Rule 57G")
+    rather than asking for that content type. Without this, a case-law query that merely
+    cites a rule ("Gharda Chemicals Rule 57G Modvat invoice ... Dombivli plant" - the assessee
+    wants the ruling, not the rule text) has its bare "Rule" word in the section chunk
+    misread as a RULE-group signal, flooding the should-clause with a should-clause boost
+    that outranks every real text match and burying the actual case (verified against a
+    2026-09-01 investigation: the target case never surfaced in ES's top 20 because of this)."""
     return {
         _GROUP_SIGNAL_ES_GROUP_NAMES[target]
         for chunk in chunks
+        if chunk["type"] not in ("section", "citation")
         for word in chunk["text"].split()
         for target in [normalize(word.upper())]
         if target in _GROUP_SIGNAL_ES_GROUP_NAMES
     }
+
+
+_DEFAULT_ACT = "Income-tax Act 1961"
+_DEFAULT_RULES = "Income-tax Rules 1962"
+
+# SECTION_PATTERN (legal_lexicon.py) matches "section"/"sec"/"u/s"/"rule"/"article" + number
+# all into the same chunk_query "section" chunk type - default_act_suffix has to re-match the
+# leading keyword itself to tell them apart, since a Rule and an Article default to completely
+# different (or no) instrument.
+_RULE_KEYWORD_PATTERN = re.compile(r"^rule\b", re.IGNORECASE)
+_ARTICLE_KEYWORD_PATTERN = re.compile(r"^article\b", re.IGNORECASE)
+
+
+def default_act_suffix(chunks: list[dict], query: str) -> str:
+    """Deterministic counterpart to ai_mode/intent.py's SLM-prompt rule ("a bare
+    section/rule number with no Act named anywhere defaults to the Income-tax Act,
+    1961, this system's overwhelming default domain") - that rule only ever reaches
+    queries routed through extract_intent()'s full SLM call. A query classified
+    "keyword" (classify_intent_mode) skips that call entirely (see
+    ai_mode/pipeline.py) and, when keyword_mode_expansion_enabled is on, hits
+    keyword_expansion.py's SEPARATE prompt instead - which deliberately refuses to
+    guess an Act for a bare number, the opposite rule. A bare "Rule 6"/"Section 52"
+    query landing in that gap got no Act bias from either prompt, so ES ranked
+    every unrelated Act's "Rule 6" as equally relevant (verified 2026-09-01: top-20
+    spread was ~20 points on a ~972,924 base - pure noise). Doing this in code
+    instead of a third prompt variant makes it apply uniformly regardless of which
+    SLM path (or none) a query takes.
+
+    Picks the default INSTRUMENT, not just the default DOMAIN - a bare "Rule N" is
+    delegated legislation under the Income-tax Rules, 1962, never the Income-tax
+    Act, 1961 itself (they're two separate documents; defaulting a Rule chunk to
+    "Act 1961" would point ES at the wrong instrument entirely, verified against a
+    2026-09-01 investigation: Rule 6 of the Income-tax Rules covers scientific
+    research approval, nothing to do with Act section 6's residential-status test).
+    A bare "Article N" is skipped entirely (returns "") rather than defaulted -
+    SECTION_PATTERN's "article" keyword almost always means a Constitution of India
+    article, not anything Income-tax-related; ARTICLE's own group-signal (see
+    detect_group_signals) maps to "Experts Opinion" commentary, confirming Article
+    numbers live in a different domain than this default is even about. Guessing an
+    Income-tax instrument for it would be a wrong, confident-sounding guess - worse
+    than the ambiguity itself.
+
+    Returns "" (no suffix) unless a `section`-type chunk (see chunk_query) starting
+    with "rule" or "section"/"sec"/"u/s" is present AND no known Act name appears
+    anywhere in the raw query text (a substring check, not chunk-scoped, since
+    chunk_query has no dedicated Act-name chunk type - see _is_bare_act_name)."""
+    section_chunks = [chunk for chunk in chunks if chunk["type"] == "section"]
+    if not section_chunks:
+        return ""
+    if any(_ARTICLE_KEYWORD_PATTERN.match(chunk["text"]) for chunk in section_chunks):
+        return ""
+    is_rule = any(_RULE_KEYWORD_PATTERN.match(chunk["text"]) for chunk in section_chunks)
+
+    lowered = query.lower()
+    if any(act_name in lowered for act_name in KNOWN_ACT_NAMES):
+        return ""
+    return f" {_DEFAULT_RULES}" if is_rule else f" {_DEFAULT_ACT}"
 
 
 def build_dense_sparse_query(chunks: list[dict], fallback: str) -> str:

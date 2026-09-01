@@ -2,7 +2,7 @@ from langfuse import get_client
 
 from common.config import get_settings
 from common.es_client import fetch_citations, keyword_mode_search
-from common.query_tokenizer import build_dense_sparse_query, chunk_query, classify_intent_mode
+from common.query_tokenizer import build_dense_sparse_query, chunk_query, classify_intent_mode, default_act_suffix
 from retrieval_api.ai_mode.intent import extract_intent, OnStep
 from retrieval_api.ai_mode.keyword_expansion import expand_keyword_terms
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
@@ -44,6 +44,11 @@ async def run_ai_mode(
                 # docstring), so ES gets "section 55", not "what is section 55".
                 chunks = chunk_query(query)
                 keyword_query = build_dense_sparse_query(chunks, fallback=query)
+                # Deterministic Income-tax Act default for a bare section/rule number with
+                # no Act named anywhere - see default_act_suffix's own docstring for why
+                # this can't just live in an SLM prompt (keyword mode may skip the SLM
+                # entirely, and its optional prompt below has the opposite rule).
+                keyword_query += default_act_suffix(chunks, query)
 
                 # Experimental, off by default (common.config.Settings.
                 # keyword_mode_expansion_enabled) - lets an SLM add up to 2 genuinely-confident

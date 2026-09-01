@@ -8,10 +8,14 @@ from retrieval_api.ai_mode.intent import OnStep
 # toggle - default (off) behavior is untouched.
 _TOP_N_CANDIDATES = 20
 
+# milvus_sparse carries no weight here - common.config.Settings.milvus_sparse_enabled is off
+# by default app-wide (CLAUDE.md hard rule 3), so the milvus_sparse arg these weights would
+# apply to is always an empty dict in practice; dropped from the weight tables so it can't
+# accidentally out-rank es/milvus_dense on a query where it happens to be non-empty.
 _LABEL_RRF_WEIGHTS: dict[str, dict[str, float]] = {
-    "KEYWORD": {"es": 1.5, "milvus_dense": 0.5, "milvus_sparse": 1.5},
-    "HYBRID": {"es": 1.5, "milvus_dense": 0.5, "milvus_sparse": 1.5},
-    "INTENT": {"es": 1.0, "milvus_dense": 1.5, "milvus_sparse": 0.5},
+    "KEYWORD": {"es": 1.5, "milvus_dense": 0.5},
+    "HYBRID": {"es": 1.5, "milvus_dense": 0.5},
+    "INTENT": {"es": 1.0, "milvus_dense": 1.5},
 }
 
 
@@ -62,8 +66,8 @@ def _fallback_fused(
     between those two sources."""
     if plan is not None and not plan.get("es", True) and plan.get("milvus", False):
         return rrf_merge_by_doc_id(
-            {"milvus_dense": _flatten_by_score(milvus_dense), "milvus_sparse": _flatten_by_score(milvus_sparse)},
-            {"milvus_dense": 1.0, "milvus_sparse": 1.0},
+            {"milvus_dense": _flatten_by_score(milvus_dense)},
+            {"milvus_dense": 1.0},
         )
     return _collapse_to_doc_id(es_result)
 
@@ -87,7 +91,6 @@ async def rerank_instant_results(
             {
                 "es": es_result,
                 "milvus_dense": _flatten_by_score(milvus_dense),
-                "milvus_sparse": _flatten_by_score(milvus_sparse),
             },
             weights,
         )

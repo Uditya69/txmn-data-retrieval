@@ -65,7 +65,10 @@ async def test_rerank_instant_results_plain_es_candidates_keep_score_field_when_
 @pytest.mark.asyncio
 async def test_rerank_instant_results_falls_back_to_milvus_when_plan_skips_es():
     """A routing plan that skipped ES entirely (e.g. the INTENT classifier label) must not
-    fall back to an empty es_result - Milvus's own hits are the only source that ran."""
+    fall back to an empty es_result - Milvus dense's own hits are the only source that ran.
+    milvus_sparse carries no weight (see _fallback_fused/_LABEL_RRF_WEIGHTS) - it's always
+    empty in practice since common.config.Settings.milvus_sparse_enabled defaults off
+    app-wide - so a populated milvus_sparse here must NOT surface in the result."""
     milvus_dense = {"ruling": [{"doc_id": "d2", "score": 5.0, "chunk_id": "c1", "text": "t2"}]}
     milvus_sparse = {"ruling": [{"doc_id": "d3", "score": 3.0, "chunk_id": "c2", "text": "t3"}]}
 
@@ -74,7 +77,7 @@ async def test_rerank_instant_results_falls_back_to_milvus_when_plan_skips_es():
         rrf=False, plan={"es": False, "milvus": True, "fuse": False},
     )
 
-    assert {row["doc_id"] for row in result} == {"d2", "d3"}
+    assert {row["doc_id"] for row in result} == {"d2"}
 
 
 @pytest.mark.asyncio
