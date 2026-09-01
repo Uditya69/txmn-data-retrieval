@@ -57,6 +57,9 @@ async def test_run_instant_applies_elbow_cutoff_to_es_and_milvus_results(monkeyp
 
     monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
     monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    # KEYWORD skips the ES elbow (see test_run_instant_keyword_label_skips_elbow_cutoff_on_es_results) -
+    # pin a non-KEYWORD label here so this test keeps exercising the elbow mechanism itself.
+    monkeypatch.setattr(search_module, "effective_label_with_confidence", lambda query: ("HYBRID", 0.9))
 
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]
@@ -70,6 +73,70 @@ async def test_run_instant_applies_elbow_cutoff_to_es_and_milvus_results(monkeyp
     assert result["milvus_sparse"] == {
         "ruling": [{"chunk_id": "d1::ruling::0", "doc_id": "d1", "text": "t", "score": 10.0}],
     }
+
+
+@pytest.mark.asyncio
+async def test_run_instant_keyword_label_skips_elbow_cutoff_on_es_results(monkeypatch):
+    """KEYWORD-shape queries are precise anchor lookups whose ES results span steep
+    boost-tier gaps (heading:100000 vs fullcontent:1, see _PHRASE_BOOSTS in es_client.py) -
+    the elbow's ratio test misreads a legit lower-tier match as a cliff and prunes it.
+    KEYWORD skips the elbow entirely and returns ES's own top-_ES_LIMIT ranking as-is."""
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False):
+        # steep drop after the first hit - same shape the elbow would normally prune to 1,
+        # but all three are genuine tiered-boost matches that should survive for KEYWORD.
+        return [
+            {"doc_id": "d1", "score": 100000.0},
+            {"doc_id": "d2", "score": 50000.0},
+            {"doc_id": "d3", "score": 1.0},
+        ]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": []}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(search_module, "effective_label_with_confidence", lambda query: ("KEYWORD", 0.99))
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="Rule 6")
+
+    assert result["es"] == [
+        {"doc_id": "d1", "score": 100000.0},
+        {"doc_id": "d2", "score": 50000.0},
+        {"doc_id": "d3", "score": 1.0},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_instant_non_keyword_label_still_applies_elbow_cutoff(monkeypatch):
+    """HYBRID/INTENT queries lean on dense fusion, not a raw ES ranking shown as-is -
+    the elbow protection this fix removes for KEYWORD must stay intact for them."""
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False):
+        return [
+            {"doc_id": "d1", "score": 10.0},
+            {"doc_id": "d2", "score": 1.0},
+            {"doc_id": "d3", "score": 0.1},
+        ]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": []}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(search_module, "effective_label_with_confidence", lambda query: ("HYBRID", 0.9))
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
+
+    assert result["es"] == [{"doc_id": "d1", "score": 10.0}]
 
 
 @pytest.mark.asyncio

@@ -45,7 +45,7 @@ def _all_doc_ids(
 
 
 async def _run_es(
-    es_client, query: str, on_step: OnStep | None, boost: bool = False,
+    es_client, query: str, on_step: OnStep | None, boost: bool = False, skip_cutoff: bool = False,
 ) -> tuple[list[dict] | None, str | None]:
     langfuse = get_client()
     with langfuse.start_as_current_observation(
@@ -54,7 +54,13 @@ async def _run_es(
     ) as span:
         try:
             raw_results = await raw_search(es_client, query, limit=_ES_LIMIT, boost=boost)
-            results = _apply_elbow_cutoff(raw_results)
+            # KEYWORD-shape queries are precise anchor lookups whose results span steep
+            # boost-tier gaps by design (heading:100000 vs fullcontent:1 in _PHRASE_BOOSTS,
+            # common/es_client.py) - the elbow's ratio test misreads a legit lower-tier
+            # match as a score cliff and prunes it, silently dropping correct answers ES
+            # itself already ranked and returned. HYBRID/INTENT keep the elbow: they lean
+            # on dense fusion rather than showing this raw ES ranking as-is.
+            results = raw_results if skip_cutoff else _apply_elbow_cutoff(raw_results)
             span.update(output={
                 "hits_before_cutoff": len(raw_results),
                 "hits_after_cutoff": len(results),
@@ -183,7 +189,10 @@ async def run_instant(
         if on_step is not None:
             await on_step("classifier", classifier_trace)
 
-        es_task = _run_es(es_client, query, on_step, boost=boost) if plan["es"] else None
+        es_task = (
+            _run_es(es_client, query, on_step, boost=boost, skip_cutoff=label == "KEYWORD")
+            if plan["es"] else None
+        )
         milvus_task = (
             _run_milvus(gateway, milvus_client, milvus_query, on_step, milvus_sparse_enabled=milvus_sparse_enabled)
             if plan["milvus"] else None

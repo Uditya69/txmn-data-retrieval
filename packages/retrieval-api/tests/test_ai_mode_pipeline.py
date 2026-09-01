@@ -611,9 +611,12 @@ async def test_run_ai_mode_keyword_path_strips_conversational_filler_before_sear
 
     await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="what is section 55")
 
-    # A bare section number with no Act named anywhere gets the deterministic
-    # Income-tax Act default appended (default_act_suffix) - see its own docstring.
-    assert seen_queries == ["section 55 Income-tax Act 1961"]
+    # The Income-tax Act default no longer appends text to the query (removed 2026-09-01 -
+    # verified structurally too weak to move ES ranking) - it's now a should-clause boost at
+    # the ES query level (common.es_client._EDITION_BOOSTS_BY_INSTRUMENT_KIND), gated behind
+    # `boost=True` (not exercised here, default is False) rather than always appended to
+    # keyword_query text.
+    assert seen_queries == ["section 55"]
 
 
 @pytest.mark.asyncio
@@ -673,7 +676,6 @@ async def test_run_ai_mode_keyword_path_appends_expanded_keywords_when_flag_enab
 
     await run_ai_mode(gateway=object(), es_client=object(), milvus_client=object(), query="section 55")
 
-    # default_act_suffix's Income-tax Act default lands before the SLM-suggested
-    # keywords, since it's applied to keyword_query right after chunk_query/
-    # build_dense_sparse_query, before expand_keyword_terms ever runs.
-    assert seen_queries == ["section 55 Income-tax Act 1961 cost of improvement"]
+    # No more text-appended Act default (see the sibling test above) - only the SLM-suggested
+    # keyword gets appended to keyword_query text now.
+    assert seen_queries == ["section 55 cost of improvement"]

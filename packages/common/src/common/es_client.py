@@ -7,7 +7,8 @@ from common.document_parser import strip_tags_to_text
 from common.instant_classifier import effective_label
 from common.instant_classifier.labels import boost_profile_key
 from common.query_tokenizer import (
-    chunk_query, detect_group_signals, expand_query_normalizations, expand_query_synonyms,
+    chunk_query, default_instrument_kind, detect_group_signals, expand_query_normalizations,
+    expand_query_synonyms, keyword_shape_group_filter,
 )
 from common.schemas import (
     CATEGORY_DISPLAY_LABELS, ES_GROUP_FOR_COLLECTION, GROUP_DISPLAY_LABELS, MASTERINFO_CITATION_FIELDS,
@@ -226,23 +227,47 @@ def get_es_client(settings: Settings) -> IndexedESClient:
     return IndexedESClient(client, settings.es_index)
 
 
-# Current-edition preference for a specific act, ported from centax-node's legacy query
-# (query_legacy.json embeds this as a `year:2026 AND subgroup:20042` compound should-clause
-# with boost 80000.0, at the SAME scale as its own heading match_phrase boosts - not a small
-# function_score multiplier). Belongs here, inside the should-list, not in _apply_boost's
-# function_score: a first attempt put it there at weight 3.0 and it did nothing - verified live,
-# the current-2025-edition doc stayed buried at rank ~108/200, because +3 is negligible next to
-# the natural BM25 variance between 200+ near-identical "Section 52" heading matches. This
-# should-clause competes at the SAME scale as _PHRASE_BOOSTS instead (still additive,
+# Edition-preference should-clause boosts - ported from repotaxmannapi's real production
+# source (TaxmannAPI/Elastic/SearchTextElastic.cs, GlobalSearchResearch.cs), not guessed or
+# carried over from centax-node's legacy query_legacy.json sample, which only covered a single
+# edition (Income-tax Act 2025) and, when compared against production, its Act-vs-Rules
+# instrument distinction turned out not to exist at all - centax-node/query_tokenizer.py's
+# predecessor of this mechanism defaulted a bare "Rule N" to the Act too. Belongs here, inside
+# the should-list, not in _apply_boost's function_score: a first attempt at a single-edition
+# version put it in function_score at weight 3.0 and it did nothing - verified live, the
+# current-2025-edition doc stayed buried at rank ~108/200 for "Section 52", because +3 is
+# negligible next to the natural BM25 variance between 200+ near-identical heading matches.
+# This should-clause competes at the SAME scale as _PHRASE_BOOSTS instead (still additive,
 # `bool` should-scoring is sum by default - no boost_mode:"multiply" risk, same safe mechanism
-# _PHRASE_BOOSTS already uses), sized well below an exact heading/subheading phrase
-# match (100000/50000) so it only ever tiebreaks among docs that already matched the section
-# number, never outranks a correct match to a *different* section. Only the current live edition
-# (Income-tax Act, 2025, subgroup 111050000000020042) gets this - the 1961 edition keeps its
-# small function_score bump (_STATIC_TAXONOMY_BOOSTS below), since nothing here should prefer
-# an old edition over the current one.
-_CURRENT_EDITION_SUBGROUP_ID = "111050000000020042"
-_CURRENT_EDITION_SHOULD_BOOST = 20000.0
+# _PHRASE_BOOSTS already uses), sized well below an exact heading/subheading phrase match
+# (100000/50000) so it only ever tiebreaks among docs that already matched the section/rule
+# number, never outranks a correct match to a genuinely different section/rule.
+#
+# Both editions of each instrument get a should-clause (not just the current one) - ported
+# from GlobalSearchResearch.cs:623-624, which weights the current edition higher (3) than the
+# old one (2) rather than excluding the old edition entirely. All four subgroup ids verified
+# live against this repo's own ES index (2026-09-01 investigation): "Income-tax Rules, 1962"
+# returned real docs at subgroup 111050000000010121 (also confirmed against repotaxmannapi's
+# Models/Research/AllAbout.cs:67); "Income-tax Rules, 2026" at subgroup 111050000000020129 (a
+# real doc's own groups.group.subgroup - repotaxmannapi's BL/Constants.cs IncomeTaxRule2026
+# constant, 103010000000002191, is a DIFFERENT id namespace - a `rule` associate id, not a
+# groups.group.subgroup.id - and was not used here for that reason).
+#
+# Ratio (20000 current : 15000 old) mirrors GlobalSearchResearch.cs's 3:2 current:old weighting
+# at _PHRASE_BOOSTS' should-clause scale rather than function_score's small-weight scale (see
+# above for why the latter doesn't move ranking) - not itself independently verified live
+# against this repo's index (unlike the subgroup ids, which are); a follow-up should confirm
+# 15000 vs 20000 is the right gap once real query traffic is available.
+_EDITION_BOOSTS_BY_INSTRUMENT_KIND = {
+    "act": [
+        ("111050000000010687", 15000.0),  # Income-tax Act, 1961
+        ("111050000000020042", 20000.0),  # Income-tax Act, 2025 (current edition)
+    ],
+    "rules": [
+        ("111050000000010121", 15000.0),  # Income-tax Rules, 1962
+        ("111050000000020129", 20000.0),  # Income-tax Rules, 2026 (current edition)
+    ],
+}
 
 # Group-signal boost - fixes a real query ("landmark Supreme Court ruling on GST") where
 # generic "Words & Idioms" commentary docs (heading literally "Appellate power - Supreme
@@ -252,20 +277,25 @@ _CURRENT_EDITION_SHOULD_BOOST = 20000.0
 # the same +100000 as a real citation match. centax-node's own queryAnalyzer.js/token
 # dictionary (constants/token.js) recognizes RULING/JUDGEMENT/CASE/CITATION (-> CASELAWS),
 # RULE, and ARTICLE (-> Experts Opinion; see query_tokenizer.detect_group_signals) as signals
-# the query wants that content type specifically, and scopes each with its own flat
-# should-clause boost, all well above _PHRASE_BOOSTS' own 100,000 heading-tier constant. This
-# ports each group's constant as-is from centax-node's production token table; unlike
-# _STATIC_TAXONOMY_BOOSTS above, none of these are yet verified live against this repo's own
-# index - a follow-up should confirm each weight is still large enough (or not excessive)
-# against real query traffic before treating it as tuned. Unconditional, like _PHRASE_BOOSTS -
-# not gated behind `boost_enabled`, since the bug reproduces with boost=False (the default)
-# too. CIRCULAR and NOTIFICATION have their own confirmed token-table entries but are
-# deliberately left out - no verified data for how those two groups behave on this repo's own
-# index.
+# the query wants that content type specifically.
+#
+# Magnitude corrected 2026-09-01: originally ported centax-node's own constants (2,000,000 /
+# 10,000,000) as-is, on the assumption they were already tuned. Checked against production's
+# real source (repotaxmannapi/TaxmannAPI/Elastic/SearchTextElastic.cs:753) instead: the
+# equivalent coarse group-id should-clause boost there is only 1000, sized as a genuine
+# tiebreaker under its own 155000 heading phrase-boost tier (~0.6%) - not a value anywhere near
+# large enough to outrank real text relevance. centax-node's 2,000,000/10,000,000 (20-100x
+# *larger* than the 100000 heading tier they're supposed to sit under) was the actual root
+# cause of a real bug: a bare "Rule 6" query got force-ranked by RULE-group membership alone,
+# regardless of which unrelated Rule 6 (Motor Vehicles Rules, Customs Valuation Rules, etc.) -
+# see git history/2026-09-01 investigation. Rescaled to preserve the correct proportion under
+# this repo's own 100000 heading tier (was already scoped to skip section/citation chunks, so a
+# citation-bearing query that merely mentions a rule number is unaffected either way) - CASELAWS
+# keeps its original 5x-larger-than-RULE/ARTICLE ratio, just at the corrected base scale.
 _GROUP_SIGNAL_SHOULD_BOOSTS = {
-    "CASELAWS": 10_000_000.0,
-    "RULE": 2_000_000.0,
-    "Experts Opinion": 2_000_000.0,
+    "CASELAWS": 5_000.0,
+    "RULE": 1_000.0,
+    "Experts Opinion": 1_000.0,
 }
 
 
@@ -307,14 +337,14 @@ def _build_field_query(query: str, shape: str, chunks: list[dict] = (), boost_en
                 should.append({
                     "match_phrase": {field: {"query": chunk["alt_text"], "slop": chunk["proximity"], "boost": boost}},
                 })
-    if boost_enabled and any(chunk["type"] == "section" for chunk in chunks):
-        should.append({
-            "term": {
-                "groups.group.subgroup.id": {
-                    "value": _CURRENT_EDITION_SUBGROUP_ID, "boost": _CURRENT_EDITION_SHOULD_BOOST,
+    if boost_enabled:
+        instrument_kind = default_instrument_kind(chunks, query)
+        for subgroup_id, edition_boost in _EDITION_BOOSTS_BY_INSTRUMENT_KIND.get(instrument_kind, []):
+            should.append({
+                "term": {
+                    "groups.group.subgroup.id": {"value": subgroup_id, "boost": edition_boost},
                 },
-            },
-        })
+            })
     for group_name in detect_group_signals(chunks):
         should.append({
             "term": {
@@ -323,7 +353,19 @@ def _build_field_query(query: str, shape: str, chunks: list[dict] = (), boost_en
                 },
             },
         })
-    return {"bool": {"should": should, "minimum_should_match": 1}}
+    field_query = {"bool": {"should": should, "minimum_should_match": 1}}
+    # Bare-anchor-lookup queries ("Rule 6", "Section 54F") get a hard group filter, not just
+    # the soft should-clause boost above - see keyword_shape_group_filter's docstring for why
+    # this is scoped narrowly to shape=="KEYWORD" and doesn't reproduce detect_group_signals'
+    # section-chunk exclusion regression. Confirmed live (2026-09-01 investigation) this is
+    # the actual mechanism behind centax-node's own "correct" Rule-lookup results - not a
+    # ranking-formula difference, a hard `groups.group.id`-equivalent filter narrowing the
+    # candidate pool before scoring, ported here as `groups.group.name.keyword` to match the
+    # field this repo's other group-signal mechanisms already use.
+    hard_group = keyword_shape_group_filter(shape, chunks)
+    if hard_group is not None:
+        field_query["bool"]["filter"] = [{"term": {"groups.group.name.keyword": hard_group}}]
+    return field_query
 
 
 def _wrap_function_score(field_query: dict) -> dict:
@@ -432,16 +474,12 @@ _STATUTORY_GROUP_BOOST_WEIGHT = 8.0
 # (see chat history/2026-08-24 audit): only 2 of the legacy sample's 5 id-boost entries still
 # resolve to real docs - "groups.group.subgroup.id"=111050000000000064 (0 hits - that id is a
 # *group* id, not a subgroup id) and "groups.group.id"=111050000000020048 (0 hits, dead/stale)
-# are dropped. The other two - "groups.group.id"=111050000000000064 (ACT, 83,309 docs) and
-# "groups.group.subgroup.id"=111050000000010687 (Income-tax Act 1961, 40,524 docs) - are kept
-# here as small function_score tie-breakers. The third live id from the legacy sample,
-# subgroup 111050000000020042 (Income-tax Act 2025 - the CURRENT edition), is deliberately NOT
-# here: a first attempt put it in this list at weight 3.0 and verified live it did nothing - the
-# current-edition doc stayed buried at rank ~108/200 for "Section 52", because +3 here is
-# negligible next to natural BM25 variance between 200+ near-identical heading matches. It's
-# instead a should-clause boost inside _build_field_query itself (_CURRENT_EDITION_SHOULD_BOOST,
-# same scale as _PHRASE_BOOSTS) - see that constant's comment for why it has to live
-# there instead of here to actually move the ranking.
+# are dropped. The other, "groups.group.id"=111050000000000064 (ACT, 83,309 docs), is kept here
+# as a small function_score tie-breaker. Its sibling entry (subgroup 111050000000010687,
+# Income-tax Act 1961) was removed 2026-09-01: now covered, at the correct much-larger scale, by
+# _EDITION_BOOSTS_BY_INSTRUMENT_KIND's should-clause boost instead (see that constant's comment
+# for why a small function_score weight doesn't move ranking at all) - keeping both here would
+# double-count the same subgroup.
 #
 # Deliberately excludes centax-node's matching *penalty* functions (subcategory
 # 111050000000017095 outside caselaws -> weight 0.03; subgroup 111050000000010567 Finance Acts
@@ -451,7 +489,6 @@ _STATUTORY_GROUP_BOOST_WEIGHT = 8.0
 # only ever add to a score, never suppress it, so there is no additive equivalent of a penalty.
 _STATIC_TAXONOMY_BOOSTS = [
     ("groups.group.id", "111050000000000064", 2.0),  # ACT
-    ("groups.group.subgroup.id", "111050000000010687", 2.0),  # Income-tax Act, 1961
 ]
 
 

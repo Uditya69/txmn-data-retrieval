@@ -3,7 +3,7 @@ from common.query_tokenizer import (
     merge_court_city, merge_citation_span, strip_stopwords, extract_quoted_phrases,
     expand_query_synonyms, extract_boost_phrases, chunk_query, build_dense_sparse_query,
     classify_intent_mode, detect_group_signals, expand_query_normalizations,
-    default_act_suffix,
+    default_instrument_kind, keyword_shape_group_filter,
 )
 
 
@@ -330,6 +330,40 @@ def test_detect_group_signals_false_for_empty_chunks():
     assert detect_group_signals([]) == set()
 
 
+def test_keyword_shape_group_filter_maps_bare_rule_lookup_to_rule_group():
+    chunks = chunk_query("Rule 6")
+    assert keyword_shape_group_filter("KEYWORD", chunks) == "RULE"
+
+
+def test_keyword_shape_group_filter_maps_bare_section_lookup_to_act_group():
+    chunks = chunk_query("Section 54F")
+    assert keyword_shape_group_filter("KEYWORD", chunks) == "ACT"
+
+
+def test_keyword_shape_group_filter_maps_bare_article_lookup_to_experts_opinion():
+    chunks = chunk_query("Article 14")
+    assert keyword_shape_group_filter("KEYWORD", chunks) == "Experts Opinion"
+
+
+def test_keyword_shape_group_filter_none_for_non_keyword_shape():
+    # The exact regression detect_group_signals' own exclusion protects against - a longer
+    # citation-bearing query that merely cites a rule number is never shape=="KEYWORD", so
+    # this must not fire for it even though chunk_query still produces a "section" chunk.
+    chunks = chunk_query("Gharda Chemicals Rule 57G Modvat invoice Dombivli plant")
+    assert keyword_shape_group_filter("HYBRID", chunks) is None
+    assert keyword_shape_group_filter("INTENT", chunks) is None
+
+
+def test_keyword_shape_group_filter_none_when_no_section_chunk():
+    chunks = chunk_query("Dimension Data India")
+    assert keyword_shape_group_filter("KEYWORD", chunks) is None
+
+
+def test_keyword_shape_group_filter_none_for_multiple_section_chunks():
+    chunks = chunk_query("Rule 6 Section 54F")
+    assert keyword_shape_group_filter("KEYWORD", chunks) is None
+
+
 def test_chunk_query_empty_query_returns_no_chunks():
     assert chunk_query("") == []
 
@@ -386,32 +420,32 @@ def test_classify_intent_mode_tags_empty_query_as_hybrid():
     assert classify_intent_mode("") == "hybrid"
 
 
-def test_default_act_suffix_defaults_bare_section_to_income_tax_act():
+def test_default_instrument_kind_defaults_bare_section_to_act():
     query = "Section 55"
-    assert default_act_suffix(chunk_query(query), query) == " Income-tax Act 1961"
+    assert default_instrument_kind(chunk_query(query), query) == "act"
 
 
-def test_default_act_suffix_defaults_bare_rule_to_income_tax_rules_not_act():
-    # A Rule is delegated legislation under the Income-tax Rules, 1962 - a different
-    # instrument from the Income-tax Act, 1961 itself. Defaulting it to "Act 1961"
-    # would point ES at the wrong document type entirely.
+def test_default_instrument_kind_defaults_bare_rule_to_rules_not_act():
+    # A Rule is delegated legislation under the Income-tax Rules - a different instrument
+    # from the Income-tax Act itself. Defaulting it to "act" would point ES at the wrong
+    # document type entirely.
     query = "Rule 6"
-    assert default_act_suffix(chunk_query(query), query) == " Income-tax Rules 1962"
+    assert default_instrument_kind(chunk_query(query), query) == "rules"
 
 
-def test_default_act_suffix_skips_bare_article_entirely():
+def test_default_instrument_kind_skips_bare_article_entirely():
     # A bare "Article N" almost always means the Constitution of India, not anything
     # Income-tax related - guessing an Income-tax instrument here would be a
     # confidently wrong guess, worse than leaving it unbiased.
     query = "Article 14"
-    assert default_act_suffix(chunk_query(query), query) == ""
+    assert default_instrument_kind(chunk_query(query), query) is None
 
 
-def test_default_act_suffix_skips_when_a_different_act_is_named():
+def test_default_instrument_kind_skips_when_a_different_act_is_named():
     query = "Rule 6 of the CGST Act"
-    assert default_act_suffix(chunk_query(query), query) == ""
+    assert default_instrument_kind(chunk_query(query), query) is None
 
 
-def test_default_act_suffix_skips_when_no_section_chunk_present():
+def test_default_instrument_kind_skips_when_no_section_chunk_present():
     query = "Gharda Chemicals Dombivli plant"
-    assert default_act_suffix(chunk_query(query), query) == ""
+    assert default_instrument_kind(chunk_query(query), query) is None

@@ -238,6 +238,42 @@ def test_build_field_query_section_chunks_still_get_the_same_tier():
     assert section_heading_boosts == [100000.0]
 
 
+def test_build_field_query_hard_filters_bare_rule_lookup_to_rule_group():
+    """Confirmed live (2026-09-01) this hard filter - not a ranking-formula tweak - is the
+    actual mechanism behind centax-node's own "correct" Rule-lookup results: narrowing the
+    candidate pool (990k docs -> ~48k RULE-group docs on this repo's own index) before scoring
+    even starts, the same way centax-node's mandatory groups.group.id filter does."""
+    chunks = [{"text": "Rule 6", "proximity": 0, "type": "section", "alt_text": "Rule 006"}]
+    query = _build_field_query("Rule 6", "KEYWORD", chunks=chunks)
+
+    assert query["bool"]["filter"] == [{"term": {"groups.group.name.keyword": "RULE"}}]
+
+
+def test_build_field_query_hard_filters_bare_section_lookup_to_act_group():
+    chunks = [{"text": "Section 52", "proximity": 0, "type": "section", "alt_text": "Section 052"}]
+    query = _build_field_query("Section 52", "KEYWORD", chunks=chunks)
+
+    assert query["bool"]["filter"] == [{"term": {"groups.group.name.keyword": "ACT"}}]
+
+
+def test_build_field_query_no_hard_filter_for_non_keyword_shape():
+    """Regression guard: a citation-bearing caselaw query that merely mentions a rule number
+    (shape HYBRID/INTENT, not KEYWORD) must never get hard-filtered to the RULE group - that
+    would hide the real case entirely, not just under-rank it. See
+    query_tokenizer.keyword_shape_group_filter's docstring for the exact bug this protects."""
+    chunks = [{"text": "Rule 57G", "proximity": 0, "type": "section", "alt_text": "Rule 057G"}]
+    query = _build_field_query("Gharda Chemicals Rule 57G Modvat invoice", "HYBRID", chunks=chunks)
+
+    assert "filter" not in query["bool"]
+
+
+def test_build_field_query_no_hard_filter_when_no_section_chunk():
+    chunks = [{"text": "Commissioner Customs Indian Oil", "proximity": 5, "type": "text", "alt_text": None}]
+    query = _build_field_query("Commissioner Customs Indian Oil", "KEYWORD", chunks=chunks)
+
+    assert "filter" not in query["bool"]
+
+
 def test_build_query_preview_omits_expanded_query_when_unchanged():
     preview = build_query_preview("can a company claim depreciation")
     assert preview["expanded_query"] is None
@@ -292,8 +328,9 @@ def test_build_query_preview_adds_caselaws_group_should_boost_for_ruling_query()
     commentary docs whose heading literally contains "Supreme Court" far above real case law -
     heading/subheading/headnotes_text _PHRASE_BOOSTS fire the same regardless of document
     type. Unconditional (present even with boost=False, the default) since it lives at
-    _PHRASE_BOOSTS' should-clause scale, the same reason _CURRENT_EDITION_SHOULD_BOOST does -
-    a small function_score addition was verified too weak to move the ranking."""
+    _PHRASE_BOOSTS' should-clause scale, the same reason the edition-preference should-clause
+    boosts do (_EDITION_BOOSTS_BY_INSTRUMENT_KIND) - a small function_score addition was
+    verified too weak to move the ranking."""
     preview = build_query_preview("landmark Supreme Court ruling on GST")
 
     should = preview["es_query"]["bool"]["should"]
@@ -302,7 +339,7 @@ def test_build_query_preview_adds_caselaws_group_should_boost_for_ruling_query()
         if clause.get("term", {}).get("groups.group.name.keyword", {}).get("value") == "CASELAWS"
     ]
     assert len(matches) == 1
-    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 10_000_000.0
+    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 5_000.0
 
 
 def test_build_query_preview_skips_caselaws_group_should_boost_when_no_signal():
@@ -322,7 +359,7 @@ def test_build_query_preview_adds_rule_group_should_boost_for_bare_rule_word():
         if clause.get("term", {}).get("groups.group.name.keyword", {}).get("value") == "RULE"
     ]
     assert len(matches) == 1
-    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 2_000_000.0
+    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 1_000.0
 
 
 def test_build_query_preview_adds_experts_opinion_group_should_boost_for_article_word():
@@ -336,7 +373,7 @@ def test_build_query_preview_adds_experts_opinion_group_should_boost_for_article
         if clause.get("term", {}).get("groups.group.name.keyword", {}).get("value") == "Experts Opinion"
     ]
     assert len(matches) == 1
-    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 2_000_000.0
+    assert matches[0]["term"]["groups.group.name.keyword"]["boost"] == 1_000.0
 
 
 @pytest.mark.asyncio
@@ -430,8 +467,12 @@ async def test_raw_search_boost_true_skips_statutory_group_boost_for_non_section
 @pytest.mark.asyncio
 async def test_raw_search_boost_true_includes_static_taxonomy_id_boosts_unconditionally():
     """Unlike the statutory-group boost (only fires for a section/rule-number query), the
-    static per-taxonomy-node boosts (ACT group id, specific act-edition subgroup ids) are
-    unconditional - present even for a query with no section chunk at all."""
+    static per-taxonomy-node boosts (ACT group id) are unconditional - present even for a
+    query with no section chunk at all. The Income-tax Act 1961 subgroup entry that used to
+    live here was removed - it's now covered, at the correct (much larger, verified-against-
+    repotaxmannapi) scale, by the should-clause edition-preference boost instead (see
+    test_raw_search_boost_true_adds_both_act_edition_should_boosts_for_section_query) -
+    keeping both would double-count it."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "exemption claim", limit=20, boost=True)
@@ -443,31 +484,82 @@ async def test_raw_search_boost_true_includes_static_taxonomy_id_boosts_uncondit
     }
     assert term_boosts == {
         ("groups.group.id", "111050000000000064"): 2.0,
-        ("groups.group.subgroup.id", "111050000000010687"): 2.0,
     }
 
 
 @pytest.mark.asyncio
-async def test_raw_search_boost_true_adds_current_edition_should_boost_for_section_query():
-    """The current-edition (Income-tax Act 2025, subgroup 111050000000020042) preference must
-    live as a should-clause boost inside the main query, at _PHRASE_BOOSTS' scale - not
-    as a small function_score addition, which was verified live to be too weak to move the
-    ranking (see _CURRENT_EDITION_SHOULD_BOOST's comment)."""
+async def test_raw_search_boost_true_adds_both_act_edition_should_boosts_for_section_query():
+    """A bare section number must prefer BOTH Income-tax Act editions (1961, subgroup
+    111050000000010687; 2025 - the current edition - subgroup 111050000000020042), current
+    edition weighted higher - ported from repotaxmannapi's real production source
+    (GlobalSearchResearch.cs weights the current edition 3 vs the old edition's 2, rather than
+    only boosting the current one). Verified live (2026-09-01 investigation) against
+    repotaxmannapi/TaxmannAPI/Elastic/SearchTextElastic.cs and GlobalSearchResearch.cs, and
+    against the live ES index for both subgroup ids."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "Section 52", limit=20, boost=True)
 
     should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
-    matches = [
-        clause for clause in should
-        if clause.get("term", {}).get("groups.group.subgroup.id", {}).get("value") == "111050000000020042"
-    ]
-    assert len(matches) == 1
-    assert matches[0]["term"]["groups.group.subgroup.id"]["boost"] == 20000.0
+    boosts = {
+        clause["term"]["groups.group.subgroup.id"]["value"]: clause["term"]["groups.group.subgroup.id"]["boost"]
+        for clause in should if "groups.group.subgroup.id" in clause.get("term", {})
+    }
+    assert boosts == {
+        "111050000000010687": 15000.0,  # Income-tax Act, 1961
+        "111050000000020042": 20000.0,  # Income-tax Act, 2025 (current edition, weighted higher)
+    }
 
 
 @pytest.mark.asyncio
-async def test_raw_search_boost_true_skips_current_edition_should_boost_for_non_section_query():
+async def test_raw_search_boost_true_adds_both_rules_edition_should_boosts_for_rule_query():
+    """Mirrors the Act case for a bare RULE number - must prefer the Income-tax Rules, not the
+    Income-tax Act (they're different instruments - see query_tokenizer.default_instrument_kind's
+    docstring). Both editions: 1962 (subgroup 111050000000010121) and 2026 - the current edition
+    (subgroup 111050000000020129), current weighted higher. Both ids verified live against the
+    real ES index (2026-09-01 investigation)."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Rule 6", limit=20, boost=True)
+
+    should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
+    boosts = {
+        clause["term"]["groups.group.subgroup.id"]["value"]: clause["term"]["groups.group.subgroup.id"]["boost"]
+        for clause in should if "groups.group.subgroup.id" in clause.get("term", {})
+    }
+    assert boosts == {
+        "111050000000010121": 15000.0,  # Income-tax Rules, 1962
+        "111050000000020129": 20000.0,  # Income-tax Rules, 2026 (current edition, weighted higher)
+    }
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_skips_edition_should_boost_for_bare_article_query():
+    """A bare Article number gets no instrument default at all - see
+    query_tokenizer.default_instrument_kind's docstring (Article almost always means the
+    Constitution, a different domain than Income-tax entirely)."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Article 14", limit=20, boost=True)
+
+    should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
+    matches = [clause for clause in should if "groups.group.subgroup.id" in clause.get("term", {})]
+    assert matches == []
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_skips_edition_should_boost_when_different_act_named():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Rule 6 of the CGST Act", limit=20, boost=True)
+
+    should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
+    matches = [clause for clause in should if "groups.group.subgroup.id" in clause.get("term", {})]
+    assert matches == []
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_skips_edition_should_boost_for_non_section_query():
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "exemption claim", limit=20, boost=True)

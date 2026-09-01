@@ -2,7 +2,7 @@ from langfuse import get_client
 
 from common.config import get_settings
 from common.es_client import fetch_citations, keyword_mode_search
-from common.query_tokenizer import build_dense_sparse_query, chunk_query, classify_intent_mode, default_act_suffix
+from common.query_tokenizer import build_dense_sparse_query, chunk_query, classify_intent_mode
 from retrieval_api.ai_mode.intent import extract_intent, OnStep
 from retrieval_api.ai_mode.keyword_expansion import expand_keyword_terms
 from retrieval_api.ai_mode.filter_resolve import resolve_allowlist
@@ -44,11 +44,17 @@ async def run_ai_mode(
                 # docstring), so ES gets "section 55", not "what is section 55".
                 chunks = chunk_query(query)
                 keyword_query = build_dense_sparse_query(chunks, fallback=query)
-                # Deterministic Income-tax Act default for a bare section/rule number with
-                # no Act named anywhere - see default_act_suffix's own docstring for why
-                # this can't just live in an SLM prompt (keyword mode may skip the SLM
-                # entirely, and its optional prompt below has the opposite rule).
-                keyword_query += default_act_suffix(chunks, query)
+                # Income-tax Act/Rules default for a bare section/rule number with no Act
+                # named anywhere used to be a text suffix appended here
+                # (query_tokenizer.default_act_suffix) - removed 2026-09-01, verified live to
+                # be structurally too weak to move ES ranking (a generic multi_match OR term,
+                # no field targets Act-name text). Now handled correctly at the ES query level
+                # instead: keyword_mode_search below passes `boost` through to
+                # build_query_preview, whose should-clause edition-preference boost
+                # (common.es_client._EDITION_BOOSTS_BY_INSTRUMENT_KIND) targets the real
+                # groups.group.subgroup.id field, using query_tokenizer.default_instrument_kind
+                # for the same Act-vs-Rules-vs-no-default classification this used to do
+                # in text. Only fires when boost=True (same gate Instant mode already had).
 
                 # Experimental, off by default (common.config.Settings.
                 # keyword_mode_expansion_enabled) - lets an SLM add up to 2 genuinely-confident
