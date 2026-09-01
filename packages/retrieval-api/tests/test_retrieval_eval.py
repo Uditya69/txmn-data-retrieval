@@ -114,6 +114,59 @@ async def test_evaluate_case_reports_each_retrieval_stage(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_evaluate_case_skips_milvus_sparse_when_disabled(monkeypatch):
+    """MILVUS_SPARSE_ENABLED off means no sparse pass runs anywhere in AI Mode's
+    retrieve() (CLAUDE.md hard rule 3) - evaluate_case must mirror that when
+    sparse_enabled=False, not always run Milvus sparse regardless of the flag."""
+    import retrieval_api.retrieval_eval as module
+
+    async def fake_raw_search(client, query, limit=50, boost=False):
+        return [{"doc_id": "gold", "score": 1.0}]
+
+    sparse_calls = []
+
+    async def fake_hybrid(client, collections, dense_vector, sparse_query_text,
+                          doc_id_allowlist=None, limit=50):
+        if dense_vector is None:
+            sparse_calls.append(collections)
+        return {name: [{"doc_id": "gold", "chunk_id": f"gold-{name}",
+                        "text": "gold text", "score": 1.0}] for name in collections}
+
+    async def fake_intent(gateway, query, model=None):
+        return {"search_query": "rewritten", "filters": {}, "intent": ["caselaws"]}
+
+    async def fake_allowlist(es_client, filters):
+        return None
+
+    async def fake_rerank(gateway, query, candidates, top_n=None, model=None):
+        return [{**row, "rerank_score": 1.0} for row in candidates]
+
+    monkeypatch.setattr(module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(module, "hybrid_search", fake_hybrid)
+    monkeypatch.setattr(module, "extract_intent", fake_intent)
+    monkeypatch.setattr(module, "resolve_allowlist", fake_allowlist)
+    monkeypatch.setattr(module, "rerank_top_chunks", fake_rerank)
+
+    class Gateway:
+        async def embed(self, role, text):
+            return [0.1]
+
+    result = await evaluate_case(
+        {"id": "Q1", "class": "direct", "query": "raw", "gold_doc_ids": ["gold"],
+         "expected_collections": ["facts"], "pass_at": 5},
+        Gateway(), object(), object(), langfuse_enabled=False, skip_synthesis=True,
+        sparse_enabled=False,
+    )
+
+    assert sparse_calls == []
+    assert result["ranks"]["raw_sparse"] is None
+    assert result["ranks"]["rewritten_sparse"] is None
+    assert result["ranks"]["es"] == 1
+    assert result["ranks"]["raw_dense"] == 1
+    assert result["ranks"]["reranker"] == 1
+
+
+@pytest.mark.asyncio
 async def test_evaluate_case_always_uses_neutral_rrf_weighting(monkeypatch):
     """Category no longer drives RRF weighting (dropped from retrieve.py in
     Task 3) - evaluate_case must mirror that: always neutral (1.0, 1.0)

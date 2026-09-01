@@ -161,17 +161,19 @@ async def _sparse_with_es_fallback(
 
 def stage_cache_path(
     cache_dir: Path, case_id: str, slm_model: str | None, reranker_model: str | None,
-    rerank_enabled: bool = True,
+    rerank_enabled: bool = True, sparse_enabled: bool = True,
 ) -> Path:
     # Cache key deliberately excludes synthesis_model: everything through the
     # reranker stage (ES, both Milvus branches, intent rewrite, RRF, rerank)
     # is unaffected by which synthesis model is used, so swapping only
     # synthesis_model should always be a cache hit. slm_model/reranker_model/
-    # rerank_enabled ARE part of the key since they change the rewritten query
-    # and/or the reranked chunk order, which changes everything downstream of them.
+    # rerank_enabled/sparse_enabled ARE part of the key since they change the
+    # rewritten query, the reranked chunk order, and/or whether Milvus sparse ran at
+    # all - each of which changes everything downstream of it.
     slug = re.sub(
         r"[^a-zA-Z0-9_-]+", "-",
-        f"{slm_model or 'default'}__{reranker_model or 'default'}__rerank-{rerank_enabled}",
+        f"{slm_model or 'default'}__{reranker_model or 'default'}"
+        f"__rerank-{rerank_enabled}__sparse-{sparse_enabled}",
     )
     return cache_dir / case_id / f"{slug}.json"
 
@@ -191,7 +193,8 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                         langfuse_enabled: bool = True, slm_model: str | None = None,
                         reranker_model: str | None = None, synthesis_model: str | None = None,
                         cache_dir: Path | None = None,
-                        rerank_enabled: bool = True, skip_synthesis: bool = False, boost: bool = False) -> dict:
+                        rerank_enabled: bool = True, skip_synthesis: bool = False, boost: bool = False,
+                        sparse_enabled: bool = True) -> dict:
     query = case["query"]
     gold = set(case["gold_doc_ids"])
     langfuse = get_client()
@@ -215,7 +218,9 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             finally:
                 timings[name] = round((time.perf_counter() - stage_started) * 1000, 1)
 
-        cache_path = stage_cache_path(cache_dir, case["id"], slm_model, reranker_model, rerank_enabled) if cache_dir else None
+        cache_path = stage_cache_path(
+            cache_dir, case["id"], slm_model, reranker_model, rerank_enabled, sparse_enabled,
+        ) if cache_dir else None
         cached = _load_stage_cache(cache_path) if cache_path else None
 
         if cached is not None:
@@ -237,9 +242,11 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                     milvus_client, MILVUS_COLLECTIONS, raw_vector, query, limit=limit,
                 )) if raw_vector is not None else None
             ) or {name: [] for name in MILVUS_COLLECTIONS}
-            raw_sparse = await measured("raw_sparse", _sparse_with_es_fallback(
-                milvus_client, es_client, MILVUS_COLLECTIONS, query, limit=limit,
-            )) or {name: [] for name in MILVUS_COLLECTIONS}
+            raw_sparse = (
+                await measured("raw_sparse", _sparse_with_es_fallback(
+                    milvus_client, es_client, MILVUS_COLLECTIONS, query, limit=limit,
+                )) if sparse_enabled else None
+            ) or {name: [] for name in MILVUS_COLLECTIONS}
 
             intent = await measured("intent", extract_intent(gateway, query, model=slm_model))
             reasoning = intent.get("reasoning") if intent else None
@@ -255,10 +262,12 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                     doc_id_allowlist=allowlist, limit=limit,
                 )) if rewritten_vector is not None else None
             ) or {name: [] for name in routed_collections}
-            rewritten_sparse = await measured("rewritten_sparse", _sparse_with_es_fallback(
-                milvus_client, es_client, routed_collections, rewritten_query,
-                doc_id_allowlist=allowlist, limit=limit,
-            )) or {name: [] for name in routed_collections}
+            rewritten_sparse = (
+                await measured("rewritten_sparse", _sparse_with_es_fallback(
+                    milvus_client, es_client, routed_collections, rewritten_query,
+                    doc_id_allowlist=allowlist, limit=limit,
+                )) if sparse_enabled else None
+            ) or {name: [] for name in routed_collections}
 
             # RRF fusion weight is always neutral - category does not drive
             # dense/sparse weighting (see Task 3 / the routing design spec).
@@ -405,6 +414,7 @@ async def _run(args) -> int:
 
     settings = get_settings()
     rerank_enabled = settings.ai_mode_rerank_enabled if args.rerank_enabled is None else args.rerank_enabled
+    sparse_enabled = settings.milvus_sparse_enabled if args.sparse_enabled is None else args.sparse_enabled
     es_client = get_es_client(settings)
     milvus_client = get_milvus_client(settings)
     gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=not args.no_langfuse)
@@ -419,6 +429,7 @@ async def _run(args) -> int:
                 slm_model=args.slm_model, reranker_model=args.reranker_model, synthesis_model=args.synthesis_model,
                 cache_dir=args.cache_dir,
                 rerank_enabled=rerank_enabled, skip_synthesis=args.skip_synthesis, boost=args.boost,
+                sparse_enabled=sparse_enabled,
             )
             results.append(result)
             if args.jsonl_output:
@@ -447,6 +458,7 @@ async def _run(args) -> int:
                 "reranker_model": args.reranker_model,
                 "synthesis_model": args.synthesis_model,
                 "rerank_enabled": rerank_enabled,
+                "sparse_enabled": sparse_enabled,
                 "boost": args.boost,
             },
             "results": results,
@@ -489,7 +501,17 @@ def main() -> None:
         "--no-rerank", dest="rerank_enabled", action="store_false",
         help="force the reranker stage off, overriding AI_MODE_RERANK_ENABLED",
     )
-    parser.add_argument("--cache-dir", type=Path, help="cache ES/Milvus/intent/rerank stage output per (query id, slm_model, reranker_model) here, so runs that only vary synthesis_model skip straight to synthesis")
+    sparse_group = parser.add_mutually_exclusive_group()
+    sparse_group.add_argument(
+        "--sparse", dest="sparse_enabled", action="store_true", default=None,
+        help="force the Milvus sparse pass on (raw_sparse/rewritten_sparse), overriding MILVUS_SPARSE_ENABLED - "
+        "default (unset) mirrors the flag, which is off by default, matching what AI Mode actually runs in production",
+    )
+    sparse_group.add_argument(
+        "--no-sparse", dest="sparse_enabled", action="store_false",
+        help="force the Milvus sparse pass off, overriding MILVUS_SPARSE_ENABLED",
+    )
+    parser.add_argument("--cache-dir", type=Path, help="cache ES/Milvus/intent/rerank stage output per (query id, slm_model, reranker_model, sparse_enabled) here, so runs that only vary synthesis_model skip straight to synthesis")
     parser.add_argument("--run-name", default="retrieval-eval")
     parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")
     parser.add_argument("--langfuse-base-url", help="override LANGFUSE_BASE_URL for host-side runs")

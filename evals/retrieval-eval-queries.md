@@ -23,6 +23,14 @@ run against this exact dataset scored 21/53 with the (fully-patched) `documentty
 court_boost x landmarkruling` boost active versus 42/53 with it off, so ES results reported
 here reflect plain BM25 text relevance, not the boosted formula the original design called for.
 
+**Update (2026-09-01): Milvus sparse now respects `MILVUS_SPARSE_ENABLED`, off by
+default.** `retrieval_eval.py` used to run the Milvus sparse pass unconditionally,
+regardless of the flag - a leftover from before the flag existed, and a mismatch with
+what AI Mode actually runs in production (off by default, per the flag's own doc in
+`CLAUDE.md` hard rule 3). It now defaults to mirroring the flag; pass `--sparse` to
+force it on for the full three-way ES/dense/sparse diagnostic comparison this doc's
+protocol below describes.
+
 ## Suggested evaluation protocol
 
 - Run every query independently through raw ES, Milvus sparse, and Milvus dense.
