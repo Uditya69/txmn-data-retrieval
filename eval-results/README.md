@@ -74,23 +74,30 @@ and just grade ES/Milvus/RRF/reranker rank.
 
 ## Full sweep (all 4 evals in one command)
 
+The `mkdir` matters here — each of these 4 scripts writes directly into `$RUN`, so
+nothing needs copying/renaming afterward:
+
 ```bash
 RUN="eval-results/YYYY-MM-DD/NN-full-sweep"
 mkdir -p "$RUN"
-GATEWAY_URL=http://localhost:8001 bash -c "
-  uv run python -m retrieval_api.slm_intent_eval --gateway-url \$GATEWAY_URL --output $RUN/slm-intent.jsonl --resume &&
-  uv run python -m retrieval_api.collection_routing_eval --gateway-url \$GATEWAY_URL --output $RUN/collection-routing.jsonl --resume &&
-  uv run python -m retrieval_api.intent_eval --gateway-url \$GATEWAY_URL --output $RUN/intent-filter.jsonl --resume &&
-  uv run python -m retrieval_api.retrieval_eval --gateway-url \$GATEWAY_URL --jsonl-output $RUN/retrieval.jsonl --resume
+
+tmux new -d -s full-sweep "
+  uv run python -m retrieval_api.slm_intent_eval --gateway-url http://localhost:8001 --output $RUN/slm-intent.jsonl --resume &&
+  uv run python -m retrieval_api.collection_routing_eval --gateway-url http://localhost:8001 --output $RUN/collection-routing.jsonl --resume &&
+  uv run python -m retrieval_api.intent_eval --gateway-url http://localhost:8001 --output $RUN/intent-filter.jsonl --resume &&
+  uv run python -m retrieval_api.retrieval_eval --gateway-url http://localhost:8001 --jsonl-output $RUN/retrieval.jsonl --resume
 "
 ```
-Wrap the whole thing in `tmux new -d -s full-sweep '...'` to run it headless (survives
-SSH disconnect). Or use `evals/run_all.sh` (writes to fixed top-level filenames,
-`.eval-results/slm-intent.jsonl` etc. — move/rename into a dated `eval-results/` folder
-afterward if you want it archived here):
+
+Alternative: `evals/run_all.sh` runs the same 4 scripts but **ignores `$RUN`
+entirely** — it always writes to fixed, gitignored paths
+(`.eval-results/slm-intent.jsonl` etc., not this folder) regardless of anything you
+set beforehand, so don't bother `mkdir`ing a dated folder first if you use it:
 ```bash
-tmux new -d -s full-sweep "GATEWAY_URL=http://localhost:8001 bash evals/run_all.sh"
+tmux new -d -s full-sweep 'bash evals/run_all.sh'
 ```
+Move/rename its output into a dated `eval-results/` folder afterward if you decide you
+want that run kept.
 
 ## Checking on / stopping a headless run
 
