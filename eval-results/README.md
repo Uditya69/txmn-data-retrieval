@@ -9,6 +9,9 @@ things better or worse" over time. One folder per run date (`YYYY-MM-DD`), conta
   expected vs. actual, pass/fail, and the SLM's reasoning trace.
 - `SUMMARY.md` — the pass/fail tallies for that run, so you can compare dates without
   opening the raw files.
+- `dashboard.html` — a self-contained, offline-browsable dashboard over that run's 4
+  `.jsonl` files (search/filter by pass-fail-error, expand any case for its full
+  query/rewrite/reasoning detail). Just open it in a browser, no server needed.
 
 Not to be confused with `.eval-results/` (gitignored) — that's `retrieval_eval.py`'s
 own local scratch output (timestamped full-payload JSON with git revision/dataset
