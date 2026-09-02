@@ -184,6 +184,33 @@ async def test_raw_search_boost_source_defaults_to_sum_mode_unchanged():
 
 
 @pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_resolves_group_id_from_tokens():
+    """SearchTextElastic's caller (GlobalSearchResearch.cs:595-596, duplicated at 988-989 and
+    in GlobalSearchResearchMobileApp.cs:64-65 - the task brief's cited 589-590 was stale)
+    assigns `groupid = stext.iGroupID` only when non-"0" - but that single assignment comes
+    from one SearchTextElastic() call, not a loop. The real "first wins" mechanism is one
+    level deeper, in TaxmannQueryAnalizer.cs: SetPrimaryTag (288-317) is the only setter
+    called repeatedly (once per classified token, in the token-parsing loop around lines
+    1599-1909) and is gated by `if (iTagNo == "0")` at line 294 - so it takes effect only the
+    first time a token classification produces a non-"0" tag/group pair; every later call in
+    the same query is a no-op because iTagNo is already non-"0". ReSetPrimaryTag (318-344,
+    unconditional) is only ever called once, for the special "EXPERTSOPINION" case (line
+    1980) - not part of the general per-token iteration. Net effect: first token in `tokens`
+    with a non-"0" group_id wins, matching this repo's RepotaxmannapiToken.group_id (per-token
+    field, see repotaxmannapi_tokenizer.py module docstring point 1)."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Rule 6", limit=20, boost=True, boost_source="repotaxmannapi")
+
+    functions = client.search_calls[0]["function_score"]["functions"]
+    group_id_fn = next(
+        fn for fn in functions
+        if "groups.group.id" in fn.get("filter", {}).get("match", {})
+    )
+    assert group_id_fn["filter"]["match"]["groups.group.id"]["query"] == "111050000000000026"
+
+
+@pytest.mark.asyncio
 async def test_raw_search_queries_heading_subheading_fullcontent_not_just_sparse_fields():
     client = FakeAsyncES(search_hits=[])
 

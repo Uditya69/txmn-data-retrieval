@@ -657,13 +657,23 @@ async def raw_search(
     - "repotaxmannapi": repotaxmannapi's own multiply-mode function_score
       (build_function_score_functions), wrapping should-clauses built from the
       repotaxmannapi tokenizer/query-builder pair instead of this repo's own
-      chunk_query/_build_field_query. group_id is hardcoded to "0" (no group signal) -
-      Task 10 resolves this properly from the tokenized query. Has no effect when
-      boost=False (there is nothing to select a formula for)."""
+      chunk_query/_build_field_query. group_id is resolved from the tokenized query - the
+      first token (in tokenize() order) whose group_id != "0", mirroring the real source's
+      "first classification wins" behavior: TaxmannQueryAnalizer.cs's SetPrimaryTag
+      (288-317) is gated by `if (iTagNo == "0")` (line 294) and is the only setter called
+      per-token in the token-parsing loop (~1599-1909), so only the first token that
+      classifies to a non-"0" tag/group ever sets it - every later call in the same query is
+      a no-op. (ReSetPrimaryTag, unconditional, is only ever called once for the special
+      "EXPERTSOPINION" case at line 1980 - not part of general per-token iteration.)
+      GlobalSearchResearch.cs:595-596 (duplicated at 988-989, and in
+      GlobalSearchResearchMobileApp.cs:64-65) then takes that single query-level iGroupID
+      verbatim: `if (stext.iGroupID != "0") groupid = stext.iGroupID;`. "0" (no group
+      signal) if no token has one. Has no effect when boost=False (there is nothing to
+      select a formula for)."""
     if boost and boost_source == "repotaxmannapi":
         tokens = tokenize(query)
         should = build_should_clauses(tokens, is_global=True, is_excus=False)
-        group_id = "0"  # Task 10 resolves this from tokens; "0" (no group signal) for now
+        group_id = next((t.group_id for t in tokens if t.group_id != "0"), "0")
         field_query = {
             "function_score": {
                 "query": {"bool": {"should": should, "minimum_should_match": 1}},
