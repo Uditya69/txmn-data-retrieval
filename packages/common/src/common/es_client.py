@@ -673,6 +673,13 @@ async def raw_search(
     if boost and boost_source == "repotaxmannapi":
         tokens = tokenize(query)
         should = build_should_clauses(tokens, is_global=True, is_excus=False)
+        # Real C# semantics (SetPrimaryTag's `iTagNo == "0"` gate) actually lock in the FIRST
+        # *classified* token's group_id even if that token's own id were "0" - never falling
+        # through to a later token's non-"0" id. This `next(...)` instead skips "0" tokens
+        # looking for the first non-"0" one, which diverges from that edge case - but it's
+        # unreachable with real data: verified zero entries in
+        # repotaxmannapi_token_dictionary.json have tag_no != "0" (i.e. "classified") with
+        # group_id == "0", so a classified token's group_id is never "0" in practice.
         group_id = next((t.group_id for t in tokens if t.group_id != "0"), "0")
         field_query = {
             "function_score": {

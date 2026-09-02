@@ -197,17 +197,25 @@ async def test_raw_search_repotaxmannapi_resolves_group_id_from_tokens():
     unconditional) is only ever called once, for the special "EXPERTSOPINION" case (line
     1980) - not part of the general per-token iteration. Net effect: first token in `tokens`
     with a non-"0" group_id wins, matching this repo's RepotaxmannapiToken.group_id (per-token
-    field, see repotaxmannapi_tokenizer.py module docstring point 1)."""
+    field, see repotaxmannapi_tokenizer.py module docstring point 1).
+
+    Query is "Section 5 Rule 6" specifically (not a single-group-token query like "Rule 6")
+    because it's the only way to actually distinguish first-wins from last-wins: verified via
+    tokenize("Section 5 Rule 6") that it produces two distinct non-"0" group_id tokens in
+    order - "Section 5" -> group_id "111050000000000064" (ACT), then "Rule 6" -> group_id
+    "111050000000000026" (RULE). Asserting the resolved group_id is the ACT one (the first
+    token's) is what proves first-wins; a last-wins implementation would resolve to the RULE
+    id instead and fail this assertion."""
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "Rule 6", limit=20, boost=True, boost_source="repotaxmannapi")
+    await raw_search(client, "Section 5 Rule 6", limit=20, boost=True, boost_source="repotaxmannapi")
 
     functions = client.search_calls[0]["function_score"]["functions"]
     group_id_fn = next(
         fn for fn in functions
         if "groups.group.id" in fn.get("filter", {}).get("match", {})
     )
-    assert group_id_fn["filter"]["match"]["groups.group.id"]["query"] == "111050000000000026"
+    assert group_id_fn["filter"]["match"]["groups.group.id"]["query"] == "111050000000000064"
 
 
 @pytest.mark.asyncio
