@@ -401,10 +401,31 @@ async def test_raw_search_boost_true_includes_doctype_court_landmark_and_recency
 
     functions = client.search_calls[0]["function_score"]["functions"]
     fields = {fn["field_value_factor"]["field"] for fn in functions if "field_value_factor" in fn}
-    assert fields == {"documenttypeboost", "court_boost", "landmarkruling"}
+    assert fields == {"documenttypeboost", "court_boost", "landmarkruling", "viewcount"}
     recency_functions = [fn for fn in functions if "field_value_factor" not in fn and "filter" in fn
                          and "range" in fn["filter"] and "formatteddocumentdate" in fn["filter"]["range"]]
     assert len(recency_functions) == 11
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_true_viewcount_uses_same_factor_as_repotaxmannapi():
+    """viewcount popularity boost, added 2026-09-01 - ported from repotaxmannapi's real
+    production source (GlobalSearchResearch.cs: FieldValueFactor(viewcount, factor
+    0.0000018, log2p)), gated behind gt:0 same as court_boost/landmarkruling so a doc with
+    no view data reads as +0, not a degenerate log2p(0)=0 relied on implicitly. Additive
+    (this repo's sum-mode boost, not repotaxmannapi's boost_mode:multiply) - a doc with
+    viewcount=0 just contributes +0, never zeroes the whole score the way it would under
+    multiply (see _apply_boost's own docstring for that failure mode)."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    functions = client.search_calls[0]["function_score"]["functions"]
+    viewcount_fn = next(fn for fn in functions if fn.get("field_value_factor", {}).get("field") == "viewcount")
+    assert viewcount_fn["filter"] == {"range": {"viewcount": {"gt": 0}}}
+    assert viewcount_fn["field_value_factor"] == {
+        "field": "viewcount", "factor": 0.0000018, "modifier": "log2p",
+    }
 
 
 @pytest.mark.asyncio

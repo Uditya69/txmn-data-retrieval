@@ -527,7 +527,18 @@ def _apply_boost(field_query: dict, chunks: list[dict]) -> dict:
     score, so a doc with no boost signal at all just gets +0, never a score-killing
     multiplier. Still gated behind `gt: 0` filters for the sparse/zero-valued fields
     (landmarkruling 2.1% populated, court_boost a real 0 on 45.8% of the corpus) so
-    "no signal" reads as +0, not a negative/degenerate field_value_factor output."""
+    "no signal" reads as +0, not a negative/degenerate field_value_factor output.
+
+    viewcount added 2026-09-01, ported from repotaxmannapi's real production source
+    (TaxmannAPI/Elastic/GlobalSearchResearch.cs) - factor/modifier (0.0000018, log2p)
+    copied as-is from there. Verified the field exists and is populated in this repo's
+    own index (e.g. a real doc: viewcount 335) before porting. Same gt:0 gate as
+    court_boost/landmarkruling: a doc with viewcount exactly 0 (common, not just
+    "missing") gets +0 here rather than relying on log2p(0)==0 implicitly - under
+    repotaxmannapi's boost_mode:multiply that same log2p(0)==0 zeroes the ENTIRE score
+    for a low-traffic doc regardless of text relevance (verified by formula, not by a
+    live query - no execution access to that system); this repo's sum-mode design can't
+    reproduce that failure by construction, which is the whole reason it exists."""
     functions = [
         {
             "filter": {"range": {"documenttypeboost": {"gt": 0}}},
@@ -540,6 +551,10 @@ def _apply_boost(field_query: dict, chunks: list[dict]) -> dict:
         {
             "filter": {"range": {"landmarkruling": {"gt": 0}}},
             "field_value_factor": {"field": "landmarkruling", "factor": 1.2, "modifier": "log2p"},
+        },
+        {
+            "filter": {"range": {"viewcount": {"gt": 0}}},
+            "field_value_factor": {"field": "viewcount", "factor": 0.0000018, "modifier": "log2p"},
         },
         *_recency_boost_functions(),
         *_group_name_boost_functions(chunks),
