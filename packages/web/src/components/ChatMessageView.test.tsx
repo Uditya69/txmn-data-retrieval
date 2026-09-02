@@ -230,24 +230,62 @@ describe('TraceSection copy button', () => {
 })
 
 describe('InstantPane pagination — hidden by default', () => {
-  it('Next button calls onFetchPage with page 2 when paginationEnabled is true', () => {
+  function manyEsHitsInstant(): ResultState['instant'] {
     const manyEsHits = Array.from({ length: 25 }, (_, i) => ({ doc_id: `d${i}`, score: 1, heading: `h${i}`, subheading: '' }))
-    const instant: ResultState['instant'] = { es: manyEsHits, es_error: null, milvus: null, milvus_sparse: null, milvus_error: null }
+    return { es: manyEsHits, es_error: null, milvus: null, milvus_sparse: null, milvus_error: null }
+  }
+
+  it('Next button calls onFetchPage with page 2 when paginationEnabled is true', () => {
     const onFetchPage = vi.fn()
     render(
       <ChatMessageView
-        message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}}
-        paginationEnabled={true} onFetchPage={onFetchPage}
+        message={assistantMessage(manyEsHitsInstant())} devMode={false} onOpenDocument={() => {}}
+        paginationEnabled={true} onFetchPage={onFetchPage} currentPage={1}
       />,
     )
     fireEvent.click(screen.getByText('Next'))
     expect(onFetchPage).toHaveBeenCalledWith(2)
   })
 
+  // Regression test for C1 (2026-09-02 final review): the server page must advance
+  // monotonically (2, 3, 4...) as Next is clicked repeatedly, driven by the controlled
+  // `currentPage` prop (mirroring App.tsx's real `instantPage` state) - not oscillate back
+  // to 2 forever because of InstantPane's own internal, self-resetting `page` slice index.
+  it('Next advances the server page 2, 3, 4 across repeated clicks, driven by currentPage, never oscillating back', () => {
+    const onFetchPage = vi.fn()
+    const { rerender } = render(
+      <ChatMessageView
+        message={assistantMessage(manyEsHitsInstant())} devMode={false} onOpenDocument={() => {}}
+        paginationEnabled={true} onFetchPage={onFetchPage} currentPage={1}
+      />,
+    )
+
+    fireEvent.click(screen.getByText('Next'))
+    expect(onFetchPage).toHaveBeenNthCalledWith(1, 2)
+
+    // App.tsx would re-render with the new server page once results for page 2 land -
+    // simulated here by bumping currentPage, same as the real controlled-prop flow.
+    rerender(
+      <ChatMessageView
+        message={assistantMessage(manyEsHitsInstant())} devMode={false} onOpenDocument={() => {}}
+        paginationEnabled={true} onFetchPage={onFetchPage} currentPage={2}
+      />,
+    )
+    fireEvent.click(screen.getByText('Next'))
+    expect(onFetchPage).toHaveBeenNthCalledWith(2, 3)
+
+    rerender(
+      <ChatMessageView
+        message={assistantMessage(manyEsHitsInstant())} devMode={false} onOpenDocument={() => {}}
+        paginationEnabled={true} onFetchPage={onFetchPage} currentPage={3}
+      />,
+    )
+    fireEvent.click(screen.getByText('Next'))
+    expect(onFetchPage).toHaveBeenNthCalledWith(3, 4)
+  })
+
   it('does not require onFetchPage when paginationEnabled is false (default, unchanged behavior)', () => {
-    const manyEsHits = Array.from({ length: 25 }, (_, i) => ({ doc_id: `d${i}`, score: 1, heading: `h${i}`, subheading: '' }))
-    const instant: ResultState['instant'] = { es: manyEsHits, es_error: null, milvus: null, milvus_sparse: null, milvus_error: null }
-    render(<ChatMessageView message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}} />)
+    render(<ChatMessageView message={assistantMessage(manyEsHitsInstant())} devMode={false} onOpenDocument={() => {}} />)
     fireEvent.click(screen.getByText('Next'))
     expect(screen.getByText(/Page 2 of/)).toBeInTheDocument() // client-side slice still works exactly as before
   })

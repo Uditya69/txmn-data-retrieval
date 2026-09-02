@@ -20,6 +20,11 @@ type Props = {
   onOpenDocument: (docId: string) => void
   paginationEnabled?: boolean
   onFetchPage?: (page: number) => void
+  // Controlled server page number (App.tsx's `instantPage`) - the single source of truth
+  // for "which server page are we on" when paginationEnabled is true. Ignored entirely
+  // when paginationEnabled is false/omitted (InstantPane's own internal `page` slice index
+  // is used instead, exactly as before this prop existed).
+  currentPage?: number
 }
 
 // No inner height cap and no overflow-y-auto here on purpose - a fixed-height
@@ -126,10 +131,10 @@ function TraceSection({
 const PAGE_SIZE = 10
 
 function InstantPane({
-  result, devMode, onOpenDocument, query, paginationEnabled = false, onFetchPage,
+  result, devMode, onOpenDocument, query, paginationEnabled = false, onFetchPage, currentPage,
 }: {
   result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void; query: string
-  paginationEnabled?: boolean; onFetchPage?: (page: number) => void
+  paginationEnabled?: boolean; onFetchPage?: (page: number) => void; currentPage?: number
 }) {
   const status = result?.status ?? 'loading'
   const instant = result?.instant
@@ -188,7 +193,18 @@ function InstantPane({
   const cards = devMode && !isReranked ? allCards.filter((card) => activeSources.has(card.source)) : allCards
   const pageCount = Math.max(1, Math.ceil(cards.length / PAGE_SIZE))
   const clampedPage = Math.min(page, pageCount - 1)
-  const pageCards = cards.slice(clampedPage * PAGE_SIZE, clampedPage * PAGE_SIZE + PAGE_SIZE)
+  // paginationEnabled: the server already returns exactly one page's worth of results
+  // (pageSize=20, see App.tsx's fetchInstantPage) - render them directly instead of
+  // re-slicing by the local PAGE_SIZE=10 on top, which would silently drop half of every
+  // fetched page. paginationEnabled=false (default): unchanged local slice over the flat fetch.
+  const pageCards = paginationEnabled
+    ? cards
+    : cards.slice(clampedPage * PAGE_SIZE, clampedPage * PAGE_SIZE + PAGE_SIZE)
+  // Controlled server page (App.tsx's `instantPage`, threaded down as `currentPage`) - the
+  // single source of truth for Prev/Next when paginationEnabled is true, not the local
+  // `page` slice index (which App.tsx resets to 0 on every new result, oscillating page
+  // computations back to server page 2 forever - see C1 in the 2026-09-02 review fix).
+  const serverPage = Math.max(1, currentPage ?? 1)
 
   function toggleSource(source: CardSource) {
     setActiveSources((prev) => {
@@ -329,26 +345,32 @@ function InstantPane({
         <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
           <button
             onClick={() => {
-              const next = Math.max(0, page - 1)
-              setPage(next)
-              if (paginationEnabled) onFetchPage?.(next + 1)
+              if (paginationEnabled) {
+                onFetchPage?.(Math.max(1, serverPage - 1))
+                return
+              }
+              setPage(Math.max(0, page - 1))
             }}
-            disabled={clampedPage === 0}
+            disabled={paginationEnabled ? serverPage <= 1 : clampedPage === 0}
             className="text-xs px-3 py-1.5 rounded-full font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
             style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border-soft)' }}
           >
             Prev
           </button>
           <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
-            Page {clampedPage + 1} of {pageCount} · {cards.length} matches
+            {paginationEnabled
+              ? `Page ${serverPage} · ${cards.length} matches`
+              : `Page ${clampedPage + 1} of ${pageCount} · ${cards.length} matches`}
           </span>
           <button
             onClick={() => {
-              const next = Math.min(pageCount - 1, page + 1)
-              setPage(next)
-              if (paginationEnabled) onFetchPage?.(next + 1)
+              if (paginationEnabled) {
+                onFetchPage?.(serverPage + 1)
+                return
+              }
+              setPage(Math.min(pageCount - 1, page + 1))
             }}
-            disabled={clampedPage >= pageCount - 1}
+            disabled={paginationEnabled ? false : clampedPage >= pageCount - 1}
             className="text-xs px-3 py-1.5 rounded-full font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
             style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border-soft)' }}
           >
@@ -528,7 +550,7 @@ function AnswerPane({
   )
 }
 
-export function ChatMessageView({ message, devMode, showReasoning, onOpenDocument, paginationEnabled, onFetchPage }: Props) {
+export function ChatMessageView({ message, devMode, showReasoning, onOpenDocument, paginationEnabled, onFetchPage, currentPage }: Props) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -546,7 +568,7 @@ export function ChatMessageView({ message, devMode, showReasoning, onOpenDocumen
       <div className="w-full flex gap-4 min-w-0">
         <InstantPane
           result={result} devMode={devMode} onOpenDocument={onOpenDocument} query={message.question}
-          paginationEnabled={paginationEnabled} onFetchPage={onFetchPage}
+          paginationEnabled={paginationEnabled} onFetchPage={onFetchPage} currentPage={currentPage}
         />
         <AnswerPane result={result} devMode={devMode} showReasoning={showReasoning} onOpenDocument={onOpenDocument} />
       </div>
