@@ -3,7 +3,7 @@ import asyncio
 
 from langfuse import get_client
 
-from common.es_client import build_query_preview, fetch_doc_categories, raw_search
+from common.es_client import build_query_preview, fetch_doc_categories, raw_search, raw_search_grouped
 from common.instant_classifier import effective_label_with_confidence
 from common.instant_classifier.labels import routing_plan
 from common.legal_lexicon import fuzzy_correct_query
@@ -34,26 +34,37 @@ def _apply_elbow_cutoff_per_collection(by_collection: dict[str, list[dict]]) -> 
 
 def _all_doc_ids(
     es_result: list[dict] | None, milvus_dense: dict[str, list[dict]] | None, milvus_sparse: dict[str, list[dict]] | None,
+    grouped_es: dict[str, list[dict]] | None = None,
 ) -> list[str]:
     """Union of doc_ids across every source Instant mode can show a card for - the
-    reranked list is a fusion of exactly these three, so it needs no separate pass."""
+    reranked list is a fusion of exactly these three, so it needs no separate pass.
+    grouped_es (raw_search_grouped's sectioned results) is a fourth, independent source -
+    its own ES call, not part of the es_result/reranked fusion - so its doc_ids need adding
+    here too or fetch_doc_categories would never resolve badges for cards a section shows
+    but the flat es_result/reranked list doesn't."""
     ids: set[str] = {row["doc_id"] for row in es_result or []}
     for by_collection in (milvus_dense, milvus_sparse):
         for rows in (by_collection or {}).values():
             ids.update(row["doc_id"] for row in rows)
+    for rows in (grouped_es or {}).values():
+        ids.update(row["doc_id"] for row in rows)
     return list(ids)
 
 
 async def _run_es(
     es_client, query: str, on_step: OnStep | None, boost: bool = False, skip_cutoff: bool = False,
+    boost_source: str = "sum", page: int = 1, page_size: int | None = None,
 ) -> tuple[list[dict] | None, str | None]:
     langfuse = get_client()
     with langfuse.start_as_current_observation(
         as_type="retriever", name="search-es",
-        input={"query": query, "limit": _ES_LIMIT, "boost": boost},
+        input={"query": query, "limit": _ES_LIMIT, "boost": boost, "boost_source": boost_source},
     ) as span:
         try:
-            raw_results = await raw_search(es_client, query, limit=_ES_LIMIT, boost=boost)
+            raw_results = await raw_search(
+                es_client, query, limit=_ES_LIMIT, boost=boost, boost_source=boost_source,
+                page=page, page_size=page_size,
+            )
             # KEYWORD-shape queries are precise anchor lookups whose results span steep
             # boost-tier gaps by design (heading:100000 vs fullcontent:1 in _PHRASE_BOOSTS,
             # common/es_client.py) - the elbow's ratio test misreads a legit lower-tier
@@ -72,6 +83,40 @@ async def _run_es(
             if on_step is not None:
                 await on_step("es_search", {"hits": results})
             return results, None
+        except Exception as exc:  # noqa: BLE001 - branch isolation is the point
+            span.update(level="ERROR", status_message=str(exc))
+            return None, str(exc)
+
+
+_ES_GROUPED_LIMIT_PER_GROUP = 5
+
+
+async def _run_es_grouped(
+    es_client, query: str, on_step: OnStep | None,
+) -> tuple[dict[str, list[dict]] | None, str | None]:
+    """repotaxmannapi-mode's sectioned result view (raw_search_grouped, common/es_client.py) -
+    always the multiply-mode formula, no sum-mode equivalent, so this is only ever called
+    when boost_source == "repotaxmannapi" (see run_instant). A separate ES call from
+    _run_es's flat search, not a filter/regroup of its results - an independent full-corpus
+    aggregation per content type, so a section's docs aren't bounded by whatever the flat
+    top-20 window happened to contain. A regroup-of-flat-hits version was tried and
+    reverted: for a bare "SECTION 52" query the flat top-20 is entirely Act documents
+    (multiply-mode score dominance, verified byte-identical to a real captured production
+    response), so regrouping only that window left every other section empty even though
+    those content types have real matches elsewhere in the corpus."""
+    langfuse = get_client()
+    with langfuse.start_as_current_observation(
+        as_type="retriever", name="search-es-grouped",
+        input={"query": query, "limit_per_group": _ES_GROUPED_LIMIT_PER_GROUP},
+    ) as span:
+        try:
+            grouped = await raw_search_grouped(es_client, query, limit_per_group=_ES_GROUPED_LIMIT_PER_GROUP)
+            span.update(output={
+                "groups": {name: len(rows) for name, rows in grouped.items()},
+            })
+            if on_step is not None:
+                await on_step("es_grouped", {"groups": grouped})
+            return grouped, None
         except Exception as exc:  # noqa: BLE001 - branch isolation is the point
             span.update(level="ERROR", status_message=str(exc))
             return None, str(exc)
@@ -143,7 +188,13 @@ async def _run_milvus(
 async def run_instant(
     gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None,
     rrf: bool = False, auto_route: bool = False, boost: bool = False, milvus_sparse_enabled: bool = False,
+    boost_source: str = "sum", page: int = 1, page_size: int | None = None,
 ) -> dict:
+    """boost_source (common/es_client.py::raw_search) affects the `query_analysis` trace
+    step's `es_query` preview and the actual ES search below; nothing else in this
+    function's control flow (label/plan/milvus/rrf) reads it. `boost_source="repotaxmannapi"`
+    additionally runs `_run_es_grouped` (see below) - an independent per-content-type
+    aggregation, not a regroup of `es_result`."""
     langfuse = get_client()
     with langfuse.start_as_current_observation(
         as_type="span", name="instant-search", input={"query": query},
@@ -166,7 +217,7 @@ async def run_instant(
         # showed an unrecognized word run like "Dimension Data India" grouped into one phrase
         # the way the real query - and /v1/query-analysis - already did).
         if on_step is not None:
-            await on_step("query_analysis", build_query_preview(query, boost=boost))
+            await on_step("query_analysis", build_query_preview(query, boost=boost, boost_source=boost_source))
 
         # Instant mode has no LLM query-rewrite step (unlike AI Mode's extract_intent) to strip
         # conversational scaffolding before searching - without this, "section 55" and "what is
@@ -190,24 +241,35 @@ async def run_instant(
             await on_step("classifier", classifier_trace)
 
         es_task = (
-            _run_es(es_client, query, on_step, boost=boost, skip_cutoff=label == "KEYWORD")
+            _run_es(
+                es_client, query, on_step, boost=boost, skip_cutoff=label == "KEYWORD",
+                boost_source=boost_source, page=page, page_size=page_size,
+            )
             if plan["es"] else None
         )
         milvus_task = (
             _run_milvus(gateway, milvus_client, milvus_query, on_step, milvus_sparse_enabled=milvus_sparse_enabled)
             if plan["milvus"] else None
         )
+        # Sectioned result view - repotaxmannapi mode only, no sum-mode equivalent.
+        # Runs alongside es_task/milvus_task, not after: independent ES call, no
+        # dependency on either's output.
+        grouped_task = (
+            _run_es_grouped(es_client, query, on_step)
+            if plan["es"] and boost and boost_source == "repotaxmannapi" else None
+        )
 
-        if es_task is not None and milvus_task is not None:
-            (es_result, es_error), (milvus_dense, milvus_sparse, milvus_error) = await asyncio.gather(
-                es_task, milvus_task,
-            )
-        elif es_task is not None:
-            es_result, es_error = await es_task
-            milvus_dense, milvus_sparse, milvus_error = None, None, None
-        else:
-            es_result, es_error = None, None
-            milvus_dense, milvus_sparse, milvus_error = await milvus_task
+        # Order here must match `tasks`' construction order above - gathered results are
+        # consumed in the same left-to-right order they were gathered in.
+        tasks = [t for t in (es_task, milvus_task, grouped_task) if t is not None]
+        gathered = iter(await asyncio.gather(*tasks))
+        es_result, es_error = next(gathered) if es_task is not None else (None, None)
+        milvus_dense, milvus_sparse, milvus_error = (
+            next(gathered) if milvus_task is not None else (None, None, None)
+        )
+        grouped_es, grouped_es_error = (
+            next(gathered) if grouped_task is not None else (None, None)
+        )
 
         result = {
             "query_correction": query_correction_trace,
@@ -216,12 +278,14 @@ async def run_instant(
             "milvus": milvus_dense,
             "milvus_sparse": milvus_sparse,
             "milvus_error": milvus_error,
+            "grouped_es": grouped_es,
+            "grouped_es_error": grouped_es_error,
         }
 
         # Runs alongside reranking below, not after - a separate mget by doc_id, so it has
         # no dependency on the fuse step's own output.
         doc_meta_task = asyncio.create_task(
-            fetch_doc_categories(es_client, _all_doc_ids(es_result, milvus_dense, milvus_sparse)),
+            fetch_doc_categories(es_client, _all_doc_ids(es_result, milvus_dense, milvus_sparse, grouped_es)),
         )
 
         effective_rrf = plan["fuse"] if auto_route else rrf
