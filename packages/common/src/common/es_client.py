@@ -10,6 +10,9 @@ from common.query_tokenizer import (
     chunk_query, default_instrument_kind, detect_group_signals, expand_query_normalizations,
     expand_query_synonyms, keyword_shape_group_filter,
 )
+from common.repotaxmannapi_query_builder import build_should_clauses
+from common.repotaxmannapi_scoring import build_function_score_functions
+from common.repotaxmannapi_tokenizer import tokenize
 from common.schemas import (
     CATEGORY_DISPLAY_LABELS, ES_GROUP_FOR_COLLECTION, GROUP_DISPLAY_LABELS, MASTERINFO_CITATION_FIELDS,
 )
@@ -644,8 +647,33 @@ async def keyword_mode_search(
     return results
 
 
-async def raw_search(client, query: str, limit: int = 20, boost: bool = False) -> list[dict]:
-    field_query = build_query_preview(query, boost=boost)["es_query"]
+async def raw_search(
+    client, query: str, limit: int = 20, boost: bool = False, boost_source: str = "sum",
+) -> list[dict]:
+    """boost_source selects which boost formula `boost=True` applies:
+    - "sum" (default, unchanged): _apply_boost's additive function_score, via
+      build_query_preview - every existing caller that doesn't pass boost_source keeps
+      this exact behavior.
+    - "repotaxmannapi": repotaxmannapi's own multiply-mode function_score
+      (build_function_score_functions), wrapping should-clauses built from the
+      repotaxmannapi tokenizer/query-builder pair instead of this repo's own
+      chunk_query/_build_field_query. group_id is hardcoded to "0" (no group signal) -
+      Task 10 resolves this properly from the tokenized query. Has no effect when
+      boost=False (there is nothing to select a formula for)."""
+    if boost and boost_source == "repotaxmannapi":
+        tokens = tokenize(query)
+        should = build_should_clauses(tokens, is_global=True, is_excus=False)
+        group_id = "0"  # Task 10 resolves this from tokens; "0" (no group signal) for now
+        field_query = {
+            "function_score": {
+                "query": {"bool": {"should": should, "minimum_should_match": 1}},
+                "functions": build_function_score_functions(group_id, latest_finance_act_year="2025"),
+                "score_mode": "multiply",
+                "boost_mode": "multiply",
+            },
+        }
+    else:
+        field_query = build_query_preview(query, boost=boost)["es_query"]
     # No landmarkruling:-10 exclusion here either, deliberately - a previous version of this
     # function had one (`_exclude_blacklisted`, since removed), reasoning it preserved a
     # content filter that used to ride along inside centax-node's function_score must_not. That

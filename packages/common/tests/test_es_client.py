@@ -158,6 +158,32 @@ async def test_raw_search_adds_zero_padded_alternative_clause_for_short_section_
 
 
 @pytest.mark.asyncio
+async def test_raw_search_boost_source_repotaxmannapi_uses_multiply_mode():
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Dimension Data India section 92C", limit=20, boost=True, boost_source="repotaxmannapi")
+
+    query = client.search_calls[0]
+    assert "function_score" in query
+    fs = query["function_score"]
+    assert fs["score_mode"] == "multiply"
+    assert fs["boost_mode"] == "multiply"
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_source_defaults_to_sum_mode_unchanged():
+    """The new parameter must not change any existing caller's behavior - this is the
+    regression guard for the default value."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    fs = client.search_calls[0]["function_score"]
+    assert fs["score_mode"] == "sum"
+    assert fs["boost_mode"] == "sum"
+
+
+@pytest.mark.asyncio
 async def test_raw_search_queries_heading_subheading_fullcontent_not_just_sparse_fields():
     client = FakeAsyncES(search_hits=[])
 
