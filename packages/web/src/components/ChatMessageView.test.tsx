@@ -125,6 +125,16 @@ describe('ChatMessageView result card — doc_id and enriched metadata', () => {
     render(<ChatMessageView message={assistantMessage(noExtras)} devMode={false} onOpenDocument={() => {}} />)
     expect(screen.queryByText(/V.K. KHANNA/)).not.toBeInTheDocument()
   })
+
+  it('does not render a stray "0" when one paired field is an empty array and its pair is absent', () => {
+    const emptyArrayCase: ResultState['instant'] = {
+      ...instant,
+      doc_meta: { d1: { category: 'Acts', group: 'Acts', party: [] } }, // judge absent, party present-but-empty
+    }
+    render(<ChatMessageView message={assistantMessage(emptyArrayCase)} devMode={false} onOpenDocument={() => {}} />)
+    // The bug rendered a stray "0" text node from `undefined || 0` short-circuiting `&&`.
+    expect(screen.queryByText('0')).not.toBeInTheDocument()
+  })
 })
 
 describe('TraceSection routes query_correction to the Instant pane, not the Answer pane', () => {

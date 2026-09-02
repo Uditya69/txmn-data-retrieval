@@ -12,7 +12,7 @@ export function CardMetaLines({ meta }: { meta: DocMeta | undefined }) {
   if (!meta) return null
   return (
     <>
-      {(meta.judge?.length || meta.party?.length) && (
+      {(!!meta.judge?.length || !!meta.party?.length) && (
         <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>
           {meta.judge?.length ? `Judge: ${meta.judge.join(', ')}` : null}
           {meta.judge?.length && meta.party?.length ? ' · ' : null}
@@ -29,7 +29,7 @@ export function CardMetaLines({ meta }: { meta: DocMeta | undefined }) {
       {meta.fullcitation && (
         <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-faint)' }}>{meta.fullcitation}</p>
       )}
-      {(meta.referenced_act?.length || meta.referenced_section?.length) && (
+      {(!!meta.referenced_act?.length || !!meta.referenced_section?.length) && (
         <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>
           {[...(meta.referenced_act ?? []), ...(meta.referenced_section ?? [])].join(', ')}
         </p>
