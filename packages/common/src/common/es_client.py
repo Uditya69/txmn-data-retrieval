@@ -573,25 +573,57 @@ def _apply_boost(field_query: dict, chunks: list[dict]) -> dict:
     }
 
 
-def build_query_preview(query: str, boost: bool = False) -> dict:
+def _build_repotaxmannapi_field_query(query: str) -> dict:
+    """The ported legacy .NET multiply-mode function_score - shared by build_query_preview
+    (the "sum" vs "repotaxmannapi" branch) and raw_search_grouped (below), so the scored
+    `query` half of both a flat search and a bucketed one can never drift apart. See
+    raw_search's docstring for the group_id resolution this mirrors (first-classified-token-
+    wins, TaxmannQueryAnalizer.cs's SetPrimaryTag gate)."""
+    tokens = tokenize(query)
+    should = build_should_clauses(tokens, is_global=True, is_excus=False)
+    group_id = next((t.group_id for t in tokens if t.group_id != "0"), "0")
+    return {
+        "function_score": {
+            "query": {"bool": {"should": should, "minimum_should_match": 1}},
+            "functions": build_function_score_functions(group_id, latest_finance_act_year="2025"),
+            "score_mode": "multiply",
+            "boost_mode": "multiply",
+        },
+    }
+
+
+def build_query_preview(query: str, boost: bool = False, boost_source: str = "sum") -> dict:
     """The exact shape/chunk/ES-query breakdown raw_search uses for this query, without
     executing a search - single source of truth shared with raw_search (below) so the two
-    can never drift apart (this is also why `boost` is a parameter here rather than raw_search
-    wrapping the query itself after calling this - a caller that omitted `boost` here would
-    silently show an unboosted preview for a boosted search). Powers the `/v1/query-analysis`
-    endpoint (retrieval_api/query_analysis.py) and the Instant mode trace panel's "Show ES
-    query" block - our equivalent of centax-node's own `/research-premium/api/v1/getLowLevelQuery`,
-    for comparing query breakdowns side by side.
+    can never drift apart (this is also why `boost`/`boost_source` are parameters here rather
+    than raw_search wrapping the query itself after calling this - a caller that omitted them
+    here would silently show a preview that doesn't match the search actually run). Powers the
+    `/v1/query-analysis` endpoint (retrieval_api/query_analysis.py) and the Instant mode trace
+    panel's "Show ES query" block - our equivalent of centax-node's own
+    `/research-premium/api/v1/getLowLevelQuery`, for comparing query breakdowns side by side.
+
+    `chunks`/`shape`/`expanded_query` always reflect this repo's own chunk_query() breakdown,
+    regardless of boost_source - repotaxmannapi's own tokenizer runs a structurally different
+    per-token classification (RepotaxmannapiToken, not QueryChunk) that has no equivalent
+    display shape here; only `es_query` (the field actually rendered as "Show ES query") changes
+    with boost_source, since that's the one raw_search itself sends to ES.
 
     boost=False (default): `es_query` is the unwrapped, plain BM25/phrase-boost query.
-    boost=True: `es_query` is wrapped via _apply_boost() - see that function's docstring for
-    why (additive/sum-mode, not the disabled multiply-mode _wrap_function_score)."""
+    boost=True, boost_source="sum" (default): `es_query` is wrapped via _apply_boost() - see
+    that function's docstring for why (additive, not the disabled multiply-mode
+    _wrap_function_score).
+    boost=True, boost_source="repotaxmannapi": `es_query` is the ported legacy .NET
+    multiply-mode formula - see raw_search's docstring for the group_id resolution this
+    mirrors."""
     shape = effective_label(query)
     expanded_query = expand_query_normalizations(expand_query_synonyms(query))
     chunks = chunk_query(query)
-    field_query = _build_field_query(expanded_query, shape, chunks=chunks, boost_enabled=boost)
-    if boost:
-        field_query = _apply_boost(field_query, chunks)
+    if boost and boost_source == "repotaxmannapi":
+        field_query = _build_repotaxmannapi_field_query(query)
+    else:
+        field_query = _build_field_query(expanded_query, shape, chunks=chunks, boost_enabled=boost)
+        if boost:
+            field_query = _apply_boost(field_query, chunks)
     return {
         "query": query,
         "shape": shape,
@@ -670,27 +702,14 @@ async def raw_search(
       verbatim: `if (stext.iGroupID != "0") groupid = stext.iGroupID;`. "0" (no group
       signal) if no token has one. Has no effect when boost=False (there is nothing to
       select a formula for)."""
-    if boost and boost_source == "repotaxmannapi":
-        tokens = tokenize(query)
-        should = build_should_clauses(tokens, is_global=True, is_excus=False)
-        # Real C# semantics (SetPrimaryTag's `iTagNo == "0"` gate) actually lock in the FIRST
-        # *classified* token's group_id even if that token's own id were "0" - never falling
-        # through to a later token's non-"0" id. This `next(...)` instead skips "0" tokens
-        # looking for the first non-"0" one, which diverges from that edge case - but it's
-        # unreachable with real data: verified zero entries in
-        # repotaxmannapi_token_dictionary.json have tag_no != "0" (i.e. "classified") with
-        # group_id == "0", so a classified token's group_id is never "0" in practice.
-        group_id = next((t.group_id for t in tokens if t.group_id != "0"), "0")
-        field_query = {
-            "function_score": {
-                "query": {"bool": {"should": should, "minimum_should_match": 1}},
-                "functions": build_function_score_functions(group_id, latest_finance_act_year="2025"),
-                "score_mode": "multiply",
-                "boost_mode": "multiply",
-            },
-        }
-    else:
-        field_query = build_query_preview(query, boost=boost)["es_query"]
+    # Real C# semantics (SetPrimaryTag's `iTagNo == "0"` gate) actually lock in the FIRST
+    # *classified* token's group_id even if that token's own id were "0" - never falling
+    # through to a later token's non-"0" id. build_query_preview's `next(...)` instead skips
+    # "0" tokens looking for the first non-"0" one, which diverges from that edge case - but
+    # it's unreachable with real data: verified zero entries in
+    # repotaxmannapi_token_dictionary.json have tag_no != "0" (i.e. "classified") with
+    # group_id == "0", so a classified token's group_id is never "0" in practice.
+    field_query = build_query_preview(query, boost=boost, boost_source=boost_source)["es_query"]
     # No landmarkruling:-10 exclusion here either, deliberately - a previous version of this
     # function had one (`_exclude_blacklisted`, since removed), reasoning it preserved a
     # content filter that used to ride along inside centax-node's function_score must_not. That
@@ -715,6 +734,79 @@ async def raw_search(
             "subheading": source.get("subheading", ""),
         })
     return results
+
+
+# Live-verified via a direct terms aggregation against the real index (2026-09-02): the
+# only groups.group.name values that exist are ACT/RULE/CASELAWS/COMMENTARY/"Experts
+# Opinion"/Tariff - no "Comparative" or "Article" group is indexed in this repo at all,
+# unlike the reference product's UI. Fixed priority order for raw_search_grouped's
+# sections: statutory text first, then case law, then secondary sources. A group name not
+# in this list (a future new content type) still appears, appended after these six rather
+# than silently dropped - see raw_search_grouped.
+_GROUPED_SECTION_PRIORITY = ["ACT", "RULE", "CASELAWS", "COMMENTARY", "Experts Opinion", "Tariff"]
+
+
+async def raw_search_grouped(client, query: str, limit_per_group: int = 5) -> dict[str, list[dict]]:
+    """Instant mode's repotaxmannapi-mode sectioned result view - buckets hits by
+    groups.group.name.keyword (the real content-type field) via an ES terms+top_hits
+    aggregation, one independent full-corpus scan per bucket - NOT a regroup of the flat
+    top-N hits raw_search returns. That regroup-only approach was tried and reverted: for
+    a bare "SECTION 52" query the flat top-20 window is entirely Act documents (score
+    dominance under multiply-mode, verified byte-identical to a real captured production
+    response), so regrouping only that window left every other section (Rules, Caselaws,
+    Commentary, Articles) empty even though those content types have real matches deeper
+    in the corpus - "only Income Tax Acts showing" was the visible symptom. This
+    aggregation scans independently per content type instead, so a section's docs aren't
+    bounded by whatever the flat list's top-20 window happened to contain.
+
+    Always uses the repotaxmannapi (multiply-mode) query - grouping has no sum-mode
+    equivalent, this is exclusively part of the repotaxmannapi replica path, unlike
+    raw_search's boost_source switch.
+
+    `size: 0` on the main query - no flat hits list is fetched here at all, only the
+    aggregation's buckets, each independently scanning the full filtered match set via its
+    own `top_hits` sub-aggregation.
+
+    Returns an ordered dict (see _GROUPED_SECTION_PRIORITY) with only the groups that
+    actually matched - a group with zero hits for this query is omitted entirely, not
+    returned as an empty list."""
+    field_query = _build_repotaxmannapi_field_query(query)
+    response = await client.search(
+        index=client.index,
+        query=field_query,
+        size=0,
+        aggs={
+            "by_group": {
+                "terms": {"field": "groups.group.name.keyword", "size": 20},
+                "aggs": {
+                    "top": {
+                        "top_hits": {
+                            "size": limit_per_group,
+                            "sort": [{"_score": {"order": "desc"}}],
+                            "_source": ["id", "heading", "subheading"],
+                        },
+                    },
+                },
+            },
+        },
+    )
+    buckets: dict[str, list[dict]] = {}
+    for bucket in response["aggregations"]["by_group"]["buckets"]:
+        buckets[bucket["key"]] = [
+            {
+                "doc_id": hit["_source"]["id"],
+                "score": hit["_score"],
+                "heading": hit["_source"].get("heading", ""),
+                "subheading": hit["_source"].get("subheading", ""),
+            }
+            for hit in bucket["top"]["hits"]["hits"]
+        ]
+    ordered: dict[str, list[dict]] = {}
+    for group_name in _GROUPED_SECTION_PRIORITY:
+        if group_name in buckets:
+            ordered[group_name] = buckets.pop(group_name)
+    ordered.update(buckets)
+    return ordered
 
 
 # court/bench/section/act filters used to target masterinfo.info.{court,act,section,bench}
@@ -869,24 +961,37 @@ async def fetch_citations(client, doc_ids: list[str]) -> dict[str, dict]:
 
 
 async def fetch_doc_categories(client, doc_ids: list[str]) -> dict[str, dict]:
-    """Instant mode's "category | group" result-card badge. Batched sibling of
-    fetch_citations - one mget for every doc_id across ES, Milvus dense/sparse, and
-    reranked cards, so the badge is consistent regardless of which engine surfaced a
-    given doc (Milvus itself carries neither field). `categories` is a populated-on-
-    every-doc but multi-valued list (verified live: a doc can carry 4+ subject-area
-    tags at once, e.g. "Direct Tax Laws"+"International Tax"+"Transfer Pricing"+
-    "Bare Act" together) with no reliable primary flag - `isprimarycat` is only set on
-    ~20% of the corpus (81k/410k docs, confirmed via a live count). Picks the
-    isprimarycat=1 entry when present, else the first entry - the same fallback the
-    reference product's own category-resolution code uses. Raw category/group values
-    are then run through CATEGORY_DISPLAY_LABELS/GROUP_DISPLAY_LABELS (ported from the
-    data team's catList/groupList tables); a value with no entry there is passed
-    through unchanged rather than guessed at."""
+    """Instant mode's per-card metadata fetch: "category | group" badge, plus (this
+    session, 2026-09-02) every other real, populated ES field confirmed usable on the
+    result card - judge/party/citation/associates are CASELAWS-oriented and simply
+    absent for other content types (same *ngIf-style fallback the reference product's
+    own card uses); date/viewcount/boost-debug-numbers apply to every content type.
+    Batched sibling of fetch_citations - one mget for every doc_id across ES, Milvus
+    dense/sparse, and reranked cards, so metadata is consistent regardless of which
+    engine surfaced a given doc (Milvus itself carries none of these fields).
+    `categories` is a populated-on-every-doc but multi-valued list (verified live: a doc
+    can carry 4+ subject-area tags at once) with no reliable primary flag -
+    `isprimarycat` is only set on ~20% of the corpus (81k/410k docs). Picks the
+    isprimarycat=1 entry when present, else the first entry. Raw category/group values
+    are run through CATEGORY_DISPLAY_LABELS/GROUP_DISPLAY_LABELS; a value with no entry
+    there is passed through unchanged rather than guessed at.
+
+    Confirmed dead fields (0% populated, live-audited 2026-09-02) are deliberately never
+    fetched here: masterinfo.info.{court,bench,act,section}.name, masterinfo.citations.*,
+    searchcitation/searchiltcitation formattedcitation, url, displaydocumentdatestring,
+    tariffinfo.* (Tariff-group cards get no type-specific fields at all - a real,
+    disclosed gap), searchboosttext, boostpopularity, incometaxactinfo/companyactinfo/
+    incometaxruleinfo."""
     if not doc_ids:
         return {}
     response = await client.mget(
         index=client.index, ids=doc_ids,
-        _source=["categories.name", "categories.isprimarycat", "groups.group.name"],
+        _source=[
+            "categories.name", "categories.isprimarycat", "groups.group.name",
+            "otherinfo.judge.name", "otherinfo.partyname.name", "otherinfo.fullcitation.name",
+            "formatteddocumentdate", "viewcount", "documenttypeboost", "court_boost",
+            "associates.act.name", "associates.section.name", "associates.casereferred.name",
+        ],
     )
     results: dict[str, dict] = {}
     for doc in response["docs"]:
@@ -899,5 +1004,38 @@ async def fetch_doc_categories(client, doc_ids: list[str]) -> dict[str, dict]:
         category = CATEGORY_DISPLAY_LABELS.get(category_name, category_name)
         group_name = source.get("groups", {}).get("group", {}).get("name")
         group = GROUP_DISPLAY_LABELS.get(group_name, group_name)
-        results[doc["_id"]] = {"category": category, "group": group}
+        entry: dict = {"category": category, "group": group}
+
+        otherinfo = source.get("otherinfo") or {}
+        judges = [j["name"] for j in otherinfo.get("judge") or [] if j.get("name")]
+        if judges:
+            entry["judge"] = judges
+        parties = [p["name"] for p in otherinfo.get("partyname") or [] if p.get("name")]
+        if parties:
+            entry["party"] = parties
+        citations = [c["name"] for c in otherinfo.get("fullcitation") or [] if c.get("name")]
+        if citations:
+            entry["fullcitation"] = citations[0]
+
+        if source.get("formatteddocumentdate") is not None:
+            entry["date"] = source["formatteddocumentdate"]
+        if source.get("viewcount") is not None:
+            entry["viewcount"] = source["viewcount"]
+        if source.get("documenttypeboost") is not None:
+            entry["documenttypeboost"] = source["documenttypeboost"]
+        if source.get("court_boost") is not None:
+            entry["court_boost"] = source["court_boost"]
+
+        associates = source.get("associates") or {}
+        acts = [a["name"] for a in associates.get("act") or [] if a.get("name")]
+        if acts:
+            entry["referenced_act"] = acts
+        sections = [s["name"] for s in associates.get("section") or [] if s.get("name")]
+        if sections:
+            entry["referenced_section"] = sections
+        cases = [c["name"] for c in associates.get("casereferred") or [] if c.get("name")]
+        if cases:
+            entry["cases_referred"] = cases
+
+        results[doc["_id"]] = entry
     return results

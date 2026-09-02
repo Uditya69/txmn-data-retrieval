@@ -3,53 +3,146 @@ from common.config import Settings
 from common.es_client import (
     get_es_client,
     raw_search,
+    raw_search_grouped,
     resolve_doc_id_allowlist,
     fetch_citations,
     fetch_fullcontent,
     fetch_document_metadata,
     build_query_preview,
     _build_field_query,
+    fetch_doc_categories,
 )
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
 
 def _filter_source(source: dict, fields: list[str]) -> dict:
-    """Mimic Elasticsearch's `_source` include filtering for dotted field paths."""
+    """Mimic Elasticsearch's `_source` include filtering for dotted field paths.
+    Handles nested objects and arrays - e.g., "otherinfo.judge.name" extracts
+    the name field from each element in the judge array."""
     result: dict = {}
+
+    # Group fields by their array parent path, if any
+    array_fields = {}  # Maps "array.parent.path" -> list of remaining field paths
+    scalar_fields = []  # Non-array fields
+
     for path in fields:
         parts = path.split(".")
         node = source
-        found = True
+        array_index = -1
+
+        # Find where we hit an array, if at all
+        for i, part in enumerate(parts):
+            if isinstance(node, dict) and part in node:
+                node = node[part]
+                if isinstance(node, list):
+                    array_index = i
+                    break
+            else:
+                break
+
+        if array_index >= 0:
+            # This is an array field
+            array_path = ".".join(parts[:array_index + 1])
+            remaining_path = ".".join(parts[array_index + 1:])
+            if array_path not in array_fields:
+                array_fields[array_path] = []
+            array_fields[array_path].append((remaining_path, parts[array_index + 1:]))
+        else:
+            scalar_fields.append(path)
+
+    # Process array fields - merge multiple fields from the same array
+    for array_path, field_specs in array_fields.items():
+        array_parts = array_path.split(".")
+        node = source
+        for part in array_parts:
+            if isinstance(node, dict) and part in node:
+                node = node[part]
+            else:
+                node = None
+                break
+
+        if isinstance(node, list):
+            # Check if we're requesting the array itself (no sub-fields) or sub-fields within array elements
+            has_sub_fields = any(len(field_parts) > 0 for _, field_parts in field_specs)
+
+            if not has_sub_fields:
+                # Requesting the entire array as-is
+                dest = result
+                for part in array_parts[:-1]:
+                    dest = dest.setdefault(part, {})
+                dest[array_parts[-1]] = node
+            else:
+                # Requesting specific sub-fields from array elements
+                extracted = []
+                for elem in node:
+                    elem_result = {}
+                    has_any_field = False
+                    for field_path, field_parts in field_specs:
+                        if len(field_parts) == 0:
+                            # Direct array request, skip sub-field extraction
+                            continue
+                        temp = elem
+                        for rpart in field_parts:
+                            if isinstance(temp, dict) and rpart in temp:
+                                temp = temp[rpart]
+                            else:
+                                temp = None
+                                break
+                        if temp is not None:
+                            elem_result[field_parts[-1]] = temp
+                            has_any_field = True
+                    # Include all elements that match the array path, even if some fields are missing
+                    # (ES would include the element with only the present fields)
+                    if has_any_field or not field_specs:
+                        extracted.append(elem_result)
+
+                # Reconstruct the result path
+                dest = result
+                for part in array_parts[:-1]:
+                    dest = dest.setdefault(part, {})
+                dest[array_parts[-1]] = extracted
+
+    # Process scalar fields
+    for path in scalar_fields:
+        parts = path.split(".")
+        node = source
         for part in parts:
             if isinstance(node, dict) and part in node:
                 node = node[part]
             else:
-                found = False
+                node = None
                 break
-        if found:
+
+        if node is not None:
             dest = result
             for part in parts[:-1]:
                 dest = dest.setdefault(part, {})
             dest[parts[-1]] = node
+
     return result
 
 
 class FakeAsyncES:
-    def __init__(self, search_hits=None, mget_docs=None, index="test_index"):
+    def __init__(self, search_hits=None, mget_docs=None, index="test_index", aggs_response=None):
         self.search_hits = search_hits or []
         self.mget_docs = mget_docs or {}
         self.search_calls = []
+        self.aggs_calls = []
+        self.size_calls = []
         self.highlight_calls = []
         self.source_calls = []
         self.mget_calls = []
         self.index = index
+        self.aggs_response = aggs_response or {}
 
-    async def search(self, index, query, size, highlight=None, _source=None):
+    async def search(self, index, query, size, highlight=None, _source=None, aggs=None):
         self.search_calls.append(query)
+        self.aggs_calls.append(aggs)
+        self.size_calls.append(size)
         self.highlight_calls.append(highlight)
         self.source_calls.append(_source)
         self.searched_index = index
-        return {"hits": {"hits": self.search_hits}}
+        return {"hits": {"hits": self.search_hits}, "aggregations": self.aggs_response}
 
     async def mget(self, index, ids, _source=None):
         self.mget_calls.append({"ids": ids, "_source": _source})
@@ -216,6 +309,62 @@ async def test_raw_search_repotaxmannapi_resolves_group_id_from_tokens():
         if "groups.group.id" in fn.get("filter", {}).get("match", {})
     )
     assert group_id_fn["filter"]["match"]["groups.group.id"]["query"] == "111050000000000064"
+
+
+@pytest.mark.asyncio
+async def test_raw_search_grouped_sends_terms_aggs_with_top_hits_and_zero_size():
+    client = FakeAsyncES(aggs_response={"by_group": {"buckets": []}})
+
+    await raw_search_grouped(client, "SECTION 52")
+
+    assert client.size_calls[0] == 0
+    aggs = client.aggs_calls[0]
+    by_group = aggs["by_group"]
+    assert by_group["terms"]["field"] == "groups.group.name.keyword"
+    top_hits = by_group["aggs"]["top"]["top_hits"]
+    assert top_hits["size"] == 5
+    assert top_hits["sort"] == [{"_score": {"order": "desc"}}]
+    fs = client.search_calls[0]["function_score"]
+    assert fs["score_mode"] == "multiply"
+    assert fs["boost_mode"] == "multiply"
+
+
+@pytest.mark.asyncio
+async def test_raw_search_grouped_reorders_buckets_by_fixed_priority():
+    """Real buckets come back in doc_count order (ES default) - CASELAWS before ACT here -
+    but the fixed priority list (statutory text first) must reorder them regardless."""
+    client = FakeAsyncES(aggs_response={"by_group": {"buckets": [
+        {"key": "CASELAWS", "top": {"hits": {"hits": [
+            {"_score": 9.0, "_source": {"id": "c1", "heading": "H", "subheading": "S"}},
+        ]}}},
+        {"key": "ACT", "top": {"hits": {"hits": [
+            {"_score": 5.0, "_source": {"id": "a1", "heading": "H2", "subheading": "S2"}},
+        ]}}},
+    ]}})
+
+    result = await raw_search_grouped(client, "SECTION 52")
+
+    assert list(result.keys()) == ["ACT", "CASELAWS"]
+    assert result["ACT"] == [{"doc_id": "a1", "score": 5.0, "heading": "H2", "subheading": "S2"}]
+    assert result["CASELAWS"] == [{"doc_id": "c1", "score": 9.0, "heading": "H", "subheading": "S"}]
+
+
+@pytest.mark.asyncio
+async def test_raw_search_grouped_omits_empty_groups_and_appends_unknown_groups_last():
+    client = FakeAsyncES(aggs_response={"by_group": {"buckets": [
+        {"key": "SomeNewGroup", "top": {"hits": {"hits": [
+            {"_score": 1.0, "_source": {"id": "x1", "heading": "H", "subheading": "S"}},
+        ]}}},
+        {"key": "RULE", "top": {"hits": {"hits": [
+            {"_score": 3.0, "_source": {"id": "r1", "heading": "H3", "subheading": "S3"}},
+        ]}}},
+    ]}})
+
+    result = await raw_search_grouped(client, "Rule 6")
+
+    assert list(result.keys()) == ["RULE", "SomeNewGroup"]
+    assert "ACT" not in result
+    assert "CASELAWS" not in result
 
 
 @pytest.mark.asyncio
@@ -1256,3 +1405,75 @@ def test_build_keyword_search_query_preview_boost_true_wraps_field_query_in_func
 
     field_query = preview["bool"]["must"][-1]
     assert "function_score" in field_query
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_includes_judge_party_date_viewcount_and_boost_debug_fields():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Direct Tax Laws", "isprimarycat": 1}],
+            "groups": {"group": {"name": "CASELAWS"}},
+            "otherinfo": {
+                "judge": [{"name": "V.K. KHANNA"}, {"name": "A.N. Varma"}],
+                "partyname": [{"name": "Commissioner of Income-tax"}, {"name": "Munnalal Shrikishan"}],
+                "fullcitation": [{"name": "[1987] 167 ITR 415 (Allahabad)"}],
+            },
+            "formatteddocumentdate": "1987-03-31T00:00:00",
+            "viewcount": 70,
+            "documenttypeboost": 4500,
+            "court_boost": 233.2,
+            "associates": {
+                "act": [{"name": "Income-tax Act, 1961"}],
+                "section": [{"name": "Section - 256"}],
+                "casereferred": [{"name": "CIT vs. Laxmi Rattan Cotton Mills Co. Ltd."}],
+            },
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["judge"] == ["V.K. KHANNA", "A.N. Varma"]
+    assert results["d1"]["party"] == ["Commissioner of Income-tax", "Munnalal Shrikishan"]
+    assert results["d1"]["date"] == "1987-03-31T00:00:00"
+    assert results["d1"]["viewcount"] == 70
+    assert results["d1"]["documenttypeboost"] == 4500
+    assert results["d1"]["court_boost"] == 233.2
+    assert results["d1"]["fullcitation"] == "[1987] 167 ITR 415 (Allahabad)"
+    assert results["d1"]["referenced_act"] == ["Income-tax Act, 1961"]
+    assert results["d1"]["referenced_section"] == ["Section - 256"]
+    assert results["d1"]["cases_referred"] == ["CIT vs. Laxmi Rattan Cotton Mills Co. Ltd."]
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_omits_new_fields_when_doc_has_none_of_them():
+    # An ACT-group doc, for example, has no judge/party/citation/associates at all -
+    # this must not error or fabricate empty lists, just omit the keys, same fallback
+    # philosophy as the existing category/group handling.
+    client = FakeAsyncES(mget_docs={
+        "d2": {"categories": [{"name": "Acts"}], "groups": {"group": {"name": "ACT"}}},
+    })
+
+    results = await fetch_doc_categories(client, ["d2"])
+
+    assert results["d2"]["category"] == "Acts"
+    assert results["d2"]["group"] == "Acts"  # GROUP_DISPLAY_LABELS maps "ACT" -> "Acts"
+    for key in (
+        "judge", "party", "date", "viewcount", "documenttypeboost", "court_boost",
+        "fullcitation", "referenced_act", "referenced_section", "cases_referred",
+    ):
+        assert key not in results["d2"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_requests_all_new_source_fields():
+    client = FakeAsyncES(mget_docs={"d1": {}})
+
+    await fetch_doc_categories(client, ["d1"])
+
+    requested = client.mget_calls[0]["_source"]
+    for field in (
+        "otherinfo.judge.name", "otherinfo.partyname.name", "otherinfo.fullcitation.name",
+        "formatteddocumentdate", "viewcount", "documenttypeboost", "court_boost",
+        "associates.act.name", "associates.section.name", "associates.casereferred.name",
+    ):
+        assert field in requested
