@@ -71,7 +71,13 @@ async def _run_es(
             # match as a score cliff and prunes it, silently dropping correct answers ES
             # itself already ranked and returned. HYBRID/INTENT keep the elbow: they lean
             # on dense fusion rather than showing this raw ES ranking as-is.
-            results = raw_results if skip_cutoff else _apply_elbow_cutoff(raw_results)
+            #
+            # page_size is not None (2026-09-02, hidden-by-default pagination): the elbow's
+            # ratio test assumes a flat top-N window starting at rank 1 - on page 2+ it would
+            # evaluate over an arbitrary mid-corpus score window with no relationship to real
+            # relevance, silently pruning results in a way that isn't even deterministic
+            # w.r.t. page size. Skip it entirely for any paged request, same as skip_cutoff.
+            results = raw_results if skip_cutoff or page_size is not None else _apply_elbow_cutoff(raw_results)
             span.update(output={
                 "hits_before_cutoff": len(raw_results),
                 "hits_after_cutoff": len(results),

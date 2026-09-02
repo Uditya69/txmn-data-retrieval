@@ -852,3 +852,42 @@ async def test_run_instant_defaults_page_to_1_and_page_size_to_none(monkeypatch)
     await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="section 80HH")
 
     assert captured == {"page": 1, "page_size": None}
+
+
+@pytest.mark.asyncio
+async def test_run_instant_skips_elbow_cutoff_on_es_results_when_page_size_is_set(monkeypatch):
+    """The elbow's ratio test assumes a flat top-N window starting at rank 1 - on a
+    server-paged (page_size is not None) request it would evaluate over an arbitrary
+    mid-corpus score window and prune non-deterministically w.r.t. page size. Skip it
+    entirely for any paged request, same as the existing KEYWORD-label skip_cutoff path."""
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
+        # steep drop after the first hit - would normally get pruned to just d1 by the
+        # elbow, but must survive untouched here because page_size is set.
+        return [
+            {"doc_id": "d1", "score": 10.0},
+            {"doc_id": "d2", "score": 1.0},
+            {"doc_id": "d3", "score": 0.1},
+        ]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": []}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    # Non-KEYWORD label, so skip_cutoff itself is False - page_size alone must trigger the skip.
+    monkeypatch.setattr(search_module, "effective_label_with_confidence", lambda query: ("HYBRID", 0.9))
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    result = await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="q", page=2, page_size=10,
+    )
+
+    assert result["es"] == [
+        {"doc_id": "d1", "score": 10.0},
+        {"doc_id": "d2", "score": 1.0},
+        {"doc_id": "d3", "score": 0.1},
+    ]

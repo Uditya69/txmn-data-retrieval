@@ -202,7 +202,10 @@ async def search(websocket: WebSocket):
     ai_mode_cache_hit = None
     # Each (auto_route, rrf, boost) combination produces different result content - a
     # separate cache key per combination.
-    instant_cache_key = f"instant_auto_route_{auto_route}_rrf_{rrf}_boost_{boost}_boost_source_{boost_source}"
+    instant_cache_key = (
+        f"instant_auto_route_{auto_route}_rrf_{rrf}_boost_{boost}_boost_source_{boost_source}"
+        f"_page_{page}_page_size_{page_size}"
+    )
     # boost now affects AI Mode's own retrieval too (sparse_fallback_search) - a boosted
     # result must not be served to/overwrite a non-boosted cache lookup or vice versa.
     ai_mode_cache_key = f"ai_mode_boost_{boost}"
