@@ -681,6 +681,7 @@ async def keyword_mode_search(
 
 async def raw_search(
     client, query: str, limit: int = 20, boost: bool = False, boost_source: str = "sum",
+    page: int = 1, page_size: int | None = None,
 ) -> list[dict]:
     """boost_source selects which boost formula `boost=True` applies:
     - "sum" (default, unchanged): _apply_boost's additive function_score, via
@@ -701,7 +702,12 @@ async def raw_search(
       GlobalSearchResearchMobileApp.cs:64-65) then takes that single query-level iGroupID
       verbatim: `if (stext.iGroupID != "0") groupid = stext.iGroupID;`. "0" (no group
       signal) if no token has one. Has no effect when boost=False (there is nothing to
-      select a formula for)."""
+      select a formula for).
+
+    page/page_size (added 2026-09-02, hidden-by-default pagination for the Instant-mode
+    UI): page_size=None (every existing caller) reproduces prior behavior exactly -
+    `size=limit`, no `from_` sent at all. Passing page_size switches to real ES paging -
+    `from_=(page-1)*page_size`, `size=page_size` - and `limit` is ignored in that case."""
     # Real C# semantics (SetPrimaryTag's `iTagNo == "0"` gate) actually lock in the FIRST
     # *classified* token's group_id even if that token's own id were "0" - never falling
     # through to a later token's non-"0" id. build_query_preview's `next(...)` instead skips
@@ -723,7 +729,12 @@ async def raw_search(
     # ~173 docs from every search entirely, a real regression with no source-of-truth backing it.
     # And now that boosting is off altogether, the original motivation (skip the boost for these
     # docs) is moot too: there's no boost being computed for anyone to skip.
-    response = await client.search(index=client.index, query=field_query, size=limit)
+    if page_size is not None:
+        response = await client.search(
+            index=client.index, query=field_query, size=page_size, from_=(page - 1) * page_size,
+        )
+    else:
+        response = await client.search(index=client.index, query=field_query, size=limit)
     results = []
     for hit in response["hits"]["hits"]:
         source = hit["_source"]

@@ -129,16 +129,18 @@ class FakeAsyncES:
         self.search_calls = []
         self.aggs_calls = []
         self.size_calls = []
+        self.from_calls = []
         self.highlight_calls = []
         self.source_calls = []
         self.mget_calls = []
         self.index = index
         self.aggs_response = aggs_response or {}
 
-    async def search(self, index, query, size, highlight=None, _source=None, aggs=None):
+    async def search(self, index, query, size, highlight=None, _source=None, aggs=None, from_=None):
         self.search_calls.append(query)
         self.aggs_calls.append(aggs)
         self.size_calls.append(size)
+        self.from_calls.append(from_)
         self.highlight_calls.append(highlight)
         self.source_calls.append(_source)
         self.searched_index = index
@@ -829,6 +831,36 @@ async def test_raw_search_does_not_exclude_landmarkruling_blacklisted_docs():
     assert query == {"bool": {"should": query["bool"]["should"], "minimum_should_match": 1}}
     assert "must_not" not in query["bool"]
     assert "landmarkruling" not in str(query)
+
+
+@pytest.mark.asyncio
+async def test_raw_search_defaults_preserve_no_from_and_limit_as_size():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}, "_score": 1.0}])
+
+    await raw_search(client, "query", limit=20)
+
+    assert client.size_calls[-1] == 20
+    assert client.from_calls[-1] is None  # no `from_` sent at all when page_size is unset
+
+
+@pytest.mark.asyncio
+async def test_raw_search_page_size_maps_to_es_from_and_size():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}, "_score": 1.0}])
+
+    await raw_search(client, "query", page=3, page_size=10)
+
+    assert client.size_calls[-1] == 10
+    assert client.from_calls[-1] == 20  # (page 3 - 1) * page_size 10
+
+
+@pytest.mark.asyncio
+async def test_raw_search_page_size_defaults_page_to_1():
+    client = FakeAsyncES(search_hits=[{"_source": {"id": "d1"}, "_score": 1.0}])
+
+    await raw_search(client, "query", page_size=10)
+
+    assert client.size_calls[-1] == 10
+    assert client.from_calls[-1] == 0
 
 
 def test_get_es_client_reads_index_and_auth_from_settings():
