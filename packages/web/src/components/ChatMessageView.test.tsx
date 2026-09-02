@@ -91,6 +91,42 @@ describe('ChatMessageView doc_id rank lookup (dev mode only)', () => {
   })
 })
 
+describe('ChatMessageView result card — doc_id and enriched metadata', () => {
+  const instant: ResultState['instant'] = {
+    es: [{ doc_id: 'd1', score: 5, heading: 'h1', subheading: 's1' }],
+    es_error: null, milvus: null, milvus_sparse: null, milvus_error: null,
+    doc_meta: {
+      d1: {
+        category: 'Direct Tax Laws', group: 'Case Laws',
+        judge: ['V.K. KHANNA'], party: ['Commissioner of Income-tax'],
+        date: '1987-03-31T00:00:00', viewcount: 70,
+      },
+    },
+  }
+
+  it('shows doc_id even outside dev mode', () => {
+    render(<ChatMessageView message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.getByText('d1')).toBeInTheDocument()
+  })
+
+  it('shows judge, party, date, and viewcount when present on doc_meta', () => {
+    render(<ChatMessageView message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.getByText(/V.K. KHANNA/)).toBeInTheDocument()
+    expect(screen.getByText(/Commissioner of Income-tax/)).toBeInTheDocument()
+    expect(screen.getByText(/1987-03-31/)).toBeInTheDocument()
+    expect(screen.getByText(/70/)).toBeInTheDocument()
+  })
+
+  it('omits judge/party lines entirely for a doc with no such doc_meta fields', () => {
+    const noExtras: ResultState['instant'] = {
+      ...instant,
+      doc_meta: { d1: { category: 'Acts', group: 'Acts' } },
+    }
+    render(<ChatMessageView message={assistantMessage(noExtras)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.queryByText(/V.K. KHANNA/)).not.toBeInTheDocument()
+  })
+})
+
 describe('TraceSection routes query_correction to the Instant pane, not the Answer pane', () => {
   function messageWithBothPaneSteps(): ChatMessage {
     return {

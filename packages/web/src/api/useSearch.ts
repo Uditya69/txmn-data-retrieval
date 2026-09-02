@@ -6,6 +6,16 @@ export type AiModeCitation = Record<string, unknown>
 export interface DocMeta {
   category: string | null
   group: string | null
+  judge?: string[]
+  party?: string[]
+  date?: string
+  viewcount?: number
+  documenttypeboost?: number
+  court_boost?: number
+  fullcitation?: string
+  referenced_act?: string[]
+  referenced_section?: string[]
+  cases_referred?: string[]
 }
 
 export interface InstantResult {

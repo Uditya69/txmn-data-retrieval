@@ -4,6 +4,7 @@ import { mergeResults, mapRerankedResults, type CardSource, type MilvusByCollect
 import { parseCitations } from '../lib/citations'
 import { groupIntoParagraphs, renderInlineText } from '../lib/richText'
 import { highlightMatches } from '../lib/highlight'
+import { CardMetaLines } from '../lib/cardMeta'
 import TracePanel from './TracePanel'
 
 const SOURCE_FILTERS: { source: CardSource; label: string }[] = [
@@ -289,6 +290,9 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
                   </span>
                 )}
               </div>
+              <span className="text-xs font-mono mt-1 block truncate" style={{ color: 'var(--text-faint)' }}>
+                {card.doc_id}
+              </span>
               {devMode && (
                 <div className="flex items-center gap-2 mt-1 text-xs" style={{ color: 'var(--text-faint)' }}>
                   <span className="uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-raised)' }}>
@@ -298,9 +302,15 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
                         ? 'Reranked'
                         : `Milvus ${card.source === 'milvus_dense' ? 'dense' : 'sparse'}:${card.collection}`}
                   </span>
-                  <span className="font-mono truncate">{card.doc_id}</span>
+                  {devMode && meta?.documenttypeboost !== undefined && (
+                    <span className="font-mono">dtb:{meta.documenttypeboost}</span>
+                  )}
+                  {devMode && meta?.court_boost !== undefined && (
+                    <span className="font-mono">cb:{meta.court_boost}</span>
+                  )}
                 </div>
               )}
+              <CardMetaLines meta={meta} />
               <p className="text-sm mt-2 line-clamp-3" style={{ color: 'var(--text-muted)' }}>{highlightMatches(card.snippet, query)}</p>
             </button>
             )
