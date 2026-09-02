@@ -311,6 +311,65 @@ async def test_run_instant_without_rrf_skips_fusion(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_instant_rerank_true_calls_cross_encoder_and_unions_es_and_milvus(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False):
+        return [{"doc_id": "d1", "score": 4.2, "heading": "h1", "subheading": "s1"}]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": [{"chunk_id": "d2::ruling::0", "doc_id": "d2", "text": "t", "score": 0.9}]}
+
+    async def fake_fetch_fulltext_batch(client, doc_ids):
+        return {doc_id: f"full text for {doc_id}" for doc_id in doc_ids}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    import retrieval_api.instant.rerank as rerank_module
+    monkeypatch.setattr(rerank_module, "fetch_fulltext_batch", fake_fetch_fulltext_batch)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+    gateway.rerank.return_value = [0.8, 0.9]
+
+    result = await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="q", rerank=True,
+    )
+
+    assert result["reranked_error"] is None
+    # rerank=True: candidate pool is a plain union of ES + Milvus dense, no rrf/plan-based
+    # fusion involved - both d1 and d2 reach the cross-encoder.
+    assert {row["doc_id"] for row in result["reranked"]} == {"d1", "d2"}
+    assert all("rerank_score" in row for row in result["reranked"])
+    gateway.rerank.assert_awaited_once_with(
+        role="reranker", query="q", documents=["full text for d1", "full text for d2"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_instant_defaults_rerank_to_false(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False):
+        return [{"doc_id": "d1", "score": 4.2}]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": []}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    result = await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
+
+    assert result["reranked_error"] is None
+    gateway.rerank.assert_not_called()
+    assert {row["doc_id"] for row in result["reranked"]} == {"d1"}
+
+
+@pytest.mark.asyncio
 async def test_run_instant_skips_fusion_when_es_branch_failed(monkeypatch):
     import retrieval_api.instant.search as search_module
 

@@ -23,6 +23,19 @@ class Settings(BaseSettings):
     # ai_mode_rerank_enabled above. False here forces every request onto
     # today's always-both-backends behavior regardless of what the client asks for.
     instant_mode_auto_route_enabled: bool = True
+    # Kill switch for Instant mode's cross-encoder rerank step (instant/rerank.py's
+    # gateway.rerank(role="reranker", ...) call) - same pattern as ai_mode_rerank_enabled
+    # above, but independent of it: this only gates Instant's own `rerank` field on the
+    # /ws/search message, and has no effect on AI Mode's separate rerank-and-prefetch step.
+    # Off by default: Instant's value proposition is speed (raw ES+Milvus preview, no LLM in
+    # the loop) - opt in per request or flip this on to make it the effective default.
+    instant_mode_rerank_enabled: bool = False
+    # Kill switch for Instant mode's RRF fusion (the `rrf` field on the /ws/search message) -
+    # same pattern as instant_mode_rerank_enabled above, independent of it. Only matters when
+    # instant_mode_rerank_enabled/the request's `rerank` is off: with the cross-encoder
+    # reranker running, candidate gathering is a plain code union (see
+    # instant/rerank.py::_union_by_doc_id) and RRF's rank-weighted fusion is unused anyway.
+    instant_mode_rrf_enabled: bool = True
     # Kill switch for native Milvus sparse (BM25 Function) search - shared by both AI Mode's
     # retrieve() and Instant mode's _run_milvus, off by default. Off means the sparse role is
     # covered by ES alone (AI Mode: whole-query, unscoped; Instant: no fallback, dense-only);

@@ -15,10 +15,24 @@ class GatewaySettings(BaseSettings):
     local_base_url: str
     local_chat_model_slm: str
     local_chat_model_synthesis: str
+    # Self-hosted cross-encoder reranker (Qwen3-Reranker) - its own host/port, separate
+    # from local_base_url's chat-completions server. Only consulted when rerank_provider
+    # below is "local_rerank".
+    local_rerank_base_url: str = ""
+    local_rerank_model: str = ""
     # Switches slm+synthesis between the self-hosted adapter and DeepInfra.
     # Both roles moved to "local" together in one commit, so one switch
     # flips both back in lockstep - see the design note in .env.example.
     chat_provider: str = "deepinfra"
+    # Switches the shared "reranker" role (both AI Mode's rerank-and-prefetch and Instant
+    # mode's cross-encoder step) between DeepInfra and the self-hosted Qwen3-Reranker above -
+    # same one-switch-flips-every-caller pattern as chat_provider. Defaults to "deepinfra"
+    # deliberately, even though the model is now self-hosted: AI Mode's own rerank step is
+    # already on by default (ai_mode_rerank_enabled), so flipping this default would silently
+    # switch AI Mode's live reranker on deploy for anyone whose .env doesn't already set
+    # LOCAL_RERANK_BASE_URL/LOCAL_RERANK_MODEL - opt in explicitly via env once the
+    # self-hosted endpoint is verified.
+    rerank_provider: str = "deepinfra"
     # Per-role kill switch for a Thinking model's <think> chain-of-thought (sent as
     # chat_template_kwargs.enable_thinking - vLLM's standard toggle for Qwen3's hybrid
     # thinking mode; DeepInfra passes the same field through for the Qwen3 models it
@@ -43,11 +57,12 @@ def build_role_model_map(settings: GatewaySettings) -> dict[str, str]:
     synthesis_model = (
         settings.deepinfra_chat_model_synthesis if settings.chat_provider == "deepinfra" else settings.local_chat_model_synthesis
     )
+    rerank_model = settings.local_rerank_model if settings.rerank_provider == "local_rerank" else settings.deepinfra_rerank_model
     return {
         "slm": slm_model,
         "synthesis": synthesis_model,
         "query_embed": settings.voyage_embed_model,
-        "reranker": settings.deepinfra_rerank_model,
+        "reranker": rerank_model,
     }
 
 
@@ -55,7 +70,7 @@ def build_role_provider_map(settings: GatewaySettings) -> dict[str, str]:
     return {
         "slm": settings.chat_provider,
         "synthesis": settings.chat_provider,
-        "reranker": "deepinfra",
+        "reranker": settings.rerank_provider,
         "query_embed": "voyage",
     }
 

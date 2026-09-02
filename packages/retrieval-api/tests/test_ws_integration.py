@@ -15,7 +15,10 @@ def _fake_settings(**overrides):
     when a test's fake run_instant/run_ai_mode never look at their values - a bare
     object() has none of them and raises AttributeError the moment ws.py touches one
     unconditionally (not short-circuited away, e.g. by an absent auto_route field)."""
-    defaults = {"instant_mode_auto_route_enabled": False, "milvus_sparse_enabled": False, "expose_reasoning": False}
+    defaults = {
+        "instant_mode_auto_route_enabled": False, "instant_mode_rerank_enabled": False,
+        "instant_mode_rrf_enabled": True, "milvus_sparse_enabled": False, "expose_reasoning": False,
+    }
     return Mock(**{**defaults, **overrides})
 
 
@@ -162,8 +165,8 @@ def test_ws_search_auto_route_defaults_to_false_when_absent(monkeypatch):
     captured_auto_route = "unset"
 
     async def fake_run_instant(
-        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False, boost=False,
-        milvus_sparse_enabled=False,
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, rerank=False, auto_route=False,
+        boost=False, milvus_sparse_enabled=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
@@ -192,8 +195,8 @@ def test_ws_search_forwards_auto_route_to_run_instant_when_enabled(monkeypatch):
     captured_auto_route = "unset"
 
     async def fake_run_instant(
-        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False, boost=False,
-        milvus_sparse_enabled=False,
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, rerank=False, auto_route=False,
+        boost=False, milvus_sparse_enabled=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
@@ -225,8 +228,8 @@ def test_ws_search_kill_switch_forces_auto_route_off_even_when_requested(monkeyp
     captured_auto_route = "unset"
 
     async def fake_run_instant(
-        gateway, es_client, milvus_client, query, on_step=None, rrf=False, auto_route=False, boost=False,
-        milvus_sparse_enabled=False,
+        gateway, es_client, milvus_client, query, on_step=None, rrf=False, rerank=False, auto_route=False,
+        boost=False, milvus_sparse_enabled=False,
     ):
         nonlocal captured_auto_route
         captured_auto_route = auto_route
@@ -514,7 +517,7 @@ async def test_instant_mode_cache_hit_skips_run_instant_and_returns_cached_resul
         "milvus": [], "milvus_sparse": [], "milvus_error": None,
     }
     await cache_write(
-        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False_boost_False",
+        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False_rerank_False_boost_False",
         "what is section 80C", [1.0, 0.0],
         cached_instant_result,
     )
@@ -564,7 +567,7 @@ async def test_instant_mode_rrf_cache_hit_uses_separate_key_from_plain_instant(
         "reranked": [{"doc_id": "cached-reranked"}], "reranked_error": None,
     }
     await cache_write(
-        fake_semantic_cache_collection, "instant_auto_route_False_rrf_True_boost_False",
+        fake_semantic_cache_collection, "instant_auto_route_False_rrf_True_rerank_False_boost_False",
         "what is section 80C", [1.0, 0.0],
         cached_reranked_result,
     )
@@ -602,7 +605,7 @@ async def test_instant_mode_boost_cache_hit_uses_separate_key_from_plain_instant
         "milvus": [], "milvus_sparse": [], "milvus_error": None,
     }
     await cache_write(
-        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False_boost_True",
+        fake_semantic_cache_collection, "instant_auto_route_False_rrf_False_rerank_False_boost_True",
         "what is section 80C", [1.0, 0.0],
         cached_boosted_result,
     )
