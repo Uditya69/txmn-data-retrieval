@@ -34,20 +34,55 @@ dozen, across every branch: 886, 890, 909, 913, 964, 985, 1006, 1007, 1033, 1034
 have shipped a boost value that does not exist in the source being ported. Corrected to 1
 here, with the citations above backing it.
 
-**Note on the SECTION-prefix minus-clause condition**: in the real source this condition
-(`qt.QType == "T1" && query.Trim().IndexOf("SECTION ") >= 0`, SearchTextElastic.cs:887 and
-:910) only appears inside the pipe-split OR-group branch mentioned above (out of this
-task's scope) - there is no standalone SECTION-minus-clause handling in the plain
-single-token "else" branch this module otherwise mirrors. The task brief explicitly asks
-for this rule to be ported into `build_should_clauses` regardless, matching the real
-condition text (also present, boost 1, analyzer snowball, in the two advance-search helper
-methods at lines 574/576 and 619/621) - so it is implemented here, generalized to apply to
-any single T1-typed SECTION-prefixed token, not gated behind pipe-splitting (which is
-Task 5's job to add on top).
+**Note on the SECTION-prefix minus-clause condition**: the FULL real condition, verbatim,
+is `qt.QType == "T1" && query.Trim().IndexOf("SECTION ") >= 0 && !search.isheadnoteToggle`
+(SearchTextElastic.cs:887 and :910 - each is the `if` guarding the minus-clause build at
+:889-890 and :912-913 respectively). That condition only appears inside the pipe-split
+OR-group branch mentioned above (out of this task's scope) - there is no standalone
+SECTION-minus-clause handling in the plain single-token "else" branch this module
+otherwise mirrors. The task brief explicitly asks for this rule to be ported into
+`build_should_clauses` regardless, matching the real condition text (also present, boost 1,
+analyzer snowball, in the two advance-search helper methods at lines 574/576 and 619/621) -
+so it is implemented here, generalized to apply to any single T1-typed SECTION-prefixed
+token, not gated behind pipe-splitting (which is Task 5's job to add on top).
+
+This implementation does NOT have access to `isheadnoteToggle` - `build_should_clauses`
+has no `headnote_toggle` parameter, and threading one through is out of this task's scope.
+So the third conjunct (`!search.isheadnoteToggle`) is simply not evaluated here: the
+minus-clause fires whenever the first two conjuncts hold, unconditionally with respect to
+that guard. This is a real, disclosed gap versus the exact real-source condition, not a
+verbatim port of all three conjuncts.
+
+**Note on the fullcontent slop override**: in the real source's "else" default branch,
+the plain fullcontent tier (the one `_PHRASE_BOOSTS_STANDARD["fullcontent"]` models) does
+NOT use the token's raw proximity as slop - it overrides it, per
+SearchTextElastic.cs:1102-1105 (also present, identically, in the pipe-split OR-group
+branch at :1061-1064 and :885-886/:908-909 - out of this task's scope):
+```
+if (qt.QType != "TX")
+    ...Slop(TaxmannQueryAnalizer.ProximityDefault.DefaultValue == qt.QProximity ? 10000 : qt.QProximity));
+else
+    ...Slop(10000));
+```
+i.e.: a `TX`-typed token always gets slop 10000 for `fullcontent`; any other token gets
+slop 10000 if its proximity equals `ProximityDefault.DefaultValue` (5, per
+`TaxmannQueryAnalizer.cs:82`, ported here as `ProximityDefault.DEFAULT_VALUE` in
+`repotaxmannapi_tokenizer.py`), else its actual proximity. `build_should_clauses` has
+`token.type` and `token.proximity` in scope for every token already, so this is
+implemented faithfully below rather than merely documented as a gap. Note this override
+is specific to the `fullcontent` field/tier - the SUB-exclusion minus-clause built from the
+same token also targets `fullcontent` but is a separate real-source statement
+(SearchTextElastic.cs:890, :913) that uses plain `qt.QProximity` with no such override -
+confirmed by reading those lines directly, so the minus-clause's slop is intentionally
+left as plain `token.proximity` here.
 """
 from __future__ import annotations
 
-from common.repotaxmannapi_tokenizer import RepotaxmannapiToken
+from common.repotaxmannapi_tokenizer import (
+    ProximityDefault,
+    RepotaxmannapiToken,
+    TokenType,
+)
 
 # Field -> boost, non-Excus (`.phrase_search` suffix, analyzer dropped) default "else"
 # branch of GetQuery. Verbatim from SearchTextElastic.cs:1086-1103 (heading, subheading,
@@ -93,18 +128,40 @@ def build_should_clauses(
     for token in tokens:
         for field, boost in _PHRASE_BOOSTS_STANDARD.items():
             field_name = f"{field}{field_suffix}"
+            if field == "fullcontent" and not is_excus:
+                # fullcontent slop override, SearchTextElastic.cs:1102-1105 (see module
+                # docstring "Note on the fullcontent slop override"): a TX-typed token
+                # always gets slop 10000; any other token gets 10000 if its proximity is
+                # still the untouched default (5), else its actual proximity. This
+                # override is only present in the non-Excus "else" branch this module
+                # otherwise models - the Excus (PH) branch's fullcontent line
+                # (SearchTextElastic.cs:1081) uses plain qt.QProximity with no override,
+                # confirmed by reading that line directly.
+                if token.type == TokenType.TEXT:
+                    slop = 10000
+                elif token.proximity == ProximityDefault.DEFAULT_VALUE:
+                    slop = 10000
+                else:
+                    slop = token.proximity
+            else:
+                slop = token.proximity
             match_phrase: dict = {
                 "query": token.query_text,
                 "boost": boost,
-                "slop": token.proximity,
+                "slop": slop,
             }
             if not is_excus and field in _SNOWBALL_ANALYZER_FIELDS:
                 match_phrase["analyzer"] = "snowball"
             should.append({"match_phrase": {field_name: match_phrase}})
 
         # SECTION-prefix minus-clause: excludes documents where the section reference is
-        # actually a sub-section back-reference. SearchTextElastic.cs:887-891, :910-914
-        # (condition: `qt.QType == "T1" && query.Trim().IndexOf("SECTION ") >= 0`).
+        # actually a sub-section back-reference. SearchTextElastic.cs:887-891, :910-914.
+        # FULL real condition, verbatim: `qt.QType == "T1" && query.Trim().IndexOf
+        # ("SECTION ") >= 0 && !search.isheadnoteToggle` - this implementation does not
+        # have access to `isheadnoteToggle` (no such parameter here) and so applies the
+        # rule below unconditionally with respect to that third conjunct; see module
+        # docstring "Note on the SECTION-prefix minus-clause condition" for the full
+        # disclosure.
         if token.type == "T1" and "SECTION " in token.query_text:
             fullcontent_field = f"fullcontent{field_suffix}"
             minus_match_phrase: dict = {
