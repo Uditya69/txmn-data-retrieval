@@ -129,6 +129,76 @@ def test_keyword_followed_by_number_builds_leading_zero_alternation():
     ]
 
 
+def test_keyword_with_leading_roman_numeral_next_word():
+    """"SECTION IV": SECTION is element_type "66" (KeyWord), search_text "SECTION" (no "|").
+    ProcessKeyWord("SECTION", ...) (1057-1190): NextWord="IV" is not itself a dictionary word
+    (GetResource("IV") is empty), so the first `if` (1070-1073) is skipped. NextWord's first
+    char 'I' fails int.TryParse (isNum1 stays false), and
+    ConstantsRoman.ConvertRomanNumber("IV") = 4 succeeds as isNum, so the `else if` at
+    1074-1103 fires: isNum=4>0, GetResource("SECTION").IndexOf("|") is -1 (no "|" in
+    "SECTION"), so SearchText = GetKeySearchText("SECTION") + " " + "IV" = "SECTION IV"
+    (1095), functionReturnValue=true. This never reaches the digit-leading NextWord branch
+    (1104-1186) at all - it is the "leading roman numeral, non-digit-start" branch. The
+    KeyWord case (1602-1625) pushes the result as a SectionTypeFormat ("T1") token with
+    GetKeyProximity("SECTION")=0 and SECTION's group_id."""
+    tokens = tokenize("SECTION IV")
+    assert tokens == [
+        RepotaxmannapiToken(
+            query_text="SECTION IV", query_date=None, org_text="", type="T1",
+            or_in=False, proximity=0, group_id="111050000000000064",
+        )
+    ]
+
+
+def test_keyword_digit_leading_next_word_with_p_triggers_swap_alternation():
+    """"SECTION 80P": NextWord="80P" is not a dictionary word (unlike e.g. "194I"/"10i", which
+    ARE dictionary NumAlphaZone entries and would instead be back-tracked and rescanned
+    separately - deliberately avoided here to isolate this branch). NextWord's first char '8'
+    parses as a digit, so the digit-leading branch (1104-1186) is entered. NextWord2 is built
+    by TaxmannQueryAnalizer.cs:1112-1123's ladder of Contains/Replace checks: "80P" contains no
+    " I"/"I"/" i"/"i"/" O"/"O"/" o"/"o"/" P", but does contain plain "P", so
+    `NextWord2 = NextWord.Replace("P", " P")` = "80 P" (line 1121). NextWord's first char is
+    not "0" (skips 1125-1133's leading-zero branch), GetKeySearchText("SECTION") ("SECTION")
+    contains no "ICDS |" (skips 1134-1153), and GetResource("SECTION") contains no "|" so the
+    plain `else` at 1171-1174 fires: SearchText = "SECTION 80P | SECTION 080P". Since
+    NextWord2.Length>0, 1175-1178 appends " | SECTION 80 P | SECTION 080 P". Final:
+    "SECTION 80P | SECTION 080P | SECTION 80 P | SECTION 080 P", pushed as a
+    SectionTypeFormat ("T1") token via the KeyWord case (1602-1625)."""
+    tokens = tokenize("SECTION 80P")
+    assert tokens == [
+        RepotaxmannapiToken(
+            query_text="SECTION 80P | SECTION 080P | SECTION 80 P | SECTION 080 P",
+            query_date=None, org_text="", type="T1",
+            or_in=False, proximity=0, group_id="111050000000000064",
+        )
+    ]
+
+
+def test_icds_keyword_with_numeric_next_word_converts_to_roman():
+    """"ICDS 5": ICDS is element_type "66" (KeyWord) with search_text
+    "ICDS | INCOME COMPUTATION AND DISCLOSURE STANDARDS" (a real dictionary entry, unlike the
+    unreachable KeyWordOnly/Synonym/Month element types). ProcessKeyWord("ICDS", ...):
+    NextWord="5" is not a dictionary word, its first char '5' parses as a digit
+    (isNo2=true, line 1108-1109), so control enters the digit-leading branch. NextWord2 stays
+    empty ("5" contains none of I/i/O/o/P/p). NextWord's first char is not "0" (skips
+    1125-1133). GetKeySearchText("ICDS").IndexOf("ICDS |")>=0 is true AND
+    int.TryParse("5", out isNumber3) succeeds, so the ICDS special case fires (1134-1153):
+    newNextword = ConstantsRoman.NumericToRoman(5) = "V". GetResource("ICDS").IndexOf("|")>=0
+    is true (search_text itself contains "|"), so SearchText is rebuilt by splitting
+    "ICDS | INCOME COMPUTATION AND DISCLOSURE STANDARDS" on '|' and appending " V" to each
+    trimmed part, joined back with '|': "ICDS V|INCOME COMPUTATION AND DISCLOSURE STANDARDS V"
+    (1139-1150), functionReturnValue=true. Pushed as a SectionTypeFormat ("T1") token via the
+    KeyWord case (1602-1625) with GetKeyProximity("ICDS")=2 and ICDS's group_id."""
+    tokens = tokenize("ICDS 5")
+    assert tokens == [
+        RepotaxmannapiToken(
+            query_text="ICDS V|INCOME COMPUTATION AND DISCLOSURE STANDARDS V",
+            query_date=None, org_text="", type="T1",
+            or_in=False, proximity=2, group_id="111050000000011660",
+        )
+    ]
+
+
 def test_keyword_type2_with_no_next_word_uses_semicolon_split_search_text():
     """"CBDTCIRCULAR" alone is element_type "64" (KeyWordType2). ProcessKeyWordType2
     (1191-1238): NextWord is "" (end of list), so the outer `else` (1229-1235) splits
