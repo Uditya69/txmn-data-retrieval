@@ -3,11 +3,16 @@ from common.repotaxmannapi_tokenizer import RepotaxmannapiToken
 
 
 def test_builds_phrase_boost_should_clauses_for_a_plain_text_token():
+    # is_global=False here (not True as originally, pre-Task-5): now that the TX+global
+    # dual-boost-tier branch (SearchTextElastic.cs:1010-1042) is implemented, a TX-typed
+    # token under is_global=True takes THAT branch, not this plain default one - see
+    # test_tx_global_branch_* below. A TX token only reaches this plain default branch
+    # when isGlobalSearch != "yes", i.e. is_global=False here.
     token = RepotaxmannapiToken(
         query_text="Dimension Data India", org_text="Dimension Data India",
         type="TX", or_in=False, proximity=5, query_date=None,
     )
-    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    clauses = build_should_clauses([token], is_global=False, is_excus=False)
 
     boosts_by_field = {
         list(c["match_phrase"].keys())[0]: list(c["match_phrase"].values())[0]["boost"]
@@ -49,12 +54,14 @@ def _fullcontent_slop(clauses: list[dict], field: str = "fullcontent") -> int:
 
 def test_fullcontent_slop_is_overridden_to_10000_for_a_tx_typed_token():
     # SearchTextElastic.cs:1104-1105: qt.QType == "TX" -> unconditional Slop(10000),
-    # regardless of the token's actual proximity.
+    # regardless of the token's actual proximity. is_global=False (see the note in
+    # test_builds_phrase_boost_should_clauses_for_a_plain_text_token above) - this line
+    # only runs for a TX token when isGlobalSearch != "yes".
     token = RepotaxmannapiToken(
         query_text="Dimension Data India", org_text="Dimension Data India",
         type="TX", or_in=False, proximity=5, query_date=None,
     )
-    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    clauses = build_should_clauses([token], is_global=False, is_excus=False)
     assert _fullcontent_slop(clauses) == 10000
 
 
@@ -91,3 +98,182 @@ def test_fullcontent_slop_override_does_not_apply_in_the_excus_ph_branch():
     )
     clauses = build_should_clauses([token], is_global=True, is_excus=True)
     assert _fullcontent_slop(clauses, field="fullcontent.phrase_search") == 5
+
+
+def _match_phrase_tuples(clauses: list[dict], field: str) -> list[tuple]:
+    """All (query, boost, slop) triples for match_phrase clauses on `field`, in order."""
+    return [
+        (c["match_phrase"][field]["query"], c["match_phrase"][field]["boost"],
+         c["match_phrase"][field]["slop"])
+        for c in clauses
+        if "match_phrase" in c and field in c["match_phrase"]
+    ]
+
+
+# ---------------------------------------------------------------------------------------
+# TX-type + is_global dual/multi-boost-tier branch - SearchTextElastic.cs:1010-1042.
+# ---------------------------------------------------------------------------------------
+
+def test_tx_global_branch_ors_two_heading_tiers_at_proximity_minus_4_and_proximity():
+    # SearchTextElastic.cs:1012-1014: heading1 Boost(155000).Slop(qt.QProximity - 4) OR
+    # heading2 Boost(90000).Slop(qt.QProximity).
+    token = RepotaxmannapiToken(
+        query_text="Dimension Data India", org_text="Dimension Data India",
+        type="TX", or_in=False, proximity=5, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    tuples = _match_phrase_tuples(clauses, "heading")
+    assert ("Dimension Data India", 155000, 1) in tuples  # 5 - 4 = 1
+    assert ("Dimension Data India", 90000, 5) in tuples
+
+
+def test_tx_global_branch_ors_two_subheading_and_searchboosttext_tiers():
+    # SearchTextElastic.cs:1015-1017 (subheading 80000/75000), :1018-1020
+    # (searchboosttext 70000/67000).
+    token = RepotaxmannapiToken(
+        query_text="Dimension Data India", org_text="Dimension Data India",
+        type="TX", or_in=False, proximity=5, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    sub_tuples = _match_phrase_tuples(clauses, "subheading")
+    assert ("Dimension Data India", 80000, 1) in sub_tuples
+    assert ("Dimension Data India", 75000, 5) in sub_tuples
+    sbt_tuples = _match_phrase_tuples(clauses, "searchboosttext")
+    assert ("Dimension Data India", 70000, 1) in sbt_tuples
+    assert ("Dimension Data India", 67000, 5) in sbt_tuples
+
+
+def test_tx_global_branch_ors_three_headnotestext_tiers():
+    # SearchTextElastic.cs:1025-1028: Headnotes1 (65000, proximity-4), Headnotes2 (60000,
+    # proximity), Headnotes3 (50000, slop 100 - fixed, not proximity-derived).
+    token = RepotaxmannapiToken(
+        query_text="Dimension Data India", org_text="Dimension Data India",
+        type="TX", or_in=False, proximity=5, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    tuples = _match_phrase_tuples(clauses, "headnotestext")
+    assert ("Dimension Data India", 65000, 1) in tuples
+    assert ("Dimension Data India", 60000, 5) in tuples
+    assert ("Dimension Data India", 50000, 100) in tuples
+
+
+def test_tx_global_branch_fullcontent_has_two_tiers_when_query_contains_a_space():
+    # SearchTextElastic.cs:1031-1036: query.IndexOf(" ") >= 0 -> Fullcontent1
+    # (boost 100, slop qt.QProximity) OR Fullcontent2 (boost 1, slop 5000).
+    token = RepotaxmannapiToken(
+        query_text="Dimension Data India", org_text="Dimension Data India",
+        type="TX", or_in=False, proximity=5, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    tuples = _match_phrase_tuples(clauses, "fullcontent")
+    assert ("Dimension Data India", 100, 5) in tuples
+    assert ("Dimension Data India", 1, 5000) in tuples
+    assert len(tuples) == 2
+
+
+def test_tx_global_branch_fullcontent_is_single_tier_when_query_has_no_space():
+    # SearchTextElastic.cs:1037-1039: else branch (no space in query) -> a single
+    # Boost(1).Slop(5000) clause, no Boost(100) tier.
+    token = RepotaxmannapiToken(
+        query_text="Infosys", org_text="Infosys",
+        type="TX", or_in=False, proximity=5, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    tuples = _match_phrase_tuples(clauses, "fullcontent")
+    assert tuples == [("Infosys", 1, 5000)]
+
+
+def test_tx_global_branch_not_used_when_is_global_is_false():
+    # searchProcess.isGlobalSearch == "yes" is required; a non-global TX token falls
+    # through to the plain default "else" branch (SearchTextElastic.cs:1084-1107), which
+    # this module already models (single heading tier at boost 155000).
+    token = RepotaxmannapiToken(
+        query_text="Dimension Data India", org_text="Dimension Data India",
+        type="TX", or_in=False, proximity=5, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=False, is_excus=False)
+    tuples = _match_phrase_tuples(clauses, "heading")
+    # heading has no slop override in the default branch (only fullcontent does) - plain
+    # qt.QProximity (5), SearchTextElastic.cs:1086.
+    assert tuples == [("Dimension Data India", 155000, 5)]
+    # No 90000-boost second tier from the TX-global branch.
+    assert all(boost != 90000 for _, boost, _ in tuples)
+
+
+# ---------------------------------------------------------------------------------------
+# Pipe-separated ("|") OR-group branch - SearchTextElastic.cs:838-928.
+# ---------------------------------------------------------------------------------------
+
+def test_pipe_split_token_builds_one_heading_clause_per_alternative():
+    # SearchTextElastic.cs:841 (q = qt.QueryText.Split('|')), :877/:900 (heading clause
+    # built per alternative, Boost(155000), Slop(qt.QProximity) - unmodified proximity,
+    # unlike the TX-global branch above).
+    token = RepotaxmannapiToken(
+        query_text="92 | 092", org_text="92 | 092",
+        type="T1", or_in=False, proximity=0, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    tuples = _match_phrase_tuples(clauses, "heading")
+    # verbatim Split('|') - no per-alt trim in the C#, so the first alt keeps its
+    # trailing space and the second its leading space.
+    assert ("92 ", 155000, 0) in tuples
+    assert (" 092", 155000, 0) in tuples
+
+
+def test_pipe_split_token_searchboosttext_and_subheading_per_alternative():
+    # SearchTextElastic.cs:878/:901 (subheading 80000), :879/:902 (searchboosttext 70000,
+    # built from querySearchboosttext not query - but for an alt with no "taxmann.com"
+    # substring the two are equal).
+    token = RepotaxmannapiToken(
+        query_text="92 | 092", org_text="92 | 092",
+        type="T1", or_in=False, proximity=0, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    assert _match_phrase_tuples(clauses, "subheading") == [("92 ", 80000, 0), (" 092", 80000, 0)]
+    assert _match_phrase_tuples(clauses, "searchboosttext") == [("92 ", 70000, 0), (" 092", 70000, 0)]
+
+
+def test_pipe_split_token_fullcontent_slop_override_ignores_qtype():
+    # SearchTextElastic.cs:885-886/:908-909: the pipe-branch's fullcontent override is
+    # `ProximityDefault.DefaultValue == qt.QProximity ? 10000 : qt.QProximity` with NO
+    # `qt.QType != "TX"` guard (unlike the default "else" branch's :1102-1105) - so even a
+    # TX-typed token here uses actual proximity when it's non-default.
+    token = RepotaxmannapiToken(
+        query_text="a | b", org_text="a | b",
+        type="TX", or_in=False, proximity=3, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    tuples = _match_phrase_tuples(clauses, "fullcontent")
+    assert ("a ", 1, 3) in tuples  # verbatim Split('|') - no per-alt trim in the C#
+    assert (" b", 1, 3) in tuples
+
+
+def test_pipe_split_token_fullcontent_slop_is_10000_at_default_proximity():
+    token = RepotaxmannapiToken(
+        query_text="a | b", org_text="a | b",
+        type="TX", or_in=False, proximity=5, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    tuples = _match_phrase_tuples(clauses, "fullcontent")
+    assert ("a ", 1, 10000) in tuples  # verbatim Split('|') - no per-alt trim in the C#
+    assert (" b", 1, 10000) in tuples
+
+
+def test_pipe_split_token_adds_section_minus_clause_per_matching_alternative():
+    # SearchTextElastic.cs:887-891/:910-914: each alternative independently checked for
+    # T1 type + "SECTION " prefix; minus-clause built per matching alt.
+    token = RepotaxmannapiToken(
+        query_text="SECTION 92C | SECTION 092C", org_text="section 92C",
+        type="T1", or_in=False, proximity=0, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+    minus_queries = {
+        c["match_phrase"]["fullcontent"]["query"]
+        for c in clauses
+        if "match_phrase" in c and "fullcontent" in c["match_phrase"]
+        and c["match_phrase"]["fullcontent"]["query"].startswith("SUB ")
+    }
+    # verbatim Split('|') - no per-alt trim, so "SUB " + query keeps the split's own
+    # leading/trailing whitespace (a trailing space on the first alt, a leading space -
+    # hence the double space - on the second).
+    assert minus_queries == {"SUB SECTION 92C ", "SUB  SECTION 092C"}
