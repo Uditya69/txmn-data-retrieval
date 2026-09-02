@@ -65,4 +65,79 @@ def test_returns_exactly_the_5_static_field_value_factors_and_8_recency_tiers():
     assert sorted(fvf_fields) == sorted(
         ["documenttypeboost", "viewcount", "court_boost", "total_score", "landmarkruling"]
     )
-    assert len(functions) == 8 + 5
+    # For a group_id that is neither the Act nor Rule group, the two unconditional
+    # group.id/subgroup.id Weight functions are still present (10000000 each), but neither
+    # edition-subgroup Weight function is (group_id doesn't resolve to an edition id).
+    assert len(functions) == 2 + 8 + 5
+
+
+def test_group_boost_defaults_to_ten_million_for_unrelated_group():
+    functions = build_function_score_functions(group_id="999999999")
+    group_id_fn = next(
+        fn for fn in functions
+        if fn.get("filter", {}).get("match", {}).get("groups.group.id", {}).get("query") == "999999999"
+    )
+    assert group_id_fn["weight"] == 10000000
+
+
+def test_group_boost_is_two_for_act_group():
+    functions = build_function_score_functions(group_id="111050000000000064")
+    group_id_fn = next(
+        fn for fn in functions
+        if fn.get("filter", {}).get("match", {}).get("groups.group.id", {}).get("query") == "111050000000000064"
+    )
+    assert group_id_fn["weight"] == 2
+
+
+def test_group_boost_is_four_for_rule_group():
+    functions = build_function_score_functions(group_id="111050000000000026")
+    group_id_fn = next(
+        fn for fn in functions
+        if fn.get("filter", {}).get("match", {}).get("groups.group.id", {}).get("query") == "111050000000000026"
+    )
+    assert group_id_fn["weight"] == 4
+
+
+def test_subgroup_id_weight_function_mirrors_group_id_weight_function():
+    functions = build_function_score_functions(group_id="111050000000000064")
+    subgroup_fn = next(
+        fn for fn in functions
+        if fn.get("filter", {}).get("match", {}).get("groups.group.subgroup.id", {}).get("query")
+        == "111050000000000064"
+    )
+    assert subgroup_fn["weight"] == 2
+
+
+def test_act_group_gets_old_and_new_income_tax_act_edition_subgroup_boosts():
+    functions = build_function_score_functions(group_id="111050000000000064")
+    edition_fns = {
+        fn["filter"]["match"]["groups.group.subgroup.id"]["query"]: fn["weight"]
+        for fn in functions
+        if fn.get("filter", {}).get("match", {}).get("groups.group.subgroup.id", {}).get("query")
+        in ("111050000000010687", "111050000000020042")
+    }
+    assert edition_fns == {"111050000000010687": 2, "111050000000020042": 3}
+
+
+def test_rule_group_gets_old_and_new_income_tax_rules_edition_subgroup_boosts():
+    functions = build_function_score_functions(group_id="111050000000000026")
+    edition_fns = {
+        fn["filter"]["match"]["groups.group.subgroup.id"]["query"]: fn["weight"]
+        for fn in functions
+        if fn.get("filter", {}).get("match", {}).get("groups.group.subgroup.id", {}).get("query")
+        in ("111050000000010121", "111050000000020129")
+    }
+    assert edition_fns == {"111050000000010121": 2, "111050000000020129": 3}
+
+
+def test_unrelated_group_gets_no_edition_subgroup_boosts():
+    functions = build_function_score_functions(group_id="999999999")
+    edition_ids = {
+        "111050000000010687", "111050000000020042",
+        "111050000000010121", "111050000000020129",
+    }
+    matched = [
+        fn for fn in functions
+        if fn.get("filter", {}).get("match", {}).get("groups.group.subgroup.id", {}).get("query") in edition_ids
+    ]
+    assert matched == []
