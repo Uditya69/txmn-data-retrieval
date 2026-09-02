@@ -26,14 +26,31 @@ not trusted blind):
   weight 3) and `wc1` (categories.*.subcategory.id == CentralGST when groupid ==
   Constants_GetIdByName.CirNot, weight 100). These are NOT among "the four Weight(...)
   functions using groupid/groupBoost/edition-subgroup ids" this task's brief scopes in,
-  and are not part of Task 8's scope either (Task 8 covers the stateGst/caseLaws and
-  financeact Weight(0.03)/Weight(0.02) functions at lines 640-652, i.e. `w8`/`w10` in the
-  real source). `wcc`/`wc1` are therefore left unimplemented here - out of scope for this
-  task per its brief, flagged for a future task rather than silently added.
+  and are not part of Task 8's scope either. `wcc`/`wc1` are therefore left unimplemented
+  here - out of scope, flagged for a future task rather than silently added.
 - Recency ladder (8 date-range Weight functions): lines 632-639 (unchanged from Task 6's
   citation, still accurate).
 - field_value_factor stack (5 functions): lines 653-657 (unchanged from Task 6's
   citation, still accurate).
+- Task 8's two multiply-mode penalty functions (`w8`/`w10`): real lines 639-646 (`w8`,
+  stateGst-non-caselaws, weight 0.03) and 646-652 (`w10`, finance-act-old-year, weight
+  0.02). Task 8's own brief cited "636-648" for this combined block (and Task 7's report,
+  written while scoping Task 8 prospectively, had cited "640-652"); the real combined
+  block, re-verified independently on this task's own read of the current file, is
+  639-652 - `w8` starts mid-line 639 (immediately after the recency ladder's last
+  `.Weight(1.5))`), not line 640.
+  - `stateGstCatFilter` = `categories.FirstOrDefault().subcategory.id` `Terms` match
+    against `Constants_GetIdByName.StateGSTCatID` = `"111050000000017095"`
+    (BL/Constants.cs:245).
+  - `caseLawsFilter` = `groups.group.url.keyword` `MustNot Term` == `Constants_GroupUrl.Caselaws`
+    = `"caselaws"` (BL/Constants.cs:62).
+  - `financeactBoostNewFilter` = `groups.group.subgroup.id` `Terms` match against
+    `Constants_GetIdByName.FinanceActsSGroupId` = `"111050000000010567"`
+    (BL/Constants.cs:266).
+  - `financeactBoostNewYearFilter` = `year.name.keyword` `Terms` match against the runtime
+    `ConfigurationManager.AppSettings["LattestFinanceActYearID"]` (GlobalSearchResearch.cs:538)
+    - not a compile-time constant, so `build_function_score_functions` takes it as the
+    required `latest_finance_act_year: str` parameter instead of hardcoding a year.
 
 All weight/factor/modifier/missing values matched the brief's stated numbers exactly on
 independent re-read - no value corrections were needed, only the line-number citations
@@ -81,6 +98,17 @@ _INCOME_TAX_ACT_2025_SUBGROUP_ID = "111050000000020042"
 _INCOME_TAX_RULES_1962_SUBGROUP_ID = "111050000000010121"
 _INCOME_TAX_RULES_2026_SUBGROUP_ID = "111050000000020129"
 
+# Task 8's two multiply-mode penalty functions (`w8`/`w10` in the real source, real lines
+# 640-652 - see module docstring's independent re-verification note; confirmed again on
+# this task's own read of the current file). Verified against
+# repotaxmannapi/TaxmannAPI/BL/Constants.cs:
+# - StateGSTCatID = "111050000000017095" (Constants.cs:245)
+# - FinanceActsSGroupId = "111050000000010567" (Constants.cs:266)
+# - Constants_GroupUrl.Caselaws = "caselaws" (Constants.cs:62)
+_STATE_GST_CAT_ID = "111050000000017095"
+_FINANCE_ACTS_SGROUP_ID = "111050000000010567"
+_CASELAWS_GROUP_URL = "caselaws"
+
 # 8-tier recency ladder. GlobalSearchResearch.cs:632-639 (DateMath.Now.Subtract(...)
 # GreaterThanOrEquals/LessThanOrEquals pairs, each with its own .Weight(...)).
 _RECENCY_TIERS = [
@@ -118,13 +146,18 @@ def _resolve_edition_subgroup_id(group_id: str, *, current: bool) -> str | None:
     return None
 
 
-def build_function_score_functions(group_id: str) -> list[dict]:
+def build_function_score_functions(group_id: str, latest_finance_act_year: str) -> list[dict]:
     """Build the ES `functions` array for the groupBoost/edition-subgroup boosts,
-    recency ladder, and 5 static field_value_factor boosts - a verbatim port of
+    recency ladder, 5 static field_value_factor boosts, and the two multiply-mode
+    penalty functions (stateGst-non-caselaws, finance-act-old-year) - a verbatim port of
     GlobalSearchResearch.cs's FunctionScore stack (see module docstring for exact line
     citations and what's deliberately excluded, i.e. the `wcc`/`wc1` comparative-group
-    and CirNot/CentralGST Weight functions, and Task 8's stateGst/financeact penalty
-    functions).
+    and CirNot/CentralGST Weight functions).
+
+    `latest_finance_act_year` corresponds to the real source's
+    `ConfigurationManager.AppSettings["LattestFinanceActYearID"]` (GlobalSearchResearch.cs:538)
+    - a runtime app-setting in repotaxmannapi, not a compile-time constant, so it must be
+    supplied by the caller rather than hardcoded here.
     """
     group_boost = _resolve_group_boost(group_id)
     functions: list[dict] = [
@@ -168,6 +201,41 @@ def build_function_score_functions(group_id: str) -> list[dict]:
     functions.append({
         "filter": {"bool": {"must_not": [{"term": {"landmarkruling": -10}}]}},
         "field_value_factor": {"field": "landmarkruling", "factor": 1.2, "modifier": "log2p", "missing": 0},
+    })
+
+    # w8 (GlobalSearchResearch.cs:639-646): penalize non-caselaws documents in the StateGST
+    # subcategory - `stateGstCatFilter` (categories.subcategory.id in StateGSTCatID) AND
+    # `caseLawsFilter` (groups.group.url != "caselaws"), weight 0.03.
+    functions.append({
+        "filter": {
+            "bool": {
+                "filter": [
+                    {"terms": {"categories.subcategory.id": [_STATE_GST_CAT_ID]}},
+                ],
+                "must_not": [
+                    {"term": {"groups.group.url.keyword": _CASELAWS_GROUP_URL}},
+                ],
+            }
+        },
+        "weight": 0.03,
+    })
+
+    # w10 (GlobalSearchResearch.cs:646-652): penalize Finance-Act-subgroup documents whose
+    # year is not the latest finance-act year - `financeactBoostNewFilter`
+    # (groups.group.subgroup.id in FinanceActsSGroupId) AND NOT `financeactBoostNewYearFilter`
+    # (year.name in the current LattestFinanceActYearID app setting), weight 0.02.
+    functions.append({
+        "filter": {
+            "bool": {
+                "filter": [
+                    {"terms": {"groups.group.subgroup.id": [_FINANCE_ACTS_SGROUP_ID]}},
+                ],
+                "must_not": [
+                    {"terms": {"year.name.keyword": [latest_finance_act_year]}},
+                ],
+            }
+        },
+        "weight": 0.02,
     })
 
     return functions
