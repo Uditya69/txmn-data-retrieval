@@ -277,6 +277,8 @@ export default function App() {
                   devMode={devMode}
                   showReasoning={showReasoning}
                   onOpenDocument={(docId) => openDocument(docId, m.role === 'assistant' ? m.question : undefined)}
+                  paginationEnabled={PAGINATION_ENABLED}
+                  onFetchPage={(page) => fetchInstantPage(activeId ?? '', m.role === 'assistant' ? m.question : '', page)}
                 />
               ))}
               <div ref={bottomRef} />

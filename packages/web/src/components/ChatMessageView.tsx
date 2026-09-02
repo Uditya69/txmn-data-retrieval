@@ -18,6 +18,8 @@ type Props = {
   devMode: boolean
   showReasoning?: boolean
   onOpenDocument: (docId: string) => void
+  paginationEnabled?: boolean
+  onFetchPage?: (page: number) => void
 }
 
 // No inner height cap and no overflow-y-auto here on purpose - a fixed-height
@@ -123,7 +125,12 @@ function TraceSection({
 // size instead of turning the whole page into a multi-thousand-pixel scroll.
 const PAGE_SIZE = 10
 
-function InstantPane({ result, devMode, onOpenDocument, query }: { result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void; query: string }) {
+function InstantPane({
+  result, devMode, onOpenDocument, query, paginationEnabled = false, onFetchPage,
+}: {
+  result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void; query: string
+  paginationEnabled?: boolean; onFetchPage?: (page: number) => void
+}) {
   const status = result?.status ?? 'loading'
   const instant = result?.instant
   const isReranked = Boolean(instant?.reranked)
@@ -321,7 +328,11 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
       {cards.length > PAGE_SIZE && (
         <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
           <button
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            onClick={() => {
+              const next = Math.max(0, page - 1)
+              setPage(next)
+              if (paginationEnabled) onFetchPage?.(next + 1)
+            }}
             disabled={clampedPage === 0}
             className="text-xs px-3 py-1.5 rounded-full font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
             style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border-soft)' }}
@@ -332,7 +343,11 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
             Page {clampedPage + 1} of {pageCount} · {cards.length} matches
           </span>
           <button
-            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+            onClick={() => {
+              const next = Math.min(pageCount - 1, page + 1)
+              setPage(next)
+              if (paginationEnabled) onFetchPage?.(next + 1)
+            }}
             disabled={clampedPage >= pageCount - 1}
             className="text-xs px-3 py-1.5 rounded-full font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
             style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border-soft)' }}
@@ -513,7 +528,7 @@ function AnswerPane({
   )
 }
 
-export function ChatMessageView({ message, devMode, showReasoning, onOpenDocument }: Props) {
+export function ChatMessageView({ message, devMode, showReasoning, onOpenDocument, paginationEnabled, onFetchPage }: Props) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -529,7 +544,10 @@ export function ChatMessageView({ message, devMode, showReasoning, onOpenDocumen
   return (
     <div className="flex justify-start w-full">
       <div className="w-full flex gap-4 min-w-0">
-        <InstantPane result={result} devMode={devMode} onOpenDocument={onOpenDocument} query={message.question} />
+        <InstantPane
+          result={result} devMode={devMode} onOpenDocument={onOpenDocument} query={message.question}
+          paginationEnabled={paginationEnabled} onFetchPage={onFetchPage}
+        />
         <AnswerPane result={result} devMode={devMode} showReasoning={showReasoning} onOpenDocument={onOpenDocument} />
       </div>
     </div>

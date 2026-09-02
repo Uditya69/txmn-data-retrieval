@@ -228,3 +228,27 @@ describe('TraceSection copy button', () => {
     expect(writeText).not.toHaveBeenCalled()
   })
 })
+
+describe('InstantPane pagination — hidden by default', () => {
+  it('Next button calls onFetchPage with page 2 when paginationEnabled is true', () => {
+    const manyEsHits = Array.from({ length: 25 }, (_, i) => ({ doc_id: `d${i}`, score: 1, heading: `h${i}`, subheading: '' }))
+    const instant: ResultState['instant'] = { es: manyEsHits, es_error: null, milvus: null, milvus_sparse: null, milvus_error: null }
+    const onFetchPage = vi.fn()
+    render(
+      <ChatMessageView
+        message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}}
+        paginationEnabled={true} onFetchPage={onFetchPage}
+      />,
+    )
+    fireEvent.click(screen.getByText('Next'))
+    expect(onFetchPage).toHaveBeenCalledWith(2)
+  })
+
+  it('does not require onFetchPage when paginationEnabled is false (default, unchanged behavior)', () => {
+    const manyEsHits = Array.from({ length: 25 }, (_, i) => ({ doc_id: `d${i}`, score: 1, heading: `h${i}`, subheading: '' }))
+    const instant: ResultState['instant'] = { es: manyEsHits, es_error: null, milvus: null, milvus_sparse: null, milvus_error: null }
+    render(<ChatMessageView message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}} />)
+    fireEvent.click(screen.getByText('Next'))
+    expect(screen.getByText(/Page 2 of/)).toBeInTheDocument() // client-side slice still works exactly as before
+  })
+})
