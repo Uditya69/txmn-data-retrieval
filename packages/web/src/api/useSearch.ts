@@ -61,7 +61,7 @@ export function useSearch(
 ): SearchState & {
   search: (
     query: string, trace: boolean, mode?: SearchMode, rrf?: boolean, autoRoute?: boolean,
-    conversationId?: string, boost?: boolean,
+    conversationId?: string, boost?: boolean, page?: number, pageSize?: number,
   ) => void
 } {
   const [state, setState] = useState<SearchState>(INITIAL_STATE)
@@ -71,6 +71,7 @@ export function useSearch(
     (
       query: string, trace: boolean, mode: SearchMode = 'both', rrf: boolean = false,
       autoRoute: boolean = false, conversationId?: string, boost: boolean = false,
+      page?: number, pageSize?: number,
     ) => {
       socketRef.current?.close()
       setState({ loading: true, instant: null, aiMode: null, traceSteps: [], wsError: null })
@@ -89,6 +90,8 @@ export function useSearch(
         // treats it as fully optional (see ws.py's _resolve_user_id) and this
         // keeps guest requests byte-identical to before persona existed.
         const payload: Record<string, unknown> = { query, mode, trace, rrf, auto_route: autoRoute, boost }
+        if (page !== undefined) payload.page = page
+        if (pageSize !== undefined) payload.page_size = pageSize
         if (accessToken) payload.access_token = accessToken
         if (conversationId) payload.conversation_id = conversationId
         socket.send(JSON.stringify(payload))

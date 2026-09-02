@@ -253,6 +253,32 @@ describe('useSearch', () => {
     expect(result.current.traceSteps).toEqual([])
   })
 
+  it('omits page/page_size from the payload when not passed', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    const sent = JSON.parse(socket.sent[0])
+    expect(sent).not.toHaveProperty('page')
+    expect(sent).not.toHaveProperty('page_size')
+  })
+
+  it('includes page/page_size in the payload when passed', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+    act(() => {
+      result.current.search('cgst', true, 'instant', false, false, undefined, false, 2, 10)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ page: 2, page_size: 10 })
+  })
+
   it('sets a wsError and calls onSessionExpired when the server reports session_expired', () => {
     const onSessionExpired = vi.fn()
     const { result } = renderHook(() => useSearch('ws://test', 'stale-token', onSessionExpired))

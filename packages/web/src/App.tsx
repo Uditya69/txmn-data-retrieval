@@ -33,6 +33,12 @@ function readDevModeFromUrl(): boolean {
   return new URLSearchParams(window.location.search).get('dev') !== '0'
 }
 
+// Hidden-by-default real pagination (2026-09-02) - off unless explicitly built with this
+// flag set; when off, InstantPane's existing client-side 10-per-page slice over a flat
+// 20-result fetch is completely unchanged. No UI checkbox for this, deliberately -
+// purely a build-time flag.
+const PAGINATION_ENABLED = import.meta.env.VITE_ENABLE_PAGINATION === 'true'
+
 export default function App() {
   const wsUrl = resolveWsUrl()
   const apiBaseUrl = resolveApiBaseUrl(wsUrl)
@@ -131,8 +137,17 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classicSearch.instant, classicSearch.aiMode, classicSearch.traceSteps, classicSearch.loading])
 
+  const [instantPage, setInstantPage] = useState(1)
+
+  function fetchInstantPage(conversationId: string, question: string, page: number) {
+    if (!PAGINATION_ENABLED) return
+    setInstantPage(page)
+    classicSearch.search(question, true, 'instant', rrf, autoRoute, undefined, boost, page, 20)
+  }
+
   function runQuery(conversationId: string, assistantId: string, question: string) {
     pendingClassicRef.current = { conversationId, assistantId }
+    setInstantPage(1)
     classicSearch.search(question, true, 'both', rrf, autoRoute, auth.token ? conversationId : undefined, boost)
   }
 
