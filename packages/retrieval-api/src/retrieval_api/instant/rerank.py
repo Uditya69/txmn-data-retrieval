@@ -1,5 +1,3 @@
-from itertools import zip_longest
-
 from common.instant_classifier.labels import boost_profile_key
 from retrieval_api.ai_mode.intent import OnStep
 
@@ -37,26 +35,8 @@ def _collapse_to_doc_id(rows: list[dict]) -> list[dict]:
 
 
 def _flatten_by_score(by_collection: dict[str, list[dict]]) -> list[dict]:
-    """Cross-collection dense score isn't comparable - case_summary/headnotes/ruling/etc.
-    chunk types systematically score differently on cosine similarity regardless of
-    relevance (e.g. shorter headnote-style chunks routinely outscore longer case_summary
-    prose chunks). A single raw-score sort across all 9 collections would then let a
-    higher-scoring-but-less-on-point collection bury a lower-scoring-but-genuinely-best
-    hit from another collection before rank position (rrf_merge_by_doc_id's actual input)
-    is even computed. Rank each collection internally by its own score first, then
-    round-robin interleave by rank across collections - the same rank-before-mixing
-    pattern ai_mode/retrieve.py::_flatten already uses for native-vs-ES-fallback sparse
-    hits, applied here to the same class of problem one level down (collection vs
-    collection, not source vs source)."""
-    ranked_per_collection = [
-        sorted(rows, key=lambda row: row["score"], reverse=True) for rows in by_collection.values()
-    ]
-    return [
-        row
-        for group in zip_longest(*ranked_per_collection)
-        for row in group
-        if row is not None
-    ]
+    flattened = [row for rows in by_collection.values() for row in rows]
+    return sorted(flattened, key=lambda row: row["score"], reverse=True)
 
 
 def rrf_merge_by_doc_id(sources: dict[str, list[dict]], weights: dict[str, float], k: int = 60) -> list[dict]:
