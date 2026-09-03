@@ -10,6 +10,7 @@ from common.query_tokenizer import (
     chunk_query, default_instrument_kind, detect_group_signals, expand_query_normalizations,
     expand_query_synonyms, keyword_shape_group_filter,
 )
+from common.repotaxmannapi_boost_config import load_repotaxmannapi_boost_config
 from common.repotaxmannapi_query_builder import build_should_clauses
 from common.repotaxmannapi_scoring import build_function_score_functions
 from common.repotaxmannapi_tokenizer import tokenize
@@ -91,6 +92,15 @@ def _cap_group_shares(hits: list[dict], limit: int, group_cap: int) -> list[dict
 _ES_FALLBACK_LIMIT = 20
 _ES_FALLBACK_GROUP_CAP = 15
 _ES_HIGHLIGHT_FRAGMENT_CHARS = 6000  # oversized on purpose - trim_to_token_budget cuts to ~1024 tokens after
+
+# Operationally-variable years/current-editions/tuned-boost-weights behind every constant
+# below this point that reads from `_BOOST_CONFIG` - see data/repotaxmannapi_boost_config.json
+# and repotaxmannapi_boost_config.py's own docstrings for what belongs there vs stays a
+# plain code constant here (structural taxonomy ids ported from repotaxmannapi's compile-time
+# Constants.cs, which don't drift the way these do). Loaded once at import time, same as any
+# other module-level constant - update the JSON file and restart the process to pick up a
+# change, no code edit needed for these specific values.
+_BOOST_CONFIG = load_repotaxmannapi_boost_config()
 
 _COLLECTION_FOR_ES_GROUP = {group: collection for collection, group in ES_GROUP_FOR_COLLECTION.items()}
 
@@ -267,14 +277,8 @@ def get_es_client(settings: Settings) -> IndexedESClient:
 # against this repo's index (unlike the subgroup ids, which are); a follow-up should confirm
 # 15000 vs 20000 is the right gap once real query traffic is available.
 _EDITION_BOOSTS_BY_INSTRUMENT_KIND = {
-    "act": [
-        ("111050000000010687", 15000.0),  # Income-tax Act, 1961
-        ("111050000000020042", 20000.0),  # Income-tax Act, 2025 (current edition)
-    ],
-    "rules": [
-        ("111050000000010121", 15000.0),  # Income-tax Rules, 1962
-        ("111050000000020129", 20000.0),  # Income-tax Rules, 2026 (current edition)
-    ],
+    kind: [(subgroup_id, boost) for subgroup_id, boost in pairs]
+    for kind, pairs in _BOOST_CONFIG["edition_boosts_by_instrument_kind"].items()
 }
 
 # Group-signal boost - fixes a real query ("landmark Supreme Court ruling on GST") where
@@ -300,18 +304,13 @@ _EDITION_BOOSTS_BY_INSTRUMENT_KIND = {
 # this repo's own 100000 heading tier (was already scoped to skip section/citation chunks, so a
 # citation-bearing query that merely mentions a rule number is unaffected either way) - CASELAWS
 # keeps its original 5x-larger-than-RULE/ARTICLE ratio, just at the corrected base scale.
-_GROUP_SIGNAL_SHOULD_BOOSTS = {
-    "CASELAWS": 5_000.0,
-    "RULE": 1_000.0,
-    "Experts Opinion": 1_000.0,
-    # ACT only ever arrives via keyword_shape_group_filter (detect_group_signals has no ACT
-    # entry - a bare "Section N" is a section-type chunk, which detect_group_signals always
-    # excludes, see its own docstring). Same 1000 tier as RULE: confirmed against the real
-    # .NET source (repotaxmannapi/TaxmannAPI/Elastic/SearchTextElastic.cs:751-766,
-    # GlobalSearchResearch.cs:613-621) that Section and Rule keyword-lookups share one code
-    # path with one boost, never a hard filter for either - see the correction below.
-    "ACT": 1_000.0,
-}
+# ACT only ever arrives via keyword_shape_group_filter (detect_group_signals has no ACT
+# entry - a bare "Section N" is a section-type chunk, which detect_group_signals always
+# excludes, see its own docstring). Same 1000 tier as RULE: confirmed against the real
+# .NET source (repotaxmannapi/TaxmannAPI/Elastic/SearchTextElastic.cs:751-766,
+# GlobalSearchResearch.cs:613-621) that Section and Rule keyword-lookups share one code
+# path with one boost, never a hard filter for either - see the correction below.
+_GROUP_SIGNAL_SHOULD_BOOSTS = _BOOST_CONFIG["group_signal_should_boosts"]
 
 # Real ES `groups.group.subgroup.id` -> the single "latest edition" year (`year.name.keyword`)
 # global search narrows that subgroup to, ported from repotaxmannapi/TaxmannAPI/Elastic/
@@ -331,27 +330,263 @@ _GROUP_SIGNAL_SHOULD_BOOSTS = {
 # signal can out-rank that many exact-heading duplicates, so the fix has to be a hard filter,
 # matching production's own mechanism exactly, not a ranking change.
 #
-# Scoped narrowly to the 4 subgroups live-confirmed (2026-09-02) to actually have
-# multi-year duplicate editions in this repo's index, out of the ~15 real source references
-# `SearchTextElastic.cs:664-734` - the others were checked and found to either not apply here
-# (GST tariff's "latest edition" is a *runtime* dataset lookup, not a static subgroup+year
-# pair - unported, needs its own separate investigation; Forms key off a formtype id, not a
-# group id) or have zero live documents at all in this repo's index (Account Standard, AAA
-# Model Report, Comparative Group, OECD Model Commentary) or carry no year field at all on
-# any sampled doc (the 5 Rules groups, Companies Act 2013, CGST Act 2017 - consistent with
-# the real source pairing only these 4 with an actual `*YearFilter`, everything else in its
-# OR-list is should-boost only). Year values are the real source's current
-# ConfigurationManager.AppSettings values (Web.config), kept as plain literals here matching
-# every other repotaxmannapi-ported magic number in this file (_EDITION_BOOSTS_BY_INSTRUMENT_
-# KIND, repotaxmannapi_scoring.py's own latest_finance_act_year="2025" call site) rather than
-# introducing new Settings plumbing for values production itself only bumps a few times a
-# year via ops config, not code.
-_LATEST_EDITION_ONLY_YEARS = {
-    "111050000000010687": "2026",  # Income-tax Act, 1961 (LattestActYearID)
-    "111050000000020042": "2026",  # Income-tax Act, 2025 (LattestItAct2025ActPageYearID)
-    "111050000000010567": "2025",  # Finance Act, general (LattestFinanceActYearID)
-    "111050000000010622": "2017",  # Finance Act 1994 / service tax (LattestStlFinanceActYearID)
-}
+# Scoped to the 3 subgroups the real source actually hard-excludes via `minusQuery`
+# (SearchTextElastic.cs:664-734), out of the ~15 real source references there - the others
+# were checked and found to either not apply here (GST tariff's "latest edition" is a
+# *runtime* dataset lookup, not a static subgroup+year pair - unported, needs its own
+# separate investigation; Forms key off a formtype id, not a group id) or have zero live
+# documents at all in this repo's index (Account Standard, AAA Model Report, Comparative
+# Group, OECD Model Commentary - now hard-excluded anyway via
+# _additional_exclusion_filters(), future-proofed for when that data is indexed) or carry no
+# year field at all on any sampled doc (the 5 Rules groups, Companies Act 2013, CGST Act
+# 2017 - consistent with the real source pairing only these 3 with an actual hard exclusion,
+# everything else in its OR-list is should-boost only).
+#
+# CORRECTED 2026-09-03: Finance Act (general) was wrongly included here as a 4th
+# hard-excluded subgroup. Direct re-read of `SearchTextElastic.cs:734` shows
+# `minusQuery`'s AND-list never negates `FinanceActFilter`/`FinanceActYearFilter` at all -
+# the line even has a dangling, commented-out `//!MinusFinanceActsFilter &&` where such a
+# term would go, and no `MinusFinanceActsFilter` variable is ever defined anywhere in the
+# file. `FinanceActFilter`/`FinanceActYearFilter` (line 690-691, boost 30000) are used
+# exclusively inside the *positive* should-boost OR-list (`FinanceActBoostquery`, line 729,
+# consumed at line 785) - production only soft-boosts the current year's general Finance Act
+# edition, it never excludes older years' Finance Act documents from global search. This
+# repo's `_edition_exclusion_filter` was hard-excluding every non-2025 Finance-Act-general
+# document from every query - a real over-filtering bug, not a parity gap. See
+# `_static_group_membership_should_clauses`'s `_FINANCE_ACT_GENERAL_*` constants below for
+# the should-boost this subgroup actually gets. Only `MinusFinanceAct1994Filter` (a
+# DIFFERENT subgroup - service tax, not general Finance Act) is genuinely hard-excluded
+# unless current-year, matching the entry kept below.
+#
+# Year values are the real source's current ConfigurationManager.AppSettings values
+# (Web.config) - 2026-09-03: moved into data/repotaxmannapi_boost_config.json (loaded as
+# `_BOOST_CONFIG` above) rather than kept as inline Python literals, so these (and every
+# other operationally-variable value in this file) can be updated by editing the JSON file
+# directly, without a code change - the same "production itself only bumps this a few times
+# a year via ops config, not code" reasoning as before, just externalized properly instead
+# of scattered across module-level literals.
+_LATEST_EDITION_ONLY_YEARS = _BOOST_CONFIG["latest_edition_years"]
+
+# Additional hard-exclusion clauses folded into the real source's same `minusQuery`
+# (SearchTextElastic.cs:664-734) that were never ported, beyond the year-gated subgroups
+# above - found on a 2026-09-03 line-by-line re-read of the real file. Each is a genuine
+# `bool.filter`-equivalent exclusion in production, distinct from the should-clause boosts
+# above. Live-checked against this repo's own ES index (2026-09-03): `AAAModelReport`/
+# `AccountStandard`/`ModelCommentaries` all have 0 matching docs today, and
+# `parentheadings.hasfile` is a mapped-but-never-populated field (0 docs) - implemented
+# anyway rather than skipped, since none of that is a reason to leave production's own logic
+# unported; a doc it *should* have caught is just as easy to add to the corpus later as one
+# that already exists.
+#
+# `MinusHasChildFilter` (line 706): `parentheadings.FirstOrDefault().hasfile == "no"` -
+# skip stub/placeholder headings with no attached content file. Global, unconditional,
+# unlike every other clause here - not edition/group-scoped at all.
+#
+# `MinusAAAModelFilterFilter` (line 672): `groups.group.id == AAAModelReport` - the entire
+# AAA Model Report group excluded from global search, unconditionally (no year-gated
+# re-admission counterpart anywhere in the real source's positive OR-list at line 785).
+_AAA_MODEL_REPORT_GROUP_ID = "111050000000017485"
+
+# `minusASQuery` (lines 666-668, 732): `groups.group.subgroup.id == AccountStandard AND
+# year.id == "2015"` - unlike the subgroups above, this is an EXCLUDE-when-matches-year
+# clause, not a reinstate-when-matches-year one: only the 2015 edition is excluded, every
+# other year of Account Standard content passes through untouched (matches
+# `year.id`, not `year.name.keyword`, per the real source's own field choice here).
+_ACCOUNT_STANDARD_SUBGROUP_ID = _BOOST_CONFIG["account_standard"]["subgroup_id"]
+_ACCOUNT_STANDARD_EXCLUDED_YEAR = _BOOST_CONFIG["account_standard"]["excluded_year"]
+
+# `OecdCommentaryFilter`/`OecdModelLatestCommentaryFilter` (lines 703-704, 724): `groups.
+# group.subgroup.subsubgroup.id == ModelCommentaries` is negated unconditionally in
+# `minusQuery`, then re-admitted only for `year.id == "2017"` via the positive OR-list -
+# i.e. only the 2017 edition of OECD Model Commentaries passes global search, every other
+# year is excluded. Same double-gate shape as the 3 `_LATEST_EDITION_ONLY_YEARS` subgroups,
+# just on `subsubgroup.id` + `year.id` instead of `subgroup.id` + `year.name.keyword`.
+_OECD_MODEL_COMMENTARIES_SUBSUBGROUP_ID = _BOOST_CONFIG["oecd_model_commentaries"]["subsubgroup_id"]
+_OECD_MODEL_COMMENTARIES_LATEST_YEAR = _BOOST_CONFIG["oecd_model_commentaries"]["latest_year"]
+
+# `GstTarrifMinusFilter`/`EditionGoodsLatestFilter`/`EditionServicesLatestFilter`/
+# `EditionCGSTplusSGSTLatestFilter` (SearchTextElastic.cs:670-671,676,718-720,734,785) -
+# GST Tariff's "latest edition" exclusion. Real source excludes the WHOLE top-level Tariff
+# group (`groups.group.id == "111050000000017179"`) via one `GstTarrifMinusFilter`, then
+# re-admits per-subgroup via 3 separate edition filters (Goods/Services/CGST+SGST-combined -
+# a live terms aggregation on `groups.group.id` confirms these 3 subgroups are the entire
+# membership of that one group). This repo instead runs 3 independent subgroup-scoped
+# exclusions with the same net effect (a doc outside all 3 subgroups always passes, matching
+# every other exclusion in this file's shape) rather than one group-level exclude + 3
+# reinstate clauses. Real source resolves the current subsubgroup id per variant via a
+# *runtime* `GstTariffBL` dataset lookup (`type1Data`/`type2Data`/`type3Data.
+# FirstOrDefault().MID`), not a static id - previously flagged as "needs its own separate
+# investigation" and left unported. Live-checked 2026-09-03: real data exists (2998 Goods /
+# 733 Services / 413 CGST+SGST docs across ~29-35 "Edition N" subsubgroups each), and every
+# subsubgroup's own `name` is a clean, monotonic "Edition N [Goods|Services|(CGST + SGST)]"
+# label - the current edition is simply the highest N, no runtime dataset needed to
+# reconstruct it. Ids below are the current-highest-edition subsubgroups as of 2026-09-03
+# (Goods: "Edition 42 Goods"; Services: "Edition 35 Services (IGST)"; CGST+SGST: "Edition 35
+# Services (CGST + SGST)") - plain literals, same precedent as every other
+# repotaxmannapi-ported magic id/year in this file (bumped by hand on the rare occasion a
+# new tariff edition is published, not on every deploy).
+#
+# CGST+SGST was found missing entirely in a later audit pass (2026-09-03) - unlike the
+# zero-doc future-proofing cases elsewhere in this file, this was a REAL gap: 413 live docs
+# had no latest-edition filtering applied at all (neither the Goods nor Services filter's
+# subgroup-id check matched them, so both let every CGST+SGST doc, of every edition,
+# through unconditionally) until this was added.
+_GST_TARIFF_GOODS_SUBGROUP_ID = _BOOST_CONFIG["gst_tariff"]["goods_subgroup_id"]
+_GST_TARIFF_GOODS_LATEST_SUBSUBGROUP_ID = _BOOST_CONFIG["gst_tariff"]["goods_latest_subsubgroup_id"]
+_GST_TARIFF_SERVICES_SUBGROUP_ID = _BOOST_CONFIG["gst_tariff"]["services_subgroup_id"]
+_GST_TARIFF_SERVICES_LATEST_SUBSUBGROUP_ID = _BOOST_CONFIG["gst_tariff"]["services_latest_subsubgroup_id"]
+_GST_TARIFF_CGST_SGST_SUBGROUP_ID = _BOOST_CONFIG["gst_tariff"]["cgst_sgst_subgroup_id"]
+_GST_TARIFF_CGST_SGST_LATEST_SUBSUBGROUP_ID = _BOOST_CONFIG["gst_tariff"]["cgst_sgst_latest_subsubgroup_id"]
+
+# `MinusFormTypequery`/`FormTypequery` (SearchTextElastic.cs:677, 680, 700-701, 733) -
+# Forms' "latest edition" exclusion: every `formtype.id == "frmtyp002"` doc is excluded
+# from global search unless it also matches `year.name == LattestFormYear` (a
+# ConfigurationManager.AppSettings value, same "runtime app-setting, not a compile-time
+# constant" shape as `_LATEST_EDITION_ONLY_YEARS`' Finance Act year). Previously flagged as
+# "keys off a formtype id, not a group id - not ported, same reason [as GST Tariff]" -
+# unlike GST Tariff, live-checked 2026-09-03 and confirmed still genuinely zero: 0/410,427
+# docs have `masterinfo.info.formtype` populated at all, so there is no live Forms document
+# to test this filter against. Implemented anyway per the same future-proofing call as
+# every other zero-data exclusion above. `_FORMS_LATEST_YEAR`'s value IS confirmed real
+# (2026-09-03) - read directly from `repotaxmannapi/TaxmannAPI/Web.config`'s own
+# `LattestFormYear` key (value "2026", checked into this checkout, no need to ask the
+# team) - not derived from any live document the way the GST Tariff edition ids above are,
+# since none exist yet to check it against. Re-verify this against real Web.config (or
+# actual indexed Forms data) once Forms content lands, in case the value has moved on by
+# then - same as every other Web.config-sourced year in this file
+# (`_LATEST_EDITION_ONLY_YEARS`'s entries were cross-checked the same way and all matched).
+_FORMS_FORMTYPE_ID = _BOOST_CONFIG["forms"]["formtype_id"]
+_FORMS_LATEST_YEAR = _BOOST_CONFIG["forms"]["latest_year"]
+
+
+def _forms_latest_edition_filter() -> dict:
+    """A doc that isn't this exact formtype passes unconditionally; one that is must also
+    match the current form year - same should-reinstate shape as
+    `_gst_tariff_latest_edition_filter`, keyed on `masterinfo.info.formtype.id` instead of
+    `groups.group.subgroup.id` (Forms aren't identified by group/subgroup the way every
+    other exclusion in this file is)."""
+    return {
+        "bool": {
+            "should": [
+                {"bool": {"must_not": [{"term": {"masterinfo.info.formtype.id": _FORMS_FORMTYPE_ID}}]}},
+                {"bool": {"must": [
+                    {"term": {"masterinfo.info.formtype.id": _FORMS_FORMTYPE_ID}},
+                    {"term": {"year.name.keyword": _FORMS_LATEST_YEAR}},
+                ]}},
+            ],
+            "minimum_should_match": 1,
+        },
+    }
+
+
+def _additional_exclusion_filters() -> list[dict]:
+    """The 4 extra hard-exclusion clauses above, each an independent `bool.filter` clause
+    ANDed alongside `_edition_exclusion_filter()` - mirrors `minusQuery`'s own AND-of-NOTs
+    structure (each individual `!Minus...Filter` term there is a separate top-level AND
+    operand, not one combined should-list), so a document must pass every one of these
+    independently, not just one of them."""
+    return [
+        {"bool": {"must_not": [{"term": {"parentheadings.hasfile.keyword": "no"}}]}},
+        {"bool": {"must_not": [{"term": {"groups.group.id": _AAA_MODEL_REPORT_GROUP_ID}}]}},
+        {
+            "bool": {
+                "must_not": [{
+                    "bool": {
+                        "must": [
+                            {"term": {"groups.group.subgroup.id": _ACCOUNT_STANDARD_SUBGROUP_ID}},
+                            {"term": {"year.id": _ACCOUNT_STANDARD_EXCLUDED_YEAR}},
+                        ],
+                    },
+                }],
+            },
+        },
+        {
+            "bool": {
+                "should": [
+                    {"bool": {"must_not": [
+                        {"term": {"groups.group.subgroup.subsubgroup.id": _OECD_MODEL_COMMENTARIES_SUBSUBGROUP_ID}},
+                    ]}},
+                    {"bool": {"must": [
+                        {"term": {"groups.group.subgroup.subsubgroup.id": _OECD_MODEL_COMMENTARIES_SUBSUBGROUP_ID}},
+                        {"term": {"year.id": _OECD_MODEL_COMMENTARIES_LATEST_YEAR}},
+                    ]}},
+                ],
+                "minimum_should_match": 1,
+            },
+        },
+        _gst_tariff_latest_edition_filter(
+            _GST_TARIFF_GOODS_SUBGROUP_ID, _GST_TARIFF_GOODS_LATEST_SUBSUBGROUP_ID,
+        ),
+        _gst_tariff_latest_edition_filter(
+            _GST_TARIFF_SERVICES_SUBGROUP_ID, _GST_TARIFF_SERVICES_LATEST_SUBSUBGROUP_ID,
+        ),
+        _gst_tariff_latest_edition_filter(
+            _GST_TARIFF_CGST_SGST_SUBGROUP_ID, _GST_TARIFF_CGST_SGST_LATEST_SUBSUBGROUP_ID,
+        ),
+        _forms_latest_edition_filter(),
+    ]
+
+
+def _gst_tariff_latest_edition_filter(subgroup_id: str, latest_subsubgroup_id: str) -> dict:
+    """A doc outside this subgroup passes unconditionally; one inside it must also match
+    the current-edition subsubgroup id - same should-reinstate shape as
+    `_edition_exclusion_filter`, just keyed on subsubgroup id instead of year."""
+    return {
+        "bool": {
+            "should": [
+                {"bool": {"must_not": [{"term": {"groups.group.subgroup.id": subgroup_id}}]}},
+                {"bool": {"must": [
+                    {"term": {"groups.group.subgroup.id": subgroup_id}},
+                    {"term": {"groups.group.subgroup.subsubgroup.id": latest_subsubgroup_id}},
+                ]}},
+            ],
+            "minimum_should_match": 1,
+        },
+    }
+
+
+# Additional unconditional group-membership should-boosts ported from SearchTextElastic.cs::
+# GetGlobalSearchQuery's positive OR-list (line 785, `CatIdsQuery && (...)`) - previously
+# entirely unported by either query builder in this repo. Real weights (15000-35000) scaled
+# by the same ~0.25 factor `_EDITION_BOOSTS_BY_INSTRUMENT_KIND` applied to its own real
+# weights (80000 -> 15000/20000) to preserve relative proportion under this repo's
+# should-clause scale, rather than reproducing `CatIdsQuery` itself (a per-document
+# category-membership gate this repo's query builders have no equivalent structure for).
+# Fire unconditionally (per-document subgroup membership only, no query-side gating) -
+# unlike Income-tax Act/Rules, these 5 don't need an instrument_kind-style gate to avoid
+# drowning out unrelated statutory-provision matches, since they're distinct, narrowly-scoped
+# subgroups (CGST/Companies-specific), not the bare-number-defaults-to-Income-tax case that
+# motivated gating there.
+_STATIC_GROUP_MEMBERSHIP_BOOSTS = [
+    (subgroup_id, boost) for subgroup_id, boost in _BOOST_CONFIG["static_group_membership_boosts"]["boosts"]
+]
+
+# `FinanceActBoostquery` (`FinanceActFilter && FinanceActYearFilter`, both boost 30000,
+# lines 690-691, 729) - unlike the 5 above, this one IS year-gated: only the current year's
+# Finance-Act-general edition gets the boost, mirroring `_EDITION_BOOSTS_BY_INSTRUMENT_KIND`'s
+# own current-vs-old should-clause pattern. NOT a hard exclusion (see
+# `_LATEST_EDITION_ONLY_YEARS`'s 2026-09-03 correction above) - every year passes, this only
+# tiebreaks among them.
+_FINANCE_ACT_GENERAL_SUBGROUP_ID = _BOOST_CONFIG["finance_act_general"]["subgroup_id"]
+_FINANCE_ACT_GENERAL_CURRENT_YEAR = _BOOST_CONFIG["finance_act_general"]["current_year"]
+_FINANCE_ACT_GENERAL_BOOST = _BOOST_CONFIG["finance_act_general"]["boost"]
+
+
+def _static_group_should_clauses() -> list[dict]:
+    should = [
+        {"term": {"groups.group.subgroup.id": {"value": subgroup_id, "boost": boost}}}
+        for subgroup_id, boost in _STATIC_GROUP_MEMBERSHIP_BOOSTS
+    ]
+    should.append({
+        "bool": {
+            "must": [
+                {"term": {"groups.group.subgroup.id": _FINANCE_ACT_GENERAL_SUBGROUP_ID}},
+                {"term": {"year.name.keyword": _FINANCE_ACT_GENERAL_CURRENT_YEAR}},
+            ],
+            "boost": _FINANCE_ACT_GENERAL_BOOST,
+        },
+    })
+    return should
 
 
 def _edition_exclusion_filter() -> dict:
@@ -422,6 +657,7 @@ def _build_field_query(query: str, shape: str, chunks: list[dict] = (), boost_en
                     "groups.group.subgroup.id": {"value": subgroup_id, "boost": edition_boost},
                 },
             })
+        should.extend(_static_group_should_clauses())
     for group_name in detect_group_signals(chunks):
         should.append({
             "term": {
@@ -463,8 +699,14 @@ def _build_field_query(query: str, shape: str, chunks: list[dict] = (), boost_en
         })
     # Latest-edition-only hard filter (see _edition_exclusion_filter's own comment) - applies
     # to every query, not gated by shape/boost, matching GetGlobalSearchQuery's own
-    # unconditional application to all global search.
-    return {"bool": {"should": should, "minimum_should_match": 1, "filter": [_edition_exclusion_filter()]}}
+    # unconditional application to all global search. _additional_exclusion_filters() (the
+    # 4 extra minusQuery clauses) shares the same unconditional scope.
+    return {
+        "bool": {
+            "should": should, "minimum_should_match": 1,
+            "filter": [_edition_exclusion_filter(), *_additional_exclusion_filters()],
+        },
+    }
 
 
 def _wrap_function_score(field_query: dict) -> dict:
@@ -587,7 +829,7 @@ _STATUTORY_GROUP_BOOST_WEIGHT = 8.0
 # whole reason it doesn't reproduce _wrap_function_score's eval regression - every function can
 # only ever add to a score, never suppress it, so there is no additive equivalent of a penalty.
 _STATIC_TAXONOMY_BOOSTS = [
-    ("groups.group.id", "111050000000000064", 2.0),  # ACT
+    (field, value, weight) for field, value, weight in _BOOST_CONFIG["static_taxonomy_boosts"]["boosts"]
 ]
 
 
@@ -686,16 +928,20 @@ def _build_repotaxmannapi_field_query(query: str) -> dict:
     UI for the first time)."""
     tokens = tokenize(query)
     should = build_should_clauses(tokens, is_global=True, is_excus=False)
+    should.extend(_static_group_should_clauses())
     group_id = next((t.group_id for t in tokens if t.group_id != "0"), "0")
     return {
         "function_score": {
             "query": {
                 "bool": {
                     "should": should, "minimum_should_match": 1,
-                    "filter": [_edition_exclusion_filter()],
+                    "filter": [_edition_exclusion_filter(), *_additional_exclusion_filters()],
                 },
             },
-            "functions": build_function_score_functions(group_id, latest_finance_act_year="2025"),
+            "functions": build_function_score_functions(
+                group_id,
+                latest_finance_act_year=_BOOST_CONFIG["latest_finance_act_year_for_multiply_formula"]["value"],
+            ),
             "score_mode": "multiply",
             "boost_mode": "multiply",
         },
@@ -1098,6 +1344,18 @@ async def fetch_citations(client, doc_ids: list[str]) -> dict[str, dict]:
 _BARE_ACT_CATEGORY_URL = "bare-act"
 
 
+def _format_repotaxmannapi_date(raw: str | None) -> str | None:
+    """Port of `GlobalSearchIndexController.cs::GetDateString` - parses a `yyyyMMdd`
+    string and reformats it `dd-MM-yyyy`; returns None (matching the real method's silent
+    fallthrough on a failed `DateTime.TryParseExact`) for anything else, including None/
+    empty input. Used only by the CirNot reshaping below - see that block's own comment for
+    why `displaydocumentdatestring` (the field this reads) is fetched at all despite being
+    confirmed dead corpus-wide."""
+    if not raw or len(raw) != 8 or not raw.isdigit():
+        return None
+    return f"{raw[6:8]}-{raw[4:6]}-{raw[0:4]}"
+
+
 async def fetch_doc_categories(client, doc_ids: list[str]) -> dict[str, dict]:
     """Instant mode's per-card metadata fetch: "category | group" badge, plus (this
     session, 2026-09-02) every other real, populated ES field confirmed usable on the
@@ -1143,22 +1401,84 @@ async def fetch_doc_categories(client, doc_ids: list[str]) -> dict[str, dict]:
     for CASELAWS/COMMENTARY/other groups, same absent-safe fallback as every other field
     here.
 
-    Confirmed dead fields (0% populated, live-audited 2026-09-02) are deliberately never
+    `is_unreported` (2026-09-03): the real DTO's `isuro` boolean
+    (`GlobalSearchIndexController.cs:362`, `c.isuro ?? false`) - flags a case law as an
+    Unreported ruling, the field the real product's "Include Unreported Case Laws" toggle
+    filters on (`CaselawsElasticSearchResearch.cs:58`, default-included). Confirmed 0%
+    populated on this index today (live-checked 2026-09-03, same dead-field pattern as
+    masterinfo.info.{court,bench,act,section}.name) - fetched and exposed anyway, per the
+    same future-proofing call made for AAAModelReport/AccountStandard/OECD Model
+    Commentaries above: if this field is ever populated, the card starts showing it with no
+    code change needed. Only the boolean itself is ported here, not the include/exclude
+    filter toggle - that's a UI-driven query parameter this repo's raw_search has no
+    equivalent of, out of scope by the user's own instruction (query logic only, no new
+    filters/UI).
+
+    Confirmed dead fields (0% populated, live-audited 2026-09-02/03) are deliberately never
     fetched here: masterinfo.info.{court,bench,act,section}.name, masterinfo.citations.*,
-    searchcitation/searchiltcitation formattedcitation, url, displaydocumentdatestring,
-    tariffinfo.* (Tariff-group cards get no type-specific fields at all - a real,
-    disclosed gap), searchboosttext, boostpopularity, incometaxactinfo/companyactinfo/
-    incometaxruleinfo."""
+    searchcitation/searchiltcitation formattedcitation, url,
+    searchboosttext, boostpopularity, incometaxactinfo/companyactinfo/incometaxruleinfo.
+    `displaydocumentdatestring` was also confirmed dead corpus-wide as of 2026-09-02, but
+    IS fetched again below for the CirNot reshaping added 2026-09-03 - see that block's own
+    comment for why (CirNot itself has 0 live docs, so the corpus-wide dead-field finding
+    can't be independently re-checked against CirNot specifically). `InfavourOf`/`CourtName`/
+    `AuthorName` (the real DTO's remaining 3 caselaw fields, `GlobalSearchIndexController.
+    cs:359-361`) are NOT ported - live-checked 2026-09-03: `masterinfo`/`masterinfo.info` are
+    completely empty objects on every sampled document (not just these 3 specific
+    subfields - the whole structure), and unlike `act_name`/`referenced_act`/etc. above, no
+    substitute field carrying equivalent data exists anywhere else in this index (checked
+    `otherinfo.*` directly - only `judge`/`partyname`/`fullcitation`/`counselname`/
+    `appealno`/`asstyr` exist there, no court/author/in-favour-of equivalent). Genuinely
+    dead with no workaround, not a future-proofing candidate the way is_unreported etc. are.
+    (Tariff-group cards no longer lack type-specific fields - see `tariff_name` below,
+    2026-09-03.)
+
+    `tariff_name`/`commentary_topic` (2026-09-03): per-content-type "additionHeading"
+    reshaping ported from GlobalSearchIndexController.cs's `switch (c.groups.group.url)` -
+    see the inline comment at their call site for exactly which of that switch's 9+ cases
+    have live data in this repo's index at all (only ACT/RULE/Commentary/Tariff) and which
+    field each one actually reads (the real source's own field is dead for ACT/RULE,
+    already covered by `act_name` instead).
+
+    `form_name`/`dta_name`/`heading_override`/`subheading_override`/`shortcontent_override`
+    (2026-09-03): the remaining 6 branches of that same switch (Form, DTA, CBDT, News,
+    Bill/Ordinances/Report/ListingInformalReport/PracticeProcedure, CirNot,
+    StandardGuidanceNotes/FinancialsAndDisclosures - 7 group urls sharing 6 branches, the
+    last 2 share one) - see the inline comment at their call site. ALL 7 have 0 live
+    documents in this index today (live-checked 2026-09-03) - implemented anyway per this
+    session's own future-proofing precedent (AAAModelReport/AccountStandard/OECD Model
+    Commentaries/GST Tariff/Forms exclusions), but with a caveat those don't share: the
+    *field paths* themselves (`masterinfo.iltinfoes.*`, `parentheadings.name`/`.pname`,
+    `masterinfo.info.company.name`, `masterinfo.info.form`) have never been checked against
+    a single real document of these types, unlike every other field in this file (checked
+    against real, if sparse, live data even when the VALUE distribution later turned out
+    zero/dead). Treat these 6 branches as unverified against real data entirely, not just
+    "implemented ahead of volume" - re-read `GlobalSearchIndexController.cs:244-297`
+    directly and cross-check every field path against a real document once any of these 7
+    group urls get indexed, don't assume this port is already correct. See
+    docs/pending-data-followups.md."""
     if not doc_ids:
         return {}
     response = await client.mget(
         index=client.index, ids=doc_ids,
         _source=[
             "categories.name", "categories.isprimarycat", "categories.url",
-            "groups.group.name", "groups.group.subgroup.name",
+            "groups.group.name", "groups.group.url", "groups.group.subgroup.name",
+            "groups.group.subgroup.subsubgroup.name",
+            "groups.group.subgroup.subsubgroup.subsubsubgroup.name",
             "otherinfo.judge.name", "otherinfo.partyname.name", "otherinfo.fullcitation.name",
-            "formatteddocumentdate", "viewcount", "documenttypeboost", "court_boost",
+            "formatteddocumentdate", "viewcount", "documenttypeboost", "court_boost", "isuro",
             "associates.act.name", "associates.section.name", "associates.casereferred.name",
+            # Per-content-type "additionHeading"/heading-reshape fields for the 7 zero-doc
+            # group urls (Form/DTA/CBDT/News/Bill-family/CirNot/StandardGuidanceNotes-
+            # FinancialsAndDisclosures) - see this function's own docstring for the
+            # "unverified against real data" caveat on all of these.
+            "heading", "subheading", "shortcontent",
+            "masterinfo.info.form.name",
+            "masterinfo.iltinfoes.country1.name", "masterinfo.iltinfoes.country2.name",
+            "parentheadings.name", "parentheadings.pname",
+            "displaydocumentdatestring",
+            "masterinfo.info.company.name", "year.name",
         ],
     )
     results: dict[str, dict] = {}
@@ -1173,13 +1493,138 @@ async def fetch_doc_categories(client, doc_ids: list[str]) -> dict[str, dict]:
             picked = categories[1]
         category_name = picked["name"] if picked else None
         category = CATEGORY_DISPLAY_LABELS.get(category_name, category_name)
-        group_name = source.get("groups", {}).get("group", {}).get("name")
+        group_node = source.get("groups", {}).get("group", {})
+        group_name = group_node.get("name")
         group = GROUP_DISPLAY_LABELS.get(group_name, group_name)
         entry: dict = {"category": category, "group": group}
 
-        act_name = source.get("groups", {}).get("group", {}).get("subgroup", {}).get("name")
+        # CategoryUrl/GroupUrl (GlobalSearchIndexController.cs:348-364's DTO) - live-checked
+        # 2026-09-03: both 100% populated (410,427/410,427), unlike most other raw url/id
+        # fields in this file that turned out dead - the real slugs the reference product's
+        # own category/group navigation uses (e.g. "direct-tax-laws", "goods-services-tax",
+        # "bare-act"; "caselaws", "act", "rule", "commentary", "experts-opinion", "tariff").
+        # `category_url` reflects the SAME picked entry as `category` above (post bare-act
+        # override), not raw categories[0] - the two must always name the same category.
+        subgroup_node = group_node.get("subgroup", {})
+        subsubgroup_node = subgroup_node.get("subsubgroup", {})
+        group_url = group_node.get("url")
+        if picked and picked.get("url"):
+            entry["category_url"] = picked["url"]
+        if group_url:
+            entry["group_url"] = group_url
+
+        act_name = subgroup_node.get("name")
         if act_name:
             entry["act_name"] = act_name
+
+        # Per-content-type "additionHeading" reshaping, ported from the real .NET source
+        # (GlobalSearchIndexController.cs:244-297's `switch (c.groups.group.url)`) - live
+        # data-checked per group (2026-09-03) before porting, unlike a blind port of the
+        # whole switch: only 4 of its 9+ cases have ANY documents in this repo's index at
+        # all (ACT/RULE/Commentary/Tariff - confirmed via a live groups.group.url terms
+        # aggregation; DTA/CBDT/Form/News/Bill-Ordinances-Report/CirNot/StandardGuidance
+        # Notes-FinancialsAndDisclosures all return 0 docs), and even within those 4 the
+        # real source's own field isn't always the one actually populated here:
+        #   - ACT/RULE: real additionHeading source is `masterinfo.info.act[0].name` /
+        #     `masterinfo.info.rule[0].name` - both confirmed 0% populated (same dead-field
+        #     pattern as masterinfo.info.{court,bench,act,section}.name elsewhere in this
+        #     file). No separate additionHeading is added for these two groups - `act_name`
+        #     above (groups.group.subgroup.name, already live-verified 100% populated on
+        #     every ACT-group doc) already serves the identical purpose for both, so this
+        #     isn't a gap to fill, just a different-but-equivalent field the doc already
+        #     exposes. The real source's Finance-Act year-suffix special case is skipped
+        #     for the same reason - the substitute subgroup.name values already observed
+        #     live (e.g. "Finance Acts, 2025") already bake the edition year in, so
+        #     appending it again would just duplicate it, not add real information.
+        #   - Tariff: `groups.group.subgroup.name` + `.subsubgroup.name`, both live-verified
+        #     100% populated (4144/4144) - fully portable as `tariff_name`.
+        #   - Commentary: `groups.group.subgroup.subsubgroup.name` is only 76% populated
+        #     (20,768/27,291 live-verified) - when present, used as `commentary_topic`
+        #     (+ subsubsubgroup.name suffix, itself only 23% populated, appended only when
+        #     present); when absent, falls back to `groups.group.subgroup.name` (100%
+        #     populated for every Commentary doc, e.g. "Commentaries") rather than omitting
+        #     the field outright - coarser than the real subsubgroup-level topic, but still
+        #     real, populated data instead of nothing.
+        if group_url == "tariff":
+            tariff_name = subgroup_node.get("name") or ""
+            subsubgroup_name = subsubgroup_node.get("name")
+            if subsubgroup_name:
+                tariff_name = f"{tariff_name} - {subsubgroup_name}" if tariff_name else subsubgroup_name
+            if tariff_name:
+                entry["tariff_name"] = tariff_name
+        elif group_url == "commentary":
+            subsubgroup_name = subsubgroup_node.get("name")
+            commentary_topic = subsubgroup_name or subgroup_node.get("name")
+            if subsubgroup_name:
+                subsubsubgroup_name = subsubgroup_node.get("subsubsubgroup", {}).get("name")
+                if subsubsubgroup_name:
+                    commentary_topic = f"{commentary_topic} - {subsubsubgroup_name}"
+            if commentary_topic:
+                entry["commentary_topic"] = commentary_topic
+        elif group_url == "form":
+            # `masterinfo.info.form[0].name` - unverified, see this function's docstring.
+            form_list = (source.get("masterinfo") or {}).get("info", {}).get("form") or []
+            form_name = form_list[0].get("name") if form_list else None
+            if form_name:
+                entry["form_name"] = form_name
+        elif group_url == "dta":
+            # DTA (tax treaty): additionHeading = country1 (+ " - " + country2); heading
+            # becomes "<old subheading> : <old heading>" (only when subheading is
+            # non-empty); subheading becomes the subsubsubgroup name. All unverified.
+            ilt_list = (source.get("masterinfo") or {}).get("iltinfoes") or []
+            first_ilt = ilt_list[0] if ilt_list else {}
+            country1 = (first_ilt.get("country1") or {}).get("name") or ""
+            country2 = (first_ilt.get("country2") or {}).get("name")
+            dta_name = f"{country1} - {country2}" if country2 else country1
+            if dta_name:
+                entry["dta_name"] = dta_name
+            raw_heading = source.get("heading") or ""
+            raw_subheading = source.get("subheading") or ""
+            entry["heading_override"] = f"{raw_subheading} : {raw_heading}" if raw_subheading else raw_heading
+            subsubsubgroup_name = subsubgroup_node.get("subsubsubgroup", {}).get("name")
+            entry["subheading_override"] = subsubsubgroup_name or ""
+        elif group_url == "cbdt":
+            # additionHeading = parentheading name (+ " of " + its pname); heading falls
+            # back to subheading if blank; subheading becomes the old shortcontent;
+            # shortcontent is cleared. All unverified.
+            parentheadings = source.get("parentheadings") or []
+            first_parent = parentheadings[0] if parentheadings else {}
+            parent_name = first_parent.get("name") or ""
+            parent_pname = first_parent.get("pname")
+            cbdt_name = f"{parent_name} of {parent_pname}" if parent_pname else parent_name
+            if cbdt_name:
+                entry["cbdt_name"] = cbdt_name
+            raw_heading = source.get("heading") or ""
+            raw_subheading = source.get("subheading") or ""
+            entry["heading_override"] = raw_heading or raw_subheading
+            entry["subheading_override"] = source.get("shortcontent") or ""
+            entry["shortcontent_override"] = ""
+        elif group_url == "news":
+            entry["subheading_override"] = source.get("shortcontent") or ""
+        elif group_url in ("bill", "ordinances", "report", "listinginformal-report", "practice-procedure"):
+            # heading gets a " - <parent heading name>" suffix; subheading becomes
+            # shortcontent. All unverified.
+            parentheadings = source.get("parentheadings") or []
+            parent_name = parentheadings[0].get("name") if parentheadings else None
+            raw_heading = source.get("heading") or ""
+            entry["heading_override"] = f"{raw_heading} - {parent_name}" if parent_name else raw_heading
+            entry["subheading_override"] = source.get("shortcontent") or ""
+        elif group_url == "cirnot":
+            # heading gets a " - Dated <dd-MM-yyyy>" suffix, from displaydocumentdatestring
+            # (confirmed dead corpus-wide as of 2026-09-02 - see this function's own
+            # docstring for why it's fetched here anyway). All unverified.
+            date_str = _format_repotaxmannapi_date(source.get("displaydocumentdatestring"))
+            raw_heading = source.get("heading") or ""
+            entry["heading_override"] = f"{raw_heading} - Dated {date_str}" if date_str else raw_heading
+        elif group_url in ("standard-guidance-notes", "financials-and-disclosures"):
+            # heading is fully rebuilt: "<company name> <subheading> : <year>". All
+            # unverified.
+            company_list = (source.get("masterinfo") or {}).get("info", {}).get("company") or []
+            company_name = company_list[0].get("name") if company_list else None
+            raw_subheading = source.get("subheading") or ""
+            year_name = source.get("year", {}).get("name")
+            year_suffix = f" : {year_name}" if year_name else ""
+            entry["heading_override"] = f"{company_name or ''} {raw_subheading}{year_suffix}".strip()
 
         otherinfo = source.get("otherinfo") or {}
         judges = [j["name"] for j in otherinfo.get("judge") or [] if j.get("name")]
@@ -1200,6 +1645,8 @@ async def fetch_doc_categories(client, doc_ids: list[str]) -> dict[str, dict]:
             entry["documenttypeboost"] = source["documenttypeboost"]
         if source.get("court_boost") is not None:
             entry["court_boost"] = source["court_boost"]
+        if source.get("isuro") is not None:
+            entry["is_unreported"] = source["isuro"]
 
         associates = source.get("associates") or {}
         acts = [a["name"] for a in associates.get("act") or [] if a.get("name")]

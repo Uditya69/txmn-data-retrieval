@@ -24,10 +24,16 @@ not trusted blind):
   immediately after `wc` the real source has TWO MORE Weight(...) functions at lines
   629-631 - `wcc` (groups.group.id == ComparativeGroupId when groupid is Act/Rule group,
   weight 3) and `wc1` (categories.*.subcategory.id == CentralGST when groupid ==
-  Constants_GetIdByName.CirNot, weight 100). These are NOT among "the four Weight(...)
-  functions using groupid/groupBoost/edition-subgroup ids" this task's brief scopes in,
-  and are not part of Task 8's scope either. `wcc`/`wc1` are therefore left unimplemented
-  here - out of scope, flagged for a future task rather than silently added.
+  Constants_GetIdByName.CirNot, weight 100). These were NOT among "the four Weight(...)
+  functions using groupid/groupBoost/edition-subgroup ids" this task's original brief
+  scoped in, so were left unimplemented at the time - flagged, not silently dropped.
+  IMPLEMENTED 2026-09-03 (`wcc`/`wc1` below): `wcc`'s ComparativeGroupId has 0 live docs
+  in this repo's index today (confirmed 2026-09-02 investigation, same as
+  common.es_client's Account Standard/AAA Model Report/OECD Model Commentary), and `wc1`'s
+  CirNot/CentralGST combination hasn't been checked live either - both ported anyway
+  rather than skipped for a present-day data gap: this repo's own logic should match
+  production's regardless of what's indexed today, since either could gain matching docs
+  later without a code change to re-enable them.
 - Recency ladder (8 date-range Weight functions): lines 632-639 (unchanged from Task 6's
   citation, still accurate).
 - field_value_factor stack (5 functions): lines 653-657 (unchanged from Task 6's
@@ -109,6 +115,15 @@ _STATE_GST_CAT_ID = "111050000000017095"
 _FINANCE_ACTS_SGROUP_ID = "111050000000010567"
 _CASELAWS_GROUP_URL = "caselaws"
 
+# `wcc`/`wc1` (GlobalSearchResearch.cs:630-631). Verified against
+# repotaxmannapi/TaxmannAPI/BL/Constants.cs:
+# - ComparativeGroupId = "111050000000020048" (Constants.cs:337)
+# - CirNot (groups.group.id) = "111050000000000057" (Constants.cs:316)
+# - CentralGST (categories.subcategory.id) = "111050000000017093" (Constants.cs:326)
+_COMPARATIVE_GROUP_ID = "111050000000020048"
+_CIRNOT_GROUP_ID = "111050000000000057"
+_CENTRAL_GST_CAT_ID = "111050000000017093"
+
 # 8-tier recency ladder. GlobalSearchResearch.cs:632-639 (DateMath.Now.Subtract(...)
 # GreaterThanOrEquals/LessThanOrEquals pairs, each with its own .Weight(...)).
 _RECENCY_TIERS = [
@@ -147,12 +162,12 @@ def _resolve_edition_subgroup_id(group_id: str, *, current: bool) -> str | None:
 
 
 def build_function_score_functions(group_id: str, latest_finance_act_year: str) -> list[dict]:
-    """Build the ES `functions` array for the groupBoost/edition-subgroup boosts,
-    recency ladder, 5 static field_value_factor boosts, and the two multiply-mode
-    penalty functions (stateGst-non-caselaws, finance-act-old-year) - a verbatim port of
+    """Build the ES `functions` array for the groupBoost/edition-subgroup boosts, the
+    comparative-group (`wcc`) and CirNot/CentralGST (`wc1`) Weight functions, the recency
+    ladder, 5 static field_value_factor boosts, and the two multiply-mode penalty functions
+    (stateGst-non-caselaws, finance-act-old-year) - a verbatim port of
     GlobalSearchResearch.cs's FunctionScore stack (see module docstring for exact line
-    citations and what's deliberately excluded, i.e. the `wcc`/`wc1` comparative-group
-    and CirNot/CentralGST Weight functions).
+    citations).
 
     `latest_finance_act_year` corresponds to the real source's
     `ConfigurationManager.AppSettings["LattestFinanceActYearID"]` (GlobalSearchResearch.cs:538)
@@ -174,6 +189,22 @@ def build_function_score_functions(group_id: str, latest_finance_act_year: str) 
     if current_edition_id is not None:
         functions.append({
             "filter": {"match": {"groups.group.subgroup.id": {"query": current_edition_id}}}, "weight": 3,
+        })
+
+    # wcc (GlobalSearchResearch.cs:629-630): groups.group.id == ComparativeGroupId, but
+    # only when group_id is the Act or Rule group (else the real source's ternary yields
+    # null, matching nothing) - weight 3.
+    if group_id in (_ACT_GROUP_ID, _RULE_FORM_ID):
+        functions.append({
+            "filter": {"match": {"groups.group.id": {"query": _COMPARATIVE_GROUP_ID}}}, "weight": 3,
+        })
+
+    # wc1 (GlobalSearchResearch.cs:630-631): categories.subcategory.id == CentralGST, but
+    # only when group_id is CirNot (circulars/notifications) - weight 100, proportionally
+    # much larger than every other function here.
+    if group_id == _CIRNOT_GROUP_ID:
+        functions.append({
+            "filter": {"match": {"categories.subcategory.id": {"query": _CENTRAL_GST_CAT_ID}}}, "weight": 100,
         })
 
     functions.extend(

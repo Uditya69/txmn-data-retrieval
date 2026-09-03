@@ -80,10 +80,22 @@ export default function GroupedResultsPanel({ groupedEs, docMeta, query, devMode
                   {highlightMatches(doc.subheading, query)}
                 </p>
               )}
-              {docMeta?.[doc.doc_id]?.act_name && (
+              {(docMeta?.[doc.doc_id]?.act_name ??
+                docMeta?.[doc.doc_id]?.tariff_name ??
+                docMeta?.[doc.doc_id]?.commentary_topic) && (
                 <p className="text-xs mt-1 truncate" style={{ color: 'var(--text-muted)' }}>
-                  {docMeta[doc.doc_id].act_name}
+                  {docMeta?.[doc.doc_id]?.act_name ??
+                    docMeta?.[doc.doc_id]?.tariff_name ??
+                    docMeta?.[doc.doc_id]?.commentary_topic}
                 </p>
+              )}
+              {docMeta?.[doc.doc_id]?.is_unreported && (
+                <span
+                  className="inline-block text-xs font-medium mt-1 px-1.5 py-0.5 rounded"
+                  style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)' }}
+                >
+                  Unreported
+                </span>
               )}
               <span className="text-xs font-mono mt-1 block truncate" style={{ color: 'var(--text-faint)' }}>
                 {doc.doc_id}

@@ -8,6 +8,8 @@ Retrieval service for Taxmann caselaw. Two paths, one query: Instant (raw ES+Mil
 
 Standalone repo. No code dependency on `data-extraction-pipeline` (the sibling repo that populates Milvus/ES) — own client code here, kept in sync by hand with its `schemas/Milvus.json`/`schemas/ES.json`.
 
+**Whenever new content types or fields get indexed** (Forms, DTA, CBDT, News, Bill/Ordinances/Report, CirNot, StandardGuidanceNotes/FinancialsAndDisclosures, `isuro`, Account Standard, AAA Model Report, OECD Model Commentaries, Comparative — or any field called out as 0%-populated in `common/es_client.py`'s own comments) — check `docs/pending-data-followups.md` first and re-verify the logic it lists against the new real data before trusting it in production.
+
 ## Hard rules — do not violate
 
 1. **`query_embed` role goes through Voyage, never DeepInfra or any other provider.** The Milvus corpus's `dense_vector` was embedded with Voyage by the ingestion pipeline. A different embed model produces vectors in a different space — cosine similarity against the corpus silently becomes meaningless, no error thrown. This is wired in `model-gateway`'s `ROLE_PROVIDER_MAP` (`config.py`) — don't "simplify" it to one provider.

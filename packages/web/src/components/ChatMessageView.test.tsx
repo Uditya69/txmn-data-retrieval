@@ -123,6 +123,38 @@ describe('ChatMessageView result card — doc_id and enriched metadata', () => {
     expect(screen.queryByText('Companies Act, 2013')).not.toBeInTheDocument()
   })
 
+  it('shows tariff_name even outside dev mode when act_name is absent', () => {
+    const withTariffName: ResultState['instant'] = {
+      ...instant,
+      doc_meta: { d1: { ...instant.doc_meta!.d1, tariff_name: 'GST Tariff for Goods - Edition 42 Goods' } },
+    }
+    render(<ChatMessageView message={assistantMessage(withTariffName)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.getByText('GST Tariff for Goods - Edition 42 Goods')).toBeInTheDocument()
+  })
+
+  it('shows commentary_topic even outside dev mode when act_name/tariff_name are absent', () => {
+    const withCommentaryTopic: ResultState['instant'] = {
+      ...instant,
+      doc_meta: { d1: { ...instant.doc_meta!.d1, commentary_topic: 'Tax Audit' } },
+    }
+    render(<ChatMessageView message={assistantMessage(withCommentaryTopic)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.getByText('Tax Audit')).toBeInTheDocument()
+  })
+
+  it('shows an Unreported badge even outside dev mode when is_unreported is true', () => {
+    const withUnreported: ResultState['instant'] = {
+      ...instant,
+      doc_meta: { d1: { ...instant.doc_meta!.d1, is_unreported: true } },
+    }
+    render(<ChatMessageView message={assistantMessage(withUnreported)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.getByText('Unreported')).toBeInTheDocument()
+  })
+
+  it('omits the Unreported badge when is_unreported is absent', () => {
+    render(<ChatMessageView message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.queryByText('Unreported')).not.toBeInTheDocument()
+  })
+
   it('hides judge, party, date, and viewcount outside dev mode (internal debug detail, not a production card field)', () => {
     render(<ChatMessageView message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}} />)
     expect(screen.queryByText(/V.K. KHANNA/)).not.toBeInTheDocument()

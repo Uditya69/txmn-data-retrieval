@@ -335,8 +335,21 @@ function InstantPane({
                   </span>
                 )}
               </div>
-              {meta?.act_name && (
-                <p className="text-xs mt-1 truncate" style={{ color: 'var(--text-muted)' }}>{meta.act_name}</p>
+              {/* act_name/tariff_name/commentary_topic are mutually exclusive - each is
+                  only ever set for its own content type (ACT/RULE, Tariff, Commentary
+                  respectively) - so exactly one, if any, ever applies to a given card. */}
+              {(meta?.act_name ?? meta?.tariff_name ?? meta?.commentary_topic) && (
+                <p className="text-xs mt-1 truncate" style={{ color: 'var(--text-muted)' }}>
+                  {meta?.act_name ?? meta?.tariff_name ?? meta?.commentary_topic}
+                </p>
+              )}
+              {meta?.is_unreported && (
+                <span
+                  className="inline-block text-xs font-medium mt-1 px-1.5 py-0.5 rounded"
+                  style={{ background: 'var(--surface-raised)', color: 'var(--text-muted)' }}
+                >
+                  Unreported
+                </span>
               )}
               <span className="text-xs font-mono mt-1 block truncate" style={{ color: 'var(--text-faint)' }}>
                 {card.doc_id}

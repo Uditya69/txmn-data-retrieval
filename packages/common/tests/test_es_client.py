@@ -11,7 +11,22 @@ from common.es_client import (
     build_query_preview,
     _build_field_query,
     _edition_exclusion_filter,
+    _additional_exclusion_filters,
     _LATEST_EDITION_ONLY_YEARS,
+    _STATIC_GROUP_MEMBERSHIP_BOOSTS,
+    _AAA_MODEL_REPORT_GROUP_ID,
+    _ACCOUNT_STANDARD_SUBGROUP_ID,
+    _ACCOUNT_STANDARD_EXCLUDED_YEAR,
+    _OECD_MODEL_COMMENTARIES_SUBSUBGROUP_ID,
+    _OECD_MODEL_COMMENTARIES_LATEST_YEAR,
+    _GST_TARIFF_GOODS_SUBGROUP_ID,
+    _GST_TARIFF_GOODS_LATEST_SUBSUBGROUP_ID,
+    _GST_TARIFF_SERVICES_SUBGROUP_ID,
+    _GST_TARIFF_SERVICES_LATEST_SUBSUBGROUP_ID,
+    _GST_TARIFF_CGST_SGST_SUBGROUP_ID,
+    _GST_TARIFF_CGST_SGST_LATEST_SUBSUBGROUP_ID,
+    _FORMS_FORMTYPE_ID,
+    _FORMS_LATEST_YEAR,
     fetch_doc_categories,
 )
 from common.schemas import MASTERINFO_CITATION_FIELDS
@@ -91,7 +106,15 @@ def _filter_source(source: dict, fields: list[str]) -> dict:
                                 temp = None
                                 break
                         if temp is not None:
-                            elem_result[field_parts[-1]] = temp
+                            # Rebuild the FULL remaining path under the array element, not
+                            # just its last segment - a flat `elem_result[field_parts[-1]]`
+                            # silently collapsed multi-level paths like "country1.name" to
+                            # just "name", discarding the "country1" nesting (and clashing
+                            # with a sibling "country2.name" request in the same array).
+                            dest_elem = elem_result
+                            for rpart in field_parts[:-1]:
+                                dest_elem = dest_elem.setdefault(rpart, {})
+                            dest_elem[field_parts[-1]] = temp
                             has_any_field = True
                     # Include all elements that match the array path, even if some fields are missing
                     # (ES would include the element with only the present fields)
@@ -488,7 +511,7 @@ def test_build_field_query_boosts_but_does_not_hard_filter_bare_rule_lookup():
     # No RULE-specific hard filter - the only filter present is the unconditional
     # edition-exclusion one (_edition_exclusion_filter), which every query gets regardless of
     # shape/group signal (see test_build_field_query_every_query_gets_edition_exclusion_filter).
-    assert query["bool"]["filter"] == [_edition_exclusion_filter()]
+    assert query["bool"]["filter"] == [_edition_exclusion_filter(), *_additional_exclusion_filters()]
     should = query["bool"]["should"]
     rule_boosts = [
         clause["term"]["groups.group.name.keyword"]["boost"] for clause in should
@@ -501,7 +524,7 @@ def test_build_field_query_boosts_but_does_not_hard_filter_bare_section_lookup()
     chunks = [{"text": "Section 52", "proximity": 0, "type": "section", "alt_text": "Section 052"}]
     query = _build_field_query("Section 52", "KEYWORD", chunks=chunks)
 
-    assert query["bool"]["filter"] == [_edition_exclusion_filter()]
+    assert query["bool"]["filter"] == [_edition_exclusion_filter(), *_additional_exclusion_filters()]
     should = query["bool"]["should"]
     act_boosts = [
         clause["term"]["groups.group.name.keyword"]["boost"] for clause in should
@@ -516,7 +539,7 @@ def test_build_field_query_every_query_gets_edition_exclusion_filter():
     application to every global search query, not just bare keyword lookups."""
     query = _build_field_query("depreciation on plant and machinery", "HYBRID", chunks=[])
 
-    assert query["bool"]["filter"] == [_edition_exclusion_filter()]
+    assert query["bool"]["filter"] == [_edition_exclusion_filter(), *_additional_exclusion_filters()]
 
 
 def test_edition_exclusion_filter_lets_non_matching_subgroup_docs_through_unconditionally():
@@ -525,6 +548,58 @@ def test_edition_exclusion_filter_lets_non_matching_subgroup_docs_through_uncond
     assert should[0] == {
         "bool": {"must_not": [{"terms": {"groups.group.subgroup.id": list(_LATEST_EDITION_ONLY_YEARS)}}]},
     }
+
+
+def test_additional_exclusion_filters_excludes_has_child_placeholder_headings():
+    filters = _additional_exclusion_filters()
+    assert filters[0] == {"bool": {"must_not": [{"term": {"parentheadings.hasfile.keyword": "no"}}]}}
+
+
+def test_additional_exclusion_filters_excludes_aaa_model_report_unconditionally():
+    filters = _additional_exclusion_filters()
+    assert filters[1] == {"bool": {"must_not": [{"term": {"groups.group.id": _AAA_MODEL_REPORT_GROUP_ID}}]}}
+
+
+def test_additional_exclusion_filters_excludes_only_account_standard_2015():
+    filters = _additional_exclusion_filters()
+    exclusion = filters[2]["bool"]["must_not"][0]["bool"]["must"]
+    assert {"term": {"groups.group.subgroup.id": _ACCOUNT_STANDARD_SUBGROUP_ID}} in exclusion
+    assert {"term": {"year.id": _ACCOUNT_STANDARD_EXCLUDED_YEAR}} in exclusion
+
+
+def test_additional_exclusion_filters_admits_only_latest_oecd_commentary_year():
+    filters = _additional_exclusion_filters()
+    reinstated = filters[3]["bool"]["should"][1]["bool"]["must"]
+    assert {"term": {"groups.group.subgroup.subsubgroup.id": _OECD_MODEL_COMMENTARIES_SUBSUBGROUP_ID}} in reinstated
+    assert {"term": {"year.id": _OECD_MODEL_COMMENTARIES_LATEST_YEAR}} in reinstated
+
+
+def test_additional_exclusion_filters_admits_only_latest_gst_tariff_editions():
+    filters = _additional_exclusion_filters()
+    goods, services, cgst_sgst = filters[4], filters[5], filters[6]
+    goods_reinstated = goods["bool"]["should"][1]["bool"]["must"]
+    assert {"term": {"groups.group.subgroup.id": _GST_TARIFF_GOODS_SUBGROUP_ID}} in goods_reinstated
+    assert {
+        "term": {"groups.group.subgroup.subsubgroup.id": _GST_TARIFF_GOODS_LATEST_SUBSUBGROUP_ID},
+    } in goods_reinstated
+    services_reinstated = services["bool"]["should"][1]["bool"]["must"]
+    assert {"term": {"groups.group.subgroup.id": _GST_TARIFF_SERVICES_SUBGROUP_ID}} in services_reinstated
+    assert {
+        "term": {"groups.group.subgroup.subsubgroup.id": _GST_TARIFF_SERVICES_LATEST_SUBSUBGROUP_ID},
+    } in services_reinstated
+    cgst_sgst_reinstated = cgst_sgst["bool"]["should"][1]["bool"]["must"]
+    assert {"term": {"groups.group.subgroup.id": _GST_TARIFF_CGST_SGST_SUBGROUP_ID}} in cgst_sgst_reinstated
+    assert {
+        "term": {"groups.group.subgroup.subsubgroup.id": _GST_TARIFF_CGST_SGST_LATEST_SUBSUBGROUP_ID},
+    } in cgst_sgst_reinstated
+
+
+def test_additional_exclusion_filters_admits_only_latest_forms_year():
+    filters = _additional_exclusion_filters()
+    forms = filters[7]
+    reinstated = forms["bool"]["should"][1]["bool"]["must"]
+    assert {"term": {"masterinfo.info.formtype.id": _FORMS_FORMTYPE_ID}} in reinstated
+    assert {"term": {"year.name.keyword": _FORMS_LATEST_YEAR}} in reinstated
 
 
 def test_edition_exclusion_filter_requires_latest_year_for_each_mapped_subgroup():
@@ -823,10 +898,11 @@ async def test_raw_search_boost_true_adds_both_act_edition_should_boosts_for_sec
         clause["term"]["groups.group.subgroup.id"]["value"]: clause["term"]["groups.group.subgroup.id"]["boost"]
         for clause in should if "groups.group.subgroup.id" in clause.get("term", {})
     }
-    assert boosts == {
-        "111050000000010687": 15000.0,  # Income-tax Act, 1961
-        "111050000000020042": 20000.0,  # Income-tax Act, 2025 (current edition, weighted higher)
-    }
+    # 111050000000010687/111050000000020042 are the query-triggered instrument-kind edition
+    # boosts this test targets; the other entries are _static_group_should_clauses()'
+    # unconditional per-document group-membership boosts, present regardless of query.
+    assert boosts["111050000000010687"] == 15000.0  # Income-tax Act, 1961
+    assert boosts["111050000000020042"] == 20000.0  # Income-tax Act, 2025 (current edition, weighted higher)
 
 
 @pytest.mark.asyncio
@@ -845,10 +921,8 @@ async def test_raw_search_boost_true_adds_both_rules_edition_should_boosts_for_r
         clause["term"]["groups.group.subgroup.id"]["value"]: clause["term"]["groups.group.subgroup.id"]["boost"]
         for clause in should if "groups.group.subgroup.id" in clause.get("term", {})
     }
-    assert boosts == {
-        "111050000000010121": 15000.0,  # Income-tax Rules, 1962
-        "111050000000020129": 20000.0,  # Income-tax Rules, 2026 (current edition, weighted higher)
-    }
+    assert boosts["111050000000010121"] == 15000.0  # Income-tax Rules, 1962
+    assert boosts["111050000000020129"] == 20000.0  # Income-tax Rules, 2026 (current edition, weighted higher)
 
 
 @pytest.mark.asyncio
@@ -861,8 +935,14 @@ async def test_raw_search_boost_true_skips_edition_should_boost_for_bare_article
     await raw_search(client, "Article 14", limit=20, boost=True, boost_source="sum")
 
     should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
-    matches = [clause for clause in should if "groups.group.subgroup.id" in clause.get("term", {})]
-    assert matches == []
+    values = {
+        clause["term"]["groups.group.subgroup.id"]["value"]
+        for clause in should if "groups.group.subgroup.id" in clause.get("term", {})
+    }
+    # No query-triggered instrument-kind edition boost fires here - only
+    # _static_group_should_clauses()' unconditional per-document ids remain, present for
+    # every query regardless of instrument_kind.
+    assert values == {subgroup_id for subgroup_id, _ in _STATIC_GROUP_MEMBERSHIP_BOOSTS}
 
 
 @pytest.mark.asyncio
@@ -872,8 +952,11 @@ async def test_raw_search_boost_true_skips_edition_should_boost_when_different_a
     await raw_search(client, "Rule 6 of the CGST Act", limit=20, boost=True, boost_source="sum")
 
     should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
-    matches = [clause for clause in should if "groups.group.subgroup.id" in clause.get("term", {})]
-    assert matches == []
+    values = {
+        clause["term"]["groups.group.subgroup.id"]["value"]
+        for clause in should if "groups.group.subgroup.id" in clause.get("term", {})
+    }
+    assert values == {subgroup_id for subgroup_id, _ in _STATIC_GROUP_MEMBERSHIP_BOOSTS}
 
 
 @pytest.mark.asyncio
@@ -883,8 +966,11 @@ async def test_raw_search_boost_true_skips_edition_should_boost_for_non_section_
     await raw_search(client, "exemption claim", limit=20, boost=True, boost_source="sum")
 
     should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
-    matches = [clause for clause in should if "groups.group.subgroup.id" in clause.get("term", {})]
-    assert matches == []
+    values = {
+        clause["term"]["groups.group.subgroup.id"]["value"]
+        for clause in should if "groups.group.subgroup.id" in clause.get("term", {})
+    }
+    assert values == {subgroup_id for subgroup_id, _ in _STATIC_GROUP_MEMBERSHIP_BOOSTS}
 
 
 @pytest.mark.asyncio
@@ -918,7 +1004,7 @@ async def test_raw_search_does_not_exclude_landmarkruling_blacklisted_docs():
     assert query == {
         "bool": {
             "should": query["bool"]["should"], "minimum_should_match": 1,
-            "filter": [_edition_exclusion_filter()],
+            "filter": [_edition_exclusion_filter(), *_additional_exclusion_filters()],
         },
     }
     assert "must_not" not in query["bool"]
@@ -1671,3 +1757,291 @@ async def test_fetch_doc_categories_includes_act_name_from_subgroup():
     results = await fetch_doc_categories(client, ["d1"])
 
     assert results["d1"]["act_name"] == "Companies Act, 2013"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_tariff_name_joins_subgroup_and_subsubgroup():
+    """Ported from GlobalSearchIndexController.cs's Tariff case - both fields live-verified
+    2026-09-03 to be 100% populated (4144/4144) for every Tariff-group document."""
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "GST New", "isprimarycat": 1}],
+            "groups": {"group": {
+                "name": "Tariff", "url": "tariff",
+                "subgroup": {
+                    "name": "GST Tariff for Services (IGST)",
+                    "subsubgroup": {"name": "Edition 13 Services"},
+                },
+            }},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["tariff_name"] == "GST Tariff for Services (IGST) - Edition 13 Services"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_tariff_name_omitted_without_any_subgroup_data():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "GST New", "isprimarycat": 1}],
+            "groups": {"group": {"name": "Tariff", "url": "tariff"}},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert "tariff_name" not in results["d1"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_commentary_topic_uses_subsubgroup_when_present():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Direct Tax Laws", "isprimarycat": 1}],
+            "groups": {"group": {
+                "name": "COMMENTARY", "url": "commentary",
+                "subgroup": {
+                    "name": "Commentaries",
+                    "subsubgroup": {"name": "Tax Audit", "subsubsubgroup": {"name": "Clause 18"}},
+                },
+            }},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["commentary_topic"] == "Tax Audit - Clause 18"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_includes_category_url_and_group_url():
+    """CategoryUrl/GroupUrl (GlobalSearchIndexController.cs's DTO) - live-verified
+    2026-09-03 as 100% populated real slugs, unlike most other raw url/id fields in this
+    file. category_url reflects the bare-act-override-adjusted picked category, not raw
+    categories[0]."""
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [
+                {"name": "Bare Act", "url": "bare-act"},
+                {"name": "Account & Audit", "url": "account-audit"},
+            ],
+            "groups": {"group": {"name": "ACT", "url": "act"}},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["category_url"] == "account-audit"
+    assert results["d1"]["group_url"] == "act"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_includes_is_unreported_when_present():
+    """isuro (real DTO's `isuro`, GlobalSearchIndexController.cs:362) is confirmed 0%
+    populated on this index today (live-checked 2026-09-03) - fetched/exposed anyway so a
+    doc auto-picks it up with no code change once the field is ever populated."""
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Direct Tax Laws", "isprimarycat": 1}],
+            "groups": {"group": {"name": "CASELAWS"}},
+            "isuro": True,
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["is_unreported"] is True
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_omits_is_unreported_when_absent():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Direct Tax Laws", "isprimarycat": 1}],
+            "groups": {"group": {"name": "CASELAWS"}},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert "is_unreported" not in results["d1"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_form_name_from_masterinfo_form():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Direct Tax Laws", "isprimarycat": 1}],
+            "groups": {"group": {"name": "FORM", "url": "form"}},
+            "masterinfo": {"info": {"form": [{"name": "Form 3CD"}]}},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["form_name"] == "Form 3CD"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_dta_reshapes_heading_and_subheading():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "International Tax", "isprimarycat": 1}],
+            "groups": {"group": {
+                "name": "DTA", "url": "dta",
+                "subgroup": {"subsubgroup": {"subsubsubgroup": {"name": "Article 5"}}},
+            }},
+            "masterinfo": {"iltinfoes": [{"country1": {"name": "India"}, "country2": {"name": "USA"}}]},
+            "heading": "Permanent Establishment",
+            "subheading": "Business Profits",
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["dta_name"] == "India - USA"
+    assert results["d1"]["heading_override"] == "Business Profits : Permanent Establishment"
+    assert results["d1"]["subheading_override"] == "Article 5"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_dta_omits_subheading_prefix_when_no_subheading():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "International Tax", "isprimarycat": 1}],
+            "groups": {"group": {"name": "DTA", "url": "dta"}},
+            "masterinfo": {"iltinfoes": [{"country1": {"name": "India"}}]},
+            "heading": "Permanent Establishment",
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["dta_name"] == "India"
+    assert results["d1"]["heading_override"] == "Permanent Establishment"
+    assert results["d1"]["subheading_override"] == ""
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_cbdt_reshapes_heading_subheading_shortcontent():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Direct Tax Laws", "isprimarycat": 1}],
+            "groups": {"group": {"name": "CBDT", "url": "cbdt"}},
+            "parentheadings": [{"name": "Circular 5", "pname": "CBDT Circulars"}],
+            "heading": "",
+            "subheading": "Clarification on TDS",
+            "shortcontent": "Full text here",
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["cbdt_name"] == "Circular 5 of CBDT Circulars"
+    assert results["d1"]["heading_override"] == "Clarification on TDS"
+    assert results["d1"]["subheading_override"] == "Full text here"
+    assert results["d1"]["shortcontent_override"] == ""
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_news_moves_shortcontent_to_subheading():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Direct Tax Laws", "isprimarycat": 1}],
+            "groups": {"group": {"name": "NEWS", "url": "news"}},
+            "shortcontent": "Breaking update",
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["subheading_override"] == "Breaking update"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_bill_family_appends_parent_heading_and_moves_shortcontent():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Direct Tax Laws", "isprimarycat": 1}],
+            "groups": {"group": {"name": "BILL", "url": "bill"}},
+            "parentheadings": [{"name": "Finance Bill 2026"}],
+            "heading": "Clause 12",
+            "shortcontent": "Bill summary text",
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["heading_override"] == "Clause 12 - Finance Bill 2026"
+    assert results["d1"]["subheading_override"] == "Bill summary text"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_cirnot_appends_dated_suffix():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Direct Tax Laws", "isprimarycat": 1}],
+            "groups": {"group": {"name": "CIRNOT", "url": "cirnot"}},
+            "heading": "Circular No. 5/2026",
+            "displaydocumentdatestring": "20260315",
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["heading_override"] == "Circular No. 5/2026 - Dated 15-03-2026"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_cirnot_omits_dated_suffix_when_date_missing():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Direct Tax Laws", "isprimarycat": 1}],
+            "groups": {"group": {"name": "CIRNOT", "url": "cirnot"}},
+            "heading": "Circular No. 5/2026",
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["heading_override"] == "Circular No. 5/2026"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_standard_guidance_notes_rebuilds_heading():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Company Law", "isprimarycat": 1}],
+            "groups": {"group": {"name": "SGN", "url": "standard-guidance-notes"}},
+            "masterinfo": {"info": {"company": [{"name": "Reliance Industries Ltd."}]}},
+            "subheading": "Financial Statements",
+            "year": {"name": "2025-26"},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["heading_override"] == "Reliance Industries Ltd. Financial Statements : 2025-26"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_commentary_topic_falls_back_to_subgroup_when_subsubgroup_missing():
+    """subsubgroup.name is only 76% populated on Commentary docs (live-verified
+    2026-09-03) - a missing value falls back to subgroup.name (100% populated) rather than
+    omitting the field, per the user's explicit call: show whatever real data exists rather
+    than nothing."""
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Direct Tax Laws", "isprimarycat": 1}],
+            "groups": {"group": {
+                "name": "COMMENTARY", "url": "commentary",
+                "subgroup": {"name": "Commentaries"},
+            }},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["commentary_topic"] == "Commentaries"

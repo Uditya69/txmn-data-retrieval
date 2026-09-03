@@ -20,6 +20,17 @@ export interface DocMeta {
   // distinct from `referenced_act` (a cross-reference to OTHER acts this section relates
   // to, never the doc's own). See common.es_client.fetch_doc_categories's docstring.
   act_name?: string
+  // Per-content-type instrument/topic labels, real card text the reference product shows
+  // for these two content types specifically (Tariff/Commentary) - see
+  // common.es_client.fetch_doc_categories's docstring for exactly which source field each
+  // one reads and its live population percentage.
+  tariff_name?: string
+  commentary_topic?: string
+  // Real DTO's `isuro` flag - marks a case law as an Unreported ruling. Currently 0%
+  // populated on the live index (see docs/pending-data-followups.md) - present here so a
+  // future card automatically starts showing it once real data exists, no code change
+  // needed on this end.
+  is_unreported?: boolean
 }
 
 export interface InstantResult {
