@@ -91,7 +91,9 @@ describe('useSearch', () => {
       socket.emit('open')
     })
     expect(socket.sent).toEqual([
-      JSON.stringify({ query: 'cgst', mode: 'both', trace: true, rrf: false, auto_route: false, boost: false }),
+      JSON.stringify({
+        query: 'cgst', mode: 'both', trace: true, rrf: false, auto_route: false, boost: false, boost_source: 'sum',
+      }),
     ])
 
     act(() => {
@@ -114,6 +116,9 @@ describe('useSearch', () => {
       milvus_error: null,
       reranked: null,
       reranked_error: null,
+      doc_meta: null,
+      grouped_es: null,
+      grouped_es_error: null,
     })
     expect(result.current.loading).toBe(true)
   })
@@ -251,6 +256,32 @@ describe('useSearch', () => {
       result.current.search('second query', true)
     })
     expect(result.current.traceSteps).toEqual([])
+  })
+
+  it('omits page/page_size from the payload when not passed', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+    act(() => {
+      result.current.search('cgst', true)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    const sent = JSON.parse(socket.sent[0])
+    expect(sent).not.toHaveProperty('page')
+    expect(sent).not.toHaveProperty('page_size')
+  })
+
+  it('includes page/page_size in the payload when passed', () => {
+    const { result } = renderHook(() => useSearch('ws://test'))
+    act(() => {
+      result.current.search('cgst', true, 'instant', false, false, undefined, false, 'sum', 2, 10)
+    })
+    const socket = MockWebSocket.instances[0]
+    act(() => {
+      socket.emit('open')
+    })
+    expect(JSON.parse(socket.sent[0])).toMatchObject({ page: 2, page_size: 10 })
   })
 
   it('sets a wsError and calls onSessionExpired when the server reports session_expired', () => {

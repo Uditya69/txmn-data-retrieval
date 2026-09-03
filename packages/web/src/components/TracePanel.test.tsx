@@ -436,4 +436,25 @@ describe('TracePanel', () => {
     expect(screen.queryByText('Show ES query')).not.toBeInTheDocument()
   })
 
+  it('renders es_grouped as per-section hit lists with a group/hit-count summary', () => {
+    const steps: TraceStep[] = [
+      {
+        step: 'es_grouped',
+        data: {
+          groups: {
+            ACT: [{ doc_id: 'a1', score: 9.0, heading: 'Act heading', subheading: 'Act sub' }],
+            RULE: [{ doc_id: 'r1', score: 3.0, heading: 'Rule heading', subheading: 'Rule sub' }],
+          },
+        },
+      },
+    ]
+    render(<TracePanel steps={steps} />)
+
+    expect(screen.getByText('2 section(s), 2 hit(s)')).toBeInTheDocument()
+    expect(screen.getByText('ACT')).toBeInTheDocument()
+    expect(screen.getByText('RULE')).toBeInTheDocument()
+    expect(screen.getByText(/Act heading/)).toBeInTheDocument()
+    expect(screen.getByText(/Rule heading/)).toBeInTheDocument()
+  })
+
 })

@@ -91,6 +91,74 @@ describe('ChatMessageView doc_id rank lookup (dev mode only)', () => {
   })
 })
 
+describe('ChatMessageView result card — doc_id and enriched metadata', () => {
+  const instant: ResultState['instant'] = {
+    es: [{ doc_id: 'd1', score: 5, heading: 'h1', subheading: 's1' }],
+    es_error: null, milvus: null, milvus_sparse: null, milvus_error: null,
+    doc_meta: {
+      d1: {
+        category: 'Direct Tax Laws', group: 'Case Laws',
+        judge: ['V.K. KHANNA'], party: ['Commissioner of Income-tax'],
+        date: '1987-03-31T00:00:00', viewcount: 70,
+      },
+    },
+  }
+
+  it('shows doc_id even outside dev mode', () => {
+    render(<ChatMessageView message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.getByText('d1')).toBeInTheDocument()
+  })
+
+  it('shows act_name even outside dev mode (mirrors the reference product\'s always-visible Act-name label)', () => {
+    const withActName: ResultState['instant'] = {
+      ...instant,
+      doc_meta: { d1: { ...instant.doc_meta!.d1, act_name: 'Companies Act, 2013' } },
+    }
+    render(<ChatMessageView message={assistantMessage(withActName)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.getByText('Companies Act, 2013')).toBeInTheDocument()
+  })
+
+  it('omits the act_name line when absent', () => {
+    render(<ChatMessageView message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.queryByText('Companies Act, 2013')).not.toBeInTheDocument()
+  })
+
+  it('hides judge, party, date, and viewcount outside dev mode (internal debug detail, not a production card field)', () => {
+    render(<ChatMessageView message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.queryByText(/V.K. KHANNA/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Commissioner of Income-tax/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/1987-03-31/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/70 views/)).not.toBeInTheDocument()
+  })
+
+  it('shows judge, party, date, and viewcount in dev mode when present on doc_meta', () => {
+    render(<ChatMessageView message={assistantMessage(instant)} devMode={true} onOpenDocument={() => {}} />)
+    expect(screen.getByText(/V.K. KHANNA/)).toBeInTheDocument()
+    expect(screen.getByText(/Commissioner of Income-tax/)).toBeInTheDocument()
+    expect(screen.getByText(/1987-03-31/)).toBeInTheDocument()
+    expect(screen.getByText(/70/)).toBeInTheDocument()
+  })
+
+  it('omits judge/party lines entirely for a doc with no such doc_meta fields, even in dev mode', () => {
+    const noExtras: ResultState['instant'] = {
+      ...instant,
+      doc_meta: { d1: { category: 'Acts', group: 'Acts' } },
+    }
+    render(<ChatMessageView message={assistantMessage(noExtras)} devMode={true} onOpenDocument={() => {}} />)
+    expect(screen.queryByText(/V.K. KHANNA/)).not.toBeInTheDocument()
+  })
+
+  it('does not render a stray "0" when one paired field is an empty array and its pair is absent', () => {
+    const emptyArrayCase: ResultState['instant'] = {
+      ...instant,
+      doc_meta: { d1: { category: 'Acts', group: 'Acts', party: [] } }, // judge absent, party present-but-empty
+    }
+    render(<ChatMessageView message={assistantMessage(emptyArrayCase)} devMode={true} onOpenDocument={() => {}} />)
+    // The bug rendered a stray "0" text node from `undefined || 0` short-circuiting `&&`.
+    expect(screen.queryByText('0')).not.toBeInTheDocument()
+  })
+})
+
 describe('TraceSection routes query_correction to the Instant pane, not the Answer pane', () => {
   function messageWithBothPaneSteps(): ChatMessage {
     return {
@@ -180,5 +248,67 @@ describe('TraceSection copy button', () => {
     fireEvent.click(button)
 
     expect(writeText).not.toHaveBeenCalled()
+  })
+})
+
+describe('InstantPane pagination — hidden by default', () => {
+  function manyEsHitsInstant(): ResultState['instant'] {
+    const manyEsHits = Array.from({ length: 25 }, (_, i) => ({ doc_id: `d${i}`, score: 1, heading: `h${i}`, subheading: '' }))
+    return { es: manyEsHits, es_error: null, milvus: null, milvus_sparse: null, milvus_error: null }
+  }
+
+  it('Next button calls onFetchPage with page 2 when paginationEnabled is true', () => {
+    const onFetchPage = vi.fn()
+    render(
+      <ChatMessageView
+        message={assistantMessage(manyEsHitsInstant())} devMode={false} onOpenDocument={() => {}}
+        paginationEnabled={true} onFetchPage={onFetchPage} currentPage={1}
+      />,
+    )
+    fireEvent.click(screen.getByText('Next'))
+    expect(onFetchPage).toHaveBeenCalledWith(2)
+  })
+
+  // Regression test for C1 (2026-09-02 final review): the server page must advance
+  // monotonically (2, 3, 4...) as Next is clicked repeatedly, driven by the controlled
+  // `currentPage` prop (mirroring App.tsx's real `instantPage` state) - not oscillate back
+  // to 2 forever because of InstantPane's own internal, self-resetting `page` slice index.
+  it('Next advances the server page 2, 3, 4 across repeated clicks, driven by currentPage, never oscillating back', () => {
+    const onFetchPage = vi.fn()
+    const { rerender } = render(
+      <ChatMessageView
+        message={assistantMessage(manyEsHitsInstant())} devMode={false} onOpenDocument={() => {}}
+        paginationEnabled={true} onFetchPage={onFetchPage} currentPage={1}
+      />,
+    )
+
+    fireEvent.click(screen.getByText('Next'))
+    expect(onFetchPage).toHaveBeenNthCalledWith(1, 2)
+
+    // App.tsx would re-render with the new server page once results for page 2 land -
+    // simulated here by bumping currentPage, same as the real controlled-prop flow.
+    rerender(
+      <ChatMessageView
+        message={assistantMessage(manyEsHitsInstant())} devMode={false} onOpenDocument={() => {}}
+        paginationEnabled={true} onFetchPage={onFetchPage} currentPage={2}
+      />,
+    )
+    fireEvent.click(screen.getByText('Next'))
+    expect(onFetchPage).toHaveBeenNthCalledWith(2, 3)
+
+    rerender(
+      <ChatMessageView
+        message={assistantMessage(manyEsHitsInstant())} devMode={false} onOpenDocument={() => {}}
+        paginationEnabled={true} onFetchPage={onFetchPage} currentPage={3}
+      />,
+    )
+    fireEvent.click(screen.getByText('Next'))
+    expect(onFetchPage).toHaveBeenNthCalledWith(3, 4)
+  })
+
+  it('does not require onFetchPage when paginationEnabled is false (default, unchanged behavior)', () => {
+    render(<ChatMessageView message={assistantMessage(manyEsHitsInstant())} devMode={false} onOpenDocument={() => {}} />)
+    fireEvent.click(screen.getByText('Next'))
+    expect(screen.getByText(/Page 2 of/)).toBeInTheDocument() // client-side slice still works exactly as before
   })
 })

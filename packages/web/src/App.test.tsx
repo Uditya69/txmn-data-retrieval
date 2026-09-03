@@ -62,7 +62,9 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText('Search query'), { target: { value: 'what is section 80HH' } })
     fireEvent.click(screen.getByLabelText('Send'))
 
-    expect(search).toHaveBeenCalledWith('what is section 80HH', true, 'both', true, true, undefined, true)
+    expect(search).toHaveBeenCalledWith(
+      'what is section 80HH', true, 'both', true, true, undefined, true, 'repotaxmannapi',
+    )
     expect(screen.getAllByText('what is section 80HH').length).toBeGreaterThan(0)
   })
 
@@ -73,6 +75,74 @@ describe('App', () => {
     fireEvent.click(screen.getByLabelText('Send'))
     expect(setItemSpy).not.toHaveBeenCalled()
     setItemSpy.mockRestore()
+  })
+
+  // Regression test for C2 (2026-09-02 final review): fetchInstantPage (the paged
+  // re-fetch triggered by Next/Prev when VITE_ENABLE_PAGINATION is on) must not null out
+  // an already-rendered aiMode/'done' status on the message it targets - it should patch
+  // only `instant` into the existing ResultState, leaving aiMode/status untouched.
+  it('a paged instant-only re-fetch does not clobber an already-done aiMode answer', async () => {
+    vi.resetModules()
+    vi.stubEnv('VITE_ENABLE_PAGINATION', 'true')
+    try {
+      const search = vi.fn()
+      const manyEsHits = Array.from({ length: 25 }, (_, i) => ({ doc_id: `d${i}`, score: 1, heading: `h${i}`, subheading: '' }))
+
+      // Phase 1: mid-flight, matches the state right after handleSubmit fires - loading,
+      // nothing back from the server yet.
+      vi.mocked(useSearch).mockReturnValue({ ...baseSearchState(), search })
+
+      const { default: FreshApp } = await import('./App')
+      const { rerender } = render(<FreshApp />)
+
+      fireEvent.change(screen.getByLabelText('Search query'), { target: { value: 'what is section 80HH' } })
+      fireEvent.click(screen.getByLabelText('Send'))
+
+      // Phase 2: the full ('both'-mode) turn completes - AI Mode's answer is done and
+      // Instant has its first page of results. Simulates classicSearch's own state update
+      // (a real hook re-renders its consumer with a new object on every state change).
+      vi.mocked(useSearch).mockReturnValue({
+        loading: false,
+        instant: { es: manyEsHits, es_error: null, milvus: null, milvus_sparse: null, milvus_error: null },
+        aiMode: { ok: true, answer: 'The final answer.', citations: {} },
+        traceSteps: [],
+        wsError: null,
+        search,
+      })
+      rerender(<FreshApp />)
+
+      expect(screen.getByText(/The final answer\./)).toBeInTheDocument()
+
+      // Next click triggers fetchInstantPage - an instant-only ('instant' mode) re-fetch,
+      // via the real (un-mocked) ChatMessageView/InstantPane Next button, wired through
+      // paginationEnabled=true now that the env flag is on.
+      fireEvent.click(screen.getByText('Next'))
+      expect(search).toHaveBeenLastCalledWith(
+        'what is section 80HH', true, 'instant', true, true, undefined, true, 'repotaxmannapi', 2, 20,
+      )
+
+      // Phase 3: the instant-only fetch's response lands. Before the C2 fix, the
+      // reflect-effect would recompute status as classicSearch.aiMode ? 'done' : 'loading'
+      // off of THIS instant-only classicSearch state - but mode:'instant' never populates
+      // aiMode, so it evaluates to permanently 'loading' and overwrites the message's
+      // already-rendered aiMode with null.
+      const pagedEsHits = Array.from({ length: 25 }, (_, i) => ({ doc_id: `p${i}`, score: 1, heading: `p${i}`, subheading: '' }))
+      vi.mocked(useSearch).mockReturnValue({
+        loading: false,
+        instant: { es: pagedEsHits, es_error: null, milvus: null, milvus_sparse: null, milvus_error: null },
+        aiMode: null,
+        traceSteps: [],
+        wsError: null,
+        search,
+      })
+      rerender(<FreshApp />)
+
+      // The already-rendered answer must still be there - not nulled out/stuck loading.
+      expect(screen.getAllByText(/The final answer\./).length).toBeGreaterThan(0)
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
   })
 
   it('clears the remote conversation list synchronously on every auth token change, so a stale user\'s chats never leak into the next session', () => {

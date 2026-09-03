@@ -10,6 +10,9 @@ from common.query_tokenizer import (
     chunk_query, default_instrument_kind, detect_group_signals, expand_query_normalizations,
     expand_query_synonyms, keyword_shape_group_filter,
 )
+from common.repotaxmannapi_query_builder import build_should_clauses
+from common.repotaxmannapi_scoring import build_function_score_functions
+from common.repotaxmannapi_tokenizer import tokenize
 from common.schemas import (
     CATEGORY_DISPLAY_LABELS, ES_GROUP_FOR_COLLECTION, GROUP_DISPLAY_LABELS, MASTERINFO_CITATION_FIELDS,
 )
@@ -100,7 +103,12 @@ def build_sparse_fallback_query_preview(
     a caller building this independently could silently drift from what the real search sends.
     Powers the AI Mode trace panel's "Show ES query" block for the ai_milvus_sparse step, same
     as build_query_preview powers Instant mode's."""
-    field_query = build_query_preview(query, boost=boost)["es_query"]
+    # boost_source pinned to "sum" explicitly (2026-09-02) - immune to raw_search/
+    # build_query_preview's own default changing underneath it. AI Mode's ES sparse-fallback
+    # is a rank-based-only fusion mechanism (CLAUDE.md hard rule 3) with its own scoring
+    # assumptions; it must never silently start using the repotaxmannapi multiply-mode
+    # formula just because that became Instant mode's own new default elsewhere.
+    field_query = build_query_preview(query, boost=boost, boost_source="sum")["es_query"]
     must: list[dict] = [{"terms": {"groups.group.name.keyword": groups}}]
     if doc_id_allowlist:
         must.append({"terms": {"id": doc_id_allowlist}})
@@ -296,7 +304,76 @@ _GROUP_SIGNAL_SHOULD_BOOSTS = {
     "CASELAWS": 5_000.0,
     "RULE": 1_000.0,
     "Experts Opinion": 1_000.0,
+    # ACT only ever arrives via keyword_shape_group_filter (detect_group_signals has no ACT
+    # entry - a bare "Section N" is a section-type chunk, which detect_group_signals always
+    # excludes, see its own docstring). Same 1000 tier as RULE: confirmed against the real
+    # .NET source (repotaxmannapi/TaxmannAPI/Elastic/SearchTextElastic.cs:751-766,
+    # GlobalSearchResearch.cs:613-621) that Section and Rule keyword-lookups share one code
+    # path with one boost, never a hard filter for either - see the correction below.
+    "ACT": 1_000.0,
 }
+
+# Real ES `groups.group.subgroup.id` -> the single "latest edition" year (`year.name.keyword`)
+# global search narrows that subgroup to, ported from repotaxmannapi/TaxmannAPI/Elastic/
+# SearchTextElastic.cs::GetGlobalSearchQuery (lines 638-786, called for every global search -
+# SearchTextElastic.cs:281,301 - not shape/boost-gated the way the should-clause boosts above
+# are). Real mechanism: `globalQuery &= (minusQuery || (CatIdsQuery && positiveFilters))` -
+# `minusQuery` (line 734) lets every document NOT in one of these subgroups through
+# unconditionally (case laws, commentary, most rules, etc.); a document that IS in one of
+# these subgroups only survives if it also matches that subgroup's own `X && XYearFilter`
+# pair (e.g. `IncomeTaxAct1961query = IncomeTaxAct1961YearFilter && IncomeTaxAct1961Filter`,
+# lines 682-683,726) - i.e. only the current year's edition of that act/subgroup passes,
+# every other yearly re-indexed edition is excluded from global search entirely. Without
+# this, a bare "SECTION 52" query returns 100% Income-tax-Act documents - live-verified
+# 2026-09-02: this repo's index carries ~40,500 separate Income-tax Act 1961 documents (one
+# per year 1997-2026) all sharing the exact heading "Section - 52", each hitting
+# _PHRASE_BOOSTS' 100000 heading-phrase tier identically - no should-clause boost/group
+# signal can out-rank that many exact-heading duplicates, so the fix has to be a hard filter,
+# matching production's own mechanism exactly, not a ranking change.
+#
+# Scoped narrowly to the 4 subgroups live-confirmed (2026-09-02) to actually have
+# multi-year duplicate editions in this repo's index, out of the ~15 real source references
+# `SearchTextElastic.cs:664-734` - the others were checked and found to either not apply here
+# (GST tariff's "latest edition" is a *runtime* dataset lookup, not a static subgroup+year
+# pair - unported, needs its own separate investigation; Forms key off a formtype id, not a
+# group id) or have zero live documents at all in this repo's index (Account Standard, AAA
+# Model Report, Comparative Group, OECD Model Commentary) or carry no year field at all on
+# any sampled doc (the 5 Rules groups, Companies Act 2013, CGST Act 2017 - consistent with
+# the real source pairing only these 4 with an actual `*YearFilter`, everything else in its
+# OR-list is should-boost only). Year values are the real source's current
+# ConfigurationManager.AppSettings values (Web.config), kept as plain literals here matching
+# every other repotaxmannapi-ported magic number in this file (_EDITION_BOOSTS_BY_INSTRUMENT_
+# KIND, repotaxmannapi_scoring.py's own latest_finance_act_year="2025" call site) rather than
+# introducing new Settings plumbing for values production itself only bumps a few times a
+# year via ops config, not code.
+_LATEST_EDITION_ONLY_YEARS = {
+    "111050000000010687": "2026",  # Income-tax Act, 1961 (LattestActYearID)
+    "111050000000020042": "2026",  # Income-tax Act, 2025 (LattestItAct2025ActPageYearID)
+    "111050000000010567": "2025",  # Finance Act, general (LattestFinanceActYearID)
+    "111050000000010622": "2017",  # Finance Act 1994 / service tax (LattestStlFinanceActYearID)
+}
+
+
+def _edition_exclusion_filter() -> dict:
+    """The hard `bool.filter` clause every global-search ES query gets, mirroring
+    GetGlobalSearchQuery's `minusQuery || (CatIdsQuery && *YearFilter)` structure exactly:
+    a document not in one of _LATEST_EDITION_ONLY_YEARS' subgroups passes unconditionally
+    (first should-clause); one that is must additionally match that subgroup's own current
+    year (remaining should-clauses) - see _LATEST_EDITION_ONLY_YEARS' comment for why only
+    these 4 subgroups are ported."""
+    should = [
+        {"bool": {"must_not": [{"terms": {"groups.group.subgroup.id": list(_LATEST_EDITION_ONLY_YEARS)}}]}},
+    ]
+    for subgroup_id, year in _LATEST_EDITION_ONLY_YEARS.items():
+        should.append({
+            "bool": {
+                "must": [
+                    {"term": {"groups.group.subgroup.id": subgroup_id}},
+                    {"term": {"year.name.keyword": year}},
+                ],
+            },
+        })
+    return {"bool": {"should": should, "minimum_should_match": 1}}
 
 
 def _build_field_query(query: str, shape: str, chunks: list[dict] = (), boost_enabled: bool = False) -> dict:
@@ -353,19 +430,41 @@ def _build_field_query(query: str, shape: str, chunks: list[dict] = (), boost_en
                 },
             },
         })
-    field_query = {"bool": {"should": should, "minimum_should_match": 1}}
-    # Bare-anchor-lookup queries ("Rule 6", "Section 54F") get a hard group filter, not just
-    # the soft should-clause boost above - see keyword_shape_group_filter's docstring for why
-    # this is scoped narrowly to shape=="KEYWORD" and doesn't reproduce detect_group_signals'
-    # section-chunk exclusion regression. Confirmed live (2026-09-01 investigation) this is
-    # the actual mechanism behind centax-node's own "correct" Rule-lookup results - not a
-    # ranking-formula difference, a hard `groups.group.id`-equivalent filter narrowing the
-    # candidate pool before scoring, ported here as `groups.group.name.keyword` to match the
-    # field this repo's other group-signal mechanisms already use.
+    # Bare-anchor-lookup queries ("Rule 6", "Section 54F") get the same group-signal
+    # should-clause boost as detect_group_signals above, not a hard filter - see
+    # keyword_shape_group_filter's docstring for why this is scoped narrowly to
+    # shape=="KEYWORD" and doesn't reproduce detect_group_signals' section-chunk exclusion
+    # regression.
+    #
+    # CORRECTED 2026-09-02 (was a hard `bool.filter` term clause, wrongly excluding every
+    # non-matching-group document from the result entirely - "SECTION 52" returned Acts
+    # only, never the case laws/commentary that cite it, contradicting the real product's
+    # own UI, which shows a mix). The prior comment here claimed this was "confirmed live
+    # (2026-09-01) as the actual mechanism behind centax-node's own 'correct' Rule-lookup
+    # results" - re-investigated directly against the real .NET source
+    # (repotaxmannapi/TaxmannAPI/Elastic/SearchTextElastic.cs:751-766,
+    # GlobalSearchResearch.cs:613-621) and that claim does not hold: `iGroupID`'s only two
+    # real destinations are a `match_phrase(boost=1000)` should-clause and a `function_score`
+    # weight function - never a `bool.filter`/`must` term. Section and Rule share the
+    # identical code path there (same variable, same reduced single-digit multiplier, no
+    # filter-vs-boost distinction between them). No hard `groups.group.name`/`.id` filter
+    # exists anywhere in the real source for this signal, for any group - confirmed by a
+    # full grep of every `groups.*` reference in GlobalSearchResearch.cs. (centax-node, a
+    # separate JS system not present in this checkout, may behave differently - if that
+    # claim was ever re-checked, it wasn't against this repo's actual reference source.)
     hard_group = keyword_shape_group_filter(shape, chunks)
     if hard_group is not None:
-        field_query["bool"]["filter"] = [{"term": {"groups.group.name.keyword": hard_group}}]
-    return field_query
+        should.append({
+            "term": {
+                "groups.group.name.keyword": {
+                    "value": hard_group, "boost": _GROUP_SIGNAL_SHOULD_BOOSTS[hard_group],
+                },
+            },
+        })
+    # Latest-edition-only hard filter (see _edition_exclusion_filter's own comment) - applies
+    # to every query, not gated by shape/boost, matching GetGlobalSearchQuery's own
+    # unconditional application to all global search.
+    return {"bool": {"should": should, "minimum_should_match": 1, "filter": [_edition_exclusion_filter()]}}
 
 
 def _wrap_function_score(field_query: dict) -> dict:
@@ -527,7 +626,18 @@ def _apply_boost(field_query: dict, chunks: list[dict]) -> dict:
     score, so a doc with no boost signal at all just gets +0, never a score-killing
     multiplier. Still gated behind `gt: 0` filters for the sparse/zero-valued fields
     (landmarkruling 2.1% populated, court_boost a real 0 on 45.8% of the corpus) so
-    "no signal" reads as +0, not a negative/degenerate field_value_factor output."""
+    "no signal" reads as +0, not a negative/degenerate field_value_factor output.
+
+    viewcount added 2026-09-01, ported from repotaxmannapi's real production source
+    (TaxmannAPI/Elastic/GlobalSearchResearch.cs) - factor/modifier (0.0000018, log2p)
+    copied as-is from there. Verified the field exists and is populated in this repo's
+    own index (e.g. a real doc: viewcount 335) before porting. Same gt:0 gate as
+    court_boost/landmarkruling: a doc with viewcount exactly 0 (common, not just
+    "missing") gets +0 here rather than relying on log2p(0)==0 implicitly - under
+    repotaxmannapi's boost_mode:multiply that same log2p(0)==0 zeroes the ENTIRE score
+    for a low-traffic doc regardless of text relevance (verified by formula, not by a
+    live query - no execution access to that system); this repo's sum-mode design can't
+    reproduce that failure by construction, which is the whole reason it exists."""
     functions = [
         {
             "filter": {"range": {"documenttypeboost": {"gt": 0}}},
@@ -540,6 +650,10 @@ def _apply_boost(field_query: dict, chunks: list[dict]) -> dict:
         {
             "filter": {"range": {"landmarkruling": {"gt": 0}}},
             "field_value_factor": {"field": "landmarkruling", "factor": 1.2, "modifier": "log2p"},
+        },
+        {
+            "filter": {"range": {"viewcount": {"gt": 0}}},
+            "field_value_factor": {"field": "viewcount", "factor": 0.0000018, "modifier": "log2p"},
         },
         *_recency_boost_functions(),
         *_group_name_boost_functions(chunks),
@@ -555,25 +669,76 @@ def _apply_boost(field_query: dict, chunks: list[dict]) -> dict:
     }
 
 
-def build_query_preview(query: str, boost: bool = False) -> dict:
+def _build_repotaxmannapi_field_query(query: str) -> dict:
+    """The ported legacy .NET multiply-mode function_score - shared by build_query_preview
+    (the "sum" vs "repotaxmannapi" branch) and raw_search_grouped (below), so the scored
+    `query` half of both a flat search and a bucketed one can never drift apart. See
+    raw_search's docstring for the group_id resolution this mirrors (first-classified-token-
+    wins, TaxmannQueryAnalizer.cs's SetPrimaryTag gate).
+
+    _edition_exclusion_filter (2026-09-02): the real source's edition-exclusion mechanism
+    (SearchTextElastic.cs::GetGlobalSearchQuery) applies to ALL global search regardless of
+    which per-token GetQuery branch built the should-clauses - it's not specific to the
+    "sum"-mode builder. Without this here, this builder floods on the exact same bug
+    _build_field_query had before the fix: a bare "SECTION 52" surfaced ~40,500 separate
+    Income-tax Act 1961 yearly editions (live-verified 2026-09-02, re-checked against this
+    builder specifically after the boost_source default flip made it reachable through the
+    UI for the first time)."""
+    tokens = tokenize(query)
+    should = build_should_clauses(tokens, is_global=True, is_excus=False)
+    group_id = next((t.group_id for t in tokens if t.group_id != "0"), "0")
+    return {
+        "function_score": {
+            "query": {
+                "bool": {
+                    "should": should, "minimum_should_match": 1,
+                    "filter": [_edition_exclusion_filter()],
+                },
+            },
+            "functions": build_function_score_functions(group_id, latest_finance_act_year="2025"),
+            "score_mode": "multiply",
+            "boost_mode": "multiply",
+        },
+    }
+
+
+def build_query_preview(query: str, boost: bool = True, boost_source: str = "repotaxmannapi") -> dict:
     """The exact shape/chunk/ES-query breakdown raw_search uses for this query, without
     executing a search - single source of truth shared with raw_search (below) so the two
-    can never drift apart (this is also why `boost` is a parameter here rather than raw_search
-    wrapping the query itself after calling this - a caller that omitted `boost` here would
-    silently show an unboosted preview for a boosted search). Powers the `/v1/query-analysis`
-    endpoint (retrieval_api/query_analysis.py) and the Instant mode trace panel's "Show ES
-    query" block - our equivalent of centax-node's own `/research-premium/api/v1/getLowLevelQuery`,
-    for comparing query breakdowns side by side.
+    can never drift apart (this is also why `boost`/`boost_source` are parameters here rather
+    than raw_search wrapping the query itself after calling this - a caller that omitted them
+    here would silently show a preview that doesn't match the search actually run). Powers the
+    `/v1/query-analysis` endpoint (retrieval_api/query_analysis.py) and the Instant mode trace
+    panel's "Show ES query" block - our equivalent of centax-node's own
+    `/research-premium/api/v1/getLowLevelQuery`, for comparing query breakdowns side by side.
 
-    boost=False (default): `es_query` is the unwrapped, plain BM25/phrase-boost query.
-    boost=True: `es_query` is wrapped via _apply_boost() - see that function's docstring for
-    why (additive/sum-mode, not the disabled multiply-mode _wrap_function_score)."""
+    `chunks`/`shape`/`expanded_query` always reflect this repo's own chunk_query() breakdown,
+    regardless of boost_source - repotaxmannapi's own tokenizer runs a structurally different
+    per-token classification (RepotaxmannapiToken, not QueryChunk) that has no equivalent
+    display shape here; only `es_query` (the field actually rendered as "Show ES query") changes
+    with boost_source, since that's the one raw_search itself sends to ES.
+
+    boost=True, boost_source="repotaxmannapi" (default, 2026-09-02 - explicit, deliberate
+    user override of this repo's own earlier eval-driven recommendation; CLAUDE.md and
+    SESSION_CONTEXT.md both reserved this exact "promote repotaxmannapi to the real
+    default" decision for the user to make, and this is that decision made): `es_query` is
+    the ported legacy .NET multiply-mode formula, byte-exact - see raw_search's docstring
+    for the group_id resolution this mirrors. The user's own words: "keep everything same
+    [as repotaxmannapi]... just copy paste boostings, logics to query everything" - no
+    blended/tuned formula, the real production query construction as the one true default.
+    boost=True, boost_source="sum": `es_query` is wrapped via _apply_boost() instead - this
+    repo's own additive formula, still available, just no longer the default.
+    boost=False: `es_query` is the unwrapped, plain BM25/phrase-boost query - still
+    available for any caller that explicitly wants it (e.g. a future A/B comparison)."""
     shape = effective_label(query)
     expanded_query = expand_query_normalizations(expand_query_synonyms(query))
     chunks = chunk_query(query)
-    field_query = _build_field_query(expanded_query, shape, chunks=chunks, boost_enabled=boost)
-    if boost:
-        field_query = _apply_boost(field_query, chunks)
+    if boost and boost_source == "repotaxmannapi":
+        field_query = _build_repotaxmannapi_field_query(query)
+    else:
+        field_query = _build_field_query(expanded_query, shape, chunks=chunks, boost_enabled=boost)
+        if boost:
+            field_query = _apply_boost(field_query, chunks)
     return {
         "query": query,
         "shape": shape,
@@ -591,8 +756,13 @@ def build_keyword_search_query_preview(
     function, no `groups.group.name` filter: AI Mode's keyword-tagged path (see
     query_tokenizer.classify_intent_mode) is a precise anchor lookup (section/citation/
     court/Act name) that can legitimately live in any content group, not just the 5
-    Milvus-sparse-gap collections sparse_fallback_search targets."""
-    field_query = build_query_preview(query, boost=boost)["es_query"]
+    Milvus-sparse-gap collections sparse_fallback_search targets.
+
+    boost_source pinned to "sum" explicitly (2026-09-02), same reason as
+    build_sparse_fallback_query_preview - immune to build_query_preview's own default
+    changing underneath it; AI Mode's keyword-anchor lookup must stay on this repo's
+    additive formula regardless of what Instant mode's raw_search defaults to."""
+    field_query = build_query_preview(query, boost=boost, boost_source="sum")["es_query"]
     must: list[dict] = []
     if doc_id_allowlist:
         must.append({"terms": {"id": doc_id_allowlist}})
@@ -629,8 +799,47 @@ async def keyword_mode_search(
     return results
 
 
-async def raw_search(client, query: str, limit: int = 20, boost: bool = False) -> list[dict]:
-    field_query = build_query_preview(query, boost=boost)["es_query"]
+async def raw_search(
+    client, query: str, limit: int = 20, boost: bool = True, boost_source: str = "repotaxmannapi",
+    page: int = 1, page_size: int | None = None,
+) -> list[dict]:
+    """boost_source selects which boost formula `boost=True` applies:
+    - "repotaxmannapi" (default, 2026-09-02 - explicit user override, see
+      build_query_preview's docstring for the exact instruction): repotaxmannapi's own
+      multiply-mode function_score (build_function_score_functions), wrapping should-clauses
+      built from the repotaxmannapi tokenizer/query-builder pair instead of this repo's own
+      chunk_query/_build_field_query - the byte-exact ported .NET formula, not this repo's
+      own tuned approximation. group_id is resolved from the tokenized query - the
+      first token (in tokenize() order) whose group_id != "0", mirroring the real source's
+      "first classification wins" behavior: TaxmannQueryAnalizer.cs's SetPrimaryTag
+      (288-317) is gated by `if (iTagNo == "0")` (line 294) and is the only setter called
+      per-token in the token-parsing loop (~1599-1909), so only the first token that
+      classifies to a non-"0" tag/group ever sets it - every later call in the same query is
+      a no-op. (ReSetPrimaryTag, unconditional, is only ever called once for the special
+      "EXPERTSOPINION" case at line 1980 - not part of general per-token iteration.)
+      GlobalSearchResearch.cs:595-596 (duplicated at 988-989, and in
+      GlobalSearchResearchMobileApp.cs:64-65) then takes that single query-level iGroupID
+      verbatim: `if (stext.iGroupID != "0") groupid = stext.iGroupID;`. "0" (no group
+      signal) if no token has one.
+    - "sum": this repo's own additive function_score (_apply_boost, via build_query_preview)
+      - still available for any caller that explicitly passes it, just no longer the
+      default. AI Mode's ES sparse-fallback (sparse_fallback_search/
+      build_sparse_fallback_query_preview) pins this explicitly, unaffected by this default
+      change - see its own comment.
+    Neither has any effect when boost=False (there is nothing to select a formula for).
+
+    page/page_size (added 2026-09-02, hidden-by-default pagination for the Instant-mode
+    UI): page_size=None (every existing caller) reproduces prior behavior exactly -
+    `size=limit`, no `from_` sent at all. Passing page_size switches to real ES paging -
+    `from_=(page-1)*page_size`, `size=page_size` - and `limit` is ignored in that case."""
+    # Real C# semantics (SetPrimaryTag's `iTagNo == "0"` gate) actually lock in the FIRST
+    # *classified* token's group_id even if that token's own id were "0" - never falling
+    # through to a later token's non-"0" id. build_query_preview's `next(...)` instead skips
+    # "0" tokens looking for the first non-"0" one, which diverges from that edge case - but
+    # it's unreachable with real data: verified zero entries in
+    # repotaxmannapi_token_dictionary.json have tag_no != "0" (i.e. "classified") with
+    # group_id == "0", so a classified token's group_id is never "0" in practice.
+    field_query = build_query_preview(query, boost=boost, boost_source=boost_source)["es_query"]
     # No landmarkruling:-10 exclusion here either, deliberately - a previous version of this
     # function had one (`_exclude_blacklisted`, since removed), reasoning it preserved a
     # content filter that used to ride along inside centax-node's function_score must_not. That
@@ -644,7 +853,12 @@ async def raw_search(client, query: str, limit: int = 20, boost: bool = False) -
     # ~173 docs from every search entirely, a real regression with no source-of-truth backing it.
     # And now that boosting is off altogether, the original motivation (skip the boost for these
     # docs) is moot too: there's no boost being computed for anyone to skip.
-    response = await client.search(index=client.index, query=field_query, size=limit)
+    if page_size is not None:
+        response = await client.search(
+            index=client.index, query=field_query, size=page_size, from_=(page - 1) * page_size,
+        )
+    else:
+        response = await client.search(index=client.index, query=field_query, size=limit)
     results = []
     for hit in response["hits"]["hits"]:
         source = hit["_source"]
@@ -655,6 +869,79 @@ async def raw_search(client, query: str, limit: int = 20, boost: bool = False) -
             "subheading": source.get("subheading", ""),
         })
     return results
+
+
+# Live-verified via a direct terms aggregation against the real index (2026-09-02): the
+# only groups.group.name values that exist are ACT/RULE/CASELAWS/COMMENTARY/"Experts
+# Opinion"/Tariff - no "Comparative" or "Article" group is indexed in this repo at all,
+# unlike the reference product's UI. Fixed priority order for raw_search_grouped's
+# sections: statutory text first, then case law, then secondary sources. A group name not
+# in this list (a future new content type) still appears, appended after these six rather
+# than silently dropped - see raw_search_grouped.
+_GROUPED_SECTION_PRIORITY = ["ACT", "RULE", "CASELAWS", "COMMENTARY", "Experts Opinion", "Tariff"]
+
+
+async def raw_search_grouped(client, query: str, limit_per_group: int = 5) -> dict[str, list[dict]]:
+    """Instant mode's repotaxmannapi-mode sectioned result view - buckets hits by
+    groups.group.name.keyword (the real content-type field) via an ES terms+top_hits
+    aggregation, one independent full-corpus scan per bucket - NOT a regroup of the flat
+    top-N hits raw_search returns. That regroup-only approach was tried and reverted: for
+    a bare "SECTION 52" query the flat top-20 window is entirely Act documents (score
+    dominance under multiply-mode, verified byte-identical to a real captured production
+    response), so regrouping only that window left every other section (Rules, Caselaws,
+    Commentary, Articles) empty even though those content types have real matches deeper
+    in the corpus - "only Income Tax Acts showing" was the visible symptom. This
+    aggregation scans independently per content type instead, so a section's docs aren't
+    bounded by whatever the flat list's top-20 window happened to contain.
+
+    Always uses the repotaxmannapi (multiply-mode) query - grouping has no sum-mode
+    equivalent, this is exclusively part of the repotaxmannapi replica path, unlike
+    raw_search's boost_source switch.
+
+    `size: 0` on the main query - no flat hits list is fetched here at all, only the
+    aggregation's buckets, each independently scanning the full filtered match set via its
+    own `top_hits` sub-aggregation.
+
+    Returns an ordered dict (see _GROUPED_SECTION_PRIORITY) with only the groups that
+    actually matched - a group with zero hits for this query is omitted entirely, not
+    returned as an empty list."""
+    field_query = _build_repotaxmannapi_field_query(query)
+    response = await client.search(
+        index=client.index,
+        query=field_query,
+        size=0,
+        aggs={
+            "by_group": {
+                "terms": {"field": "groups.group.name.keyword", "size": 20},
+                "aggs": {
+                    "top": {
+                        "top_hits": {
+                            "size": limit_per_group,
+                            "sort": [{"_score": {"order": "desc"}}],
+                            "_source": ["id", "heading", "subheading"],
+                        },
+                    },
+                },
+            },
+        },
+    )
+    buckets: dict[str, list[dict]] = {}
+    for bucket in response["aggregations"]["by_group"]["buckets"]:
+        buckets[bucket["key"]] = [
+            {
+                "doc_id": hit["_source"]["id"],
+                "score": hit["_score"],
+                "heading": hit["_source"].get("heading", ""),
+                "subheading": hit["_source"].get("subheading", ""),
+            }
+            for hit in bucket["top"]["hits"]["hits"]
+        ]
+    ordered: dict[str, list[dict]] = {}
+    for group_name in _GROUPED_SECTION_PRIORITY:
+        if group_name in buckets:
+            ordered[group_name] = buckets.pop(group_name)
+    ordered.update(buckets)
+    return ordered
 
 
 # court/bench/section/act filters used to target masterinfo.info.{court,act,section,bench}
@@ -808,25 +1095,71 @@ async def fetch_citations(client, doc_ids: list[str]) -> dict[str, dict]:
     }
 
 
+_BARE_ACT_CATEGORY_URL = "bare-act"
+
+
 async def fetch_doc_categories(client, doc_ids: list[str]) -> dict[str, dict]:
-    """Instant mode's "category | group" result-card badge. Batched sibling of
-    fetch_citations - one mget for every doc_id across ES, Milvus dense/sparse, and
-    reranked cards, so the badge is consistent regardless of which engine surfaced a
-    given doc (Milvus itself carries neither field). `categories` is a populated-on-
-    every-doc but multi-valued list (verified live: a doc can carry 4+ subject-area
-    tags at once, e.g. "Direct Tax Laws"+"International Tax"+"Transfer Pricing"+
-    "Bare Act" together) with no reliable primary flag - `isprimarycat` is only set on
-    ~20% of the corpus (81k/410k docs, confirmed via a live count). Picks the
-    isprimarycat=1 entry when present, else the first entry - the same fallback the
-    reference product's own category-resolution code uses. Raw category/group values
-    are then run through CATEGORY_DISPLAY_LABELS/GROUP_DISPLAY_LABELS (ported from the
-    data team's catList/groupList tables); a value with no entry there is passed
-    through unchanged rather than guessed at."""
+    """Instant mode's per-card metadata fetch: "category | group" badge, plus (this
+    session, 2026-09-02) every other real, populated ES field confirmed usable on the
+    result card - judge/party/citation/associates are CASELAWS-oriented and simply
+    absent for other content types (same *ngIf-style fallback the reference product's
+    own card uses); date/viewcount/boost-debug-numbers apply to every content type.
+    Batched sibling of fetch_citations - one mget for every doc_id across ES, Milvus
+    dense/sparse, and reranked cards, so metadata is consistent regardless of which
+    engine surfaced a given doc (Milvus itself carries none of these fields).
+    `categories` is a populated-on-every-doc but multi-valued list (verified live: a doc
+    can carry 4+ subject-area tags at once) with no reliable primary flag -
+    `isprimarycat` is only set on ~20% of the corpus (81k/410k docs). Picks the
+    isprimarycat=1 entry when present, else the first entry.
+
+    Bare-act override, ported from the real .NET source
+    (repotaxmannapi/TaxmannAPI/Controllers/ResearchElastic/GlobalSearchIndexController.cs:
+    309-334): if the picked entry's `url` is the generic "bare-act" bucket and the doc
+    carries more than one category, the real system discards that pick and uses
+    `categories[1]` (the next, more specific subject-area tag) instead - live-verified
+    2026-09-02 this is a common pattern (196/200 sampled bare-act-tagged docs have
+    isprimarycat unset and a more specific category, e.g. "Company Law"/"Account & Audit",
+    sitting right after "Bare Act" in the array) that the old first-entry-only fallback
+    was silently mislabeling as "Indian Acts & Rules" instead of the real, more specific
+    subject. A doc whose ONLY category is Bare Act still correctly resolves to
+    "Indian Acts & Rules" via CATEGORY_DISPLAY_LABELS - the override only fires when a
+    better answer actually exists at index 1.
+
+    Raw category/group values are run through CATEGORY_DISPLAY_LABELS/GROUP_DISPLAY_LABELS;
+    a value with no entry there is passed through unchanged rather than guessed at.
+
+    `act_name` (this session): the specific Act/Rule instrument a document belongs to (e.g.
+    "Companies Act, 2013", "Central Goods and Services Tax Act, 2017") - distinct from the
+    category/group badge and from `associates.act`/`referenced_act` (those are
+    cross-references to OTHER acts this section relates to, never the doc's own act). The
+    real .NET source's field for this (`masterinfo.info.act[].name`, `GlobalSearchIndex
+    Controller.cs:247-251`) is confirmed dead (0% populated) on this index - a live audit
+    2026-09-02 found `groups.group.subgroup.name` 100% populated (83,309/83,309) on every
+    ACT-group document instead, and it already carries genuine per-instrument names (e.g.
+    "Finance Acts, 2025", "Companies Act, 2013") - used here as the substitute source field,
+    not what the real source itself binds to, but the only live-populated equivalent.
+    ACT/RULE-only (`groups.group.subgroup.name` is this port's own established "which
+    edition/instrument" field elsewhere, e.g. _EDITION_BOOSTS_BY_INSTRUMENT_KIND) - absent
+    for CASELAWS/COMMENTARY/other groups, same absent-safe fallback as every other field
+    here.
+
+    Confirmed dead fields (0% populated, live-audited 2026-09-02) are deliberately never
+    fetched here: masterinfo.info.{court,bench,act,section}.name, masterinfo.citations.*,
+    searchcitation/searchiltcitation formattedcitation, url, displaydocumentdatestring,
+    tariffinfo.* (Tariff-group cards get no type-specific fields at all - a real,
+    disclosed gap), searchboosttext, boostpopularity, incometaxactinfo/companyactinfo/
+    incometaxruleinfo."""
     if not doc_ids:
         return {}
     response = await client.mget(
         index=client.index, ids=doc_ids,
-        _source=["categories.name", "categories.isprimarycat", "groups.group.name"],
+        _source=[
+            "categories.name", "categories.isprimarycat", "categories.url",
+            "groups.group.name", "groups.group.subgroup.name",
+            "otherinfo.judge.name", "otherinfo.partyname.name", "otherinfo.fullcitation.name",
+            "formatteddocumentdate", "viewcount", "documenttypeboost", "court_boost",
+            "associates.act.name", "associates.section.name", "associates.casereferred.name",
+        ],
     )
     results: dict[str, dict] = {}
     for doc in response["docs"]:
@@ -835,9 +1168,49 @@ async def fetch_doc_categories(client, doc_ids: list[str]) -> dict[str, dict]:
         source = doc["_source"]
         categories = source.get("categories") or []
         primary = next((c for c in categories if c.get("isprimarycat") == 1), None)
-        category_name = (primary or categories[0])["name"] if categories else None
+        picked = primary or (categories[0] if categories else None)
+        if picked and picked.get("url") == _BARE_ACT_CATEGORY_URL and len(categories) > 1:
+            picked = categories[1]
+        category_name = picked["name"] if picked else None
         category = CATEGORY_DISPLAY_LABELS.get(category_name, category_name)
         group_name = source.get("groups", {}).get("group", {}).get("name")
         group = GROUP_DISPLAY_LABELS.get(group_name, group_name)
-        results[doc["_id"]] = {"category": category, "group": group}
+        entry: dict = {"category": category, "group": group}
+
+        act_name = source.get("groups", {}).get("group", {}).get("subgroup", {}).get("name")
+        if act_name:
+            entry["act_name"] = act_name
+
+        otherinfo = source.get("otherinfo") or {}
+        judges = [j["name"] for j in otherinfo.get("judge") or [] if j.get("name")]
+        if judges:
+            entry["judge"] = judges
+        parties = [p["name"] for p in otherinfo.get("partyname") or [] if p.get("name")]
+        if parties:
+            entry["party"] = parties
+        citations = [c["name"] for c in otherinfo.get("fullcitation") or [] if c.get("name")]
+        if citations:
+            entry["fullcitation"] = citations[0]
+
+        if source.get("formatteddocumentdate") is not None:
+            entry["date"] = source["formatteddocumentdate"]
+        if source.get("viewcount") is not None:
+            entry["viewcount"] = source["viewcount"]
+        if source.get("documenttypeboost") is not None:
+            entry["documenttypeboost"] = source["documenttypeboost"]
+        if source.get("court_boost") is not None:
+            entry["court_boost"] = source["court_boost"]
+
+        associates = source.get("associates") or {}
+        acts = [a["name"] for a in associates.get("act") or [] if a.get("name")]
+        if acts:
+            entry["referenced_act"] = acts
+        sections = [s["name"] for s in associates.get("section") or [] if s.get("name")]
+        if sections:
+            entry["referenced_section"] = sections
+        cases = [c["name"] for c in associates.get("casereferred") or [] if c.get("name")]
+        if cases:
+            entry["cases_referred"] = cases
+
+        results[doc["_id"]] = entry
     return results

@@ -4,7 +4,9 @@ import { mergeResults, mapRerankedResults, type CardSource, type MilvusByCollect
 import { parseCitations } from '../lib/citations'
 import { groupIntoParagraphs, renderInlineText } from '../lib/richText'
 import { highlightMatches } from '../lib/highlight'
+import { CardMetaLines } from '../lib/cardMeta'
 import TracePanel from './TracePanel'
+import GroupedResultsPanel from './GroupedResultsPanel'
 
 const SOURCE_FILTERS: { source: CardSource; label: string }[] = [
   { source: 'es', label: 'ES' },
@@ -17,6 +19,13 @@ type Props = {
   devMode: boolean
   showReasoning?: boolean
   onOpenDocument: (docId: string) => void
+  paginationEnabled?: boolean
+  onFetchPage?: (page: number) => void
+  // Controlled server page number (App.tsx's `instantPage`) - the single source of truth
+  // for "which server page are we on" when paginationEnabled is true. Ignored entirely
+  // when paginationEnabled is false/omitted (InstantPane's own internal `page` slice index
+  // is used instead, exactly as before this prop existed).
+  currentPage?: number
 }
 
 // No inner height cap and no overflow-y-auto here on purpose - a fixed-height
@@ -88,8 +97,8 @@ function CopyTraceButton({ traceSteps, disabled }: { traceSteps: ResultState['tr
 // message type). Split by step name so each pane's Trace section only shows its
 // own steps, not the other mode's mixed in.
 const INSTANT_STEP_NAMES = new Set([
-  'query_correction', 'query_analysis', 'classifier', 'es_search', 'milvus_dense', 'milvus_sparse', 'rrf_merge',
-  'instant_reranked',
+  'query_correction', 'query_analysis', 'classifier', 'es_search', 'es_grouped', 'milvus_dense', 'milvus_sparse',
+  'rrf_merge', 'instant_reranked',
 ])
 
 function TraceSection({
@@ -120,9 +129,17 @@ function TraceSection({
 // Milvus collections x2 retrievers - that can be 50+ cards. Paginating instead of
 // dumping them all into one ever-growing column keeps the pane a fixed, predictable
 // size instead of turning the whole page into a multi-thousand-pixel scroll.
-const PAGE_SIZE = 10
+// 20, not 10 (2026-09-02): ES's own limit is exactly 20 (_ES_LIMIT, search.py) - at 20 per
+// page, a plain ES-only result set always fits on page 1 with no Prev/Next needed; RRF/
+// Milvus-merged lists that exceed 20 still paginate normally.
+const PAGE_SIZE = 20
 
-function InstantPane({ result, devMode, onOpenDocument, query }: { result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void; query: string }) {
+function InstantPane({
+  result, devMode, onOpenDocument, query, paginationEnabled = false, onFetchPage, currentPage,
+}: {
+  result: ResultState | undefined; devMode: boolean; onOpenDocument: (docId: string) => void; query: string
+  paginationEnabled?: boolean; onFetchPage?: (page: number) => void; currentPage?: number
+}) {
   const status = result?.status ?? 'loading'
   const instant = result?.instant
   const isReranked = Boolean(instant?.reranked)
@@ -178,9 +195,29 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
     }
   }, [lookupId, instant, isReranked])
   const cards = devMode && !isReranked ? allCards.filter((card) => activeSources.has(card.source)) : allCards
+  // 2026-09-02: real production (taxmann.com/research) never renders a sectioned view for
+  // global search - confirmed live, it's one flat relevance-ranked list with a small
+  // per-row "Category | Group" badge on each card, same shape our own flat `cards` list
+  // already has. The sectioned/grouped-by-content-type layout below was an earlier design
+  // that doesn't match the real product's actual UI - always false now, so the flat list
+  // renders unconditionally, matching production's real layout. grouped_es itself is left
+  // wired end-to-end (backend still computes it, trace panel still shows the es_grouped
+  // step) in case it's wanted again later; only this pane's rendering choice changed.
+  const showGrouped = false
   const pageCount = Math.max(1, Math.ceil(cards.length / PAGE_SIZE))
   const clampedPage = Math.min(page, pageCount - 1)
-  const pageCards = cards.slice(clampedPage * PAGE_SIZE, clampedPage * PAGE_SIZE + PAGE_SIZE)
+  // paginationEnabled: the server already returns exactly one page's worth of results
+  // (pageSize=20, see App.tsx's fetchInstantPage) - render them directly instead of
+  // re-slicing by the local PAGE_SIZE=10 on top, which would silently drop half of every
+  // fetched page. paginationEnabled=false (default): unchanged local slice over the flat fetch.
+  const pageCards = paginationEnabled
+    ? cards
+    : cards.slice(clampedPage * PAGE_SIZE, clampedPage * PAGE_SIZE + PAGE_SIZE)
+  // Controlled server page (App.tsx's `instantPage`, threaded down as `currentPage`) - the
+  // single source of truth for Prev/Next when paginationEnabled is true, not the local
+  // `page` slice index (which App.tsx resets to 0 on every new result, oscillating page
+  // computations back to server page 2 forever - see C1 in the 2026-09-02 review fix).
+  const serverPage = Math.max(1, currentPage ?? 1)
 
   function toggleSource(source: CardSource) {
     setActiveSources((prev) => {
@@ -201,7 +238,7 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
         </span>
       </div>
 
-      {devMode && instant && !isReranked && (
+      {devMode && instant && !isReranked && !showGrouped && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {SOURCE_FILTERS.map(({ source, label }) => {
             const active = activeSources.has(source)
@@ -223,7 +260,7 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
         </div>
       )}
 
-      {devMode && instant && (
+      {devMode && instant && !showGrouped && (
         <div className="mb-3">
           <input
             type="text"
@@ -259,10 +296,19 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
           Instant matches aren't saved for past conversations.
         </p>
       )}
-      {instant && cards.length === 0 && (
+      {instant && showGrouped && (
+        <GroupedResultsPanel
+          groupedEs={instant.grouped_es!}
+          docMeta={instant.doc_meta}
+          query={query}
+          devMode={devMode}
+          onOpenDocument={onOpenDocument}
+        />
+      )}
+      {instant && !showGrouped && cards.length === 0 && (
         <p className="text-sm" style={{ color: 'var(--text-faint)' }}>No matches.</p>
       )}
-      {cards.length > 0 && (
+      {!showGrouped && cards.length > 0 && (
         <div className="flex flex-col gap-2">
           {pageCards.map((card, index) => {
             const meta = instant?.doc_meta?.[card.doc_id]
@@ -289,6 +335,12 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
                   </span>
                 )}
               </div>
+              {meta?.act_name && (
+                <p className="text-xs mt-1 truncate" style={{ color: 'var(--text-muted)' }}>{meta.act_name}</p>
+              )}
+              <span className="text-xs font-mono mt-1 block truncate" style={{ color: 'var(--text-faint)' }}>
+                {card.doc_id}
+              </span>
               {devMode && (
                 <div className="flex items-center gap-2 mt-1 text-xs" style={{ color: 'var(--text-faint)' }}>
                   <span className="uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-raised)' }}>
@@ -298,9 +350,15 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
                         ? 'Reranked'
                         : `Milvus ${card.source === 'milvus_dense' ? 'dense' : 'sparse'}:${card.collection}`}
                   </span>
-                  <span className="font-mono truncate">{card.doc_id}</span>
+                  {devMode && meta?.documenttypeboost !== undefined && (
+                    <span className="font-mono">dtb:{meta.documenttypeboost}</span>
+                  )}
+                  {devMode && meta?.court_boost !== undefined && (
+                    <span className="font-mono">cb:{meta.court_boost}</span>
+                  )}
                 </div>
               )}
+              {devMode && <CardMetaLines meta={meta} />}
               <p className="text-sm mt-2 line-clamp-3" style={{ color: 'var(--text-muted)' }}>{highlightMatches(card.snippet, query)}</p>
             </button>
             )
@@ -308,22 +366,36 @@ function InstantPane({ result, devMode, onOpenDocument, query }: { result: Resul
         </div>
       )}
 
-      {cards.length > PAGE_SIZE && (
+      {!showGrouped && cards.length > PAGE_SIZE && (
         <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
           <button
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={clampedPage === 0}
+            onClick={() => {
+              if (paginationEnabled) {
+                onFetchPage?.(Math.max(1, serverPage - 1))
+                return
+              }
+              setPage(Math.max(0, page - 1))
+            }}
+            disabled={paginationEnabled ? serverPage <= 1 : clampedPage === 0}
             className="text-xs px-3 py-1.5 rounded-full font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
             style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border-soft)' }}
           >
             Prev
           </button>
           <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
-            Page {clampedPage + 1} of {pageCount} · {cards.length} matches
+            {paginationEnabled
+              ? `Page ${serverPage} · ${cards.length} matches`
+              : `Page ${clampedPage + 1} of ${pageCount} · ${cards.length} matches`}
           </span>
           <button
-            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-            disabled={clampedPage >= pageCount - 1}
+            onClick={() => {
+              if (paginationEnabled) {
+                onFetchPage?.(serverPage + 1)
+                return
+              }
+              setPage(Math.min(pageCount - 1, page + 1))
+            }}
+            disabled={paginationEnabled ? false : clampedPage >= pageCount - 1}
             className="text-xs px-3 py-1.5 rounded-full font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
             style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border-soft)' }}
           >
@@ -503,7 +575,7 @@ function AnswerPane({
   )
 }
 
-export function ChatMessageView({ message, devMode, showReasoning, onOpenDocument }: Props) {
+export function ChatMessageView({ message, devMode, showReasoning, onOpenDocument, paginationEnabled, onFetchPage, currentPage }: Props) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -519,7 +591,10 @@ export function ChatMessageView({ message, devMode, showReasoning, onOpenDocumen
   return (
     <div className="flex justify-start w-full">
       <div className="w-full flex gap-4 min-w-0">
-        <InstantPane result={result} devMode={devMode} onOpenDocument={onOpenDocument} query={message.question} />
+        <InstantPane
+          result={result} devMode={devMode} onOpenDocument={onOpenDocument} query={message.question}
+          paginationEnabled={paginationEnabled} onFetchPage={onFetchPage} currentPage={currentPage}
+        />
         <AnswerPane result={result} devMode={devMode} showReasoning={showReasoning} onOpenDocument={onOpenDocument} />
       </div>
     </div>

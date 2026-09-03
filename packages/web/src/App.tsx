@@ -33,6 +33,12 @@ function readDevModeFromUrl(): boolean {
   return new URLSearchParams(window.location.search).get('dev') !== '0'
 }
 
+// Hidden-by-default real pagination (2026-09-02) - off unless explicitly built with this
+// flag set; when off, InstantPane's existing client-side 10-per-page slice over a flat
+// 20-result fetch is completely unchanged. No UI checkbox for this, deliberately -
+// purely a build-time flag.
+const PAGINATION_ENABLED = import.meta.env.VITE_ENABLE_PAGINATION === 'true'
+
 export default function App() {
   const wsUrl = resolveWsUrl()
   const apiBaseUrl = resolveApiBaseUrl(wsUrl)
@@ -42,10 +48,19 @@ export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const remoteConversations = useConversations(apiBaseUrl, auth.token)
+  // Narrow-screen auto-collapse is pure CSS now (Sidebar.tsx's `max-md:` classes) - this
+  // state only ever tracks the user's manual toggle, so its default is always expanded.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
   const [rrf, setRrf] = useState(true)
   const [boost, setBoost] = useState(true)
+  // Dev-only: which ES boost formula `boost` applies (common/es_client.py::raw_search
+  // boost_source). "repotaxmannapi" is the ported legacy .NET multiply-mode formula -
+  // measured 8/71 vs sum-mode's 50/71 on evals/retrieval_cases.json. Defaults on here per
+  // explicit request (this UI toggle only - raw_search's own default stays "sum",
+  // CLAUDE.md hard rule 5), hidden outside dev mode; this toggle exists for comparing the
+  // two, not as a mode end users should pick.
+  const [boostSource, setBoostSource] = useState<'sum' | 'repotaxmannapi'>('repotaxmannapi')
   const [autoRoute, setAutoRoute] = useState(true)
   const [showReasoning, setShowReasoning] = useState(true)
   const [openDocId, setOpenDocId] = useState<string | null>(null)
@@ -62,7 +77,11 @@ export default function App() {
     setOpenDocId(docId)
   }
 
-  const pendingClassicRef = useRef<{ conversationId: string; assistantId: string } | null>(null)
+  // `kind` distinguishes a full ('both'-mode) turn from an instant-only paged re-fetch, so
+  // the reflect-effect below knows whether to overwrite the whole ResultState (full turn)
+  // or patch only `instant` into whatever's already there (paged re-fetch - must not clobber
+  // an already-rendered aiMode/status, see C2 in the 2026-09-02 review fix).
+  const pendingClassicRef = useRef<{ conversationId: string; assistantId: string; kind: 'full' | 'instant_page' } | null>(null)
 
   const activeConversation = conversations.find((c) => c.id === activeId) ?? null
   const messages = activeConversation?.messages ?? []
@@ -119,6 +138,17 @@ export default function App() {
   useEffect(() => {
     const pending = pendingClassicRef.current
     if (!pending) return
+    if (pending.kind === 'instant_page') {
+      // A paged re-fetch only ever runs mode:'instant' - classicSearch.aiMode/loading here
+      // reflect that instant-only request, not the (already-finished) AI Mode answer this
+      // message may already be showing. Patch only `instant` into whatever ResultState the
+      // message already has, so an existing aiMode/'done' status is never overwritten.
+      patchResult(pending.conversationId, pending.assistantId, 'classic', (prev) => ({
+        ...prev,
+        instant: classicSearch.instant,
+      }))
+      return
+    }
     patchResult(pending.conversationId, pending.assistantId, 'classic', () => ({
       status: classicSearch.loading ? 'loading' : classicSearch.aiMode ? 'done' : 'loading',
       instant: classicSearch.instant,
@@ -131,9 +161,24 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classicSearch.instant, classicSearch.aiMode, classicSearch.traceSteps, classicSearch.loading])
 
+  const [instantPage, setInstantPage] = useState(1)
+
+  function fetchInstantPage(conversationId: string, assistantId: string, question: string, page: number) {
+    if (!PAGINATION_ENABLED) return
+    setInstantPage(page)
+    pendingClassicRef.current = { conversationId, assistantId, kind: 'instant_page' }
+    classicSearch.search(
+      question, true, 'instant', rrf, autoRoute, auth.token ? conversationId : undefined, boost, boostSource,
+      page, 20,
+    )
+  }
+
   function runQuery(conversationId: string, assistantId: string, question: string) {
-    pendingClassicRef.current = { conversationId, assistantId }
-    classicSearch.search(question, true, 'both', rrf, autoRoute, auth.token ? conversationId : undefined, boost)
+    pendingClassicRef.current = { conversationId, assistantId, kind: 'full' }
+    setInstantPage(1)
+    classicSearch.search(
+      question, true, 'both', rrf, autoRoute, auth.token ? conversationId : undefined, boost, boostSource,
+    )
   }
 
   function handleNewChat() {
@@ -231,6 +276,13 @@ export default function App() {
             <div className="ml-auto flex items-center gap-3">
               <RerankToggle label="RRF" checked={rrf} onToggle={setRrf} />
               <RerankToggle label="Boost" checked={boost} onToggle={setBoost} />
+              {devMode && boost && (
+                <RerankToggle
+                  label="Multiply (repotaxmannapi)"
+                  checked={boostSource === 'repotaxmannapi'}
+                  onToggle={(checked) => setBoostSource(checked ? 'repotaxmannapi' : 'sum')}
+                />
+              )}
               <RerankToggle label="Auto-Route" checked={autoRoute} onToggle={setAutoRoute} />
               <RerankToggle label="Reasoning" checked={showReasoning} onToggle={setShowReasoning} />
               <DevModeToggle devMode={devMode} onToggle={setDevMode} />
@@ -262,6 +314,9 @@ export default function App() {
                   devMode={devMode}
                   showReasoning={showReasoning}
                   onOpenDocument={(docId) => openDocument(docId, m.role === 'assistant' ? m.question : undefined)}
+                  paginationEnabled={PAGINATION_ENABLED}
+                  currentPage={instantPage}
+                  onFetchPage={(page) => fetchInstantPage(activeId ?? '', m.id, m.role === 'assistant' ? m.question : '', page)}
                 />
               ))}
               <div ref={bottomRef} />

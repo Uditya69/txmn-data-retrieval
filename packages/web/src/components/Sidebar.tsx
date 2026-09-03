@@ -44,10 +44,30 @@ function TrashIcon() {
 export default function Sidebar({ conversations, activeId, collapsed, onToggleCollapsed, onSelect, onNewChat, onDelete }: Props) {
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null)
 
-  if (collapsed) {
-    return (
+  // Both branches always render - which one is visible is a pure CSS decision (Tailwind's
+  // `lg` breakpoint, 1024px), not a JS width check. A JS width check (window.innerWidth
+  // read once at mount, or even behind a resize listener) only ever reacts to *state
+  // changes App itself causes* - it doesn't re-render on the browser window being resized
+  // by the user unless something wires that up, which is exactly the bug this replaced:
+  // shrinking the tab after load never collapsed the sidebar because nothing was listening
+  // for it. CSS media queries are inherently resize-reactive with zero JS, so they can't
+  // have that bug.
+  //
+  // `lg` (1024px), not `md` (768px): a 260px sidebar plus real content needs more than a
+  // phone-vs-desktop split to stay comfortable - collapsing already at a modestly narrowed
+  // window (not just full mobile width) is the intended feel here.
+  //
+  // Below lg (max-lg:): the rail always shows and the full panel always hides, regardless
+  // of `collapsed` - a screen this narrow has no room for a 260px sidebar no matter what the
+  // user last manually toggled.
+  // At/above lg: `collapsed` alone decides, exactly as before.
+  const railClassName = collapsed ? 'flex' : 'hidden max-lg:flex'
+  const fullClassName = collapsed ? 'hidden' : 'flex max-lg:hidden'
+
+  return (
+    <>
       <div
-        className="shrink-0 h-screen sticky top-0 flex flex-col items-center gap-3 py-4 px-2"
+        className={`shrink-0 h-screen sticky top-0 flex-col items-center gap-3 py-4 px-2 ${railClassName}`}
         style={{ width: 56, borderRight: '1px solid var(--border-soft)', background: 'var(--surface)' }}
       >
         <button
@@ -62,12 +82,9 @@ export default function Sidebar({ conversations, activeId, collapsed, onToggleCo
           <PlusIcon />
         </button>
       </div>
-    )
-  }
 
-  return (
     <div
-      className="shrink-0 h-screen sticky top-0 flex flex-col py-4 px-3"
+      className={`shrink-0 h-screen sticky top-0 flex-col py-4 px-3 ${fullClassName}`}
       style={{ width: 260, borderRight: '1px solid var(--border-soft)', background: 'var(--surface)' }}
     >
       <div className="flex items-center justify-between px-1 mb-3">
@@ -139,5 +156,6 @@ export default function Sidebar({ conversations, activeId, collapsed, onToggleCo
         />
       )}
     </div>
+    </>
   )
 }

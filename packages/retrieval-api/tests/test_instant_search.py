@@ -8,7 +8,7 @@ from retrieval_api.instant.search import run_instant
 async def test_run_instant_returns_both_branches_on_success(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -39,7 +39,7 @@ async def test_run_instant_returns_both_branches_on_success(monkeypatch):
 async def test_run_instant_applies_elbow_cutoff_to_es_and_milvus_results(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         # steep drop after the first hit - only the first should survive
         return [
             {"doc_id": "d1", "score": 10.0},
@@ -83,7 +83,7 @@ async def test_run_instant_keyword_label_skips_elbow_cutoff_on_es_results(monkey
     KEYWORD skips the elbow entirely and returns ES's own top-_ES_LIMIT ranking as-is."""
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         # steep drop after the first hit - same shape the elbow would normally prune to 1,
         # but all three are genuine tiered-boost matches that should survive for KEYWORD.
         return [
@@ -117,7 +117,7 @@ async def test_run_instant_non_keyword_label_still_applies_elbow_cutoff(monkeypa
     the elbow protection this fix removes for KEYWORD must stay intact for them."""
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [
             {"doc_id": "d1", "score": 10.0},
             {"doc_id": "d2", "score": 1.0},
@@ -145,7 +145,7 @@ async def test_run_instant_keeps_flat_score_distribution_uncapped(monkeypatch):
 
     flat_scores = [{"doc_id": f"d{i}", "score": 5.0} for i in range(12)]
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return flat_scores
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -168,7 +168,7 @@ async def test_run_instant_keeps_flat_score_distribution_uncapped(monkeypatch):
 async def test_run_instant_returns_partial_result_when_es_fails(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def failing_raw_search(client, query, limit=20, boost=False):
+    async def failing_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         raise RuntimeError("ES down")
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -195,7 +195,7 @@ async def test_run_instant_returns_partial_result_when_es_fails(monkeypatch):
 async def test_run_instant_returns_partial_result_when_gateway_embed_fails(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
 
     monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
@@ -218,7 +218,7 @@ async def test_run_instant_forwards_boost_flag_to_raw_search(monkeypatch):
 
     seen_boost = []
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         seen_boost.append(boost)
         return [{"doc_id": "d1", "score": 4.2}]
 
@@ -237,13 +237,18 @@ async def test_run_instant_forwards_boost_flag_to_raw_search(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_instant_defaults_boost_to_false(monkeypatch):
+async def test_run_instant_defaults_boost_to_true_and_repotaxmannapi(monkeypatch):
+    """2026-09-02: explicit user override (see raw_search's own docstring) - a caller of
+    run_instant that omits boost/boost_source now gets the byte-exact ported .NET
+    multiply-mode formula on by default, matching raw_search's own new default."""
     import retrieval_api.instant.search as search_module
 
     seen_boost = []
+    seen_boost_source = []
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=True, boost_source="repotaxmannapi", page=1, page_size=None):
         seen_boost.append(boost)
+        seen_boost_source.append(boost_source)
         return [{"doc_id": "d1", "score": 4.2}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -257,14 +262,15 @@ async def test_run_instant_defaults_boost_to_false(monkeypatch):
 
     await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
 
-    assert seen_boost == [False]
+    assert seen_boost == [True]
+    assert seen_boost_source == ["repotaxmannapi"]
 
 
 @pytest.mark.asyncio
 async def test_run_instant_returns_reranked_list_when_rrf_flag_set(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [{"doc_id": "d1", "score": 4.2, "heading": "h1", "subheading": "s1"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -291,7 +297,7 @@ async def test_run_instant_returns_reranked_list_when_rrf_flag_set(monkeypatch):
 async def test_run_instant_without_rrf_skips_fusion(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [{"doc_id": "d1", "score": 4.2, "heading": "h1", "subheading": "s1"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -314,7 +320,7 @@ async def test_run_instant_without_rrf_skips_fusion(monkeypatch):
 async def test_run_instant_rerank_true_calls_cross_encoder_and_unions_es_and_milvus(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [{"doc_id": "d1", "score": 4.2, "heading": "h1", "subheading": "s1"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -350,7 +356,7 @@ async def test_run_instant_rerank_true_calls_cross_encoder_and_unions_es_and_mil
 async def test_run_instant_defaults_rerank_to_false(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [{"doc_id": "d1", "score": 4.2}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -373,7 +379,7 @@ async def test_run_instant_defaults_rerank_to_false(monkeypatch):
 async def test_run_instant_skips_fusion_when_es_branch_failed(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def failing_raw_search(client, query, limit=20, boost=False):
+    async def failing_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         raise RuntimeError("ES down")
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -395,7 +401,7 @@ async def test_run_instant_skips_fusion_when_es_branch_failed(monkeypatch):
 async def test_run_instant_emits_es_and_milvus_trace_steps(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [{"doc_id": "d1", "score": 4.2, "snippet": "text"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -445,7 +451,7 @@ async def test_run_instant_sends_cleaned_text_to_milvus_but_raw_text_to_es(monke
     es_queries = []
     milvus_queries = []
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         es_queries.append(query)
         return []
 
@@ -475,7 +481,7 @@ async def test_run_instant_corrects_misspelled_court_before_search(monkeypatch):
 
     seen_queries = []
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         seen_queries.append(query)
         return []
 
@@ -507,7 +513,7 @@ async def test_run_instant_corrects_misspelled_court_before_search(monkeypatch):
 async def test_run_instant_emits_query_correction_trace_step_even_with_no_corrections(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return []
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -533,7 +539,7 @@ async def test_run_instant_emits_query_correction_trace_step_even_with_no_correc
 async def test_run_instant_emits_classifier_trace_step_with_label_confidence_and_plan(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return []
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -568,7 +574,7 @@ async def test_run_instant_forwards_on_step_into_fusion_for_rrf_merge_step(monke
     the trace also picks up the rrf_merge step rerank.py emits."""
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [{"doc_id": "d1", "score": 4.2, "heading": "h1", "subheading": "s1"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -598,7 +604,7 @@ async def test_run_instant_forwards_on_step_into_fusion_for_rrf_merge_step(monke
 async def test_run_instant_auto_route_keyword_skips_milvus(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [{"doc_id": "d1", "score": 4.2}]
 
     milvus_called = False
@@ -629,7 +635,7 @@ async def test_run_instant_auto_route_intent_skips_es(monkeypatch):
 
     es_called = False
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         nonlocal es_called
         es_called = True
         return []
@@ -656,7 +662,7 @@ async def test_run_instant_auto_route_intent_skips_es(monkeypatch):
 async def test_run_instant_auto_route_hybrid_forces_rrf_fusion(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [{"doc_id": "d1", "score": 4.2}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -684,7 +690,7 @@ async def test_run_instant_auto_route_false_preserves_today_behavior(monkeypatch
     back to the single source that ran) with no AI/cross-encoder call involved."""
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return [{"doc_id": "d1", "score": 4.2}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -710,7 +716,7 @@ async def test_run_instant_skips_native_milvus_sparse_pass_by_default(monkeypatc
     nothing else feeding the sparse side at all."""
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return []
 
     sparse_pass_called = False
@@ -739,7 +745,7 @@ async def test_run_instant_skips_native_milvus_sparse_pass_by_default(monkeypatc
 async def test_run_instant_omits_milvus_sparse_trace_step_when_disabled(monkeypatch):
     import retrieval_api.instant.search as search_module
 
-    async def fake_raw_search(client, query, limit=20, boost=False):
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
         return []
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -760,3 +766,193 @@ async def test_run_instant_omits_milvus_sparse_trace_step_when_disabled(monkeypa
 
     assert "milvus_dense" in steps
     assert "milvus_sparse" not in steps
+
+
+@pytest.mark.asyncio
+async def test_run_instant_omits_grouped_es_when_boost_source_is_sum(monkeypatch):
+    """Default path (boost_source="sum") must never call raw_search_grouped at all -
+    grouping is exclusively part of the repotaxmannapi replica, no sum-mode equivalent."""
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
+        return []
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {}
+
+    async def fail_raw_search_grouped(*args, **kwargs):
+        raise AssertionError("raw_search_grouped must not be called under boost_source='sum'")
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(search_module, "raw_search_grouped", fail_raw_search_grouped)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    result = await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="q", boost=True, boost_source="sum",
+    )
+
+    assert result["grouped_es"] is None
+    assert result["grouped_es_error"] is None
+
+
+@pytest.mark.asyncio
+async def test_run_instant_returns_grouped_es_when_boost_source_is_repotaxmannapi(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
+        return [{"doc_id": "d1", "score": 4.2}]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {}
+
+    async def fake_raw_search_grouped(client, query, limit_per_group=5):
+        return {"ACT": [{"doc_id": "a1", "score": 9.0, "heading": "H", "subheading": "S"}]}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(search_module, "raw_search_grouped", fake_raw_search_grouped)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    steps = []
+
+    async def on_step(step, data):
+        steps.append(step)
+
+    result = await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="SECTION 52",
+        boost=True, boost_source="repotaxmannapi", on_step=on_step,
+    )
+
+    assert result["grouped_es"] == {"ACT": [{"doc_id": "a1", "score": 9.0, "heading": "H", "subheading": "S"}]}
+    assert result["grouped_es_error"] is None
+    assert "es_grouped" in steps
+
+
+@pytest.mark.asyncio
+async def test_run_instant_grouped_es_failure_degrades_gracefully(monkeypatch):
+    """A grouped-query ES failure must not crash the whole search or block the flat
+    es/milvus/reranked results - same fail-open pattern as _run_es/_run_milvus."""
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
+        return [{"doc_id": "d1", "score": 4.2}]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {}
+
+    async def failing_raw_search_grouped(client, query, limit_per_group=5):
+        raise RuntimeError("es down")
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    monkeypatch.setattr(search_module, "raw_search_grouped", failing_raw_search_grouped)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    result = await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="q",
+        boost=True, boost_source="repotaxmannapi",
+    )
+
+    assert result["grouped_es"] is None
+    assert result["grouped_es_error"] == "es down"
+    assert result["es"] == [{"doc_id": "d1", "score": 4.2}]
+    assert result["es_error"] is None
+
+
+@pytest.mark.asyncio
+async def test_run_instant_passes_page_and_page_size_through_to_raw_search(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    captured = {}
+
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
+        captured["page"] = page
+        captured["page_size"] = page_size
+        return [{"doc_id": "d1", "score": 4.2}]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": []}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="section 80HH",
+        page=2, page_size=10,
+    )
+
+    assert captured == {"page": 2, "page_size": 10}
+
+
+@pytest.mark.asyncio
+async def test_run_instant_defaults_page_to_1_and_page_size_to_none(monkeypatch):
+    import retrieval_api.instant.search as search_module
+
+    captured = {}
+
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
+        captured["page"] = page
+        captured["page_size"] = page_size
+        return [{"doc_id": "d1", "score": 4.2}]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": []}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="section 80HH")
+
+    assert captured == {"page": 1, "page_size": None}
+
+
+@pytest.mark.asyncio
+async def test_run_instant_skips_elbow_cutoff_on_es_results_when_page_size_is_set(monkeypatch):
+    """The elbow's ratio test assumes a flat top-N window starting at rank 1 - on a
+    server-paged (page_size is not None) request it would evaluate over an arbitrary
+    mid-corpus score window and prune non-deterministically w.r.t. page size. Skip it
+    entirely for any paged request, same as the existing KEYWORD-label skip_cutoff path."""
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
+        # steep drop after the first hit - would normally get pruned to just d1 by the
+        # elbow, but must survive untouched here because page_size is set.
+        return [
+            {"doc_id": "d1", "score": 10.0},
+            {"doc_id": "d2", "score": 1.0},
+            {"doc_id": "d3", "score": 0.1},
+        ]
+
+    async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
+        return {"ruling": []}
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    # Non-KEYWORD label, so skip_cutoff itself is False - page_size alone must trigger the skip.
+    monkeypatch.setattr(search_module, "effective_label_with_confidence", lambda query: ("HYBRID", 0.9))
+
+    gateway = AsyncMock()
+    gateway.embed.return_value = [0.1, 0.2]
+
+    result = await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(), query="q", page=2, page_size=10,
+    )
+
+    assert result["es"] == [
+        {"doc_id": "d1", "score": 10.0},
+        {"doc_id": "d2", "score": 1.0},
+        {"doc_id": "d3", "score": 0.1},
+    ]

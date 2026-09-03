@@ -138,9 +138,26 @@ async def search(websocket: WebSocket):
     rrf = message.get("rrf", False) and settings.instant_mode_rrf_enabled
     rerank = message.get("rerank", False) and settings.instant_mode_rerank_enabled
     # Instant mode's ES ranking-boost toggle (documenttypeboost/court_boost/landmarkruling/
-    # recency/statutory-group signals, common/es_client.py::_apply_boost) - additive, off
-    # by default same as rrf.
-    boost = message.get("boost", False)
+    # recency/statutory-group signals, common/es_client.py::_apply_boost/
+    # build_function_score_functions) - on by default (2026-09-02, explicit user override -
+    # see raw_search's own docstring): production always applies its boost formula, there is
+    # no "no boost" mode in the real system, so a caller that omits this now gets the same
+    # default raw_search itself has, not an unboosted plain-BM25 fallback.
+    boost = message.get("boost", True)
+    # Which ES boost formula `boost` applies (common/es_client.py::raw_search boost_source
+    # param) - "repotaxmannapi" (default, 2026-09-02 - the byte-exact ported legacy .NET
+    # multiply-mode formula, feature/repotaxmannapi-exact-replica) or "sum" (this repo's own
+    # additive formula, still available). AI Mode never reads this - boost_source only
+    # affects raw_search's ES stage, which AI Mode doesn't call (AI Mode's own ES
+    # sparse-fallback pins boost_source="sum" explicitly regardless, see
+    # sparse_fallback_search's comment - only the `boost` on/off flag above is shared).
+    boost_source = message.get("boost_source", "repotaxmannapi")
+    # Hidden-by-default real pagination (feature/repotaxmannapi-exact-replica,
+    # 2026-09-02) - page/page_size are only ever sent by the frontend when
+    # VITE_ENABLE_PAGINATION is set; every other caller omits them and gets today's
+    # exact flat-20 behavior (raw_search's page_size=None default).
+    page = message.get("page", 1)
+    page_size = message.get("page_size")
     auto_route = message.get("auto_route", False) and settings.instant_mode_auto_route_enabled
     es_client = get_es_client(settings)
     gateway = get_gateway_client(settings)
@@ -193,9 +210,12 @@ async def search(websocket: WebSocket):
     query_embedding = None
     instant_cache_hit = None
     ai_mode_cache_hit = None
-    # Each (auto_route, rrf, rerank, boost) combination produces different result content -
-    # a separate cache key per combination.
-    instant_cache_key = f"instant_auto_route_{auto_route}_rrf_{rrf}_rerank_{rerank}_boost_{boost}"
+    # Each (auto_route, rrf, rerank, boost, boost_source, page, page_size) combination
+    # produces different result content - a separate cache key per combination.
+    instant_cache_key = (
+        f"instant_auto_route_{auto_route}_rrf_{rrf}_rerank_{rerank}_boost_{boost}"
+        f"_boost_source_{boost_source}_page_{page}_page_size_{page_size}"
+    )
     # boost now affects AI Mode's own retrieval too (sparse_fallback_search) - a boosted
     # result must not be served to/overwrite a non-boosted cache lookup or vice versa.
     ai_mode_cache_key = f"ai_mode_boost_{boost}"
@@ -273,8 +293,9 @@ async def search(websocket: WebSocket):
                     run_instant(
                         gateway, es_client, milvus_client, query,
                         on_step=collect_instant_step, rrf=rrf, rerank=rerank,
-                        auto_route=auto_route, boost=boost,
+                        auto_route=auto_route, boost=boost, boost_source=boost_source,
                         milvus_sparse_enabled=settings.milvus_sparse_enabled,
+                        page=page, page_size=page_size,
                     )
                 )
                 if mode in ("instant", "both") and instant_cache_hit is None else None

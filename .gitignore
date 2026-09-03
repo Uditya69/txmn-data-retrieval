@@ -10,3 +10,6 @@ dist/
 .worktrees/
 centax-node/
 repotaxmannapi/
+taxmann-research-ui/
+Hot Queries/
+getLowLevelQuery-change.zip

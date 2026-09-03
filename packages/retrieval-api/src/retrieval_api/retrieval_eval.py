@@ -194,6 +194,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
                         reranker_model: str | None = None, synthesis_model: str | None = None,
                         cache_dir: Path | None = None,
                         rerank_enabled: bool = True, skip_synthesis: bool = False, boost: bool = False,
+                        boost_source: str = "sum",
                         sparse_enabled: bool = True) -> dict:
     query = case["query"]
     gold = set(case["gold_doc_ids"])
@@ -235,7 +236,7 @@ async def evaluate_case(case: dict, gateway, es_client, milvus_client, *, limit:
             reasoning = cached.get("reasoning")
             timings["stage_cache"] = 0.0
         else:
-            es_rows = await measured("es", raw_search(es_client, query, limit=limit, boost=boost)) or []
+            es_rows = await measured("es", raw_search(es_client, query, limit=limit, boost=boost, boost_source=boost_source)) or []
             raw_vector = await measured("raw_embedding", gateway.embed(role="query_embed", text=query))
             raw_dense = (
                 await measured("raw_dense", hybrid_search(
@@ -429,6 +430,7 @@ async def _run(args) -> int:
                 slm_model=args.slm_model, reranker_model=args.reranker_model, synthesis_model=args.synthesis_model,
                 cache_dir=args.cache_dir,
                 rerank_enabled=rerank_enabled, skip_synthesis=args.skip_synthesis, boost=args.boost,
+                boost_source=args.boost_source,
                 sparse_enabled=sparse_enabled,
             )
             results.append(result)
@@ -460,6 +462,7 @@ async def _run(args) -> int:
                 "rerank_enabled": rerank_enabled,
                 "sparse_enabled": sparse_enabled,
                 "boost": args.boost,
+                "boost_source": args.boost_source,
             },
             "results": results,
         }
@@ -492,6 +495,12 @@ def main() -> None:
     parser.add_argument("--sample12", action="store_true", help="scope to the fixed 12-query stratified sample")
     parser.add_argument("--skip-synthesis", action="store_true", help="skip the synthesis LLM call - retrieval-only comparisons (es/dense/sparse/rrf/reranker ranks) don't need it and it's the slowest stage per query")
     parser.add_argument("--boost", action="store_true", help="run the ES 'es' stage through Instant mode's opt-in ranking boost (common/es_client.py::_apply_boost) instead of plain BM25")
+    parser.add_argument(
+        "--boost-source", choices=["sum", "repotaxmannapi"], default="sum",
+        help="which boost formula --boost applies (common/es_client.py::raw_search boost_source param): "
+        "'sum' (default) is this repo's existing additive function_score; 'repotaxmannapi' is the "
+        "ported multiply-mode formula from the legacy .NET system. No effect unless --boost is also passed.",
+    )
     rerank_group = parser.add_mutually_exclusive_group()
     rerank_group.add_argument(
         "--rerank", dest="rerank_enabled", action="store_true", default=None,

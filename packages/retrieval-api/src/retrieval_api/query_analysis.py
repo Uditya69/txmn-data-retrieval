@@ -8,7 +8,8 @@ router = APIRouter()
 
 class QueryAnalysisRequest(BaseModel):
     query: str
-    boost: bool = False
+    boost: bool = True
+    boost_source: str = "repotaxmannapi"
 
 
 @router.post("/v1/query-analysis")
@@ -20,6 +21,6 @@ async def get_query_analysis(req: QueryAnalysisRequest):
     QueryTokens), and the actual ES query body - with no search executed, no ES round trip.
     Exists to let a query's breakdown be compared side by side against centax-node's own
     endpoint on demand, instead of only being visible inside a running search's trace panel.
-    `boost` mirrors Instant mode's ranking-boost toggle - default False shows the plain query,
-    matching raw_search's own default."""
-    return build_query_preview(req.query, boost=req.boost)
+    `boost`/`boost_source` mirror Instant mode's ranking-boost toggle - defaults match
+    raw_search's own (boost=True, boost_source="repotaxmannapi", 2026-09-02)."""
+    return build_query_preview(req.query, boost=req.boost, boost_source=req.boost_source)
