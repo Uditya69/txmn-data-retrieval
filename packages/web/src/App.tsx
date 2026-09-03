@@ -48,10 +48,19 @@ export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const remoteConversations = useConversations(apiBaseUrl, auth.token)
+  // Narrow-screen auto-collapse is pure CSS now (Sidebar.tsx's `max-md:` classes) - this
+  // state only ever tracks the user's manual toggle, so its default is always expanded.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [devMode, setDevMode] = useState(readDevModeFromUrl)
   const [rrf, setRrf] = useState(true)
   const [boost, setBoost] = useState(true)
+  // Dev-only: which ES boost formula `boost` applies (common/es_client.py::raw_search
+  // boost_source). "repotaxmannapi" is the ported legacy .NET multiply-mode formula -
+  // measured 8/71 vs sum-mode's 50/71 on evals/retrieval_cases.json. Defaults on here per
+  // explicit request (this UI toggle only - raw_search's own default stays "sum",
+  // CLAUDE.md hard rule 5), hidden outside dev mode; this toggle exists for comparing the
+  // two, not as a mode end users should pick.
+  const [boostSource, setBoostSource] = useState<'sum' | 'repotaxmannapi'>('repotaxmannapi')
   const [autoRoute, setAutoRoute] = useState(true)
   const [showReasoning, setShowReasoning] = useState(true)
   const [openDocId, setOpenDocId] = useState<string | null>(null)
@@ -158,13 +167,18 @@ export default function App() {
     if (!PAGINATION_ENABLED) return
     setInstantPage(page)
     pendingClassicRef.current = { conversationId, assistantId, kind: 'instant_page' }
-    classicSearch.search(question, true, 'instant', rrf, autoRoute, auth.token ? conversationId : undefined, boost, page, 20)
+    classicSearch.search(
+      question, true, 'instant', rrf, autoRoute, auth.token ? conversationId : undefined, boost, boostSource,
+      page, 20,
+    )
   }
 
   function runQuery(conversationId: string, assistantId: string, question: string) {
     pendingClassicRef.current = { conversationId, assistantId, kind: 'full' }
     setInstantPage(1)
-    classicSearch.search(question, true, 'both', rrf, autoRoute, auth.token ? conversationId : undefined, boost)
+    classicSearch.search(
+      question, true, 'both', rrf, autoRoute, auth.token ? conversationId : undefined, boost, boostSource,
+    )
   }
 
   function handleNewChat() {
@@ -262,6 +276,13 @@ export default function App() {
             <div className="ml-auto flex items-center gap-3">
               <RerankToggle label="RRF" checked={rrf} onToggle={setRrf} />
               <RerankToggle label="Boost" checked={boost} onToggle={setBoost} />
+              {devMode && boost && (
+                <RerankToggle
+                  label="Multiply (repotaxmannapi)"
+                  checked={boostSource === 'repotaxmannapi'}
+                  onToggle={(checked) => setBoostSource(checked ? 'repotaxmannapi' : 'sum')}
+                />
+              )}
               <RerankToggle label="Auto-Route" checked={autoRoute} onToggle={setAutoRoute} />
               <RerankToggle label="Reasoning" checked={showReasoning} onToggle={setShowReasoning} />
               <DevModeToggle devMode={devMode} onToggle={setDevMode} />

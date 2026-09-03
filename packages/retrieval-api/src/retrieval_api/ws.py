@@ -134,14 +134,20 @@ async def search(websocket: WebSocket):
     # dependency (no cross-encoder/AI call in Instant mode at all).
     rrf = message.get("rrf", False)
     # Instant mode's ES ranking-boost toggle (documenttypeboost/court_boost/landmarkruling/
-    # recency/statutory-group signals, common/es_client.py::_apply_boost) - additive, off
-    # by default same as rrf.
-    boost = message.get("boost", False)
+    # recency/statutory-group signals, common/es_client.py::_apply_boost/
+    # build_function_score_functions) - on by default (2026-09-02, explicit user override -
+    # see raw_search's own docstring): production always applies its boost formula, there is
+    # no "no boost" mode in the real system, so a caller that omits this now gets the same
+    # default raw_search itself has, not an unboosted plain-BM25 fallback.
+    boost = message.get("boost", True)
     # Which ES boost formula `boost` applies (common/es_client.py::raw_search boost_source
-    # param) - "sum" (default, additive) or "repotaxmannapi" (ported legacy .NET
-    # multiply-mode formula, feature/repotaxmannapi-exact-replica). AI Mode never reads
-    # this - boost_source only affects raw_search's ES stage, which AI Mode doesn't call.
-    boost_source = message.get("boost_source", "sum")
+    # param) - "repotaxmannapi" (default, 2026-09-02 - the byte-exact ported legacy .NET
+    # multiply-mode formula, feature/repotaxmannapi-exact-replica) or "sum" (this repo's own
+    # additive formula, still available). AI Mode never reads this - boost_source only
+    # affects raw_search's ES stage, which AI Mode doesn't call (AI Mode's own ES
+    # sparse-fallback pins boost_source="sum" explicitly regardless, see
+    # sparse_fallback_search's comment - only the `boost` on/off flag above is shared).
+    boost_source = message.get("boost_source", "repotaxmannapi")
     # Hidden-by-default real pagination (feature/repotaxmannapi-exact-replica,
     # 2026-09-02) - page/page_size are only ever sent by the frontend when
     # VITE_ENABLE_PAGINATION is set; every other caller omits them and gets today's

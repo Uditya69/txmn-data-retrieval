@@ -6,6 +6,7 @@ import { groupIntoParagraphs, renderInlineText } from '../lib/richText'
 import { highlightMatches } from '../lib/highlight'
 import { CardMetaLines } from '../lib/cardMeta'
 import TracePanel from './TracePanel'
+import GroupedResultsPanel from './GroupedResultsPanel'
 
 const SOURCE_FILTERS: { source: CardSource; label: string }[] = [
   { source: 'es', label: 'ES' },
@@ -96,8 +97,8 @@ function CopyTraceButton({ traceSteps, disabled }: { traceSteps: ResultState['tr
 // message type). Split by step name so each pane's Trace section only shows its
 // own steps, not the other mode's mixed in.
 const INSTANT_STEP_NAMES = new Set([
-  'query_correction', 'query_analysis', 'classifier', 'es_search', 'milvus_dense', 'milvus_sparse', 'rrf_merge',
-  'instant_reranked',
+  'query_correction', 'query_analysis', 'classifier', 'es_search', 'es_grouped', 'milvus_dense', 'milvus_sparse',
+  'rrf_merge', 'instant_reranked',
 ])
 
 function TraceSection({
@@ -128,7 +129,10 @@ function TraceSection({
 // Milvus collections x2 retrievers - that can be 50+ cards. Paginating instead of
 // dumping them all into one ever-growing column keeps the pane a fixed, predictable
 // size instead of turning the whole page into a multi-thousand-pixel scroll.
-const PAGE_SIZE = 10
+// 20, not 10 (2026-09-02): ES's own limit is exactly 20 (_ES_LIMIT, search.py) - at 20 per
+// page, a plain ES-only result set always fits on page 1 with no Prev/Next needed; RRF/
+// Milvus-merged lists that exceed 20 still paginate normally.
+const PAGE_SIZE = 20
 
 function InstantPane({
   result, devMode, onOpenDocument, query, paginationEnabled = false, onFetchPage, currentPage,
@@ -191,6 +195,15 @@ function InstantPane({
     }
   }, [lookupId, instant, isReranked])
   const cards = devMode && !isReranked ? allCards.filter((card) => activeSources.has(card.source)) : allCards
+  // 2026-09-02: real production (taxmann.com/research) never renders a sectioned view for
+  // global search - confirmed live, it's one flat relevance-ranked list with a small
+  // per-row "Category | Group" badge on each card, same shape our own flat `cards` list
+  // already has. The sectioned/grouped-by-content-type layout below was an earlier design
+  // that doesn't match the real product's actual UI - always false now, so the flat list
+  // renders unconditionally, matching production's real layout. grouped_es itself is left
+  // wired end-to-end (backend still computes it, trace panel still shows the es_grouped
+  // step) in case it's wanted again later; only this pane's rendering choice changed.
+  const showGrouped = false
   const pageCount = Math.max(1, Math.ceil(cards.length / PAGE_SIZE))
   const clampedPage = Math.min(page, pageCount - 1)
   // paginationEnabled: the server already returns exactly one page's worth of results
@@ -225,7 +238,7 @@ function InstantPane({
         </span>
       </div>
 
-      {devMode && instant && !isReranked && (
+      {devMode && instant && !isReranked && !showGrouped && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {SOURCE_FILTERS.map(({ source, label }) => {
             const active = activeSources.has(source)
@@ -247,7 +260,7 @@ function InstantPane({
         </div>
       )}
 
-      {devMode && instant && (
+      {devMode && instant && !showGrouped && (
         <div className="mb-3">
           <input
             type="text"
@@ -283,10 +296,19 @@ function InstantPane({
           Instant matches aren't saved for past conversations.
         </p>
       )}
-      {instant && cards.length === 0 && (
+      {instant && showGrouped && (
+        <GroupedResultsPanel
+          groupedEs={instant.grouped_es!}
+          docMeta={instant.doc_meta}
+          query={query}
+          devMode={devMode}
+          onOpenDocument={onOpenDocument}
+        />
+      )}
+      {instant && !showGrouped && cards.length === 0 && (
         <p className="text-sm" style={{ color: 'var(--text-faint)' }}>No matches.</p>
       )}
-      {cards.length > 0 && (
+      {!showGrouped && cards.length > 0 && (
         <div className="flex flex-col gap-2">
           {pageCards.map((card, index) => {
             const meta = instant?.doc_meta?.[card.doc_id]
@@ -313,6 +335,9 @@ function InstantPane({
                   </span>
                 )}
               </div>
+              {meta?.act_name && (
+                <p className="text-xs mt-1 truncate" style={{ color: 'var(--text-muted)' }}>{meta.act_name}</p>
+              )}
               <span className="text-xs font-mono mt-1 block truncate" style={{ color: 'var(--text-faint)' }}>
                 {card.doc_id}
               </span>
@@ -333,7 +358,7 @@ function InstantPane({
                   )}
                 </div>
               )}
-              <CardMetaLines meta={meta} />
+              {devMode && <CardMetaLines meta={meta} />}
               <p className="text-sm mt-2 line-clamp-3" style={{ color: 'var(--text-muted)' }}>{highlightMatches(card.snippet, query)}</p>
             </button>
             )
@@ -341,7 +366,7 @@ function InstantPane({
         </div>
       )}
 
-      {cards.length > PAGE_SIZE && (
+      {!showGrouped && cards.length > PAGE_SIZE && (
         <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
           <button
             onClick={() => {

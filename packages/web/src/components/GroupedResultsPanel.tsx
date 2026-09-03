@@ -80,10 +80,15 @@ export default function GroupedResultsPanel({ groupedEs, docMeta, query, devMode
                   {highlightMatches(doc.subheading, query)}
                 </p>
               )}
+              {docMeta?.[doc.doc_id]?.act_name && (
+                <p className="text-xs mt-1 truncate" style={{ color: 'var(--text-muted)' }}>
+                  {docMeta[doc.doc_id].act_name}
+                </p>
+              )}
               <span className="text-xs font-mono mt-1 block truncate" style={{ color: 'var(--text-faint)' }}>
                 {doc.doc_id}
               </span>
-              <CardMetaLines meta={docMeta?.[doc.doc_id]} />
+              {devMode && <CardMetaLines meta={docMeta?.[doc.doc_id]} />}
             </button>
           ))}
         </div>

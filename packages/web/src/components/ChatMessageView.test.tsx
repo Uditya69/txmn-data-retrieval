@@ -109,20 +109,42 @@ describe('ChatMessageView result card — doc_id and enriched metadata', () => {
     expect(screen.getByText('d1')).toBeInTheDocument()
   })
 
-  it('shows judge, party, date, and viewcount when present on doc_meta', () => {
+  it('shows act_name even outside dev mode (mirrors the reference product\'s always-visible Act-name label)', () => {
+    const withActName: ResultState['instant'] = {
+      ...instant,
+      doc_meta: { d1: { ...instant.doc_meta!.d1, act_name: 'Companies Act, 2013' } },
+    }
+    render(<ChatMessageView message={assistantMessage(withActName)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.getByText('Companies Act, 2013')).toBeInTheDocument()
+  })
+
+  it('omits the act_name line when absent', () => {
     render(<ChatMessageView message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.queryByText('Companies Act, 2013')).not.toBeInTheDocument()
+  })
+
+  it('hides judge, party, date, and viewcount outside dev mode (internal debug detail, not a production card field)', () => {
+    render(<ChatMessageView message={assistantMessage(instant)} devMode={false} onOpenDocument={() => {}} />)
+    expect(screen.queryByText(/V.K. KHANNA/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Commissioner of Income-tax/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/1987-03-31/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/70 views/)).not.toBeInTheDocument()
+  })
+
+  it('shows judge, party, date, and viewcount in dev mode when present on doc_meta', () => {
+    render(<ChatMessageView message={assistantMessage(instant)} devMode={true} onOpenDocument={() => {}} />)
     expect(screen.getByText(/V.K. KHANNA/)).toBeInTheDocument()
     expect(screen.getByText(/Commissioner of Income-tax/)).toBeInTheDocument()
     expect(screen.getByText(/1987-03-31/)).toBeInTheDocument()
     expect(screen.getByText(/70/)).toBeInTheDocument()
   })
 
-  it('omits judge/party lines entirely for a doc with no such doc_meta fields', () => {
+  it('omits judge/party lines entirely for a doc with no such doc_meta fields, even in dev mode', () => {
     const noExtras: ResultState['instant'] = {
       ...instant,
       doc_meta: { d1: { category: 'Acts', group: 'Acts' } },
     }
-    render(<ChatMessageView message={assistantMessage(noExtras)} devMode={false} onOpenDocument={() => {}} />)
+    render(<ChatMessageView message={assistantMessage(noExtras)} devMode={true} onOpenDocument={() => {}} />)
     expect(screen.queryByText(/V.K. KHANNA/)).not.toBeInTheDocument()
   })
 
@@ -131,7 +153,7 @@ describe('ChatMessageView result card — doc_id and enriched metadata', () => {
       ...instant,
       doc_meta: { d1: { category: 'Acts', group: 'Acts', party: [] } }, // judge absent, party present-but-empty
     }
-    render(<ChatMessageView message={assistantMessage(emptyArrayCase)} devMode={false} onOpenDocument={() => {}} />)
+    render(<ChatMessageView message={assistantMessage(emptyArrayCase)} devMode={true} onOpenDocument={() => {}} />)
     // The bug rendered a stray "0" text node from `undefined || 0` short-circuiting `&&`.
     expect(screen.queryByText('0')).not.toBeInTheDocument()
   })

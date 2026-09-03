@@ -16,6 +16,10 @@ export interface DocMeta {
   referenced_act?: string[]
   referenced_section?: string[]
   cases_referred?: string[]
+  // The specific Act/Rule instrument this doc belongs to (e.g. "Companies Act, 2013") -
+  // distinct from `referenced_act` (a cross-reference to OTHER acts this section relates
+  // to, never the doc's own). See common.es_client.fetch_doc_categories's docstring.
+  act_name?: string
 }
 
 export interface InstantResult {
@@ -30,6 +34,12 @@ export interface InstantResult {
   // regardless of which engine (ES/Milvus/reranked) surfaced it. See
   // common.es_client.fetch_doc_categories.
   doc_meta?: Record<string, DocMeta> | null
+  // Sectioned result view, boost_source="repotaxmannapi" only - keyed by raw ES
+  // groups.group.name value (e.g. "ACT", "Experts Opinion"), already ordered by fixed
+  // priority (see common.es_client._GROUPED_SECTION_PRIORITY). null/absent under
+  // boost_source="sum" - grouping has no sum-mode equivalent.
+  grouped_es?: Record<string, EsHit[]> | null
+  grouped_es_error?: string | null
 }
 
 export type AiModeResult =
@@ -61,7 +71,8 @@ export function useSearch(
 ): SearchState & {
   search: (
     query: string, trace: boolean, mode?: SearchMode, rrf?: boolean, autoRoute?: boolean,
-    conversationId?: string, boost?: boolean, page?: number, pageSize?: number,
+    conversationId?: string, boost?: boolean, boostSource?: 'sum' | 'repotaxmannapi',
+    page?: number, pageSize?: number,
   ) => void
 } {
   const [state, setState] = useState<SearchState>(INITIAL_STATE)
@@ -71,7 +82,7 @@ export function useSearch(
     (
       query: string, trace: boolean, mode: SearchMode = 'both', rrf: boolean = false,
       autoRoute: boolean = false, conversationId?: string, boost: boolean = false,
-      page?: number, pageSize?: number,
+      boostSource: 'sum' | 'repotaxmannapi' = 'sum', page?: number, pageSize?: number,
     ) => {
       socketRef.current?.close()
       setState({ loading: true, instant: null, aiMode: null, traceSteps: [], wsError: null })
@@ -89,7 +100,9 @@ export function useSearch(
         // access_token is only included when a user is signed in - the backend
         // treats it as fully optional (see ws.py's _resolve_user_id) and this
         // keeps guest requests byte-identical to before persona existed.
-        const payload: Record<string, unknown> = { query, mode, trace, rrf, auto_route: autoRoute, boost }
+        const payload: Record<string, unknown> = {
+          query, mode, trace, rrf, auto_route: autoRoute, boost, boost_source: boostSource,
+        }
         if (page !== undefined) payload.page = page
         if (pageSize !== undefined) payload.page_size = pageSize
         if (accessToken) payload.access_token = accessToken
@@ -111,6 +124,8 @@ export function useSearch(
               reranked: message.reranked ?? null,
               reranked_error: message.reranked_error ?? null,
               doc_meta: message.doc_meta ?? null,
+              grouped_es: message.grouped_es ?? null,
+              grouped_es_error: message.grouped_es_error ?? null,
             },
           }))
         } else if (message.type === 'ai_mode_trace') {

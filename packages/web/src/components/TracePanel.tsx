@@ -11,6 +11,7 @@ const STEP_LABELS: Record<string, string> = {
   intent: 'Intent',
   filters_resolved: 'Filters resolved',
   es_search: 'ES search',
+  es_grouped: 'ES grouped search',
   milvus_dense: 'Milvus dense search',
   milvus_sparse: 'Milvus sparse search',
   rrf_merge: 'RRF merge',
@@ -69,6 +70,7 @@ const STEP_DESCRIPTIONS: Record<string, string> = {
   intent: 'Classifies which legal categories the query is about, used to pick which Milvus collections get searched.',
   filters_resolved: 'Resolves any doc_id filters requested by the query.',
   es_search: 'Elasticsearch lexical (keyword) search results.',
+  es_grouped: 'boost_source="repotaxmannapi" only - buckets ES hits by content type (groups.group.name, e.g. Acts/Rules/Case Laws) via an independent terms+top_hits aggregation per content type, not a regroup of the flat es_search results above. Powers the sectioned result view.',
   milvus_dense: 'Milvus dense (semantic embedding) search results.',
   milvus_sparse: 'Milvus BM25 sparse search results.',
   ai_milvus_dense: 'Milvus dense (semantic embedding) search results.',
@@ -107,6 +109,12 @@ function summarize(step: TraceStep): string {
       return `${d.doc_id_count} doc(s) matched`
     case 'es_search':
       return `${(d.hits ?? []).length} hit(s)`
+    case 'es_grouped': {
+      const groups: Record<string, any[]> = d.groups ?? {}
+      const sectionCount = Object.keys(groups).length
+      const total = Object.values(groups).reduce((sum, hits) => sum + hits.length, 0)
+      return `${sectionCount} section(s), ${total} hit(s)`
+    }
     case 'milvus_dense':
     case 'milvus_sparse':
     case 'ai_milvus_dense': {
@@ -186,6 +194,28 @@ function TruncatedHitList({
           Show {remaining} more
         </button>
       )}
+    </>
+  )
+}
+
+function GroupedHitsBody({
+  groups, onOpenDocument,
+}: {
+  groups: Record<string, Array<Record<string, any>>>
+  onOpenDocument?: (docId: string) => void
+}) {
+  const entries = Object.entries(groups).filter(([, hits]) => hits.length > 0)
+  if (entries.length === 0) return <p className={styles.summary}>No sections matched.</p>
+  return (
+    <>
+      {entries.map(([groupName, hits]) => (
+        <div key={groupName}>
+          <p className={styles.summary}>
+            <strong>{groupName}</strong> ({hits.length})
+          </p>
+          <TruncatedHitList hits={hits} onOpenDocument={onOpenDocument} />
+        </div>
+      ))}
     </>
   )
 }
@@ -375,6 +405,8 @@ function StepBody({
     specific = <MilvusSparseDenseBody step={step.step} data={d} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'es_search') {
     specific = <TruncatedHitList hits={d.hits ?? []} onOpenDocument={onOpenDocument} />
+  } else if (step.step === 'es_grouped') {
+    specific = <GroupedHitsBody groups={d.groups ?? {}} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'rrf_merge' || step.step === 'ai_rrf_merge') {
     specific = <TruncatedHitList hits={d.top_candidates ?? []} onOpenDocument={onOpenDocument} />
   } else if (step.step === 'rerank') {

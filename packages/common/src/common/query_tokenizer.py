@@ -504,16 +504,28 @@ _SECTION_KEYWORD_GROUP_NAMES = {
 
 
 def keyword_shape_group_filter(shape: str, chunks: list[dict]) -> str | None:
-    """The real ES `groups.group.name` to hard-filter Instant mode's raw_search by, for a
-    query that is nothing but a bare section/rule/article-number lookup - e.g. "Rule 6",
-    "Section 54F". Returns None for every other shape of query, so this is the narrow
-    complement to detect_group_signals' exclusion of section chunks (that exclusion protects
-    a caselaw query that merely *cites* a rule number, like "Gharda Chemicals Rule 57G Modvat
-    invoice ... Dombivli plant" - see its docstring). Here the query has already been
-    classified `shape == "KEYWORD"` by common.instant_classifier (a heuristic query-shape
-    model, distinct from chunk_query's own chunk types) BEFORE this is called - a citation-
-    bearing multi-concept query like the Gharda Chemicals example is never labeled KEYWORD,
-    so gating on it keeps the two mechanisms from ever double-firing on the same query.
+    """The real ES `groups.group.name` to group-signal-boost Instant mode's raw_search
+    toward, for a query that is nothing but a bare section/rule/article-number lookup - e.g.
+    "Rule 6", "Section 54F". Returns None for every other shape of query, so this is the
+    narrow complement to detect_group_signals' exclusion of section chunks (that exclusion
+    protects a caselaw query that merely *cites* a rule number, like "Gharda Chemicals Rule
+    57G Modvat invoice ... Dombivli plant" - see its docstring). Here the query has already
+    been classified `shape == "KEYWORD"` by common.instant_classifier (a heuristic
+    query-shape model, distinct from chunk_query's own chunk types) BEFORE this is called - a
+    citation-bearing multi-concept query like the Gharda Chemicals example is never labeled
+    KEYWORD, so gating on it keeps the two mechanisms from ever double-firing on the same
+    query.
+
+    Despite the name (kept for call-site/history continuity - `es_client.py::_build_field_
+    query` used to apply this as a hard `bool.filter` term clause), this is a SOFT
+    should-clause boost as of 2026-09-02, same as detect_group_signals. The hard-filter
+    version was wrong: it excluded every non-matching-group document from the result set
+    entirely (a bare "SECTION 52" returned only Acts, never the case laws/commentary that
+    cite it), and the claim that this reproduced real production behavior didn't hold up
+    against the actual .NET source (repotaxmannapi/TaxmannAPI/Elastic/SearchTextElastic.cs:
+    751-766, GlobalSearchResearch.cs:613-621, re-checked 2026-09-02) - there, this same
+    signal (`iGroupID`) only ever reaches a `match_phrase(boost=...)` should-clause or a
+    `function_score` weight function, never a hard filter, for Section or Rule alike.
 
     Requires exactly one `section`-type chunk (chunk_query already excludes the query's own
     non-anchor filler words for a true KEYWORD-shape query, so more than one usually means an

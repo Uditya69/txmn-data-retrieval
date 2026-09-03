@@ -237,13 +237,18 @@ async def test_run_instant_forwards_boost_flag_to_raw_search(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_instant_defaults_boost_to_false(monkeypatch):
+async def test_run_instant_defaults_boost_to_true_and_repotaxmannapi(monkeypatch):
+    """2026-09-02: explicit user override (see raw_search's own docstring) - a caller of
+    run_instant that omits boost/boost_source now gets the byte-exact ported .NET
+    multiply-mode formula on by default, matching raw_search's own new default."""
     import retrieval_api.instant.search as search_module
 
     seen_boost = []
+    seen_boost_source = []
 
-    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
+    async def fake_raw_search(client, query, limit=20, boost=True, boost_source="repotaxmannapi", page=1, page_size=None):
         seen_boost.append(boost)
+        seen_boost_source.append(boost_source)
         return [{"doc_id": "d1", "score": 4.2}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
@@ -257,7 +262,8 @@ async def test_run_instant_defaults_boost_to_false(monkeypatch):
 
     await run_instant(gateway=gateway, es_client=object(), milvus_client=object(), query="q")
 
-    assert seen_boost == [False]
+    assert seen_boost == [True]
+    assert seen_boost_source == ["repotaxmannapi"]
 
 
 @pytest.mark.asyncio

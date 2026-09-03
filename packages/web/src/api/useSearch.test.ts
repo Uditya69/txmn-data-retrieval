@@ -91,7 +91,9 @@ describe('useSearch', () => {
       socket.emit('open')
     })
     expect(socket.sent).toEqual([
-      JSON.stringify({ query: 'cgst', mode: 'both', trace: true, rrf: false, auto_route: false, boost: false }),
+      JSON.stringify({
+        query: 'cgst', mode: 'both', trace: true, rrf: false, auto_route: false, boost: false, boost_source: 'sum',
+      }),
     ])
 
     act(() => {
@@ -114,6 +116,9 @@ describe('useSearch', () => {
       milvus_error: null,
       reranked: null,
       reranked_error: null,
+      doc_meta: null,
+      grouped_es: null,
+      grouped_es_error: null,
     })
     expect(result.current.loading).toBe(true)
   })
@@ -270,7 +275,7 @@ describe('useSearch', () => {
   it('includes page/page_size in the payload when passed', () => {
     const { result } = renderHook(() => useSearch('ws://test'))
     act(() => {
-      result.current.search('cgst', true, 'instant', false, false, undefined, false, 2, 10)
+      result.current.search('cgst', true, 'instant', false, false, undefined, false, 'sum', 2, 10)
     })
     const socket = MockWebSocket.instances[0]
     act(() => {

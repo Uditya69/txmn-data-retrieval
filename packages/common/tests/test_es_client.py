@@ -10,6 +10,8 @@ from common.es_client import (
     fetch_document_metadata,
     build_query_preview,
     _build_field_query,
+    _edition_exclusion_filter,
+    _LATEST_EDITION_ONLY_YEARS,
     fetch_doc_categories,
 )
 from common.schemas import MASTERINFO_CITATION_FIELDS
@@ -197,7 +199,10 @@ async def test_raw_search_defaults_missing_heading_subheading_to_empty_string():
 async def test_raw_search_expands_known_abbreviation_into_multi_match_query_text():
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "ACIT order on depreciation", limit=20)
+    # boost=False - this test is about chunk_query/abbreviation-expansion behavior, not the
+    # boost formula (default is now boost=True, boost_source="repotaxmannapi" - a different
+    # query builder entirely, see raw_search's own docstring), so kept explicit.
+    await raw_search(client, "ACIT order on depreciation", limit=20, boost=False)
 
     sent_query = client.search_calls[0]
     multi_match_query = sent_query["bool"]["should"][0]["multi_match"]["query"]
@@ -213,7 +218,7 @@ def _heading_phrase_clauses(should: list[dict]) -> list[dict]:
 async def test_raw_search_adds_exact_match_phrase_clause_for_merged_keyword_number():
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "Section 6 of Income Tax Act", limit=20)
+    await raw_search(client, "Section 6 of Income Tax Act", limit=20, boost=False)
 
     sent_query = client.search_calls[0]
     phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
@@ -229,7 +234,7 @@ async def test_raw_search_chunks_unrecognized_word_run_into_a_text_phrase_clause
     independent OR terms - see chunk_query's own docstring for why."""
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "can a company claim depreciation on goodwill", limit=20)
+    await raw_search(client, "can a company claim depreciation on goodwill", limit=20, boost=False)
 
     sent_query = client.search_calls[0]
     phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
@@ -243,7 +248,7 @@ async def test_raw_search_chunks_unrecognized_word_run_into_a_text_phrase_clause
 async def test_raw_search_adds_zero_padded_alternative_clause_for_short_section_numbers():
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "section 92C ITES comparables", limit=20)
+    await raw_search(client, "section 92C ITES comparables", limit=20, boost=False)
 
     sent_query = client.search_calls[0]
     phrase_clauses = _heading_phrase_clauses(sent_query["bool"]["should"])
@@ -266,12 +271,27 @@ async def test_raw_search_boost_source_repotaxmannapi_uses_multiply_mode():
 
 
 @pytest.mark.asyncio
-async def test_raw_search_boost_source_defaults_to_sum_mode_unchanged():
-    """The new parameter must not change any existing caller's behavior - this is the
-    regression guard for the default value."""
+async def test_raw_search_boost_source_defaults_to_repotaxmannapi_multiply_mode():
+    """2026-09-02: explicit user override (see raw_search's docstring) - a caller that omits
+    boost_source now gets the byte-exact ported .NET multiply-mode formula, not this repo's
+    own additive "sum" formula. This is the regression guard for the NEW default value."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, "exemption claim", limit=20, boost=True)
+
+    query = client.search_calls[0]
+    assert "function_score" in query
+    fs = query["function_score"]
+    assert fs["score_mode"] == "multiply"
+    assert fs["boost_mode"] == "multiply"
+
+
+@pytest.mark.asyncio
+async def test_raw_search_boost_source_sum_still_available_explicitly():
+    """The old default formula is still reachable, just no longer the default."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "exemption claim", limit=20, boost=True, boost_source="sum")
 
     fs = client.search_calls[0]["function_score"]
     assert fs["score_mode"] == "sum"
@@ -373,7 +393,7 @@ async def test_raw_search_grouped_omits_empty_groups_and_appends_unknown_groups_
 async def test_raw_search_queries_heading_subheading_fullcontent_not_just_sparse_fields():
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "exemption claim", limit=20)
+    await raw_search(client, "exemption claim", limit=20, boost=False)
 
     query = client.search_calls[0]
     should_fields = {
@@ -398,7 +418,10 @@ def test_build_query_preview_matches_what_raw_search_actually_sends():
     # trusting a genuinely uncertain HYBRID-vs-INTENT call.
     assert preview["shape"] == "HYBRID"
     assert any(c["type"] == "section" and c["text"] == "Section 6" for c in preview["chunks"])
-    assert "bool" in preview["es_query"]
+    # 2026-09-02: default is now boost=True, boost_source="repotaxmannapi" (see
+    # build_query_preview's own docstring) - es_query is the function_score-wrapped
+    # multiply-mode formula, not a bare bool query.
+    assert "function_score" in preview["es_query"]
 
 
 def test_build_field_query_accepts_new_taxonomy_labels():
@@ -450,40 +473,89 @@ def test_build_field_query_section_chunks_still_get_the_same_tier():
     assert section_heading_boosts == [100000.0]
 
 
-def test_build_field_query_hard_filters_bare_rule_lookup_to_rule_group():
-    """Confirmed live (2026-09-01) this hard filter - not a ranking-formula tweak - is the
-    actual mechanism behind centax-node's own "correct" Rule-lookup results: narrowing the
-    candidate pool (990k docs -> ~48k RULE-group docs on this repo's own index) before scoring
-    even starts, the same way centax-node's mandatory groups.group.id filter does."""
+def test_build_field_query_boosts_but_does_not_hard_filter_bare_rule_lookup():
+    """CORRECTED 2026-09-02: this used to be a hard bool.filter term clause, wrongly excluding
+    every non-RULE document from the results entirely. Re-investigated against the real .NET
+    source (repotaxmannapi/TaxmannAPI/Elastic/SearchTextElastic.cs:751-766,
+    GlobalSearchResearch.cs:613-621): iGroupID only ever reaches a match_phrase(boost=...)
+    should-clause or a function_score weight function there, never a bool.filter/must term -
+    Rule and Section share the identical code path. So a bare "Rule 6" query must still be
+    able to surface a case law/commentary document that discusses Rule 6, just ranked lower -
+    a hard filter would hide it entirely, contradicting the real product's own behavior."""
     chunks = [{"text": "Rule 6", "proximity": 0, "type": "section", "alt_text": "Rule 006"}]
     query = _build_field_query("Rule 6", "KEYWORD", chunks=chunks)
 
-    assert query["bool"]["filter"] == [{"term": {"groups.group.name.keyword": "RULE"}}]
+    # No RULE-specific hard filter - the only filter present is the unconditional
+    # edition-exclusion one (_edition_exclusion_filter), which every query gets regardless of
+    # shape/group signal (see test_build_field_query_every_query_gets_edition_exclusion_filter).
+    assert query["bool"]["filter"] == [_edition_exclusion_filter()]
+    should = query["bool"]["should"]
+    rule_boosts = [
+        clause["term"]["groups.group.name.keyword"]["boost"] for clause in should
+        if clause.get("term", {}).get("groups.group.name.keyword", {}).get("value") == "RULE"
+    ]
+    assert rule_boosts == [1_000.0]
 
 
-def test_build_field_query_hard_filters_bare_section_lookup_to_act_group():
+def test_build_field_query_boosts_but_does_not_hard_filter_bare_section_lookup():
     chunks = [{"text": "Section 52", "proximity": 0, "type": "section", "alt_text": "Section 052"}]
     query = _build_field_query("Section 52", "KEYWORD", chunks=chunks)
 
-    assert query["bool"]["filter"] == [{"term": {"groups.group.name.keyword": "ACT"}}]
+    assert query["bool"]["filter"] == [_edition_exclusion_filter()]
+    should = query["bool"]["should"]
+    act_boosts = [
+        clause["term"]["groups.group.name.keyword"]["boost"] for clause in should
+        if clause.get("term", {}).get("groups.group.name.keyword", {}).get("value") == "ACT"
+    ]
+    assert act_boosts == [1_000.0]
 
 
-def test_build_field_query_no_hard_filter_for_non_keyword_shape():
+def test_build_field_query_every_query_gets_edition_exclusion_filter():
+    """The latest-edition-only filter (_edition_exclusion_filter) is unconditional - applied
+    regardless of shape/chunks/boost_enabled, matching GetGlobalSearchQuery's own unconditional
+    application to every global search query, not just bare keyword lookups."""
+    query = _build_field_query("depreciation on plant and machinery", "HYBRID", chunks=[])
+
+    assert query["bool"]["filter"] == [_edition_exclusion_filter()]
+
+
+def test_edition_exclusion_filter_lets_non_matching_subgroup_docs_through_unconditionally():
+    filter_clause = _edition_exclusion_filter()
+    should = filter_clause["bool"]["should"]
+    assert should[0] == {
+        "bool": {"must_not": [{"terms": {"groups.group.subgroup.id": list(_LATEST_EDITION_ONLY_YEARS)}}]},
+    }
+
+
+def test_edition_exclusion_filter_requires_latest_year_for_each_mapped_subgroup():
+    filter_clause = _edition_exclusion_filter()
+    should = filter_clause["bool"]["should"][1:]
+    pairs = {
+        clause["bool"]["must"][0]["term"]["groups.group.subgroup.id"]:
+            clause["bool"]["must"][1]["term"]["year.name.keyword"]
+        for clause in should
+    }
+    assert pairs == _LATEST_EDITION_ONLY_YEARS
+
+
+def test_build_field_query_no_group_boost_for_non_keyword_shape():
     """Regression guard: a citation-bearing caselaw query that merely mentions a rule number
-    (shape HYBRID/INTENT, not KEYWORD) must never get hard-filtered to the RULE group - that
-    would hide the real case entirely, not just under-rank it. See
-    query_tokenizer.keyword_shape_group_filter's docstring for the exact bug this protects."""
+    (shape HYBRID/INTENT, not KEYWORD) must never get boosted toward the RULE group at all -
+    see query_tokenizer.keyword_shape_group_filter's docstring for the exact bug this protects
+    (detect_group_signals already excludes section-type chunks for the same reason)."""
     chunks = [{"text": "Rule 57G", "proximity": 0, "type": "section", "alt_text": "Rule 057G"}]
     query = _build_field_query("Gharda Chemicals Rule 57G Modvat invoice", "HYBRID", chunks=chunks)
 
-    assert "filter" not in query["bool"]
+    should = query["bool"]["should"]
+    assert not any(clause.get("term", {}).get("groups.group.name.keyword") for clause in should)
 
 
-def test_build_field_query_no_hard_filter_when_no_section_chunk():
+def test_build_field_query_no_group_boost_when_no_section_chunk():
     chunks = [{"text": "Commissioner Customs Indian Oil", "proximity": 5, "type": "text", "alt_text": None}]
     query = _build_field_query("Commissioner Customs Indian Oil", "KEYWORD", chunks=chunks)
 
-    assert "filter" not in query["bool"]
+    should = query["bool"]["should"]
+    assert not any(clause.get("term", {}).get("groups.group.name.keyword") for clause in should)
 
 
 def test_build_query_preview_omits_expanded_query_when_unchanged():
@@ -515,7 +587,7 @@ async def test_raw_search_does_not_wrap_query_in_function_score():
     unboosted), an architectural (boost_mode: multiply) issue, not a missing-data one."""
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "exemption claim", limit=20)
+    await raw_search(client, "exemption claim", limit=20, boost=False)
 
     query = client.search_calls[0]
     assert "function_score" not in query
@@ -526,24 +598,37 @@ def test_build_query_preview_boost_true_wraps_es_query_in_function_score():
     """The trace panel's "Show ES query" block (and /v1/query-analysis) call
     build_query_preview directly, not raw_search - boost must be threaded through here too,
     or a boosted search would silently show an unboosted preview."""
-    preview = build_query_preview("Section 52", boost=True)
+    preview = build_query_preview("Section 52", boost=True, boost_source="sum")
     assert "function_score" in preview["es_query"]
 
 
-def test_build_query_preview_boost_false_default_leaves_es_query_unwrapped():
-    preview = build_query_preview("Section 52")
+def test_build_query_preview_boost_false_leaves_es_query_unwrapped():
+    preview = build_query_preview("Section 52", boost=False)
     assert "function_score" not in preview["es_query"]
+
+
+def test_build_query_preview_defaults_to_repotaxmannapi_function_score():
+    """2026-09-02: explicit user override (see build_query_preview's own docstring) - the
+    default (no args but query) now wraps in the byte-exact ported .NET multiply-mode
+    formula, not this repo's own additive one."""
+    preview = build_query_preview("Section 52")
+    fs = preview["es_query"]["function_score"]
+    assert fs["score_mode"] == "multiply"
+    assert fs["boost_mode"] == "multiply"
 
 
 def test_build_query_preview_adds_caselaws_group_should_boost_for_ruling_query():
     """Without this, "landmark Supreme Court ruling on GST" scores generic "Words & Idioms"
     commentary docs whose heading literally contains "Supreme Court" far above real case law -
     heading/subheading/headnotes_text _PHRASE_BOOSTS fire the same regardless of document
-    type. Unconditional (present even with boost=False, the default) since it lives at
-    _PHRASE_BOOSTS' should-clause scale, the same reason the edition-preference should-clause
-    boosts do (_EDITION_BOOSTS_BY_INSTRUMENT_KIND) - a small function_score addition was
-    verified too weak to move the ranking."""
-    preview = build_query_preview("landmark Supreme Court ruling on GST")
+    type. Unconditional (present even with boost=False) since it lives at _PHRASE_BOOSTS'
+    should-clause scale, the same reason the edition-preference should-clause boosts do
+    (_EDITION_BOOSTS_BY_INSTRUMENT_KIND) - a small function_score addition was verified too
+    weak to move the ranking. This is this repo's own "sum"-formula mechanism
+    (_build_field_query), so boost_source="sum" is explicit here - the default
+    boost_source="repotaxmannapi" builds an entirely different query (_build_repotaxmannapi_
+    field_query) that doesn't have this should-clause at all."""
+    preview = build_query_preview("landmark Supreme Court ruling on GST", boost=False, boost_source="sum")
 
     should = preview["es_query"]["bool"]["should"]
     matches = [
@@ -555,7 +640,7 @@ def test_build_query_preview_adds_caselaws_group_should_boost_for_ruling_query()
 
 
 def test_build_query_preview_skips_caselaws_group_should_boost_when_no_signal():
-    preview = build_query_preview("Section 54F exemption eligibility")
+    preview = build_query_preview("Section 54F exemption eligibility", boost=False, boost_source="sum")
 
     should = preview["es_query"]["bool"]["should"]
     matches = [clause for clause in should if "groups.group.name.keyword" in clause.get("term", {})]
@@ -563,7 +648,7 @@ def test_build_query_preview_skips_caselaws_group_should_boost_when_no_signal():
 
 
 def test_build_query_preview_adds_rule_group_should_boost_for_bare_rule_word():
-    preview = build_query_preview("landmark rule laid down by the tribunal")
+    preview = build_query_preview("landmark rule laid down by the tribunal", boost=False, boost_source="sum")
 
     should = preview["es_query"]["bool"]["should"]
     matches = [
@@ -577,7 +662,7 @@ def test_build_query_preview_adds_rule_group_should_boost_for_bare_rule_word():
 def test_build_query_preview_adds_experts_opinion_group_should_boost_for_article_word():
     """ARTICLE's real ES groups.group.name is "Experts Opinion", not "ARTICLE" - see
     query_tokenizer.detect_group_signals's docstring for the verification behind that."""
-    preview = build_query_preview("landmark article on GST reforms")
+    preview = build_query_preview("landmark article on GST reforms", boost=False, boost_source="sum")
 
     should = preview["es_query"]["bool"]["should"]
     matches = [
@@ -595,7 +680,7 @@ async def test_raw_search_boost_true_wraps_query_in_sum_mode_function_score():
     was rejected: a single zero-valued function killed the whole relevance score)."""
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "exemption claim", limit=20, boost=True)
+    await raw_search(client, "exemption claim", limit=20, boost=True, boost_source="sum")
 
     query = client.search_calls[0]
     assert "function_score" in query
@@ -609,7 +694,7 @@ async def test_raw_search_boost_true_wraps_query_in_sum_mode_function_score():
 async def test_raw_search_boost_true_includes_doctype_court_landmark_and_recency_functions():
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "exemption claim", limit=20, boost=True)
+    await raw_search(client, "exemption claim", limit=20, boost=True, boost_source="sum")
 
     functions = client.search_calls[0]["function_score"]["functions"]
     fields = {fn["field_value_factor"]["field"] for fn in functions if "field_value_factor" in fn}
@@ -630,7 +715,7 @@ async def test_raw_search_boost_true_viewcount_uses_same_factor_as_repotaxmannap
     multiply (see _apply_boost's own docstring for that failure mode)."""
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "exemption claim", limit=20, boost=True)
+    await raw_search(client, "exemption claim", limit=20, boost=True, boost_source="sum")
 
     functions = client.search_calls[0]["function_score"]["functions"]
     viewcount_fn = next(fn for fn in functions if fn.get("field_value_factor", {}).get("field") == "viewcount")
@@ -649,7 +734,7 @@ async def test_raw_search_boost_true_recency_tiers_match_centax_functionaging_fo
     tiers so a future edit can't silently drift back to the wrong (8-tier) formula."""
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "exemption claim", limit=20, boost=True)
+    await raw_search(client, "exemption claim", limit=20, boost=True, boost_source="sum")
 
     functions = client.search_calls[0]["function_score"]["functions"]
     recency = [
@@ -676,7 +761,7 @@ async def test_raw_search_boost_true_recency_tiers_match_centax_functionaging_fo
 async def test_raw_search_boost_true_boosts_statutory_groups_for_section_query():
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "Section 52 exemption", limit=20, boost=True)
+    await raw_search(client, "Section 52 exemption", limit=20, boost=True, boost_source="sum")
 
     functions = client.search_calls[0]["function_score"]["functions"]
     group_functions = [
@@ -690,7 +775,7 @@ async def test_raw_search_boost_true_boosts_statutory_groups_for_section_query()
 async def test_raw_search_boost_true_skips_statutory_group_boost_for_non_section_query():
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "exemption claim", limit=20, boost=True)
+    await raw_search(client, "exemption claim", limit=20, boost=True, boost_source="sum")
 
     functions = client.search_calls[0]["function_score"]["functions"]
     group_functions = [fn for fn in functions if "groups.group.name.keyword" in fn.get("filter", {}).get("terms", {})]
@@ -708,7 +793,7 @@ async def test_raw_search_boost_true_includes_static_taxonomy_id_boosts_uncondit
     keeping both would double-count it."""
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "exemption claim", limit=20, boost=True)
+    await raw_search(client, "exemption claim", limit=20, boost=True, boost_source="sum")
 
     functions = client.search_calls[0]["function_score"]["functions"]
     term_boosts = {
@@ -731,7 +816,7 @@ async def test_raw_search_boost_true_adds_both_act_edition_should_boosts_for_sec
     against the live ES index for both subgroup ids."""
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "Section 52", limit=20, boost=True)
+    await raw_search(client, "Section 52", limit=20, boost=True, boost_source="sum")
 
     should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
     boosts = {
@@ -753,7 +838,7 @@ async def test_raw_search_boost_true_adds_both_rules_edition_should_boosts_for_r
     real ES index (2026-09-01 investigation)."""
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "Rule 6", limit=20, boost=True)
+    await raw_search(client, "Rule 6", limit=20, boost=True, boost_source="sum")
 
     should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
     boosts = {
@@ -773,7 +858,7 @@ async def test_raw_search_boost_true_skips_edition_should_boost_for_bare_article
     Constitution, a different domain than Income-tax entirely)."""
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "Article 14", limit=20, boost=True)
+    await raw_search(client, "Article 14", limit=20, boost=True, boost_source="sum")
 
     should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
     matches = [clause for clause in should if "groups.group.subgroup.id" in clause.get("term", {})]
@@ -784,7 +869,7 @@ async def test_raw_search_boost_true_skips_edition_should_boost_for_bare_article
 async def test_raw_search_boost_true_skips_edition_should_boost_when_different_act_named():
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "Rule 6 of the CGST Act", limit=20, boost=True)
+    await raw_search(client, "Rule 6 of the CGST Act", limit=20, boost=True, boost_source="sum")
 
     should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
     matches = [clause for clause in should if "groups.group.subgroup.id" in clause.get("term", {})]
@@ -795,7 +880,7 @@ async def test_raw_search_boost_true_skips_edition_should_boost_when_different_a
 async def test_raw_search_boost_true_skips_edition_should_boost_for_non_section_query():
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "exemption claim", limit=20, boost=True)
+    await raw_search(client, "exemption claim", limit=20, boost=True, boost_source="sum")
 
     should = client.search_calls[0]["function_score"]["query"]["bool"]["should"]
     matches = [clause for clause in should if "groups.group.subgroup.id" in clause.get("term", {})]
@@ -803,10 +888,10 @@ async def test_raw_search_boost_true_skips_edition_should_boost_for_non_section_
 
 
 @pytest.mark.asyncio
-async def test_raw_search_boost_false_default_unaffected():
+async def test_raw_search_boost_false_leaves_query_unaffected():
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "exemption claim", limit=20)
+    await raw_search(client, "exemption claim", limit=20, boost=False)
 
     query = client.search_calls[0]
     assert "function_score" not in query
@@ -822,13 +907,20 @@ async def test_raw_search_does_not_exclude_landmarkruling_blacklisted_docs():
     ("Don't add Function Score for blacklisted"). It never excluded the doc from results at
     all. Our prior top-level version was a real regression (hid ~173 legitimate docs from
     every search) with no source-of-truth backing it, and is now removed - raw_search must
-    send the field_query as-is, no must_not anywhere, no landmarkruling clause at all."""
+    send the field_query as-is, no must_not anywhere, no landmarkruling clause at all (the
+    `filter` key present below is the unrelated, unconditional edition-exclusion filter every
+    query gets - see test_build_field_query_every_query_gets_edition_exclusion_filter)."""
     client = FakeAsyncES(search_hits=[])
 
-    await raw_search(client, "exemption claim", limit=20)
+    await raw_search(client, "exemption claim", limit=20, boost=False)
 
     query = client.search_calls[0]
-    assert query == {"bool": {"should": query["bool"]["should"], "minimum_should_match": 1}}
+    assert query == {
+        "bool": {
+            "should": query["bool"]["should"], "minimum_should_match": 1,
+            "filter": [_edition_exclusion_filter()],
+        },
+    }
     assert "must_not" not in query["bool"]
     assert "landmarkruling" not in str(query)
 
@@ -1491,7 +1583,7 @@ async def test_fetch_doc_categories_omits_new_fields_when_doc_has_none_of_them()
     assert results["d2"]["group"] == "Acts"  # GROUP_DISPLAY_LABELS maps "ACT" -> "Acts"
     for key in (
         "judge", "party", "date", "viewcount", "documenttypeboost", "court_boost",
-        "fullcitation", "referenced_act", "referenced_section", "cases_referred",
+        "fullcitation", "referenced_act", "referenced_section", "cases_referred", "act_name",
     ):
         assert key not in results["d2"]
 
@@ -1507,5 +1599,75 @@ async def test_fetch_doc_categories_requests_all_new_source_fields():
         "otherinfo.judge.name", "otherinfo.partyname.name", "otherinfo.fullcitation.name",
         "formatteddocumentdate", "viewcount", "documenttypeboost", "court_boost",
         "associates.act.name", "associates.section.name", "associates.casereferred.name",
+        "categories.url", "groups.group.subgroup.name",
     ):
         assert field in requested
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_bare_act_override_falls_through_to_more_specific_category():
+    """Ported from GlobalSearchIndexController.cs:309-334 - live-verified 2026-09-02 this
+    exact shape (Bare Act first, isprimarycat unset, a more specific tag right after) is
+    common (196/200 sampled bare-act-tagged docs)."""
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [
+                {"name": "Bare Act", "url": "bare-act"},
+                {"name": "Account & Audit"},
+                {"name": "COMPANY AND SEBI"},
+            ],
+            "groups": {"group": {"name": "ACT"}},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["category"] == "Account & Audit"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_bare_act_is_kept_when_it_is_the_only_category():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "Bare Act", "url": "bare-act"}],
+            "groups": {"group": {"name": "ACT"}},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["category"] == "Indian Acts & Rules"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_bare_act_override_respects_isprimarycat_first():
+    """If a different category is explicitly flagged isprimarycat=1, that's still the
+    picked entry - the bare-act override only fires against WHATEVER gets picked
+    (primary-or-first), not unconditionally against categories[0]."""
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [
+                {"name": "Bare Act", "url": "bare-act"},
+                {"name": "GST New", "isprimarycat": 1},
+            ],
+            "groups": {"group": {"name": "ACT"}},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["category"] == "GST"
+
+
+@pytest.mark.asyncio
+async def test_fetch_doc_categories_includes_act_name_from_subgroup():
+    client = FakeAsyncES(mget_docs={
+        "d1": {
+            "categories": [{"name": "COMPANY AND SEBI", "isprimarycat": 1}],
+            "groups": {"group": {"name": "ACT", "subgroup": {"name": "Companies Act, 2013"}}},
+        },
+    })
+
+    results = await fetch_doc_categories(client, ["d1"])
+
+    assert results["d1"]["act_name"] == "Companies Act, 2013"
