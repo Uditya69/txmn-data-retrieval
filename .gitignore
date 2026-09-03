@@ -6,6 +6,7 @@ __pycache__/
 node_modules/
 dist/
 .eval-results/
+.rerank-cache/
 .worktrees/
 .worktrees/
 centax-node/
