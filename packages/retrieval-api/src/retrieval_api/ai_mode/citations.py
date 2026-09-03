@@ -25,10 +25,15 @@ async def prefetch_citations(es_client, candidates: list[dict], top_n_docs: int 
 # (see synthesize.py) - same failure class, just not yet observed on this endpoint. Capping to
 # the top-N by rrf_score before reranking avoids that risk essentially for free: rrf_merge
 # already sorts candidates by combined dense+sparse rank, and only the reranker's own top 5
-# (elbow_cutoff, _MAX_CHUNKS) ever survive downstream anyway - a candidate ranked below 100 by
-# RRF has never once been the gold answer across the 53-query eval set, whose pass thresholds
-# (top 5/10/20) sit far inside this cap.
-_MAX_RERANK_CANDIDATES = 100
+# (elbow_cutoff, _MAX_CHUNKS) ever survive downstream anyway. Lowered from 100 to 20
+# (2026-09-03) after evals/rerank_cap_sweep.py swept 100/50/25/20/10 against the (by-then)
+# 71-query eval set, cached pre-rerank so only the reranker call varied per cap: recall@pass_at
+# was flat-to-slightly-better at 20 vs 100 in two separate runs (58/71 both times vs 56-57/71
+# at 100), while cutting average reranker latency ~2.5x (1954ms vs 5037ms/query). Cap=10 showed
+# a real (not noise) regression - two specific queries (then-Q20/Q60) lost their gold doc's
+# rank - so 20 was chosen as the lowest cap with no observed recall cost. Full run data:
+# .eval-results/rerank_cap_sweep_latest.json as of that date.
+_MAX_RERANK_CANDIDATES = 20
 
 # When reranking is disabled (AI_MODE_RERANK_ENABLED=false), fall back to this many
 # top-by-rrf_score candidates - matches rerank_top_chunks' own _MAX_CHUNKS cap so the
