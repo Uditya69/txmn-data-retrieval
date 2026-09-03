@@ -1,8 +1,10 @@
 import json
 import logging
+from datetime import date
 
 from langfuse import get_client
 
+from common.current_law_facts import load_current_law_facts
 from persona.prompt import RELEVANCE_INSTRUCTION
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.gateway_client import GatewayClient
@@ -36,8 +38,22 @@ Rules:
 - If you are not confident any term genuinely helps, output an empty list - this is the
   common, expected case, not a fallback to avoid.
 
+- If the query itself uses a temporal word like "current", "latest", "this year", or "now"
+  about an Act/provision, you may add the currently-in-force Act name given below as a
+  keyword (still subject to the 2-keyword cap and the other rules above) - this is real
+  context the query gave you, not a guess. Without such a word, don't add an Act name just
+  because one is given below.
+
 Return ONLY a JSON object: {"keywords": [...]} - a list of 0 to 2 short strings, nothing
 else."""
+
+
+def _temporal_anchor() -> str:
+    facts = load_current_law_facts()
+    return (
+        f"\n\nToday's date: {date.today().isoformat()}. Currently in force (default Act "
+        f"when the query names none): {facts['default_act_when_unspecified']}."
+    )
 
 
 def _validate_keywords(existing_query: str, raw) -> list[str]:
@@ -101,7 +117,7 @@ async def expand_keyword_terms(
         response, reasoning = await gateway.chat_with_reasoning(
             role="slm",
             messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": _SYSTEM_PROMPT + _temporal_anchor()},
                 {"role": "user", "content": user_message},
             ],
             response_format=_RESPONSE_FORMAT,

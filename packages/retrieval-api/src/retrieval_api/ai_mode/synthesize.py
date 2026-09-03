@@ -1,3 +1,6 @@
+from datetime import date
+
+from common.current_law_facts import acts_relevant_to_text, load_current_law_facts
 from common.es_client import fetch_citations
 from persona.prompt import RELEVANCE_INSTRUCTION
 from retrieval_api.ai_mode.intent import OnStep
@@ -77,6 +80,34 @@ Formatting:
 """
 
 
+def _current_law_grounding(chunk_block: str) -> str:
+    """Builds a small, query-scoped grounding paragraph telling the model which Act text
+    is currently in force - only for the Acts actually present in this turn's excerpts, so
+    the prompt never grows with facts about unrelated Acts. Exists because the model's own
+    training cutoff otherwise makes it distrust a real, enacted Act as "future"/hallucinated
+    just because its name/year postdates that cutoff (e.g. the Income-tax Act, 2025 read as
+    unreal instead of the real replacement for the 1961 Act) - see the 2026-09-03 "SECTION
+    52" incident this was added for."""
+    facts = load_current_law_facts()
+    relevant = acts_relevant_to_text(chunk_block)
+    lines = [f"Today's date: {date.today().isoformat()}."]
+    if relevant:
+        lines.append(
+            "Which of the Acts below is currently in force - use this to judge which "
+            "excerpt reflects current law, and to resolve words like \"current\", "
+            "\"latest\", \"this year\", or \"now\" in the question. Never distrust an "
+            "excerpt just because its Act name or year looks newer than what you were "
+            "trained on - trust these facts over your own training-cutoff assumption:"
+        )
+        for act in relevant:
+            lines.append(f"- {act['name']}: {act['status']}")
+    lines.append(
+        f"If the question names no Act at all, assume it means "
+        f"{facts['default_act_when_unspecified']}."
+    )
+    return "\n".join(lines)
+
+
 async def synthesize(
     gateway, es_client, query: str, top_chunks: list[dict], citations: dict,
     on_step: OnStep | None = None, model: str | None = None, persona_context: str = "",
@@ -102,7 +133,9 @@ async def synthesize(
     if on_step is not None:
         await on_step("synthesis_prompt", {"prompt": prompt})
 
-    system_prompt = _SYSTEM_PROMPT if not persona_context else f"{_SYSTEM_PROMPT}\n{persona_context}\n{RELEVANCE_INSTRUCTION}"
+    system_prompt = f"{_SYSTEM_PROMPT}\n{_current_law_grounding(chunk_block)}"
+    if persona_context:
+        system_prompt = f"{system_prompt}\n{persona_context}\n{RELEVANCE_INSTRUCTION}"
 
     answer, reasoning = await gateway.chat_with_reasoning(
         role="synthesis",

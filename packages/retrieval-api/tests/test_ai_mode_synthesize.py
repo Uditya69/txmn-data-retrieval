@@ -168,7 +168,8 @@ async def test_synthesize_omits_persona_context_when_empty(monkeypatch):
     )
 
     system_message = gateway.chat_with_reasoning.call_args.kwargs["messages"][0]
-    assert system_message["content"] == module._SYSTEM_PROMPT
+    assert system_message["content"] == f"{module._SYSTEM_PROMPT}\n{module._current_law_grounding('chunk text')}"
+    assert "persona" not in system_message["content"].lower()
 
 
 @pytest.mark.asyncio
