@@ -653,7 +653,7 @@ async def test_run_ai_mode_keyword_path_appends_expanded_keywords_when_flag_enab
     import retrieval_api.ai_mode.pipeline as module
     from unittest.mock import Mock
 
-    async def fake_expand_keyword_terms(gateway, query, on_step=None):
+    async def fake_expand_keyword_terms(gateway, query, on_step=None, persona_context=""):
         return ["cost of improvement"]
 
     seen_queries = []

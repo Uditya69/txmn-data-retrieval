@@ -1,0 +1,44 @@
+{
+  "sec54": {
+    "user_id": "eval-persona-sec54",
+    "state": "active",
+    "score": 0.7835631588655024,
+    "persona_context": "This user is currently focused on: Section 54, Income Tax Department (India) (active)."
+  },
+  "sec43b": {
+    "user_id": "eval-persona-sec43b",
+    "state": "active",
+    "score": 0.7835631588655024,
+    "persona_context": "This user is currently focused on: Section 43B, Income-tax Act 1961 (active)."
+  },
+  "gst_rule6": {
+    "user_id": "eval-persona-gstrule6",
+    "state": "active",
+    "score": 0.7835631588655024,
+    "persona_context": "This user is currently focused on: CGST Rules Rule 6, Rule 6 (active)."
+  },
+  "sec80hh": {
+    "user_id": "eval-persona-sec80hh",
+    "state": "active",
+    "score": 0.7835631588655024,
+    "persona_context": "This user is currently focused on: Section 80HH, Industrial undertakings (active)."
+  },
+  "sec61": {
+    "user_id": "eval-persona-sec61",
+    "state": "active",
+    "score": 0.7835631588655024,
+    "persona_context": "This user is currently focused on: Section 61, Income-tax Act (active)."
+  },
+  "art14": {
+    "user_id": "eval-persona-art14",
+    "state": "active",
+    "score": 0.7835631588655024,
+    "persona_context": "This user is currently focused on: Article 14 of Indian Constitution, Article 14 (active)."
+  },
+  "trademark": {
+    "user_id": "eval-persona-trademark",
+    "state": "discovered",
+    "score": 0.3296799539643607,
+    "persona_context": ""
+  }
+}

@@ -65,7 +65,9 @@ async def run_ai_mode(
                     with langfuse.start_as_current_observation(
                         as_type="chain", name="keyword-expansion", input={"query": keyword_query},
                     ) as span:
-                        added_keywords = await expand_keyword_terms(gateway, keyword_query, on_step=on_step)
+                        added_keywords = await expand_keyword_terms(
+                            gateway, keyword_query, on_step=on_step, persona_context=persona_context,
+                        )
                         span.update(output={"added_keywords": added_keywords})
                     if added_keywords:
                         keyword_query = f"{keyword_query} {' '.join(added_keywords)}"

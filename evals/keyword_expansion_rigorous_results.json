@@ -1,0 +1,494 @@
+{
+  "before": [
+    {
+      "key": "sec54",
+      "query": "section 54",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "section 54",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 54",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 54",
+          "rank": null,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "key": "sec43b",
+      "query": "section 43B",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "section 43B",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 43B",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 43B",
+          "rank": null,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "key": "gst_rule6",
+      "query": "rule 6",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "rule 6",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "rule 6",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "rule 6",
+          "rank": null,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "key": "sec80hh",
+      "query": "80HH",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "80HH",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "80HH",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "80HH",
+          "rank": null,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "key": "sec61",
+      "query": "section 61",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "section 61",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 61",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 61",
+          "rank": null,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "key": "art14",
+      "query": "article 14",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "article 14",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "article 14",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "equality",
+            "equal protection"
+          ],
+          "keyword_query": "article 14 equality equal protection",
+          "rank": 1,
+          "hit": true
+        }
+      ]
+    }
+  ],
+  "after_own_persona": [
+    {
+      "key": "sec54",
+      "query": "section 54",
+      "runs": [
+        {
+          "added_keywords": [
+            "capital gains",
+            "residential property"
+          ],
+          "keyword_query": "section 54 capital gains residential property",
+          "rank": 1,
+          "hit": true
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 54",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 54",
+          "rank": null,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "key": "sec43b",
+      "query": "section 43B",
+      "runs": [
+        {
+          "added_keywords": [
+            "Income-tax Act 1961"
+          ],
+          "keyword_query": "section 43B Income-tax Act 1961",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "Income-tax Act 1961"
+          ],
+          "keyword_query": "section 43B Income-tax Act 1961",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "Income-tax Act 1961"
+          ],
+          "keyword_query": "section 43B Income-tax Act 1961",
+          "rank": null,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "key": "gst_rule6",
+      "query": "rule 6",
+      "runs": [
+        {
+          "added_keywords": [
+            "CGST"
+          ],
+          "keyword_query": "rule 6 CGST",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "CGST"
+          ],
+          "keyword_query": "rule 6 CGST",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "CGST"
+          ],
+          "keyword_query": "rule 6 CGST",
+          "rank": null,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "key": "sec80hh",
+      "query": "80HH",
+      "runs": [
+        {
+          "added_keywords": [
+            "Industrial units"
+          ],
+          "keyword_query": "80HH Industrial units",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "Industrial undertakings"
+          ],
+          "keyword_query": "80HH Industrial undertakings",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "Industrial undertakings"
+          ],
+          "keyword_query": "80HH Industrial undertakings",
+          "rank": null,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "key": "sec61",
+      "query": "section 61",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "section 61",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "Income-tax Act",
+            "total income"
+          ],
+          "keyword_query": "section 61 Income-tax Act total income",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "Income-tax Act",
+            "house property"
+          ],
+          "keyword_query": "section 61 Income-tax Act house property",
+          "rank": null,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "key": "art14",
+      "query": "article 14",
+      "runs": [
+        {
+          "added_keywords": [
+            "Constitution"
+          ],
+          "keyword_query": "article 14 Constitution",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "equality before law",
+            "right to equality"
+          ],
+          "keyword_query": "article 14 equality before law right to equality",
+          "rank": 1,
+          "hit": true
+        },
+        {
+          "added_keywords": [
+            "Indian Constitution",
+            "equal protection"
+          ],
+          "keyword_query": "article 14 Indian Constitution equal protection",
+          "rank": 1,
+          "hit": true
+        }
+      ]
+    }
+  ],
+  "after_mismatched_persona": [
+    {
+      "key": "sec54",
+      "query": "section 54",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "section 54",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 54",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 54",
+          "rank": null,
+          "hit": false
+        }
+      ],
+      "mismatched_persona_topic": "sec43b"
+    },
+    {
+      "key": "sec43b",
+      "query": "section 43B",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "section 43B",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 43B",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 43B",
+          "rank": null,
+          "hit": false
+        }
+      ],
+      "mismatched_persona_topic": "gst_rule6"
+    },
+    {
+      "key": "gst_rule6",
+      "query": "rule 6",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "rule 6",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "rule 6",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "rule 6",
+          "rank": null,
+          "hit": false
+        }
+      ],
+      "mismatched_persona_topic": "sec80hh"
+    },
+    {
+      "key": "sec80hh",
+      "query": "80HH",
+      "runs": [
+        {
+          "added_keywords": [
+            "Income-tax Act"
+          ],
+          "keyword_query": "80HH Income-tax Act",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "Income-tax Act",
+            "Health Insurance Premiums"
+          ],
+          "keyword_query": "80HH Income-tax Act Health Insurance Premiums",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "Income-tax Act"
+          ],
+          "keyword_query": "80HH Income-tax Act",
+          "rank": null,
+          "hit": false
+        }
+      ],
+      "mismatched_persona_topic": "sec61"
+    },
+    {
+      "key": "sec61",
+      "query": "section 61",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "section 61",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 61",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "section 61",
+          "rank": null,
+          "hit": false
+        }
+      ],
+      "mismatched_persona_topic": "art14"
+    },
+    {
+      "key": "art14",
+      "query": "article 14",
+      "runs": [
+        {
+          "added_keywords": [],
+          "keyword_query": "article 14",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [],
+          "keyword_query": "article 14",
+          "rank": null,
+          "hit": false
+        },
+        {
+          "added_keywords": [
+            "equality",
+            "equal protection"
+          ],
+          "keyword_query": "article 14 equality equal protection",
+          "rank": 1,
+          "hit": true
+        }
+      ],
+      "mismatched_persona_topic": "sec54"
+    }
+  ]
+}

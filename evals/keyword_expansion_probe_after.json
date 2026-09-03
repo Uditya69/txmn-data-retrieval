@@ -1,0 +1,68 @@
+{
+  "supports_persona": true,
+  "results": [
+    {
+      "id": "PK01",
+      "query": "section 54",
+      "added_keywords": [
+        "Income-tax Act, 1961",
+        "residential house property"
+      ],
+      "keyword_query": "section 54 Income-tax Act, 1961 residential house property",
+      "rank": 1,
+      "hit": true
+    },
+    {
+      "id": "PK02",
+      "query": "section 43B",
+      "added_keywords": [
+        "Income-tax Act, 1961",
+        "statutory dues"
+      ],
+      "keyword_query": "section 43B Income-tax Act, 1961 statutory dues",
+      "rank": 3,
+      "hit": true
+    },
+    {
+      "id": "PK03",
+      "query": "rule 6",
+      "added_keywords": [],
+      "keyword_query": "rule 6",
+      "rank": null,
+      "hit": false
+    },
+    {
+      "id": "PK04",
+      "query": "80HH",
+      "added_keywords": [
+        "backward areas",
+        "new industrial units"
+      ],
+      "keyword_query": "80HH backward areas new industrial units",
+      "rank": null,
+      "hit": false
+    },
+    {
+      "id": "PK05",
+      "query": "section 61",
+      "added_keywords": [
+        "Income-tax Act, 1961",
+        "transfer of assets"
+      ],
+      "keyword_query": "section 61 Income-tax Act, 1961 transfer of assets",
+      "rank": 2,
+      "hit": true
+    },
+    {
+      "id": "PK06",
+      "query": "article 14",
+      "added_keywords": [
+        "Constitution of India",
+        "equality before law"
+      ],
+      "keyword_query": "article 14 Constitution of India equality before law",
+      "rank": 1,
+      "hit": true
+    }
+  ]
+}

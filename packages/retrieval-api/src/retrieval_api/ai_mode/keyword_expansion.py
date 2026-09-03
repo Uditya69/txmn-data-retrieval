@@ -3,6 +3,7 @@ import logging
 
 from langfuse import get_client
 
+from persona.prompt import RELEVANCE_INSTRUCTION
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.gateway_client import GatewayClient
 
@@ -60,7 +61,7 @@ def _validate_keywords(existing_query: str, raw) -> list[str]:
 
 
 async def expand_keyword_terms(
-    gateway: GatewayClient, query: str, on_step: OnStep | None = None,
+    gateway: GatewayClient, query: str, on_step: OnStep | None = None, persona_context: str = "",
 ) -> list[str]:
     """Opt-in SLM pass for AI Mode's keyword path (common.config.Settings.
     keyword_mode_expansion_enabled, env-only, default OFF) - the keyword path otherwise
@@ -69,13 +70,39 @@ async def expand_keyword_terms(
     query rewrite. Degrades to no expansion (empty list) on any failure - an experimental
     recall booster must never turn into a hard failure for a path that worked fine without
     it a moment ago."""
+    user_message = query
+    if persona_context:
+        # The base system prompt's "never guess on a bare section/rule number" rule
+        # exists because a bare number is genuinely ambiguous across Acts with no way
+        # for the model to know which one - but a persona note naming the user's usual
+        # Act/subject is exactly the kind of context that can responsibly resolve that
+        # ambiguity, same additive-only role persona plays in intent.py's search_query
+        # expansion. Gated on non-empty persona_context so guest traffic and this
+        # probe's own "before" baseline run are unaffected.
+        user_message += (
+            f"\n\n{persona_context}\n{RELEVANCE_INSTRUCTION}\n"
+            "If the query above is a bare section/rule number with no Act/court/subject "
+            "of its own, you may use the note above to resolve which Act/subject it "
+            "belongs to and add that Act name as a keyword - still capped at 2 keywords "
+            "total. A keyword drawn from the note must be a term the note ITSELF names "
+            "(the Act, the section/rule number, or a subject phrase literally present in "
+            "it) - never your own independent guess at what that section covers beyond "
+            "what the note actually says, even if you are confident of the general legal "
+            "subject matter from training knowledge; that guess is exactly what produces a "
+            "wrong-section keyword (e.g. inventing an unrelated deduction topic for a bare "
+            "section number just because the note names that Act). If you are not "
+            "genuinely confident the note is about this specific query - not just plausible, "
+            "genuinely confident - output an empty list rather than using it. If the note "
+            "conflicts with or is unrelated to the query, ignore it and follow the base "
+            "rules above."
+        )
     reasoning = None
     try:
         response, reasoning = await gateway.chat_with_reasoning(
             role="slm",
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": query},
+                {"role": "user", "content": user_message},
             ],
             response_format=_RESPONSE_FORMAT,
             temperature=0.6,
