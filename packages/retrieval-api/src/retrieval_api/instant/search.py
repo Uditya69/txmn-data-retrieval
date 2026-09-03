@@ -9,6 +9,7 @@ from common.instant_classifier.labels import routing_plan
 from common.legal_lexicon import fuzzy_correct_query
 from common.milvus_client import hybrid_search
 from common.query_tokenizer import build_dense_sparse_query, chunk_query
+from common.repotaxmannapi_tokenizer import is_whole_query_exact_phrase
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.instant.rerank import rerank_instant_results
@@ -234,8 +235,26 @@ async def run_instant(
         # `query` (its own pipeline already handles this); only Milvus gets the cleaned text.
         milvus_query = build_dense_sparse_query(chunk_query(query), fallback=query)
 
-        label, confidence = effective_label_with_confidence(query)
-        plan = routing_plan(label) if auto_route else {"es": True, "milvus": True, "fuse": False}
+        # Exact-phrase fast path (2026-09-04): a search bar query that is ENTIRELY one
+        # double-quoted phrase (e.g. `"section 52"`) is an unambiguous exact-lookup request -
+        # running it through the ML shape classifier and Milvus dense search anyway (as
+        # every query previously did) has actively hurt results in practice: for a real
+        # long-phrase headnote-text query, the classifier mislabeled it HYBRID and routed to
+        # `{"es": True, "milvus": True, "fuse": True}`, but ES's own `es_query.bool.must`
+        # (correctly) requires a genuine phrase match to even return a hit at all, so
+        # `es_search` came back empty while Milvus's semantic search - which has no such
+        # exact-match requirement - filled the entire result list with topically-similar but
+        # NOT phrase-matching cases. The user asked to quote an exact phrase specifically to
+        # rule those out; running semantic search anyway silently defeated the intent. Skips
+        # `effective_label_with_confidence`'s model call entirely (not just its routing
+        # output) - this is a structural property of the query text, not something the
+        # shape classifier is any better positioned to judge than a plain tokenize() call.
+        if is_whole_query_exact_phrase(query):
+            label, confidence = "KEYWORD", 1.0
+            plan = {"es": True, "milvus": False, "fuse": False}
+        else:
+            label, confidence = effective_label_with_confidence(query)
+            plan = routing_plan(label) if auto_route else {"es": True, "milvus": True, "fuse": False}
         # Surfaced in both trace systems - without this, a skipped ES/Milvus call (auto_route)
         # is indistinguishable from one that ran and legitimately found nothing, and the raw
         # model confidence (as opposed to the post-threshold label) is otherwise unobservable

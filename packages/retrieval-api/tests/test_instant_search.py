@@ -630,6 +630,49 @@ async def test_run_instant_auto_route_keyword_skips_milvus(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_instant_exact_phrase_query_skips_classifier_and_milvus(monkeypatch):
+    """A search-bar query that is ENTIRELY one double-quoted phrase must never reach the ML
+    shape classifier or Milvus - regression guard for a real production bug: a long quoted
+    headnote-text phrase got mislabeled HYBRID (confidence ~0.50, below threshold), routed to
+    both ES and Milvus with fuse=True, and since ES's own exact-phrase query structure
+    correctly requires a genuine phrase match (returning zero hits when there isn't one),
+    Milvus's semantic search - which has no such requirement - silently filled the entire
+    result list with topically-similar but non-matching cases, defeating the whole point of
+    quoting an exact phrase. `effective_label_with_confidence` monkeypatched to raise proves
+    it's never called at all for this query shape, not just that its result gets overridden -
+    this must be a structural bypass, not routing logic downstream of a (possibly wrong)
+    classifier call."""
+    import retrieval_api.instant.search as search_module
+
+    async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
+        return [{"doc_id": "d1", "score": 4.2}]
+
+    def classifier_should_not_be_called(query):
+        raise AssertionError("classifier must not run for a whole-query exact phrase")
+
+    monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
+    monkeypatch.setattr(search_module, "effective_label_with_confidence", classifier_should_not_be_called)
+    monkeypatch.setattr(search_module, "routing_plan", classifier_should_not_be_called)
+
+    steps = []
+
+    async def on_step(step, data):
+        steps.append((step, data))
+
+    gateway = AsyncMock()
+    result = await run_instant(
+        gateway=gateway, es_client=object(), milvus_client=object(),
+        query='"record and correct application of principle in law"', on_step=on_step,
+    )
+
+    assert result["milvus"] is None
+    gateway.embed.assert_not_called()
+    classifier_step = next(data for step, data in steps if step == "classifier")
+    assert classifier_step["plan"] == {"es": True, "milvus": False, "fuse": False}
+    assert classifier_step["confidence"] == 1.0
+
+
+@pytest.mark.asyncio
 async def test_run_instant_auto_route_intent_skips_es(monkeypatch):
     import retrieval_api.instant.search as search_module
 

@@ -20,7 +20,7 @@ def test_builds_phrase_boost_should_clauses_for_a_plain_text_token():
     }
     assert boosts_by_field == {
         "heading": 155000, "subheading": 80000,
-        "searchboosttext": 70000, "headnotestext": 65000, "fullcontent": 1,
+        "searchboosttext": 70000, "headnotes_text": 65000, "fullcontent": 1,
     }
 
 
@@ -151,7 +151,7 @@ def test_tx_global_branch_ors_three_headnotestext_tiers():
         type="TX", or_in=False, proximity=5, query_date=None,
     )
     clauses = build_should_clauses([token], is_global=True, is_excus=False)
-    tuples = _match_phrase_tuples(clauses, "headnotestext")
+    tuples = _match_phrase_tuples(clauses, "headnotes_text")
     assert ("Dimension Data India", 65000, 1) in tuples
     assert ("Dimension Data India", 60000, 5) in tuples
     assert ("Dimension Data India", 50000, 100) in tuples

@@ -322,6 +322,112 @@ async def test_raw_search_boost_source_sum_still_available_explicitly():
 
 
 @pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_double_quoted_text_uses_phrase_search_fields():
+    """Double-quoted text in the search bar is extracted by `tokenize()` into a PHRASE_WORD
+    token (TaxmannQueryAnalizer.cs's quote-extraction; SearchTextElastic.cs's QType=="PH"
+    branch, lines 1068-1082) - which must hit `.phrase_search` sub-fields with no analyzer,
+    not the plain snowball-analyzed fields the rest of the query uses. Regression guard for
+    the gap where `_build_repotaxmannapi_field_query` only ever called `build_should_clauses`
+    once with `is_excus=False` for the whole token list, silently dropping the PH/phrase_search
+    rendering for any quoted text."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, 'section 52 "voluntary retirement"', limit=20, boost=True, boost_source="repotaxmannapi")
+
+    query = client.search_calls[0]
+    should = query["function_score"]["query"]["bool"]["should"]
+    phrase_search_clauses = [
+        c for c in should
+        if "match_phrase" in c
+        and any(field.endswith(".phrase_search") for field in c["match_phrase"])
+    ]
+    assert phrase_search_clauses, "expected at least one .phrase_search clause for the quoted text"
+    heading_clause = next(
+        c["match_phrase"]["heading.phrase_search"]
+        for c in phrase_search_clauses
+        if "heading.phrase_search" in c["match_phrase"]
+    )
+    assert heading_clause["query"] == "voluntary retirement"
+    assert heading_clause["slop"] == 0
+    assert "analyzer" not in heading_clause
+
+
+@pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_whole_query_phrase_skips_function_score():
+    """Live-captured against the real production endpoint (2026-09-04): a search bar query
+    that is ENTIRELY one double-quoted phrase (e.g. `"section 52"`,
+    `"571/Ahd/2016 vide order dated 02-04-2026"`) never gets wrapped in FunctionScore at
+    all on the real system - plain `bool` query, no documenttypeboost/viewcount/court_boost/
+    landmarkruling/recency-ladder functions, no `boost_mode: multiply`. Regression guard for
+    the bug this caused here: a genuine phrase match (a real, low-thousands raw score) lost
+    to bare Act/Rule sections with zero should-clause relevance, because their
+    `documenttypeboost` field alone, multiplied through the (mostly empty) functions stack,
+    scored in the millions - reproduced live for `"571/Ahd/2016 vide order dated
+    02-04-2026"`, which returned only unrelated GST Act sections ahead of the one real
+    matching case."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, '"section 52"', limit=20, boost=True, boost_source="repotaxmannapi")
+
+    query = client.search_calls[0]
+    assert "function_score" not in query
+    assert "bool" in query
+    text_should = query["bool"]["must"][0]["bool"]["should"]
+    assert any(
+        "match_phrase" in c and "heading.phrase_search" in c["match_phrase"]
+        for c in text_should
+    )
+
+
+@pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_whole_query_phrase_requires_text_match():
+    """Regression guard for the second, structural half of the bug above: even after
+    dropping FunctionScore, a plain top-level `bool.should` mixing the 5 phrase-field
+    clauses with the static group-membership `term` boosts (all in one should-list under
+    `minimum_should_match: 1`) still let a document match via a group-boost clause ALONE -
+    ES's should-list-satisfies-the-query default doesn't care WHICH should clause matched.
+    Reproduced live: `"571/Ahd/2016 vide order dated 02-04-2026"` returned every GST Act
+    section (each a member of the boosted CGST Act 2017 subgroup, zero text relevance)
+    ranked above the one real matching case. The phrase-field should-list must sit in its
+    own `bool.must` entry (mandatory - ES's default `minimum_should_match: 1` for a should
+    list with no sibling must/filter) while the group boosts move to a plain top-level
+    `should` (score-only, no minimum, once a sibling `must` exists) - see the
+    implementation comment for the exact real-capture shape this mirrors."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(
+        client, '"571/Ahd/2016 vide order dated 02-04-2026"', limit=20, boost=True, boost_source="repotaxmannapi",
+    )
+
+    query = client.search_calls[0]
+    must = query["bool"]["must"]
+    assert len(must) == 1
+    assert must[0]["bool"]["minimum_should_match"] == 1
+    text_should = must[0]["bool"]["should"]
+    assert all("match_phrase" in c for c in text_should), "must-clause should only hold text-relevance clauses"
+    top_level_should = query["bool"]["should"]
+    assert all("term" in c or "bool" in c for c in top_level_should)
+    assert not any("match_phrase" in c for c in top_level_should), (
+        "static group boosts must not sit alongside the mandatory text-match clause"
+    )
+
+
+@pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_mixed_phrase_query_keeps_function_score():
+    """A query with BOTH unquoted words and a quoted phrase (e.g. `section 52
+    "voluntary retirement"`) is a different shape from the whole-query-phrase case above -
+    no real capture evidence exists yet for how repotaxmannapi scores it, so it stays on
+    the existing FunctionScore path rather than guessing. Regression guard against
+    accidentally widening the phrase-only fast path (above) to also match mixed queries."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, 'section 52 "voluntary retirement"', limit=20, boost=True, boost_source="repotaxmannapi")
+
+    query = client.search_calls[0]
+    assert "function_score" in query
+
+
+@pytest.mark.asyncio
 async def test_raw_search_repotaxmannapi_resolves_group_id_from_tokens():
     """SearchTextElastic's caller (GlobalSearchResearch.cs:595-596, duplicated at 988-989 and
     in GlobalSearchResearchMobileApp.cs:64-65 - the task brief's cited 589-590 was stale)

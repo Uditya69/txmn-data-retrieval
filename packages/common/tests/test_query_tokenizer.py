@@ -285,6 +285,37 @@ def test_chunk_query_quoted_phrase_gets_exact_proximity():
     assert quoted_chunk["proximity"] == 0
 
 
+def test_chunk_query_quoted_section_reference_stays_quoted_not_reclassified():
+    """Regression guard: `_classify_merged_chunk` re-derives a merged token's chunk type from
+    its own text shape - it can't tell whether "Section 52" arrived as one already-complete
+    _QuotedPhrase (the user explicitly quoted it) or as two adjacent words merge_keyword_number
+    assembled on its own. Before the _QuotedPhrase marker existed, both looked identical by the
+    time chunk_query's classification loop ran, so quoting "Section 52" got silently
+    reclassified as a plain "section" chunk - same alt_text zero-pad variant
+    ("Section 052") an UNQUOTED "Section 52" gets, defeating the whole point of quoting: an
+    exact-phrase lookup that must never expand into a fuzzy alternative."""
+    chunks = chunk_query('"Section 52"')
+    assert chunks == [{"text": "Section 52", "proximity": 0, "type": "quoted", "alt_text": None}]
+
+
+def test_chunk_query_quoted_single_word_still_becomes_a_quoted_chunk():
+    """A single-word quoted token (e.g. `"tax"`) has no space at all, so it would otherwise
+    fall into chunk_query's generic single-word text_run branch (slop=5, type="text") -
+    the same loose, unanchored treatment as any bare unquoted word - silently losing the
+    user's explicit exact-phrase request."""
+    chunks = chunk_query('"tax"')
+    assert chunks == [{"text": "tax", "proximity": 0, "type": "quoted", "alt_text": None}]
+
+
+def test_chunk_query_quoted_citation_shaped_text_stays_quoted_not_reclassified():
+    """Same _QuotedPhrase-marker guard as the quoted-section test above, for the citation
+    shape: `_classify_merged_chunk` would otherwise reclassify a quoted citation-looking span
+    as type="citation" (proximity 2, tolerant of gaps) instead of respecting the user's
+    explicit request for an exact, gap-free phrase match (proximity 0)."""
+    chunks = chunk_query('"133 taxmann.com 196"')
+    assert chunks == [{"text": "133 taxmann.com 196", "proximity": 0, "type": "quoted", "alt_text": None}]
+
+
 def test_chunk_query_single_leftover_word_still_becomes_its_own_text_chunk():
     chunks = chunk_query("goodwill")
     assert chunks == [{"text": "goodwill", "proximity": 5, "type": "text", "alt_text": None}]

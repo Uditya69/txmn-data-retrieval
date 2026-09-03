@@ -105,10 +105,18 @@ function TraceSection({
   result,
   onOpenDocument,
   filter,
+  ready,
 }: {
   result: ResultState | undefined
   onOpenDocument: (docId: string) => void
   filter?: (step: { step: string }) => boolean
+  // Whether THIS pane's own steps are fully in - Instant and AI Mode finish
+  // independently (ws.py sends instant_result as soon as Instant's own work is
+  // done, without waiting on the concurrently-running AI Mode task), so this
+  // must never fall back to result.status, which only flips to 'done' once AI
+  // Mode finishes. That coupling was the bug: it disabled Instant's own copy
+  // button until AI Mode (an unrelated, often slower pipeline) finished too.
+  ready: boolean
 }) {
   const steps = filter ? (result?.traceSteps ?? []).filter(filter) : result?.traceSteps ?? []
   if (!result || steps.length === 0) return null
@@ -116,7 +124,7 @@ function TraceSection({
     <details className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
       <summary className="text-xs font-medium uppercase tracking-wider cursor-pointer" style={{ color: 'var(--text-faint)' }}>
         Trace ({steps.length})
-        <CopyTraceButton traceSteps={steps} disabled={result.status !== 'done'} />
+        <CopyTraceButton traceSteps={steps} disabled={!ready} />
       </summary>
       <div className="mt-2">
         <TracePanel steps={steps} onOpenDocument={onOpenDocument} />
@@ -417,7 +425,14 @@ function InstantPane({
         </div>
       )}
 
-      {devMode && <TraceSection result={result} onOpenDocument={onOpenDocument} filter={(step) => INSTANT_STEP_NAMES.has(step.step)} />}
+      {devMode && (
+        <TraceSection
+          result={result}
+          onOpenDocument={onOpenDocument}
+          filter={(step) => INSTANT_STEP_NAMES.has(step.step)}
+          ready={result?.instant != null}
+        />
+      )}
     </div>
   )
 }
@@ -582,6 +597,7 @@ function AnswerPane({
           result={result}
           onOpenDocument={onOpenDocument}
           filter={(step) => !INSTANT_STEP_NAMES.has(step.step)}
+          ready={result?.status === 'done'}
         />
       )}
     </div>

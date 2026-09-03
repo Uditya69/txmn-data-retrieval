@@ -281,6 +281,37 @@ describe('TraceSection copy button', () => {
 
     expect(writeText).not.toHaveBeenCalled()
   })
+
+  it('Instant pane copy button stays enabled while AI Mode is still loading', () => {
+    const writeText = vi.fn()
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    const message: ChatMessage = {
+      id: 'm3',
+      role: 'assistant',
+      question: 'q',
+      activeMode: 'classic',
+      results: {
+        classic: {
+          // Whole-turn status is still 'loading' (AI Mode hasn't finished) but Instant's
+          // own result already arrived - its pane must not wait on AI Mode.
+          status: 'loading',
+          instant: { es: [], es_error: null, milvus: null, milvus_sparse: null, milvus_error: null },
+          aiMode: null,
+          traceSteps: [{ step: 'es_search', data: { query: 'q' } }],
+        },
+      },
+    }
+
+    render(<ChatMessageView message={message} devMode={true} onOpenDocument={() => {}} />)
+
+    const button = screen.getByText('Copy')
+    expect(button).not.toBeDisabled()
+
+    fireEvent.click(button)
+
+    expect(writeText).toHaveBeenCalled()
+  })
 })
 
 describe('InstantPane pagination — hidden by default', () => {

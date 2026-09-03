@@ -250,14 +250,31 @@ def strip_stopwords(tokens: list[str]) -> list[str]:
 _QUOTED_PHRASE_PATTERN = re.compile(r'"([^"]+)"')
 
 
+class _QuotedPhrase(str):
+    """Marker subclass - a token that came from an explicit double-quoted span in the search
+    bar, as opposed to one of chunk_query's own merge heuristics (Section+number, citation
+    triple, court+city) assembling a multi-word token out of adjacent unquoted words.
+    chunk_query checks `isinstance(token, _QuotedPhrase)` to force type="quoted"/slop=0 on
+    anything the user explicitly quoted - even when its text also happens to look like a
+    section reference (`"Section 52"`) or a citation. The user's own quoting is a stronger,
+    unambiguous signal than any shape-based guess and must never get reinterpreted into a
+    looser/different chunk type - `_classify_merged_chunk` (used for the OTHER, non-quoted
+    merged shapes) would otherwise treat `"Section 52"` identically to an unquoted `Section
+    52` and additionally invent a zero-padded `alt_text` variant ("Section 052") that no
+    exact-phrase match should ever add. Plain `str` otherwise (`isinstance(x, str)` is
+    `True`) - transparent to every merge_*/strip_stopwords helper here and to
+    extract_boost_phrases, none of which need to know about it."""
+
+
 def extract_quoted_phrases(query: str) -> list[str]:
     """Ports queryAnalyzer.js's quoted-phrase extraction: a double-quoted substring becomes
-    one token; the remaining unquoted text is split into individual word tokens. Runs
-    normalize_section_dash() first (entry point shared by chunk_query and extract_boost_phrases)
-    so a glued "Section-52" is already "Section 52" - two tokens - by the time .split() runs,
-    the same as it would be for a quoted span containing that shape."""
+    one token (a `_QuotedPhrase` instance - see its own docstring); the remaining unquoted
+    text is split into individual word tokens. Runs normalize_section_dash() first (entry
+    point shared by chunk_query and extract_boost_phrases) so a glued "Section-52" is already
+    "Section 52" - two tokens - by the time .split() runs, the same as it would be for a
+    quoted span containing that shape."""
     query = normalize_section_dash(query)
-    phrases = _QUOTED_PHRASE_PATTERN.findall(query)
+    phrases = [_QuotedPhrase(p) for p in _QUOTED_PHRASE_PATTERN.findall(query)]
     remainder = _QUOTED_PHRASE_PATTERN.sub(" ", query)
     words = [w for w in remainder.split() if w]
     return phrases + words
@@ -366,7 +383,17 @@ def chunk_query(query: str) -> list[dict]:
             text_run.clear()
 
     for token in tokens:
-        if " " in token:
+        if isinstance(token, _QuotedPhrase):
+            # Checked BEFORE the generic " " in token branch below, and even ahead of a
+            # single-word quoted token (which has no space at all and would otherwise fall
+            # through into text_run, silently losing its exact-phrase slop=0 and getting
+            # merged into a loose slop=5 text-run chunk alongside neighboring words) - an
+            # explicit quote is never reinterpreted as any other chunk type, regardless of
+            # word count or whether its text also happens to match a section/citation/
+            # court-city shape. See _QuotedPhrase's own docstring for why.
+            flush_text_run()
+            chunks.append({"text": str(token), "proximity": _PROXIMITY_EXACT, "type": "quoted", "alt_text": None})
+        elif " " in token:
             flush_text_run()
             chunk_type, proximity, alt_text = _classify_merged_chunk(token)
             chunks.append({"text": token, "proximity": proximity, "type": chunk_type, "alt_text": alt_text})

@@ -13,7 +13,7 @@ from common.query_tokenizer import (
 from common.repotaxmannapi_boost_config import load_repotaxmannapi_boost_config
 from common.repotaxmannapi_query_builder import build_should_clauses
 from common.repotaxmannapi_scoring import build_function_score_functions
-from common.repotaxmannapi_tokenizer import tokenize
+from common.repotaxmannapi_tokenizer import TokenType, tokenize
 from common.schemas import (
     CATEGORY_DISPLAY_LABELS, ES_GROUP_FOR_COLLECTION, GROUP_DISPLAY_LABELS, MASTERINFO_CITATION_FIELDS,
 )
@@ -916,7 +916,9 @@ def _build_repotaxmannapi_field_query(query: str) -> dict:
     (the "sum" vs "repotaxmannapi" branch) and raw_search_grouped (below), so the scored
     `query` half of both a flat search and a bucketed one can never drift apart. See
     raw_search's docstring for the group_id resolution this mirrors (first-classified-token-
-    wins, TaxmannQueryAnalizer.cs's SetPrimaryTag gate).
+    wins, TaxmannQueryAnalizer.cs's SetPrimaryTag gate). NOT always FunctionScore, despite the
+    docstring's own name - see the whole-query-is-a-phrase branch near the end of this
+    function for the one shape that skips it entirely.
 
     _edition_exclusion_filter (2026-09-02): the real source's edition-exclusion mechanism
     (SearchTextElastic.cs::GetGlobalSearchQuery) applies to ALL global search regardless of
@@ -927,17 +929,61 @@ def _build_repotaxmannapi_field_query(query: str) -> dict:
     builder specifically after the boost_source default flip made it reachable through the
     UI for the first time)."""
     tokens = tokenize(query)
-    should = build_should_clauses(tokens, is_global=True, is_excus=False)
+    phrase_tokens = [t for t in tokens if t.type == TokenType.PHRASE_WORD]
+    other_tokens = [t for t in tokens if t.type != TokenType.PHRASE_WORD]
+    should = build_should_clauses(other_tokens, is_global=True, is_excus=False)
+    if phrase_tokens:
+        # Double-quoted text in the search bar (e.g. `"section 52"`) is extracted by
+        # `tokenize()` into PHRASE_WORD tokens (TaxmannQueryAnalizer.cs's quote-extraction,
+        # SearchTextElastic.cs:1068-1082's PH/isExcus branch) - these need the
+        # `.phrase_search` field variant + no analyzer, rendered via a second
+        # `is_excus=True` call and merged in, since `build_should_clauses` renders an
+        # entire call's tokens under one mode (see its docstring).
+        should.extend(build_should_clauses(phrase_tokens, is_global=True, is_excus=True))
+    if not other_tokens and phrase_tokens:
+        # Whole query is a double-quoted phrase (no unquoted tokens at all) - live-captured
+        # against the real production endpoint (2026-09-04, `"section 52"` and
+        # `"571/Ahd/2016 vide order dated 02-04-2026"`) shows two divergences from the
+        # general (mixed/unquoted) branch below, both needed together:
+        #
+        # 1. No FunctionScore wrap at all - plain `bool` query, no `documenttypeboost`/
+        #    `viewcount`/`court_boost`/`landmarkruling`/recency-ladder functions, no
+        #    `boost_mode: multiply`.
+        #
+        # 2. The 5 phrase-field clauses sit in their OWN nested `bool.must` entry, not
+        #    flattened into the same top-level `should` list as the static group-membership
+        #    boosts - real capture shows `bool.must: [{bool: {should: [5 phrase clauses]}},
+        #    {bool: {should: [exclusion-passthrough, group-boost]}}]`. This is load-bearing,
+        #    not cosmetic: ES defaults a bare `bool.should` (no sibling `must`/`filter`) to
+        #    `minimum_should_match: 1`, so flattening the group-boost `term` clauses into the
+        #    same should-list as the phrase clauses (as the general branch below does) lets a
+        #    document match the query via a group-boost clause ALONE, with zero text
+        #    relevance - reproduced live: `"571/Ahd/2016 vide order dated 02-04-2026"`
+        #    returned every GST Act section (each a member of the boosted CGST Act 2017
+        #    subgroup, score ~67000 from the boost alone, no phrase match at all) ranked
+        #    above the one real matching case (score ~6, genuinely phrase-matched). Putting
+        #    the phrase should-list inside its own `must` entry makes ES apply that same
+        #    default-1 rule to it alone (a real text match becomes mandatory), while the
+        #    static group boosts move to a plain top-level `should` - which ES makes
+        #    score-only, no minimum required, once a sibling `must` exists.
+        return {
+            "bool": {
+                "must": [{"bool": {"should": should, "minimum_should_match": 1}}],
+                "should": _static_group_should_clauses(),
+                "filter": [_edition_exclusion_filter(), *_additional_exclusion_filters()],
+            },
+        }
     should.extend(_static_group_should_clauses())
+    bool_query = {
+        "bool": {
+            "should": should, "minimum_should_match": 1,
+            "filter": [_edition_exclusion_filter(), *_additional_exclusion_filters()],
+        },
+    }
     group_id = next((t.group_id for t in tokens if t.group_id != "0"), "0")
     return {
         "function_score": {
-            "query": {
-                "bool": {
-                    "should": should, "minimum_should_match": 1,
-                    "filter": [_edition_exclusion_filter(), *_additional_exclusion_filters()],
-                },
-            },
+            "query": bool_query,
             "functions": build_function_score_functions(
                 group_id,
                 latest_finance_act_year=_BOOST_CONFIG["latest_finance_act_year_for_multiply_formula"]["value"],

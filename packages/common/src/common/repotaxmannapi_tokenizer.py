@@ -746,10 +746,21 @@ class _Analyzer:
     # TaxmannQueryAnalizer.cs:1542-1999 - ProcessorQuery (the main tokenization loop)
     # -------------------------------------------------------------------------------------
     def process_query(self) -> list[RepotaxmannapiToken]:
+        # No early `if self.end_of_list: return tokens` here - a fully-quoted query (e.g.
+        # `"section 52"`) strips every word into phrase_elements during __init__, leaving
+        # query_element empty and end_of_list True from the start. The main while loop below
+        # already no-ops correctly in that case (its own `while not self.end_of_list`
+        # condition is simply never true); an early return here would skip past it AND past
+        # the phrase_elements-append tail below (TaxmannQueryAnalizer.cs:1985-1993, which the
+        # real source runs unconditionally after the main loop) - silently discarding every
+        # token for a wholly-quoted query and leaving `should` with nothing but the always-on
+        # static group boosts. Confirmed real bug, not by inspection alone: reproduced via
+        # /v1/query-analysis trace for `"section 52"` and `"financial management"` - both
+        # produced the exact same query.bool.should (6 static group-boost `term` clauses,
+        # zero `match_phrase` clauses referencing the query text at all), and ranked purely by
+        # group/documenttypeboost/viewcount/recency, explaining why irrelevant sections (e.g.
+        # "Short title, extent and commencement") outranked the actual query text.
         tokens: list[RepotaxmannapiToken] = []
-        if self.end_of_list:
-            return tokens
-
         temp_token = self._new_token()
 
         while not self.end_of_list:
@@ -1160,3 +1171,17 @@ def tokenize(query: str) -> list[RepotaxmannapiToken]:
     `ProcessorQuery()` call (TaxmannQueryAnalizer.cs:114-193, 1542-1999)."""
     analyzer = _Analyzer(query)
     return analyzer.process_query()
+
+
+def is_whole_query_exact_phrase(query: str) -> bool:
+    """True when the ENTIRE search-bar query is one double-quoted phrase (e.g.
+    `"section 52"`) - no unquoted words alongside it. Shared predicate for the exact-phrase
+    fast path: `es_client._build_repotaxmannapi_field_query` uses this same condition to skip
+    FunctionScore, and Instant mode's `run_instant` uses it to skip the ML shape classifier
+    and Milvus entirely - a fully-quoted query is an unambiguous exact-lookup request, not
+    something a KEYWORD/HYBRID/INTENT shape classification or semantic (dense-vector) search
+    adds any value to. False for an empty/all-whitespace query (nothing to search) and for a
+    mixed query (unquoted words alongside a quoted phrase) - no real-source evidence exists
+    yet for how repotaxmannapi routes that mixed shape, so it stays on the normal path."""
+    tokens = tokenize(query)
+    return bool(tokens) and all(t.type == TokenType.PHRASE_WORD for t in tokens)

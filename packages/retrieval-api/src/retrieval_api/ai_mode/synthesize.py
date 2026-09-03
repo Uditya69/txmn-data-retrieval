@@ -80,6 +80,12 @@ Formatting:
 """
 
 
+def _ordinal_date(d: date) -> str:
+    day = d.day
+    suffix = "th" if 11 <= day % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{day}{suffix} {d.strftime('%B %Y')}"
+
+
 def _current_law_grounding(chunk_block: str) -> str:
     """Builds a small, query-scoped grounding paragraph telling the model which Act text
     is currently in force - only for the Acts actually present in this turn's excerpts, so
@@ -90,7 +96,14 @@ def _current_law_grounding(chunk_block: str) -> str:
     52" incident this was added for."""
     facts = load_current_law_facts()
     relevant = acts_relevant_to_text(chunk_block)
-    lines = [f"Today's date: {date.today().isoformat()}."]
+    lines = [
+        f"Today's date: {_ordinal_date(date.today())}. This is grounding context only - "
+        "never mention today's date, the current year, or how old/recent an excerpt is in "
+        "the answer itself unless the question genuinely cannot be answered without saying "
+        "so (e.g. it asks what the current/latest position is, or how much time has passed). "
+        "If you do state a date in the answer, always write it out naturally like "
+        f"\"{_ordinal_date(date.today())}\", never in yyyy-mm-dd form.",
+    ]
     if relevant:
         lines.append(
             "Which of the Acts below is currently in force - use this to judge which "

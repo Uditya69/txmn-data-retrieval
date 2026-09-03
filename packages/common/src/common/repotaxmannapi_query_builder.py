@@ -89,6 +89,18 @@ from common.repotaxmannapi_tokenizer import (
     TokenType,
 )
 
+# Real C# POCO property is `f.headnotestext` (no underscore) - that's what SearchTextElastic.cs
+# actually names it, and NEST's `.Field(f => f.headnotestext)` resolves to whatever ES field
+# name their own index maps that property to. THIS repo's own live index
+# (researchindex_aic_test) maps the equivalent field as `headnotes_text` (underscore) instead -
+# confirmed 2026-09-03 via a direct `_mapping/field/*headnote*` call against it (no
+# `headnotestext` field exists there at all; `headnotes_text` has the `.phrase_search`
+# sub-field mapped, same pattern as heading/subheading/searchboosttext/fullcontent). Formula
+# shape/boost values below are still the byte-exact real-source port; only this one field's ES
+# name is corrected to match what actually exists in the index this module queries against -
+# using the real POCO spelling here would silently match zero documents for this boost tier.
+_HEADNOTES_TEXT_FIELD = "headnotes_text"
+
 # Field -> boost, non-Excus (`.phrase_search` suffix, analyzer dropped) default "else"
 # branch of GetQuery. Verbatim from SearchTextElastic.cs:1086-1103 (heading, subheading,
 # searchboosttext, headnotestext, fullcontent respectively - headnotestext here uses only
@@ -98,7 +110,7 @@ _PHRASE_BOOSTS_STANDARD = {
     "heading": 155000,  # SearchTextElastic.cs:1086
     "subheading": 80000,  # SearchTextElastic.cs:1087
     "searchboosttext": 70000,  # SearchTextElastic.cs:1088
-    "headnotestext": 65000,  # SearchTextElastic.cs:1094
+    _HEADNOTES_TEXT_FIELD: 65000,  # SearchTextElastic.cs:1094 (field name corrected - see _HEADNOTES_TEXT_FIELD)
     "fullcontent": 1,  # SearchTextElastic.cs:1103 (corrected from brief's stated 5 - see module docstring)
 }
 
@@ -152,9 +164,9 @@ def _tx_global_clauses(token: RepotaxmannapiToken) -> list[dict]:
     should.append(_mp("searchboosttext", 67000, token.proximity))
     # headnotestext: SearchTextElastic.cs:1025-1028 (three tiers - Headnotes3's slop is
     # the fixed literal 100, not proximity-derived)
-    should.append(_mp("headnotestext", 65000, token.proximity - 4))
-    should.append(_mp("headnotestext", 60000, token.proximity))
-    should.append(_mp("headnotestext", 50000, 100))
+    should.append(_mp(_HEADNOTES_TEXT_FIELD, 65000, token.proximity - 4))
+    should.append(_mp(_HEADNOTES_TEXT_FIELD, 60000, token.proximity))
+    should.append(_mp(_HEADNOTES_TEXT_FIELD, 50000, 100))
     # fullcontent: SearchTextElastic.cs:1029-1041
     if " " in query:
         should.append(_mp("fullcontent", 100, token.proximity))
@@ -211,7 +223,7 @@ def _pipe_split_clauses(token: RepotaxmannapiToken) -> list[dict]:
             }}}
         )  # SearchTextElastic.cs:879/902 (querySearchboosttext == query - see docstring)
         should.append(
-            {"match_phrase": {"headnotestext": {
+            {"match_phrase": {_HEADNOTES_TEXT_FIELD: {
                 "query": query, "boost": 65000, "slop": token.proximity, "analyzer": "snowball",
             }}}
         )  # SearchTextElastic.cs:884/907
