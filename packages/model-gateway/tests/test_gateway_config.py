@@ -18,6 +18,8 @@ def _settings(**overrides):
         local_base_url="http://localhost:8000/v1",
         local_chat_model_slm="local-slm-model",
         local_chat_model_synthesis="local-synthesis-model",
+        local_rerank_base_url="http://localhost:8001/v1",
+        local_rerank_model="local-rerank-model",
     )
     defaults.update(overrides)
     return GatewaySettings(**defaults)
@@ -54,6 +56,36 @@ def test_chat_provider_never_affects_query_embed_or_reranker():
 
     assert provider_map["query_embed"] == "voyage"
     assert provider_map["reranker"] == "deepinfra"
+
+
+def test_rerank_provider_defaults_to_deepinfra():
+    settings = _settings()
+
+    model_map = build_role_model_map(settings)
+    provider_map = build_role_provider_map(settings)
+
+    assert provider_map["reranker"] == "deepinfra"
+    assert model_map["reranker"] == "rerank-model"
+
+
+def test_rerank_provider_local_rerank_switches_reranker_to_local_model():
+    settings = _settings(rerank_provider="local_rerank")
+
+    model_map = build_role_model_map(settings)
+    provider_map = build_role_provider_map(settings)
+
+    assert provider_map["reranker"] == "local_rerank"
+    assert model_map["reranker"] == "local-rerank-model"
+
+
+def test_rerank_provider_never_affects_chat_or_query_embed():
+    settings = _settings(rerank_provider="local_rerank")
+
+    provider_map = build_role_provider_map(settings)
+
+    assert provider_map["slm"] == "deepinfra"
+    assert provider_map["synthesis"] == "deepinfra"
+    assert provider_map["query_embed"] == "voyage"
 
 
 def test_reasoning_map_defaults_both_roles_enabled():

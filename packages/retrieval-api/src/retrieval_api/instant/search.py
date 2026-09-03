@@ -19,10 +19,10 @@ _ES_LIMIT = 20  # kept in a name so the trace input and the raw_search() call ca
 
 
 def _apply_elbow_cutoff(rows: list[dict]) -> list[dict]:
-    """Trims the long decimal-score tail ES/Milvus hand back untouched -
-    Instant has no reranker, so this is the only score-based pruning in
-    that path. No max_keep: unlike AI Mode's reranked chunks (which feed
-    an LLM prompt and need a hard ceiling), this is a UI preview list."""
+    """Trims the long decimal-score tail ES/Milvus hand back untouched - applied to each
+    retriever's raw hits regardless of whether the (opt-in) cross-encoder reranker later
+    re-sorts them. No max_keep: unlike AI Mode's reranked chunks (which feed an LLM prompt
+    and need a hard ceiling), this is a UI preview list."""
     ranked = sorted(rows, key=lambda row: row["score"], reverse=True)
     cutoff = elbow_cutoff([row["score"] for row in ranked])
     return ranked[:cutoff]
@@ -193,8 +193,9 @@ async def _run_milvus(
 
 async def run_instant(
     gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None,
-    rrf: bool = False, auto_route: bool = False, boost: bool = True, milvus_sparse_enabled: bool = False,
-    boost_source: str = "repotaxmannapi", page: int = 1, page_size: int | None = None,
+    rrf: bool = False, rerank: bool = False, auto_route: bool = False, boost: bool = True,
+    milvus_sparse_enabled: bool = False, boost_source: str = "repotaxmannapi",
+    page: int = 1, page_size: int | None = None,
 ) -> dict:
     """boost_source (common/es_client.py::raw_search) affects the `query_analysis` trace
     step's `es_query` preview and the actual ES search below; nothing else in this
@@ -302,12 +303,13 @@ async def run_instant(
         reranked = []
         if reranked_error is None:
             with langfuse.start_as_current_observation(
-                as_type="chain", name="instant-fuse", input={"query": query, "rrf": effective_rrf},
+                as_type="chain", name="instant-fuse", input={"query": query, "rrf": effective_rrf, "rerank": rerank},
             ) as rerank_span:
                 try:
                     reranked = await rerank_instant_results(
-                        label, es_result or [], milvus_dense or {}, milvus_sparse or {},
-                        rrf=effective_rrf, plan=plan, on_step=on_step,
+                        gateway, es_client, query, label,
+                        es_result or [], milvus_dense or {}, milvus_sparse or {},
+                        rrf=effective_rrf, rerank=rerank, plan=plan, on_step=on_step,
                     )
                     rerank_span.update(output={"num_reranked": len(reranked)})
                     if on_step is not None:

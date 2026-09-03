@@ -1,8 +1,19 @@
 from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
 
+from model_gateway.adapters.deepinfra import DeepInfraAdapter
+from model_gateway.adapters.local import LocalAdapter
+from model_gateway.adapters.local_rerank import LocalRerankAdapter
+from model_gateway.adapters.voyage import VoyageAdapter
 from model_gateway.main import app
 import model_gateway.routes as routes_module
+
+
+def test_get_adapter_resolves_local_rerank_provider_to_local_rerank_adapter():
+    assert isinstance(routes_module.get_adapter("local_rerank"), LocalRerankAdapter)
+    assert isinstance(routes_module.get_adapter("local"), LocalAdapter)
+    assert isinstance(routes_module.get_adapter("voyage"), VoyageAdapter)
+    assert isinstance(routes_module.get_adapter("deepinfra"), DeepInfraAdapter)
 
 
 def test_chat_route_resolves_role_and_calls_deepinfra_adapter(monkeypatch):

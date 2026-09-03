@@ -84,9 +84,10 @@ def _extract_instant_trace(instant_result: dict, steps: list[dict]) -> dict:
     """Persisted Instant-mode trace payload: `doc_ids` is the compact final
     reranked/fused order (cheap to read back for a doc list); `steps` is every
     on_step call this turn made (query_correction/query_analysis/classifier/
-    es_search/milvus_dense/milvus_sparse/rrf_merge/instant_reranked - see
-    instant/search.py) - the same data the live dev-mode trace panel shows,
-    now captured unconditionally so a reopened conversation can show it too."""
+    es_search/milvus_dense/milvus_sparse/rrf_merge/rerank_candidates/rerank/
+    instant_reranked - see instant/search.py, instant/rerank.py) - the same data
+    the live dev-mode trace panel shows, now captured unconditionally so a
+    reopened conversation can show it too."""
     return {
         "doc_ids": [row["doc_id"] for row in instant_result.get("reranked") or []],
         "steps": steps,
@@ -130,9 +131,12 @@ async def search(websocket: WebSocket):
     conversation_id = message.get("conversation_id")
 
     settings = get_settings()
-    # Instant mode's only fusion knob - RRF is cheap local rank math with no external
-    # dependency (no cross-encoder/AI call in Instant mode at all).
-    rrf = message.get("rrf", False)
+    # Client can independently ask for Instant's RRF fusion and/or cross-encoder rerank.
+    # instant_mode_rerank_enabled/instant_mode_rrf_enabled (env, default False/True) are
+    # server-side kill switches on top of the client's own request - same
+    # request-AND-server-flag pattern as auto_route below.
+    rrf = message.get("rrf", False) and settings.instant_mode_rrf_enabled
+    rerank = message.get("rerank", False) and settings.instant_mode_rerank_enabled
     # Instant mode's ES ranking-boost toggle (documenttypeboost/court_boost/landmarkruling/
     # recency/statutory-group signals, common/es_client.py::_apply_boost/
     # build_function_score_functions) - on by default (2026-09-02, explicit user override -
@@ -206,11 +210,11 @@ async def search(websocket: WebSocket):
     query_embedding = None
     instant_cache_hit = None
     ai_mode_cache_hit = None
-    # Each (auto_route, rrf, boost) combination produces different result content - a
-    # separate cache key per combination.
+    # Each (auto_route, rrf, rerank, boost, boost_source, page, page_size) combination
+    # produces different result content - a separate cache key per combination.
     instant_cache_key = (
-        f"instant_auto_route_{auto_route}_rrf_{rrf}_boost_{boost}_boost_source_{boost_source}"
-        f"_page_{page}_page_size_{page_size}"
+        f"instant_auto_route_{auto_route}_rrf_{rrf}_rerank_{rerank}_boost_{boost}"
+        f"_boost_source_{boost_source}_page_{page}_page_size_{page_size}"
     )
     # boost now affects AI Mode's own retrieval too (sparse_fallback_search) - a boosted
     # result must not be served to/overwrite a non-boosted cache lookup or vice versa.
@@ -288,7 +292,7 @@ async def search(websocket: WebSocket):
                 asyncio.create_task(
                     run_instant(
                         gateway, es_client, milvus_client, query,
-                        on_step=collect_instant_step, rrf=rrf,
+                        on_step=collect_instant_step, rrf=rrf, rerank=rerank,
                         auto_route=auto_route, boost=boost, boost_source=boost_source,
                         milvus_sparse_enabled=settings.milvus_sparse_enabled,
                         page=page, page_size=page_size,

@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from model_gateway.adapters.deepinfra import DeepInfraAdapter
 from model_gateway.adapters.local import LocalAdapter
+from model_gateway.adapters.local_rerank import LocalRerankAdapter
 from model_gateway.adapters.voyage import VoyageAdapter
 from model_gateway.config import (
     build_role_model_map,
@@ -38,6 +39,8 @@ def get_adapter(provider: str):
         return VoyageAdapter(api_key=settings.voyage_api_key)
     if provider == "local":
         return LocalAdapter(base_url=settings.local_base_url, api_key=settings.local_api_key)
+    if provider == "local_rerank":
+        return LocalRerankAdapter(base_url=settings.local_rerank_base_url, api_key=settings.local_api_key)
     return DeepInfraAdapter(api_key=settings.deepinfra_api_key)
 
 
