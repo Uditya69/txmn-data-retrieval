@@ -28,6 +28,7 @@ from common.es_client import (
     _FORMS_FORMTYPE_ID,
     _FORMS_LATEST_YEAR,
     fetch_doc_categories,
+    _static_group_should_clauses,
 )
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
@@ -2149,3 +2150,24 @@ async def test_fetch_doc_categories_commentary_topic_falls_back_to_subgroup_when
     results = await fetch_doc_categories(client, ["d1"])
 
     assert results["d1"]["commentary_topic"] == "Commentaries"
+
+
+def test_static_group_should_clauses_use_real_unscaled_weights():
+    """2026-09-06 correction: these were previously scaled ~0.25x from the real source's
+    literal weights (GlobalSearchResearch.cs:690-698/722) to fit this repo's should-clause
+    scale - the user's explicit instruction is byte-exact copy-paste, so this asserts the
+    real, unscaled numbers (repotaxmannapi_boost_config.json's own comment already recorded
+    the exact 0.25 scale factor used, making the real values recoverable: multiply each
+    current value by 4)."""
+    clauses = _static_group_should_clauses()
+    boosts_by_subgroup = {
+        c["term"]["groups.group.subgroup.id"]["value"]: c["term"]["groups.group.subgroup.id"]["boost"]
+        for c in clauses if "term" in c
+    }
+    assert boosts_by_subgroup["111050000000017082"] == 35000  # CGST 2017
+    assert boosts_by_subgroup["111050000000011411"] == 25000  # Companies Act 2013
+    assert boosts_by_subgroup["111050000000017185"] == 16000
+    assert boosts_by_subgroup["111050000000012771"] == 15000
+    assert boosts_by_subgroup["111050000000017818"] == 15000
+    finance_act_clause = next(c for c in clauses if "bool" in c)
+    assert finance_act_clause["bool"]["boost"] == 30000

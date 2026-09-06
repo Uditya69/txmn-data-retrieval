@@ -545,18 +545,12 @@ def _gst_tariff_latest_edition_filter(subgroup_id: str, latest_subsubgroup_id: s
     }
 
 
-# Additional unconditional group-membership should-boosts ported from SearchTextElastic.cs::
-# GetGlobalSearchQuery's positive OR-list (line 785, `CatIdsQuery && (...)`) - previously
-# entirely unported by either query builder in this repo. Real weights (15000-35000) scaled
-# by the same ~0.25 factor `_EDITION_BOOSTS_BY_INSTRUMENT_KIND` applied to its own real
-# weights (80000 -> 15000/20000) to preserve relative proportion under this repo's
-# should-clause scale, rather than reproducing `CatIdsQuery` itself (a per-document
-# category-membership gate this repo's query builders have no equivalent structure for).
-# Fire unconditionally (per-document subgroup membership only, no query-side gating) -
-# unlike Income-tax Act/Rules, these 5 don't need an instrument_kind-style gate to avoid
-# drowning out unrelated statutory-provision matches, since they're distinct, narrowly-scoped
-# subgroups (CGST/Companies-specific), not the bare-number-defaults-to-Income-tax case that
-# motivated gating there.
+# Group-membership should-boosts ported from SearchTextElastic.cs::GetGlobalSearchQuery's
+# positive OR-list (line 785, CatIdsQuery && (...)) - real, unscaled weights
+# (GlobalSearchResearch.cs:690-698/722), verbatim per the user's explicit copy-paste
+# instruction (2026-09-06 correction - a prior version scaled these ~0.25x, which is now
+# reverted). Fire unconditionally (per-document subgroup membership only, no query-side
+# gating).
 _STATIC_GROUP_MEMBERSHIP_BOOSTS = [
     (subgroup_id, boost) for subgroup_id, boost in _BOOST_CONFIG["static_group_membership_boosts"]["boosts"]
 ]
