@@ -905,6 +905,20 @@ def _apply_boost(field_query: dict, chunks: list[dict]) -> dict:
     }
 
 
+def _and_of_or_groups(or_groups: list[list[dict]]) -> dict:
+    """AND together a field's per-token OR-groups (each itself OR'd internally) -
+    SearchTextElastic.cs's queryHeadingAnd &= (alt1 || alt2) pattern, repeated per token,
+    now reconstructed from build_should_clauses's per-field-tier output. A single OR-group
+    degenerates to that group directly (no wrapping needed) when there's only one token's
+    worth of contribution to this field - matches today's single-token-query behavior
+    exactly."""
+    wrapped = [
+        or_group[0] if len(or_group) == 1 else {"bool": {"should": or_group, "minimum_should_match": 1}}
+        for or_group in or_groups
+    ]
+    return wrapped[0] if len(wrapped) == 1 else {"bool": {"must": wrapped}}
+
+
 def _build_repotaxmannapi_field_query(query: str) -> dict:
     """The ported legacy .NET multiply-mode function_score - shared by build_query_preview
     (the "sum" vs "repotaxmannapi" branch) and raw_search_grouped (below), so the scored
@@ -940,7 +954,7 @@ def _build_repotaxmannapi_field_query(query: str) -> dict:
     # group_id - first-classified-token-wins, TaxmannQueryAnalizer.cs's SetPrimaryTag gate
     # (see this function's own docstring, "group_id resolution").
     group_id = next((t.group_id for t in tokens if t.group_id != "0"), "0")
-    should = build_should_clauses(other_tokens, is_global=True, is_excus=False, group_id=group_id)
+    per_field = build_should_clauses(other_tokens, is_global=True, is_excus=False, group_id=group_id)
     if phrase_tokens:
         # Double-quoted text in the search bar (e.g. `"section 52"`) is extracted by
         # `tokenize()` into PHRASE_WORD tokens (TaxmannQueryAnalizer.cs's quote-extraction,
@@ -948,7 +962,28 @@ def _build_repotaxmannapi_field_query(query: str) -> dict:
         # `.phrase_search` field variant + no analyzer, rendered via a second
         # `is_excus=True` call and merged in, since `build_should_clauses` renders an
         # entire call's tokens under one mode (see its docstring).
-        should.extend(build_should_clauses(phrase_tokens, is_global=True, is_excus=True, group_id=group_id))
+        phrase_per_field = build_should_clauses(phrase_tokens, is_global=True, is_excus=True, group_id=group_id)
+        for field, or_groups in phrase_per_field.items():
+            per_field.setdefault(field, []).extend(or_groups)
+
+    # Per-field AND-of-OR assembly (2026-09-06 restructure): each field-tier's own
+    # per-token OR-groups get ANDed together via `_and_of_or_groups`, then all field-tier
+    # results get OR'd together as the top-level `should` - matching SearchTextElastic.cs's
+    # queryFieldAnd/queryFieldOr accumulation exactly (see build_should_clauses's own
+    # docstring and the 2026-09-06 parity plan's Task 2). The special
+    # "_fullcontent_minus" key is popped out and applied as a must_not against the
+    # fullcontent field-tier (SearchTextElastic.cs:1169: queryFullcontentAnd &&
+    # queryFullcontentOr && !queryFullcontentMinusOr - the SUB-clause is a NEGATION of
+    # this field-tier's own contribution, not a positive boost - see Task 3).
+    minus_groups = per_field.pop("_fullcontent_minus", [])
+    should: list[dict] = []
+    for field, or_groups in per_field.items():
+        field_query = _and_of_or_groups(or_groups)
+        if field == "fullcontent" and minus_groups:
+            minus_query = _and_of_or_groups(minus_groups)
+            field_query = {"bool": {"must": [field_query], "must_not": [minus_query]}}
+        should.append(field_query)
+
     if not other_tokens and phrase_tokens:
         # Whole query is a double-quoted phrase (no unquoted tokens at all) - live-captured
         # against the real production endpoint (2026-09-04,
