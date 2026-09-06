@@ -466,3 +466,31 @@ def test_org_text_is_always_empty_matching_the_never_assigned_c_sharp_field():
     for query in ("hello", "APDIR", "223 ITR 1", "GOI"):
         for token in tokenize(query):
             assert token.org_text == ""
+
+
+def test_article_token_query_text_and_proximity_remapped_to_expertsopinion_under_global_search():
+    # TaxmannQueryAnalizer.cs:1968-1984, confirmed by direct read: rewrites QueryText to
+    # "EXPERTS OPINION" and Proximity to 2 (the EXPERTSOPINION dictionary entry's own
+    # values) - does NOT change the token's Type. Only fires when tokenize() is called
+    # with is_global=True AND is_article-without-is_country was set during scanning.
+    tokens_global = tokenize("Article 21", is_global=True)
+    tokens_non_global = tokenize("Article 21", is_global=False)
+
+    remapped = [t for t in tokens_global if t.query_text == "EXPERTS OPINION"]
+    assert len(remapped) == 1
+    assert remapped[0].proximity == 2
+    assert remapped[0].group_id == "111050000000000051"
+    # type is NOT rewritten - whatever KeyWord/SectionTypeFormat classification "Article"
+    # itself received stays unchanged
+    assert remapped[0].type != ""
+
+    assert not any(t.query_text == "EXPERTS OPINION" for t in tokens_non_global)
+
+
+def test_article_remap_does_not_fire_when_is_country_also_set():
+    # cs:1970: `if (IsArticle && !IsCountry)` - a query that also classifies a Country
+    # token suppresses the remap entirely, even under is_global=True. "AUSTRALIA" is a
+    # real element_type "56" (Country) dictionary key (confirmed live in
+    # repotaxmannapi_token_dictionary.json, 2026-09-06).
+    tokens = tokenize("Article 21 Australia", is_global=True)
+    assert not any(t.query_text == "EXPERTS OPINION" for t in tokens)

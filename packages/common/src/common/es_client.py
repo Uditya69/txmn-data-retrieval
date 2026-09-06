@@ -946,7 +946,7 @@ def _build_repotaxmannapi_field_query(query: str) -> dict:
     Income-tax Act 1961 yearly editions (live-verified 2026-09-02, re-checked against this
     builder specifically after the boost_source default flip made it reachable through the
     UI for the first time)."""
-    tokens = tokenize(query)
+    tokens = tokenize(query, is_global=True)
     phrase_tokens = [t for t in tokens if t.type == TokenType.PHRASE_WORD]
     other_tokens = [t for t in tokens if t.type != TokenType.PHRASE_WORD]
     # Resolved once, up front, so both build_should_clauses calls below (should-list) and
