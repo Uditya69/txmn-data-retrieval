@@ -2171,3 +2171,40 @@ def test_static_group_should_clauses_use_real_unscaled_weights():
     assert boosts_by_subgroup["111050000000017818"] == 15000
     finance_act_clause = next(c for c in clauses if "bool" in c)
     assert finance_act_clause["bool"]["boost"] == 30000
+
+
+@pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_section_minus_clause_is_an_exclusion_not_a_boost():
+    """SearchTextElastic.cs:1169: `queryFullcontentAnd && queryFullcontentOr &&
+    !queryFullcontentMinusOr` - the "SUB " + query fullcontent clause is a NEGATION
+    (excludes documents whose fullcontent contains a sub-section back-reference to this
+    section number), not a positive should-boost. A prior version of this code added it as
+    a positive `should` clause with boost 1 - this is the regression guard."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Section 92C", limit=20, boost=True, boost_source="repotaxmannapi")
+
+    query = client.search_calls[0]
+    bool_query = query["function_score"]["query"]["bool"]
+    fullcontent_entries = [
+        c for c in bool_query["should"]
+        if "bool" in c and "must_not" in c.get("bool", {})
+    ]
+    assert len(fullcontent_entries) == 1, "expected exactly one fullcontent tier with a must_not exclusion"
+    must_not = fullcontent_entries[0]["bool"]["must_not"]
+    assert len(must_not) == 1
+    minus_clause = must_not[0]
+    # The minus clause is a bool structure with should clauses for variants (with/without zero-padding)
+    assert "bool" in minus_clause
+    sub_should = minus_clause["bool"]["should"]
+    assert len(sub_should) > 0
+    # Verify at least one match_phrase for SUB SECTION exists
+    sub_clauses = [c for c in sub_should if "match_phrase" in c]
+    assert any("SUB SECTION 92C" in c["match_phrase"]["fullcontent"]["query"] for c in sub_clauses), \
+        "expected at least one match_phrase clause containing 'SUB SECTION 92C'"
+    # confirm it is NOT also present as a positive should clause anywhere
+    assert not any(
+        "match_phrase" in c and "SUB SECTION 92C" in c["match_phrase"].get("fullcontent", {}).get("query", "")
+        for c in bool_query["should"]
+        if "bool" not in c
+    )
