@@ -795,23 +795,6 @@ class _Analyzer:
 
                 elif element_code == ElementType.KEY_WORD:
                     ok, s_result = self._process_key_word(r_text)
-                    # NOTE (2026-09-07, deviation from the plan's literal cs:1621 citation):
-                    # the plan's brief placed this check only in the ProcessKeyWord
-                    # FAILURE sub-branch below. But the live dictionary's own "ARTICLE"
-                    # entry (element_type "66") takes the SUCCESS branch for an ordinary
-                    # "Article <number>" query (ProcessKeyWord succeeds, building a
-                    # "ARTICLE <n> | ARTICLE 0<n>" SectionTypeFormat token) - verified by
-                    # direct execution, not guessed. Restricting this to the failure path
-                    # only would make the remap pass below never fire for the single most
-                    # common real-world "Article 21"-shaped query, which contradicts this
-                    # task's own required test
-                    # (test_article_token_query_text_and_proximity_remapped_to_expertsopinion_under_global_search).
-                    # Firing this check unconditionally on r_text (checked before either
-                    # branch runs, so it applies to both) resolves the conflict while
-                    # keeping the same underlying intent: any KeyWord-classified token
-                    # whose raw matched text starts with "ARTICLE" marks is_article.
-                    if r_text.upper().startswith("ARTICLE"):
-                        self.is_article = True
                     if ok:
                         self._push_token(tokens, temp_token)
                         temp_token = self._new_token()
@@ -832,6 +815,8 @@ class _Analyzer:
                                 _get_key_proximity(r_text), group_id=entry["group_id"],
                             ),
                         )
+                        if r_text.upper().startswith("ARTICLE"):  # cs:1621
+                            self.is_article = True
 
                 elif element_code == ElementType.KEY_WORD_TYPE2:
                     ok, s_result, oth_text = self._process_key_word_type2(r_text)
