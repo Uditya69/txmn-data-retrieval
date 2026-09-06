@@ -29,6 +29,7 @@ from common.es_client import (
     _FORMS_LATEST_YEAR,
     fetch_doc_categories,
     _static_group_should_clauses,
+    _and_of_or_groups,
 )
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
@@ -459,6 +460,62 @@ async def test_raw_search_repotaxmannapi_resolves_group_id_from_tokens():
         if "groups.group.id" in fn.get("filter", {}).get("match", {})
     )
     assert group_id_fn["filter"]["match"]["groups.group.id"]["query"] == "111050000000000064"
+
+
+def test_and_of_or_groups_ands_multiple_single_clause_or_groups_together():
+    """Direct unit test on `_and_of_or_groups` - the helper that assembles a field-tier's
+    per-token OR-groups into one AND-of-ORs clause (SearchTextElastic.cs's `queryHeadingAnd
+    &= (alt1 || alt2)` pattern, repeated per token). Regression guard: if this were reverted
+    to flat-OR semantics (flattening every OR-group's clauses into one should-list), this test
+    would fail, because the two synthetic clauses below would end up siblings in a single
+    `should` list (either one alone satisfying the query) instead of both being required via
+    `must`."""
+    clause1 = {"match_phrase": {"heading": {"query": "audit", "boost": 155000}}}
+    clause2 = {"match_phrase": {"heading": {"query": "REPORT", "boost": 155000}}}
+
+    result = _and_of_or_groups([[clause1], [clause2]])
+
+    assert result == {"bool": {"must": [clause1, clause2]}}
+
+
+@pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_multi_token_heading_clause_ands_tokens_together():
+    """Integration-level regression guard for the same `_and_of_or_groups` AND-of-OR-groups
+    assembly, but driven through a real multi-token query end to end (not just the synthetic
+    unit test above) - proves the AND structure actually appears in the real assembled ES
+    query, not only in an isolated call to the helper.
+
+    "audit report" tokenizes (verified via
+    `tokenize("audit report")`) into two separate tokens - "audit" (type TX) and "REPORT"
+    (type Z) - so `build_should_clauses` contributes one OR-group per token to the `heading`
+    field-tier, and `_and_of_or_groups` must AND them together. If `_and_of_or_groups` were
+    reverted to flat-OR semantics, the `heading` field-tier clause would be a flat `bool.should`
+    list instead of a `bool.must` list, and this test would fail."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "audit report", limit=20, boost=True, boost_source="repotaxmannapi")
+
+    query = client.search_calls[0]
+    should = query["function_score"]["query"]["bool"]["should"]
+    heading_clause = next(
+        c for c in should
+        if "bool" in c and "must" in c["bool"]
+        and any(
+            "match_phrase" in must_clause and "heading" in must_clause["match_phrase"]
+            for must_clause in c["bool"]["must"]
+        )
+    )
+    assert "must" in heading_clause["bool"]
+    assert len(heading_clause["bool"]["must"]) >= 2
+    heading_queries = set()
+    for must_clause in heading_clause["bool"]["must"]:
+        if "match_phrase" in must_clause and "heading" in must_clause["match_phrase"]:
+            heading_queries.add(must_clause["match_phrase"]["heading"]["query"])
+        elif "bool" in must_clause:
+            for inner in must_clause["bool"]["should"]:
+                heading_queries.add(inner["match_phrase"]["heading"]["query"])
+    assert "audit" in heading_queries
+    assert "REPORT" in heading_queries
 
 
 @pytest.mark.asyncio
