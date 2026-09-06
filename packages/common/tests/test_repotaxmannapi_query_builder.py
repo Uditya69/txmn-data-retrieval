@@ -411,3 +411,44 @@ def test_default_branch_headnotestext_secondary_tier_absent_for_num_alpha_zone_t
     or_group = result["headnotes_text"][0]
     assert len(or_group) == 1
     assert or_group[0]["match_phrase"]["headnotes_text"]["boost"] == 65000
+
+
+# ---------------------------------------------------------------------------------------
+# "taxmann com"/"compcase" query-text normalization - SearchTextElastic.cs:848-860 /
+# :935-947.
+# ---------------------------------------------------------------------------------------
+
+def test_taxmann_com_normalized_to_taxmann_dot_com_for_heading_field():
+    # SearchTextElastic.cs:848-850 (pipe-split) / :935-937 (non-pipe branches, same logic)
+    token = RepotaxmannapiToken(
+        query_text="taxmann com 123", org_text="taxmann.com 123",
+        type="TX", or_in=False, proximity=5, query_date=None,
+    )
+    result = build_should_clauses([token], is_global=False, is_excus=False)
+    heading_clause = result["heading"][0][0]
+    assert heading_clause["match_phrase"]["heading"]["query"] == "taxmann.com 123"
+
+
+def test_taxmann_dot_com_normalized_to_taxmann_com_for_searchboosttext_field_only():
+    # SearchTextElastic.cs:860: querySearchboosttext goes the OPPOSITE direction from
+    # `query` - only searchboosttext gets this reverse rewrite.
+    token = RepotaxmannapiToken(
+        query_text="taxmann.com 123", org_text="taxmann.com 123",
+        type="TX", or_in=False, proximity=5, query_date=None,
+    )
+    result = build_should_clauses([token], is_global=False, is_excus=False)
+    searchboosttext_clause = result["searchboosttext"][0][0]
+    heading_clause = result["heading"][0][0]
+    assert searchboosttext_clause["match_phrase"]["searchboosttext"]["query"] == "taxmann com 123"
+    assert heading_clause["match_phrase"]["heading"]["query"] == "taxmann.com 123"  # unchanged - no "taxmann com" substring present
+
+
+def test_compcase_normalized_to_comp_case():
+    # SearchTextElastic.cs:852-854
+    token = RepotaxmannapiToken(
+        query_text="compcase 45", org_text="compcase 45",
+        type="TX", or_in=False, proximity=5, query_date=None,
+    )
+    result = build_should_clauses([token], is_global=False, is_excus=False)
+    heading_clause = result["heading"][0][0]
+    assert heading_clause["match_phrase"]["heading"]["query"] == "comp case 45"
