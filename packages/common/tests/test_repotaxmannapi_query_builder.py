@@ -383,3 +383,31 @@ def test_citation_token_ignores_is_global_and_is_excus_gates():
     result_global = build_should_clauses([token], is_global=True, is_excus=False)
     result_not_global = build_should_clauses([token], is_global=False, is_excus=False)
     assert result_global == result_not_global
+
+
+def test_default_branch_headnotestext_has_a_secondary_50000_boost_tier_at_slop_100():
+    # SearchTextElastic.cs:1093-1097: Headnotes1 (65000, qt.QProximity) OR Headnotes2
+    # (50000, slop 100) for every token type except NUM_ALPHA_ZONE ("NZ").
+    token = RepotaxmannapiToken(
+        query_text="Dimension Data India", org_text="Dimension Data India",
+        type="TX", or_in=False, proximity=5, query_date=None,
+    )
+    result = build_should_clauses([token], is_global=False, is_excus=False)
+    or_group = result["headnotes_text"][0]
+    boosts_and_slops = {
+        (c["match_phrase"]["headnotes_text"]["boost"], c["match_phrase"]["headnotes_text"]["slop"])
+        for c in or_group
+    }
+    assert (65000, 5) in boosts_and_slops
+    assert (50000, 100) in boosts_and_slops
+
+
+def test_default_branch_headnotestext_secondary_tier_absent_for_num_alpha_zone_type():
+    token = RepotaxmannapiToken(
+        query_text="XYZ123", org_text="XYZ123",
+        type="NZ", or_in=False, proximity=5, query_date=None,
+    )
+    result = build_should_clauses([token], is_global=False, is_excus=False)
+    or_group = result["headnotes_text"][0]
+    assert len(or_group) == 1
+    assert or_group[0]["match_phrase"]["headnotes_text"]["boost"] == 65000

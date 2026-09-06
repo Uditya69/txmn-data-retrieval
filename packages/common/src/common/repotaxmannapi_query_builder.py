@@ -103,9 +103,10 @@ _HEADNOTES_TEXT_FIELD = "headnotes_text"
 
 # Field -> boost, non-Excus (`.phrase_search` suffix, analyzer dropped) default "else"
 # branch of GetQuery. Verbatim from SearchTextElastic.cs:1086-1103 (heading, subheading,
-# searchboosttext, headnotestext, fullcontent respectively - headnotestext here uses only
-# the primary 65000 tier at line 1094; the file also ORs in a secondary 50000 tier at
-# line 1096 for non-"NZ" token types, which is out of scope - see module docstring).
+# searchboosttext, headnotestext, fullcontent respectively - headnotestext here carries
+# only the primary 65000 tier at line 1094; the secondary 50000/slop-100 tier ORed in at
+# line 1096 for non-"NZ" token types is added separately in build_should_clauses's
+# default-branch loop, see the comment there).
 _PHRASE_BOOSTS_STANDARD = {
     "heading": 155000,  # SearchTextElastic.cs:1086
     "subheading": 80000,  # SearchTextElastic.cs:1087
@@ -463,7 +464,16 @@ def build_should_clauses(
             }
             if not is_excus and field in _SNOWBALL_ANALYZER_FIELDS:
                 match_phrase["analyzer"] = "snowball"
-            _add_group(field_name, [{"match_phrase": {field_name: match_phrase}}])
+            or_group = [{"match_phrase": {field_name: match_phrase}}]
+            # Secondary headnotestext OR-tier, SearchTextElastic.cs:1093-1097 - boost
+            # 50000, fixed slop 100, ORed with the primary tier for every token type
+            # except NUM_ALPHA_ZONE ("NZ").
+            if field == _HEADNOTES_TEXT_FIELD and not is_excus and token.type != TokenType.NUM_ALPHA_ZONE:
+                secondary: dict = {
+                    "query": token.query_text, "boost": 50000, "slop": 100, "analyzer": "snowball",
+                }
+                or_group.append({"match_phrase": {field_name: secondary}})
+            _add_group(field_name, or_group)
 
         # SECTION-prefix minus-clause: excludes documents where the section reference is
         # actually a sub-section back-reference. SearchTextElastic.cs:887-891, :910-914.
