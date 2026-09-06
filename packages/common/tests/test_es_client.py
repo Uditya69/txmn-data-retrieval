@@ -2174,6 +2174,39 @@ def test_static_group_should_clauses_use_real_unscaled_weights():
 
 
 @pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_adds_group_id_boost_should_clause_when_resolved():
+    """GlobalSearchResearch.cs:751-754: search.IsGlobal && iGroupID not in ("", "0") ->
+    match_phrase(groups.group.id == iGroupID, boost 1000)."""
+    client = FakeAsyncES(search_hits=[])
+    await raw_search(client, "Section 52 of Companies Act", limit=20, boost=True, boost_source="repotaxmannapi")
+    query = client.search_calls[0]
+    bool_query = query["function_score"]["query"]["bool"]
+    group_id_clauses = [
+        c for c in bool_query["should"]
+        if "match_phrase" in c and "groups.group.id" in c["match_phrase"]
+        and c["match_phrase"]["groups.group.id"].get("boost") == 1000
+    ]
+    assert len(group_id_clauses) == 1
+
+
+@pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_falls_back_to_act_url_boost_when_no_tokens_produced():
+    """GlobalSearchResearch.cs:755-758: when every per-token query is null (nullcount ==
+    queries.Count), fall back to match(groups.group.url == "act", boost 1000). A query
+    that tokenizes to nothing usable (e.g. all stop words) triggers this."""
+    client = FakeAsyncES(search_hits=[])
+    await raw_search(client, "the of and", limit=20, boost=True, boost_source="repotaxmannapi")  # all stop words
+    query = client.search_calls[0]
+    bool_query = query["function_score"]["query"]["bool"]
+    fallback_clauses = [
+        c for c in bool_query["should"]
+        if "match" in c and "groups.group.url" in c["match"]
+        and c["match"]["groups.group.url"].get("boost") == 1000
+    ]
+    assert len(fallback_clauses) == 1
+
+
+@pytest.mark.asyncio
 async def test_raw_search_repotaxmannapi_section_minus_clause_is_an_exclusion_not_a_boost():
     """SearchTextElastic.cs:1169: `queryFullcontentAnd && queryFullcontentOr &&
     !queryFullcontentMinusOr` - the "SUB " + query fullcontent clause is a NEGATION

@@ -1005,15 +1005,38 @@ def _build_repotaxmannapi_field_query(query: str) -> dict:
         # ES makes score-only, no minimum required, once a sibling `must` exists. Still wrapped
         # in `function_score` below like every other shape (see this function's own docstring,
         # 2026-09-06 correction) - only the inner bool shape differs from the general branch.
+        top_level_should = list(_static_group_should_clauses())
+        # GroupFilterquery, GlobalSearchResearch.cs:751-754: whenever a non-"0" group_id was
+        # resolved (this is repotaxmannapi's own global-search path, search.IsGlobal is always
+        # true here), boost documents whose groups.group.id matches it.
+        if group_id != "0":
+            top_level_should.append({"match_phrase": {"groups.group.id": {"query": group_id, "boost": 1000}}})
+        # Fallback act-url boost, GlobalSearchResearch.cs:755-758: when the tokenizer produced
+        # no usable tokens at all (every per-token query was null - `nullcount ==
+        # queries.Count`), boost groups.group.url == "act" instead of leaving the query
+        # entirely boost-less.
+        if not tokens:
+            top_level_should.append({"match": {"groups.group.url": {"query": "act", "boost": 1000}}})
         bool_query = {
             "bool": {
                 "must": [{"bool": {"should": should, "minimum_should_match": 1}}],
-                "should": _static_group_should_clauses(),
+                "should": top_level_should,
                 "filter": [_edition_exclusion_filter(), *_additional_exclusion_filters()],
             },
         }
     else:
         should.extend(_static_group_should_clauses())
+        # GroupFilterquery, GlobalSearchResearch.cs:751-754: whenever a non-"0" group_id was
+        # resolved (this is repotaxmannapi's own global-search path, search.IsGlobal is always
+        # true here), boost documents whose groups.group.id matches it.
+        if group_id != "0":
+            should.append({"match_phrase": {"groups.group.id": {"query": group_id, "boost": 1000}}})
+        # Fallback act-url boost, GlobalSearchResearch.cs:755-758: when the tokenizer produced
+        # no usable tokens at all (every per-token query was null - `nullcount ==
+        # queries.Count`), boost groups.group.url == "act" instead of leaving the query
+        # entirely boost-less.
+        if not tokens:
+            should.append({"match": {"groups.group.url": {"query": "act", "boost": 1000}}})
         bool_query = {
             "bool": {
                 "should": should, "minimum_should_match": 1,
