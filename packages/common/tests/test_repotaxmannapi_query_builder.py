@@ -1,3 +1,5 @@
+from datetime import date
+
 from common.repotaxmannapi_query_builder import build_should_clauses
 from common.repotaxmannapi_tokenizer import RepotaxmannapiToken
 
@@ -452,3 +454,51 @@ def test_compcase_normalized_to_comp_case():
     result = build_should_clauses([token], is_global=False, is_excus=False)
     heading_clause = result["heading"][0][0]
     assert heading_clause["match_phrase"]["heading"]["query"] == "comp case 45"
+
+
+def test_month_format_token_builds_documentdate_wildcard_and_slop_4_field_tiers():
+    # SearchTextElastic.cs:948-957 (MT branch) - exact values confirmed in Step 1.
+    token = RepotaxmannapiToken(
+        query_text="January 2024", org_text="Jan 2024",
+        type="MT", or_in=False, proximity=1, query_date=date(2024, 1, 1),
+    )
+    result = build_should_clauses([token], is_global=True, is_excus=False)
+    assert result["documentdate"][0][0]["wildcard"]["documentdate"]["boost"] == 200000
+    heading_clause = result["heading"][0][0]
+    assert heading_clause["match_phrase"]["heading"]["boost"] == 155000
+    assert heading_clause["match_phrase"]["heading"]["slop"] == 4
+
+
+def test_month_format_token_documentdate_wildcard_value_is_year_then_month():
+    token = RepotaxmannapiToken(
+        query_text="January 2024", org_text="Jan 2024",
+        type="MT", or_in=False, proximity=1, query_date=date(2024, 1, 1),
+    )
+    result = build_should_clauses([token], is_global=True, is_excus=False)
+    assert result["documentdate"][0][0]["wildcard"]["documentdate"]["value"] == "202401*"
+    assert result["heading"][0][0]["match_phrase"]["heading"]["query"] == "01 2024"  # numeric month + " " + year, NOT the month name
+
+
+def test_day_month_format_token_documentdate_wildcard_value_is_star_month_day():
+    token = RepotaxmannapiToken(
+        query_text="15 January", org_text="15 Jan",
+        type="DM", or_in=False, proximity=1, query_date=date(2024, 1, 15),
+    )
+    result = build_should_clauses([token], is_global=True, is_excus=False)
+    assert result["documentdate"][0][0]["wildcard"]["documentdate"]["value"] == "*0115"
+    assert result["heading"][0][0]["match_phrase"]["heading"]["query"] == "15 01"  # day + " " + numeric month
+
+
+def test_full_date_token_builds_documentdate_wildcard_with_no_trailing_star_and_qproximity_slop():
+    # SearchTextElastic.cs:988-1009 (DT branch). NOTE the real source's Wildcard value has
+    # NO trailing "*" for DT (unlike MT/DM) - an exact-value match via the wildcard query
+    # type, confirmed by direct read of cs:993.
+    token = RepotaxmannapiToken(
+        query_text="01 04 2024", org_text="1-4-2024",
+        type="DT", or_in=False, proximity=1, query_date=date(2024, 4, 1),
+    )
+    result = build_should_clauses([token], is_global=True, is_excus=False)
+    wildcard_value = result["documentdate"][0][0]["wildcard"]["documentdate"]["value"]
+    assert wildcard_value == "20240401"  # yyyy + MM + dd, no "*" suffix
+    heading_clause = result["heading"][0][0]
+    assert heading_clause["match_phrase"]["heading"]["slop"] == 1  # qt.QProximity, not fixed 4

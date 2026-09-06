@@ -369,6 +369,76 @@ def _citation_clauses(token: RepotaxmannapiToken) -> dict[str, list[dict]]:
     return groups
 
 
+def _date_field_clauses(token: RepotaxmannapiToken) -> dict[str, list[dict]]:
+    """MT/DM/DT branches, SearchTextElastic.cs:948-1009 (verbatim-transcribed values -
+    independently re-confirmed against the brief's transcription during this task, see
+    task-7-report.md). Month/Day/Year derived directly from `token.query_date` (always
+    populated for these three token types per repotaxmannapi_tokenizer.py's _create_token)
+    rather than re-parsing token.query_text, since that's the same information the real
+    source's own text-split-then-dictionary-lookup produces, without the fragile round-trip.
+
+    Returns one OR-group (single-entry list) per field, keyed by field name - this token's
+    own clauses for `"documentdate"` (an ES `wildcard` query, boost 200000 - a NEW field-tier
+    this module didn't have a slot for before this task) plus the same
+    heading/subheading/searchboosttext/headnotestext/fullcontent boost tiers the plain
+    default branch models (SearchTextElastic.cs:1086-1103), but with MT/DM using a fixed
+    slop of 4 (cs:951/954/955/956 muss `Slop(4)`) and DT using `qt.QProximity` directly
+    (cs:1000-1005) - not the fullcontent-slop-override rule from the plain default branch,
+    which does not apply to any of these three branches.
+
+    Not modeled (disclosed gaps, same documented-gap pattern as elsewhere in this module):
+    - `search.IsTopStory`/`search.IsTldSearch`-gated topstoryheading/tldheading tiers present
+      in all three real branches (no such parameters exist here).
+    - DT's `querysearchhn`/`querysearchfcontent` side-containers (cs:999-1000) - these
+      duplicate the headnotestext/fullcontent tiers into separate real-source containers
+      that are later combined elsewhere; this port's field-key-based assembly doesn't need
+      the duplication, every non-empty field key already gets OR'd into the top-level
+      `should` regardless.
+    - DT's second fullcontent OR-alternative using the WHOLE original, unsplit search-bar
+      text (cs:1007, `queryFullcontentAnd |= MatchPhrase(..., Query(searchProcess.SearchTextOrg),
+      ...)`) - a value this per-token function has no access to. Only DT's single-alternative
+      fullcontent tier below is emitted; the SearchTextOrg-based second alternative is NOT.
+    """
+    assert token.query_date is not None
+    d = token.query_date
+    month2 = f"{d.month:02d}"  # MonthList()'s own values are already 2-digit, e.g. "01"
+    day2 = f"{d.day:02d}"
+    year = str(d.year)
+
+    if token.type == TokenType.MONTH_FMT:  # MT, cs:948-957
+        wildcard_value = f"{year}{month2}*"  # cs:951: Year + Month + "*" (year FIRST)
+        field_query = f"{month2} {year}"
+        slop = 4
+    elif token.type == TokenType.DATE_MONTH_FMT:  # DM, cs:958-967
+        wildcard_value = f"*{month2}{day2}"  # cs:961: "*" + Month + Day
+        field_query = f"{day2} {month2}"
+        slop = 4
+    else:  # DATE_FMT / DT, cs:988-1009
+        wildcard_value = f"{year}{month2}{day2}"  # cs:993: NO trailing "*" - exact value
+        field_query = token.query_text
+        slop = token.proximity
+
+    groups: dict[str, list[dict]] = {
+        "documentdate": [{"wildcard": {"documentdate": {"value": wildcard_value, "boost": 200000}}}],
+        "heading": [{"match_phrase": {"heading": {
+            "query": field_query, "boost": 155000, "slop": slop, "analyzer": "snowball",
+        }}}],
+        "subheading": [{"match_phrase": {"subheading": {
+            "query": field_query, "boost": 80000, "slop": slop, "analyzer": "snowball",
+        }}}],
+        "searchboosttext": [{"match_phrase": {"searchboosttext": {
+            "query": field_query, "boost": 70000, "slop": slop, "analyzer": "snowball",
+        }}}],
+        _HEADNOTES_TEXT_FIELD: [{"match_phrase": {_HEADNOTES_TEXT_FIELD: {
+            "query": field_query, "boost": 65000, "slop": slop, "analyzer": "snowball",
+        }}}],
+        "fullcontent": [{"match_phrase": {"fullcontent": {
+            "query": field_query, "boost": 1, "slop": slop, "analyzer": "snowball",
+        }}}],
+    }
+    return groups
+
+
 def build_should_clauses(
     tokens: list[RepotaxmannapiToken], is_global: bool, is_excus: bool, group_id: str = "0",
 ) -> dict[str, list[list[dict]]]:
@@ -436,8 +506,18 @@ def build_should_clauses(
     for token in tokens:
         if "|" in token.query_text:
             # SearchTextElastic.cs:841-842: `qt.QueryText.Split('|')` - checked before
-            # any QType branch, for every token type.
+            # any QType branch, for every token type (including MT/DM/DT below), per the
+            # real `if (q.Length > 1) {...} else {<QType switch>}` structure at 842/929 -
+            # a date token could theoretically be pipe-joined too (unlikely in practice),
+            # so this check still runs first, matching every other branch's precedence.
             per_field = _pipe_split_clauses(token, group_id)
+            for field, or_group in per_field.items():
+                _add_group(field, or_group)
+            continue
+        if token.type in (TokenType.MONTH_FMT, TokenType.DATE_MONTH_FMT, TokenType.DATE_FMT):
+            # SearchTextElastic.cs:948/958/988: MT/DM/DT date-token branches, inside the
+            # QType `if`/`else if` chain of the pipe check's "else" (948-1107).
+            per_field = _date_field_clauses(token)
             for field, or_group in per_field.items():
                 _add_group(field, or_group)
             continue
