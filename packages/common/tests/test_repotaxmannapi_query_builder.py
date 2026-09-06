@@ -277,3 +277,104 @@ def test_pipe_split_token_adds_section_minus_clause_per_matching_alternative():
     # leading/trailing whitespace (a trailing space on the first alt, a leading space -
     # hence the double space - on the second).
     assert minus_queries == {"SUB SECTION 92C ", "SUB  SECTION 092C"}
+
+
+_CIRNOT_GROUP_ID = "111050000000000057"
+
+
+def test_pipe_split_token_adds_searchheadingnumber_clause_for_cirnot_group_without_section_prefix():
+    # SearchTextElastic.cs:892-894/915-917: `else if (qt.QType == "T1" &&
+    # searchProcess.iGroupID == Constants_GetIdByName.CirNot)` - mutually exclusive with
+    # the SECTION-minus-clause, fires when the alt is T1-typed, NOT "SECTION "-prefixed,
+    # and the query's resolved group_id is CirNot.
+    token = RepotaxmannapiToken(
+        query_text="92 | 092", org_text="92 | 092",
+        type="T1", or_in=False, proximity=3, query_date=None,
+    )
+    clauses = build_should_clauses(
+        [token], is_global=True, is_excus=False, group_id=_CIRNOT_GROUP_ID,
+    )
+    tuples = _match_phrase_tuples(clauses, "searchheadingnumber")
+    assert ("92 ", 85000, 3) in tuples
+    assert (" 092", 85000, 3) in tuples
+
+
+def test_pipe_split_token_no_searchheadingnumber_clause_when_group_id_is_not_cirnot():
+    token = RepotaxmannapiToken(
+        query_text="92 | 092", org_text="92 | 092",
+        type="T1", or_in=False, proximity=3, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False, group_id="0")
+    assert not any(
+        "match_phrase" in c and "searchheadingnumber" in c["match_phrase"] for c in clauses
+    )
+
+
+def test_pipe_split_token_section_minus_clause_takes_precedence_over_searchheadingnumber():
+    # The two branches are `if`/`else if` in the real source - a SECTION-prefixed alt gets
+    # the minus-clause, never the searchheadingnumber tier, even under a CirNot group_id.
+    token = RepotaxmannapiToken(
+        query_text="SECTION 92C", org_text="section 92C",
+        type="T1", or_in=False, proximity=0, query_date=None,
+    )
+    clauses = build_should_clauses(
+        [token], is_global=True, is_excus=False, group_id=_CIRNOT_GROUP_ID,
+    )
+    assert not any(
+        "match_phrase" in c and "searchheadingnumber" in c["match_phrase"] for c in clauses
+    )
+    assert any(
+        "match_phrase" in c and "fullcontent" in c["match_phrase"]
+        and c["match_phrase"]["fullcontent"]["query"] == "SUB SECTION 92C"
+        for c in clauses
+    )
+
+
+def test_citation_token_builds_the_five_field_tiers_plus_fullcontent():
+    # SearchTextElastic.cs:1043-1066: CT branch. heading/subheading/searchboosttext at
+    # their standard boosts, ONE headnotestext tier (no secondary 50000 tier, unlike the
+    # plain default branch), the otherinfo.fullcitation.name cross-reference tier at
+    # boost 155000 (same as heading), and the fullcontent tier.
+    token = RepotaxmannapiToken(
+        query_text="571 Ahd 2016", org_text="571/Ahd/2016",
+        type="CT", or_in=False, proximity=2, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+
+    boosts_by_field = {
+        list(c["match_phrase"].keys())[0]: list(c["match_phrase"].values())[0]["boost"]
+        for c in clauses if "match_phrase" in c
+    }
+    assert boosts_by_field == {
+        "heading": 155000, "subheading": 80000, "searchboosttext": 70000,
+        "headnotes_text": 65000, "otherinfo.fullcitation.name": 155000, "fullcontent": 1,
+    }
+
+
+def test_citation_token_fullcitation_clause_uses_query_proximity_as_slop():
+    token = RepotaxmannapiToken(
+        query_text="571 Ahd 2016", org_text="571/Ahd/2016",
+        type="CT", or_in=False, proximity=2, query_date=None,
+    )
+    clauses = build_should_clauses([token], is_global=True, is_excus=False)
+
+    citation_clause = next(
+        c["match_phrase"]["otherinfo.fullcitation.name"] for c in clauses
+        if "match_phrase" in c and "otherinfo.fullcitation.name" in c["match_phrase"]
+    )
+    assert citation_clause == {
+        "query": "571 Ahd 2016", "boost": 155000, "slop": 2, "analyzer": "snowball",
+    }
+
+
+def test_citation_token_ignores_is_global_and_is_excus_gates():
+    # SearchTextElastic.cs:1043: `qt.QType == "CT"` is its own unconditional branch, not
+    # gated behind isGlobalSearch or the PH/Excus rendering - a CT token takes the same
+    # branch regardless of is_global/is_excus.
+    token = RepotaxmannapiToken(
+        query_text="571 Ahd 2016", org_text="571/Ahd/2016",
+        type="CT", or_in=False, proximity=2, query_date=None,
+    )
+    clauses_global = build_should_clauses([token], is_global=True, is_excus=False)
+    clauses_not_global = build_should_clauses([token], is_global=False, is_excus=False)
+    assert clauses_global == clauses_not_global

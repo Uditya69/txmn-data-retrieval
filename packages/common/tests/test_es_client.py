@@ -353,26 +353,22 @@ async def test_raw_search_repotaxmannapi_double_quoted_text_uses_phrase_search_f
 
 
 @pytest.mark.asyncio
-async def test_raw_search_repotaxmannapi_whole_query_phrase_skips_function_score():
-    """Live-captured against the real production endpoint (2026-09-04): a search bar query
-    that is ENTIRELY one double-quoted phrase (e.g. `"section 52"`,
-    `"571/Ahd/2016 vide order dated 02-04-2026"`) never gets wrapped in FunctionScore at
-    all on the real system - plain `bool` query, no documenttypeboost/viewcount/court_boost/
-    landmarkruling/recency-ladder functions, no `boost_mode: multiply`. Regression guard for
-    the bug this caused here: a genuine phrase match (a real, low-thousands raw score) lost
-    to bare Act/Rule sections with zero should-clause relevance, because their
-    `documenttypeboost` field alone, multiplied through the (mostly empty) functions stack,
-    scored in the millions - reproduced live for `"571/Ahd/2016 vide order dated
-    02-04-2026"`, which returned only unrelated GST Act sections ahead of the one real
-    matching case."""
+async def test_raw_search_repotaxmannapi_whole_query_phrase_still_wraps_function_score():
+    """2026-09-06 correction: a search bar query that is ENTIRELY one double-quoted phrase
+    (e.g. `"section 52"`) IS wrapped in FunctionScore like every other query -
+    GlobalSearchResearch.cs wraps `searchContainer = stext.query` (the same bool query this
+    builds) in `.FunctionScore(...)` unconditionally, no branch anywhere skips it for this
+    shape. A prior version of this test asserted the opposite (no function_score at all) based
+    on a single trace that was misread - see `_build_repotaxmannapi_field_query`'s docstring."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, '"section 52"', limit=20, boost=True, boost_source="repotaxmannapi")
 
     query = client.search_calls[0]
-    assert "function_score" not in query
-    assert "bool" in query
-    text_should = query["bool"]["must"][0]["bool"]["should"]
+    assert "function_score" in query
+    bool_query = query["function_score"]["query"]
+    assert "bool" in bool_query
+    text_should = bool_query["bool"]["must"][0]["bool"]["should"]
     assert any(
         "match_phrase" in c and "heading.phrase_search" in c["match_phrase"]
         for c in text_should
@@ -381,18 +377,19 @@ async def test_raw_search_repotaxmannapi_whole_query_phrase_skips_function_score
 
 @pytest.mark.asyncio
 async def test_raw_search_repotaxmannapi_whole_query_phrase_requires_text_match():
-    """Regression guard for the second, structural half of the bug above: even after
-    dropping FunctionScore, a plain top-level `bool.should` mixing the 5 phrase-field
-    clauses with the static group-membership `term` boosts (all in one should-list under
-    `minimum_should_match: 1`) still let a document match via a group-boost clause ALONE -
-    ES's should-list-satisfies-the-query default doesn't care WHICH should clause matched.
-    Reproduced live: `"571/Ahd/2016 vide order dated 02-04-2026"` returned every GST Act
-    section (each a member of the boosted CGST Act 2017 subgroup, zero text relevance)
-    ranked above the one real matching case. The phrase-field should-list must sit in its
-    own `bool.must` entry (mandatory - ES's default `minimum_should_match: 1` for a should
-    list with no sibling must/filter) while the group boosts move to a plain top-level
-    `should` (score-only, no minimum, once a sibling `must` exists) - see the
-    implementation comment for the exact real-capture shape this mirrors."""
+    """Regression guard for the structural bug: a plain top-level `bool.should` mixing the 5
+    phrase-field clauses with the static group-membership `term` boosts (all in one
+    should-list under `minimum_should_match: 1`) let a document match via a group-boost
+    clause ALONE - ES's should-list-satisfies-the-query default doesn't care WHICH should
+    clause matched. Reproduced live: `"571/Ahd/2016 vide order dated 02-04-2026"` returned
+    every GST Act section (each a member of the boosted CGST Act 2017 subgroup, zero text
+    relevance) ranked above the one real matching case. The phrase-field should-list must sit
+    in its own `bool.must` entry (mandatory - ES's default `minimum_should_match: 1` for a
+    should list with no sibling must/filter) while the group boosts move to a plain top-level
+    `should` (score-only, no minimum, once a sibling `must` exists) - see the implementation
+    comment for the exact real-capture shape this mirrors. This bool query still sits inside
+    `function_score` (2026-09-06 correction - see the "still_wraps_function_score" test
+    above), so this test reaches into `query["function_score"]["query"]["bool"]`."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(
@@ -400,12 +397,13 @@ async def test_raw_search_repotaxmannapi_whole_query_phrase_requires_text_match(
     )
 
     query = client.search_calls[0]
-    must = query["bool"]["must"]
+    bool_query = query["function_score"]["query"]["bool"]
+    must = bool_query["must"]
     assert len(must) == 1
     assert must[0]["bool"]["minimum_should_match"] == 1
     text_should = must[0]["bool"]["should"]
     assert all("match_phrase" in c for c in text_should), "must-clause should only hold text-relevance clauses"
-    top_level_should = query["bool"]["should"]
+    top_level_should = bool_query["should"]
     assert all("term" in c or "bool" in c for c in top_level_should)
     assert not any("match_phrase" in c for c in top_level_should), (
         "static group boosts must not sit alongside the mandatory text-match clause"

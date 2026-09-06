@@ -124,6 +124,11 @@ _SNOWBALL_ANALYZER_FIELDS = frozenset(_PHRASE_BOOSTS_STANDARD.keys())
 # same correction as _PHRASE_BOOSTS_STANDARD["fullcontent"] above.
 _SUB_EXCLUSION_BOOST = 1
 
+# Constants_GetIdByName.CirNot (repotaxmannapi/TaxmannAPI/BL/Constants.cs) - same value as
+# common.repotaxmannapi_scoring's own _CIRNOT_GROUP_ID, independently re-cited here per this
+# module's convention of not importing another module's private constants across the port.
+_CIRNOT_GROUP_ID = "111050000000000057"
+
 
 def _tx_global_clauses(token: RepotaxmannapiToken) -> list[dict]:
     """`isGlobalSearch == "yes" && QType == "TX"` branch, SearchTextElastic.cs:1010-1042.
@@ -177,7 +182,7 @@ def _tx_global_clauses(token: RepotaxmannapiToken) -> list[dict]:
     return should
 
 
-def _pipe_split_clauses(token: RepotaxmannapiToken) -> list[dict]:
+def _pipe_split_clauses(token: RepotaxmannapiToken, group_id: str) -> list[dict]:
     """Pipe-separated ("|") OR-group branch, SearchTextElastic.cs:838-928. Splits
     `qt.QueryText` on '|' (verbatim `Split('|')` - no per-alternative trimming, so an
     alternative may keep leading/trailing whitespace from how it was joined, e.g. by
@@ -197,12 +202,17 @@ def _pipe_split_clauses(token: RepotaxmannapiToken) -> list[dict]:
     branch this module already ported in Task 4, which also flattens away its own
     `&=`/`AND` field combination). Also not modeled: `search.IsTopStory`/
     `search.IsTldSearch`-gated tiers (880-883/903-906) and the `!search.isheadnoteToggle`
-    guard around the fullcontent tier (885/908) and the `searchheadingnumber`
-    `else if (qt.QType == "T1" && searchProcess.iGroupID == Constants_GetIdByName.CirNot)`
-    tier (892-894/915-917) - all three need parameters this function does not have,
-    same documented-gap pattern as elsewhere in this module. The `taxmann com`/`compcase`
-    query-text normalization (848-860) is likewise not ported - pre-existing gap, the
-    plain default branch never ported it either (see its own comment at query-text use).
+    guard around the fullcontent tier (885/908) - both need UI-toggle parameters this repo
+    has no equivalent concept of anywhere in its request flow, same documented-gap pattern
+    as elsewhere in this module. The `searchheadingnumber` tier IS modeled now (2026-09-06,
+    `else if (qt.QType == "T1" && searchProcess.iGroupID == Constants_GetIdByName.CirNot)`,
+    892-894/915-917) - `group_id` is per-query classification logic already resolved and
+    threaded through this whole call chain for `build_function_score_functions`
+    (`common.es_client._build_repotaxmannapi_field_query`'s own `group_id` variable), not a
+    UI toggle, so there was no real reason left to leave it as a gap once the field itself
+    (`searchheadingnumber`) was indexed. The `taxmann com`/`compcase` query-text
+    normalization (848-860) is likewise not ported - pre-existing gap, the plain default
+    branch never ported it either (see its own comment at query-text use).
     """
     should: list[dict] = []
     for alt in token.query_text.split("|"):  # SearchTextElastic.cs:841
@@ -250,23 +260,102 @@ def _pipe_split_clauses(token: RepotaxmannapiToken) -> list[dict]:
                     "analyzer": "snowball",
                 }}}
             )  # SearchTextElastic.cs:890/913
+        # searchheadingnumber tier, SearchTextElastic.cs:892-894/915-917. `else if` in the
+        # real source - mutually exclusive with the SECTION-minus-clause above, only
+        # reachable when this alternative did NOT match the "SECTION " prefix condition.
+        elif token.type == "T1" and group_id == _CIRNOT_GROUP_ID:
+            should.append(
+                {"match_phrase": {"searchheadingnumber": {
+                    "query": query, "boost": 85000, "slop": token.proximity,
+                    "analyzer": "snowball",
+                }}}
+            )  # SearchTextElastic.cs:894/917
 
     return should
 
 
+def _citation_clauses(token: RepotaxmannapiToken) -> list[dict]:
+    """`QType == "CT"` (citation) branch, SearchTextElastic.cs:1043-1066. Mirrors the plain
+    "else" default branch's heading/subheading/searchboosttext/fullcontent tiers (same
+    boosts, same fullcontent slop-override rule) but with only ONE headnotestext tier
+    (real source's `Headnotes1` only - no secondary 50000/slop-100 `Headnotes2` tier this
+    branch never builds one, unlike the default branch) plus one CT-specific addition:
+    `otherinfo.fullcitation.FirstOrDefault().name` at boost 155000 (same tier as heading),
+    analyzer snowball, slop `qt.QProximity` (SearchTextElastic.cs:1055, combined at
+    :1058/:1162 as a standalone top-level OR'd `queryCorrespondingCitation` block in the
+    real source - modeled here as a flat should-list entry per this module's existing
+    convention). This is the corresponding-citation cross-reference match a citation-shaped
+    query (e.g. `"571/Ahd/2016 vide order dated 02-04-2026"`) was missing entirely before
+    this port - `otherinfo.fullcitation.name` is already indexed on this repo's own ES
+    index (see common.es_client's otherinfo.* field usage), so this closes a real gap, not
+    a data-dependent one.
+
+    Not modeled (SearchTextElastic.cs:1049-1052): `search.IsTopStory`/`search.IsTldSearch`-
+    gated topstoryheading/tldheading tiers - same documented gap as `_tx_global_clauses`
+    and the plain default branch, no such parameters exist here.
+
+    `!search.isheadnoteToggle` guard around the fullcontent tier (:1059-1065) also not
+    modeled - same documented gap as build_should_clauses's own SECTION-minus-clause and
+    _tx_global_clauses' fullcontent tiers; the fullcontent tier is always emitted here."""
+    query = token.query_text
+    should: list[dict] = [
+        {"match_phrase": {"heading": {
+            "query": query, "boost": 155000, "slop": token.proximity, "analyzer": "snowball",
+        }}},  # SearchTextElastic.cs:1046
+        {"match_phrase": {"subheading": {
+            "query": query, "boost": 80000, "slop": token.proximity, "analyzer": "snowball",
+        }}},  # SearchTextElastic.cs:1047
+        {"match_phrase": {"searchboosttext": {
+            "query": query, "boost": 70000, "slop": token.proximity, "analyzer": "snowball",
+        }}},  # SearchTextElastic.cs:1048
+        {"match_phrase": {_HEADNOTES_TEXT_FIELD: {
+            "query": query, "boost": 65000, "slop": token.proximity, "analyzer": "snowball",
+        }}},  # SearchTextElastic.cs:1054 (Headnotes1 - no Headnotes2 tier for this branch)
+        {"match_phrase": {"otherinfo.fullcitation.name": {
+            "query": query, "boost": 155000, "slop": token.proximity, "analyzer": "snowball",
+        }}},  # SearchTextElastic.cs:1055 (otherinfo.fullcitation.FirstOrDefault().name)
+    ]
+    # fullcontent slop override, SearchTextElastic.cs:1061-1064 - same rule as the plain
+    # default branch's "Note on the fullcontent slop override" (module docstring).
+    if token.type == TokenType.TEXT:
+        fc_slop = 10000
+    elif token.proximity == ProximityDefault.DEFAULT_VALUE:
+        fc_slop = 10000
+    else:
+        fc_slop = token.proximity
+    should.append(
+        {"match_phrase": {"fullcontent": {
+            "query": query, "boost": 1, "slop": fc_slop, "analyzer": "snowball",
+        }}}
+    )  # SearchTextElastic.cs:1062/1064
+    return should
+
+
 def build_should_clauses(
-    tokens: list[RepotaxmannapiToken], is_global: bool, is_excus: bool
+    tokens: list[RepotaxmannapiToken], is_global: bool, is_excus: bool, group_id: str = "0",
 ) -> list[dict]:
     """Build the `should`-clause phrase-boost tiers for a list of tokens, mirroring
     SearchTextElastic.cs's `GetQuery` - see module docstring for exactly which parts of
     that method this covers and which it doesn't.
 
+    `group_id` (2026-09-06): the query's resolved `groups.group.id`/`iGroupID` equivalent
+    (same value `common.es_client._build_repotaxmannapi_field_query` already computes and
+    passes to `build_function_score_functions`) - threaded through to `_pipe_split_clauses`
+    for its `searchheadingnumber` tier's CirNot check. Defaults to "0" (never equals the
+    real CirNot group id) so existing callers that don't pass it get identical behavior to
+    before this parameter existed.
+
     Per-token branch precedence mirrors the real `if (q.Length > 1) {...} else {...}`
     structure at SearchTextElastic.cs:842/929 followed by the QType `if`/`else if` chain
     inside the `else` (948-1107): a pipe-separated (`|`) token is dispatched to
     `_pipe_split_clauses` REGARDLESS of its type (the pipe check comes first, before any
-    QType check, for every token) - see `_pipe_split_clauses`. Otherwise, a `TX`-typed
-    token under `is_global=True` is dispatched to `_tx_global_clauses`
+    QType check, for every token) - see `_pipe_split_clauses`. Next, a `CT`-typed
+    (citation) token is dispatched to `_citation_clauses` (SearchTextElastic.cs:1043,
+    `qt.QType == "CT"` - its own unconditional branch in the real source, not gated behind
+    `is_global`/`is_excus` the way `TX`/`PH` are, since a citation-classified token is
+    never dispatched with `is_excus=True` in this repo's calling convention - see
+    `_citation_clauses`). Otherwise, a `TX`-typed token under `is_global=True` is
+    dispatched to `_tx_global_clauses`
     (SearchTextElastic.cs:1010, `searchProcess.isGlobalSearch == "yes" && qt.QType ==
     "TX"`, checked ahead of the "CT"/"PH"/else branches in the same chain) - UNLESS
     `is_excus` is set, in which case it is skipped in favor of the plain `isExcus`/PH
@@ -288,7 +377,12 @@ def build_should_clauses(
         if "|" in token.query_text:
             # SearchTextElastic.cs:841-842: `qt.QueryText.Split('|')` - checked before
             # any QType branch, for every token type.
-            should.extend(_pipe_split_clauses(token))
+            should.extend(_pipe_split_clauses(token, group_id))
+            continue
+        if token.type == TokenType.CITATION:
+            # SearchTextElastic.cs:1043: `qt.QType == "CT"` - unconditional, no
+            # is_global/is_excus gate in the real source. See docstring above.
+            should.extend(_citation_clauses(token))
             continue
         if is_global and not is_excus and token.type == TokenType.TEXT:
             # SearchTextElastic.cs:1010: `searchProcess.isGlobalSearch == "yes" &&
