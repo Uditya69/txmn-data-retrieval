@@ -1207,12 +1207,27 @@ async def raw_search(
     # ~173 docs from every search entirely, a real regression with no source-of-truth backing it.
     # And now that boosting is off altogether, the original motivation (skip the boost for these
     # docs) is moot too: there's no boost being computed for anyone to skip.
+    # _source filtering (2026-09-07): this loop below only ever reads id/heading/subheading
+    # off each hit, but without an explicit `source` filter ES returns the FULL document -
+    # including `fullcontent` (a judgment's entire text, can run tens of KB) - for every one
+    # of `limit`/`page_size` hits. Root-caused a real, reproducible intermittent
+    # ConnectionTimeout on a live long-phrase citation query: ES's own `took` was 16ms (the
+    # query itself is cheap), but the unfiltered response body was large enough that transfer
+    # over the network to this remote node blew the client's ~10s default timeout on 3 of 4
+    # tries - a short/section-shaped query usually matches shorter documents and stayed under
+    # it, making the failure look query-specific rather than infra-wide. Adding this filter
+    # (already applied to raw_search_grouped's top_hits sub-agg below, just never mirrored
+    # here) cut the same query's response to ~5KB and 0.05-0.15s, consistently. Real source's
+    # own GetSearchResult (GlobalSearchResearch.cs:658-678) always source-filters too - this
+    # was a straight gap in the port, not a deliberate omission.
+    source_fields = ["id", "heading", "subheading"]
     if page_size is not None:
         response = await client.search(
             index=client.index, query=field_query, size=page_size, from_=(page - 1) * page_size,
+            _source=source_fields,
         )
     else:
-        response = await client.search(index=client.index, query=field_query, size=limit)
+        response = await client.search(index=client.index, query=field_query, size=limit, _source=source_fields)
     results = []
     for hit in response["hits"]["hits"]:
         source = hit["_source"]
