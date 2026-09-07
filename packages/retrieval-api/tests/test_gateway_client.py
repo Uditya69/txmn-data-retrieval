@@ -180,6 +180,34 @@ async def test_rerank_sends_model_override():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_rerank_sends_instruction_when_provided():
+    route = respx.post("http://gateway/v1/rerank").mock(
+        return_value=httpx.Response(200, json={"scores": [0.5]})
+    )
+    client = GatewayClient(base_url="http://gateway")
+
+    await client.rerank(role="reranker", query="q", documents=["a"], instruction="rank by X")
+
+    sent = json.loads(route.calls.last.request.content)
+    assert sent["instruction"] == "rank by X"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_rerank_omits_instruction_when_not_provided():
+    route = respx.post("http://gateway/v1/rerank").mock(
+        return_value=httpx.Response(200, json={"scores": [0.5]})
+    )
+    client = GatewayClient(base_url="http://gateway")
+
+    await client.rerank(role="reranker", query="q", documents=["a"])
+
+    sent = json.loads(route.calls.last.request.content)
+    assert "instruction" not in sent
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_chat_sends_response_format_when_provided():
     route = respx.post("http://gateway/v1/chat").mock(
         return_value=httpx.Response(200, json={"content": "{}"})

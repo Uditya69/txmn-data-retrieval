@@ -31,5 +31,7 @@ class VoyageAdapter:
             usage_details = {"input": usage["total_tokens"]} if "total_tokens" in usage else {}
             return data["data"][0]["embedding"], usage_details
 
-    async def rerank(self, model: str, query: str, documents: list[str]) -> list[float]:
+    async def rerank(
+        self, model: str, query: str, documents: list[str], instruction: str | None = None,
+    ) -> list[float]:
         raise NotImplementedError("VoyageAdapter does not support rerank")

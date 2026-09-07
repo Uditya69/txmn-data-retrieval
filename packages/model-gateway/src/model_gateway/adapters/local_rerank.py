@@ -24,11 +24,20 @@ class LocalRerankAdapter:
     async def embed(self, model: str, text: str) -> tuple[list[float], dict[str, int]]:
         raise NotImplementedError("LocalRerankAdapter does not support embed")
 
-    async def rerank(self, model: str, query: str, documents: list[str]) -> list[float]:
+    async def rerank(
+        self, model: str, query: str, documents: list[str], instruction: str | None = None,
+    ) -> list[float]:
+        # This /rerank endpoint (Cohere-compatible shape) has no dedicated instruction
+        # field the way DeepInfraAdapter's /inference/{model} does - so an instruction is
+        # folded into the query text using Qwen3-Reranker's own documented template
+        # (its HF model card's format_instruction()) instead, the same effect achieved
+        # a different way for a self-hosted server that doesn't understand DeepInfra's
+        # convenience field.
+        query_text = f"<Instruct>: {instruction}\n<Query>: {query}" if instruction is not None else query
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{self._base_url}/rerank",
-                json={"model": model, "query": query, "documents": documents},
+                json={"model": model, "query": query_text, "documents": documents},
                 headers=self._headers,
             )
             response.raise_for_status()

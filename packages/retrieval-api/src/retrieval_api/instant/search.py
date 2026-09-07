@@ -131,7 +131,7 @@ async def _run_es_grouped(
 
 async def _run_milvus(
     gateway, milvus_client, query: str, on_step: OnStep | None, milvus_sparse_enabled: bool = False,
-) -> tuple[dict | None, dict | None, str | None]:
+) -> tuple[dict | None, dict | None, list[float] | None, str | None]:
     """Runs dense (Voyage embedding) and, when enabled, sparse (Milvus-native BM25) search
     against every collection - the same two passes AI Mode's retrieve() does - so Instant's
     trace surfaces exactly what each retriever fetched, not just the dense results Instant's
@@ -186,17 +186,17 @@ async def _run_milvus(
                 # reasoning as AI Mode's ai_milvus_sparse step, retrieve.py).
                 if milvus_sparse_enabled:
                     await on_step("milvus_sparse", collection_trace(sparse_result))
-            return dense_result, sparse_result, None
+            return dense_result, sparse_result, dense_vector, None
         except Exception as exc:  # noqa: BLE001 - branch isolation is the point
             span.update(level="ERROR", status_message=str(exc))
-            return None, None, str(exc)
+            return None, None, None, str(exc)
 
 
 async def run_instant(
     gateway, es_client, milvus_client, query: str, on_step: OnStep | None = None,
     rrf: bool = False, rerank: bool = False, auto_route: bool = False, boost: bool = True,
     milvus_sparse_enabled: bool = False, boost_source: str = "repotaxmannapi",
-    page: int = 1, page_size: int | None = None,
+    page: int = 1, page_size: int | None = None, reranker_model: str | None = None,
 ) -> dict:
     """boost_source (common/es_client.py::raw_search) affects the `query_analysis` trace
     step's `es_query` preview and the actual ES search below; nothing else in this
@@ -290,8 +290,8 @@ async def run_instant(
         tasks = [t for t in (es_task, milvus_task, grouped_task) if t is not None]
         gathered = iter(await asyncio.gather(*tasks))
         es_result, es_error = next(gathered) if es_task is not None else (None, None)
-        milvus_dense, milvus_sparse, milvus_error = (
-            next(gathered) if milvus_task is not None else (None, None, None)
+        milvus_dense, milvus_sparse, dense_vector, milvus_error = (
+            next(gathered) if milvus_task is not None else (None, None, None, None)
         )
         grouped_es, grouped_es_error = (
             next(gathered) if grouped_task is not None else (None, None)
@@ -326,9 +326,10 @@ async def run_instant(
             ) as rerank_span:
                 try:
                     reranked = await rerank_instant_results(
-                        gateway, es_client, query, label,
+                        gateway, query, label,
                         es_result or [], milvus_dense or {}, milvus_sparse or {},
                         rrf=effective_rrf, rerank=rerank, plan=plan, on_step=on_step,
+                        milvus_client=milvus_client, dense_vector=dense_vector, reranker_model=reranker_model,
                     )
                     rerank_span.update(output={"num_reranked": len(reranked)})
                     if on_step is not None:

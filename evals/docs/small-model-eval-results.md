@@ -72,7 +72,7 @@ for the cached runs.
 ## Results
 
 Pass counts out of 12 queries, per stage (recall@pass_at: direct ≤5, indirect ≤10,
-adversarial ≤20 — see `evals/retrieval-eval-queries.md`):
+adversarial ≤20 — see `retrieval-eval-queries.md`):
 
 | Run | es | raw_dense | raw_sparse | rewritten_dense | rewritten_sparse | rrf | reranker | citation_valid | gold_cited |
 |---|---|---|---|---|---|---|---|---|---|
@@ -221,7 +221,7 @@ A sibling Gemma-4 variant (26B total, MoE-style ~4B-active naming, distinct from
 rejected dense `gemma-4-E4B-it`) was checked against the same rejection criterion first —
 confirmed it echoes its own model name back in DeepInfra's response (not silently
 substituted, see the aliasing warning below) and supports `response_format: json_object`
-(unlike `gemma-4-E4B-it`). Run against `evals/intent_filter_cases.json` (the prompt-only
+(unlike `gemma-4-E4B-it`). Run against `evals/datasets/intent_filter_cases.json` (the prompt-only
 gold-filter checker, `retrieval_api.intent_eval`, no ES/Milvus):
 
 | Run | Pass count | Notes |

@@ -3,7 +3,7 @@
 This is a diagnostic retrieval benchmark built from the source statutory JSON files in
 `tm-dp/data` (acts, rules, articles, commentary — `tariff` excluded, its Milvus
 collection is parked and not live per `CLAUDE.md`). It contains 80 queries grouped into
-40 matched pairs (`evals/statutory_cases.json` is the machine-readable source of truth;
+40 matched pairs (`evals/datasets/statutory_cases.json` is the machine-readable source of truth;
 this document mirrors it). Each pair targets the same gold document twice: once with
 direct lexical signals (act/rule/regulation name, section number, distinctive terms of
 art) and once through an indirect paraphrase of the same content with those identifiers
@@ -11,7 +11,7 @@ stripped out. Ten gold documents were picked from each of the four document type
 1-20 are the original set; Pairs 21-40 were added in the same style, five more per
 category, with `gold_doc_ids` mined from the live ES/Milvus corpus).
 
-Unlike the case-law eval (`evals/retrieval-eval-queries.md`), this set is **Milvus-only**.
+Unlike the case-law eval (`retrieval-eval-queries.md`), this set is **Milvus-only**.
 `ES_INDEX` defaults to `taxmann_caselaw` (`packages/common/src/common/config.py`) — the
 Elasticsearch index holds case law, not statutory content, so there is no ES leg to
 evaluate here. Each gold document lives in exactly one Milvus collection determined by

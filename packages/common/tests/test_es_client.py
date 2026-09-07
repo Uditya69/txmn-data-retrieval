@@ -204,6 +204,7 @@ async def test_raw_search_returns_doc_id_score_heading_subheading():
         "score": 4.2,
         "heading": "[2022] 140 taxmann.com 136 (Punjab & Haryana)",
         "subheading": "Krishana Goel vs. Principal Chief Commissioner of Income-tax",
+        "text": "",
     }]
     # index comes from the client (sourced from Settings.es_index), never hardcoded
     assert client.searched_index == "researchindex_aic_test"
@@ -215,7 +216,26 @@ async def test_raw_search_defaults_missing_heading_subheading_to_empty_string():
 
     results = await raw_search(client, "query", limit=20)
 
-    assert results == [{"doc_id": "d1", "score": 1.0, "heading": "", "subheading": ""}]
+    assert results == [{"doc_id": "d1", "score": 1.0, "heading": "", "subheading": "", "text": ""}]
+
+
+@pytest.mark.asyncio
+async def test_raw_search_strips_tags_from_highlight_fragment_into_text_field():
+    # Same highlight->strip_tags_to_text shape keyword_mode_search/sparse_fallback_search
+    # already use - raw_search rows should carry real match-context text too, not markup.
+    client = FakeAsyncES(search_hits=[{
+        "_source": {"id": "d1"},
+        "_score": 1.0,
+        "highlight": {"fullcontent": ["<para>exemption <b>claim</b> under section 10</para>"]},
+    }])
+
+    results = await raw_search(client, "exemption claim", limit=20)
+
+    assert results[0]["text"] == "exemption claim under section 10"
+    assert client.highlight_calls[0] == {
+        "fields": {"fullcontent": {"fragment_size": 6000, "number_of_fragments": 1}},
+        "pre_tags": [""], "post_tags": [""],
+    }
 
 
 @pytest.mark.asyncio

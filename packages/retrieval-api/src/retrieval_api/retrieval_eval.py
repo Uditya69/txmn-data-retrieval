@@ -485,7 +485,7 @@ async def _run(args) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the case-law retrieval evaluation set")
-    parser.add_argument("--dataset", type=Path, default=Path("evals/retrieval_cases.json"))
+    parser.add_argument("--dataset", type=Path, default=Path("evals/datasets/retrieval_cases.json"))
     parser.add_argument("--query", action="append", help="run one query ID; may be repeated")
     parser.add_argument("--class", dest="query_class", choices=["direct", "indirect", "adversarial"])
     parser.add_argument("--limit", type=int, default=50)

@@ -1,13 +1,13 @@
 # Instant mode rerank on/off sample set
 
 10 manual-testing queries for Instant mode's opt-in `rerank` toggle
-(`instant/rerank.py::rrf_merge_by_doc_id`). `evals/instant_rerank_sample.json` is the
+(`instant/rerank.py::rrf_merge_by_doc_id`). `evals/datasets/instant_rerank_sample.json` is the
 machine-readable source of truth; this document mirrors it.
 
 Every gold `doc_id` below was pulled live from the ES index (`researchindex_aic_test`,
 2026-08-20) — each one was fetched by `_doc/<id>` and its `headnotes_text`/`facts_text`/
 `held_text` read directly before writing the corresponding query, so these are fresh
-cases, not reused from `evals/retrieval_cases.json`.
+cases, not reused from `evals/datasets/retrieval_cases.json`.
 
 **How to use**: run each query through Instant mode with `rerank` off, note whether the
 gold `doc_id` appears in the merged ES+Milvus results; flip `rerank` on and re-run the
@@ -40,4 +40,4 @@ they carry no lexical overlap with the source document at all; `mixed` sits in b
 | R09 | IBC financial debt (paraphrase of R04) | short, vague, no party name | NBFC gave interest free loan no proof of intent to charge interest can it still be treated as financial debt insolvency | `101010000000193057` |
 | R10 | Penalty for concealment (paraphrase of R05) | typos, telegraphic | declared agri income but left out fd interst can he say he thot all deposit intrest was tax free 271 1 c penalty | `101010000000183772` |
 
-See `evals/instant_rerank_sample.json` for `expected_collections` per query and full notes.
+See `evals/datasets/instant_rerank_sample.json` for `expected_collections` per query and full notes.

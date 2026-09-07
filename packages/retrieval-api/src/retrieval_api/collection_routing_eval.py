@@ -144,7 +144,7 @@ def main() -> None:
     )
     parser.add_argument("--gateway-url", default="http://localhost:8011")
     parser.add_argument("--model", default=None, help="Override the slm role's model")
-    parser.add_argument("--dataset", default="evals/collection_routing_cases.json")
+    parser.add_argument("--dataset", default="evals/datasets/collection_routing_cases.json")
     parser.add_argument("--output", type=Path, help="append per-case results to this JSONL file as they complete")
     parser.add_argument("--resume", action="store_true", help="skip case IDs already present in --output")
     parser.add_argument("--summarize", type=Path, help="print the summary for an existing JSONL results file and exit - no gateway calls")

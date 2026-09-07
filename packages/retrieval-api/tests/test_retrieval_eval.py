@@ -29,7 +29,7 @@ def test_explicit_output_keeps_snapshot_beside_result():
 
 def test_repository_eval_dataset_spans_1936_to_2026_and_has_stress_cases():
     root = Path(__file__).parents[3]
-    cases = load_cases(root / "evals" / "retrieval_cases.json")
+    cases = load_cases(root / "evals" / "datasets" / "retrieval_cases.json")
     assert len(cases) == 71
     assert {case["class"] for case in cases} == {"direct", "indirect", "adversarial"}
     assert cases[20]["id"] == "Q21"
@@ -217,7 +217,7 @@ def test_sample_12_query_ids_are_a_subset_of_the_full_dataset():
     from retrieval_api.retrieval_eval import SAMPLE_12_QUERY_IDS
 
     root = Path(__file__).parents[3]
-    cases = load_cases(root / "evals" / "retrieval_cases.json")
+    cases = load_cases(root / "evals" / "datasets" / "retrieval_cases.json")
     all_ids = {case["id"] for case in cases}
     assert len(SAMPLE_12_QUERY_IDS) == 12
     assert len(set(SAMPLE_12_QUERY_IDS)) == 12  # no duplicates

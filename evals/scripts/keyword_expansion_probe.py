@@ -12,7 +12,7 @@ Gold is regenerated live from ES each run (query + persona's Act/subject terms),
 "gold from live ES" convention as keyword_only_probe.py, not hand-fabricated doc_ids.
 
 Usage:
-    uv run python evals/keyword_expansion_probe.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/keyword_expansion_probe.py --gateway-url http://localhost:8001
 """
 import argparse
 import asyncio
@@ -26,7 +26,7 @@ from retrieval_api.ai_mode.keyword_expansion import expand_keyword_terms
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.retrieval_eval import doc_rank
 
-EVALS_DIR = Path(__file__).parent
+RESULTS_DIR = Path(__file__).parent.parent / "results"
 LIMIT = 20
 PASS_AT = 5
 
@@ -116,7 +116,7 @@ async def _run(args) -> None:
     hits = sum(r["hit"] for r in results)
     print(f"\nrecall@{PASS_AT}: {hits}/{len(results)}")
 
-    out_path = EVALS_DIR / f"keyword_expansion_probe_{'after' if supports_persona else 'before'}.json"
+    out_path = RESULTS_DIR / f"keyword_expansion_probe_{'after' if supports_persona else 'before'}.json"
     out_path.write_text(json.dumps({"supports_persona": supports_persona, "results": results}, indent=2))
     print(f"Wrote {out_path}")
 

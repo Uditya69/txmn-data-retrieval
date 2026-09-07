@@ -7,7 +7,7 @@ from common.milvus_client import get_milvus_client
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.retrieval_eval import evaluate_case, load_cases
 
-DATASET_PATH = Path("evals/retrieval_cases.json")
+DATASET_PATH = Path("evals/datasets/retrieval_cases.json")
 
 
 async def run(gateway_url: str, limit: int | None) -> AsyncIterator[dict]:

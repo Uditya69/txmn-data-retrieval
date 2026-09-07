@@ -727,7 +727,7 @@ def _wrap_function_score(field_query: dict) -> dict:
     Both were patched below (every function gated behind `{"range": {field: {"gt": 0}}}`,
     turning missing/zero into a neutral 1x instead of a score-killing near-zero) and verified
     fixed on the live index. But a full head-to-head Instant-mode eval run (53-query set,
-    `evals/retrieval_cases.json`) with the patched formula still active (21/53 passed) versus
+    `evals/datasets/retrieval_cases.json`) with the patched formula still active (21/53 passed) versus
     the same run with this function_score wrapper skipped entirely (42/53 passed - pure BM25
     text relevance, no boost) showed boosting is net-negative even fully patched: the
     multiplicative documenttypeboost x court_boost x landmarkruling stack still routinely
@@ -1145,20 +1145,32 @@ async def raw_search(
     # ~173 docs from every search entirely, a real regression with no source-of-truth backing it.
     # And now that boosting is off altogether, the original motivation (skip the boost for these
     # docs) is moot too: there's no boost being computed for anyone to skip.
+    # Same highlight shape keyword_mode_search/sparse_fallback_search already use (oversized
+    # fragment_size, trim_to_token_budget does the real cutting) - added here so raw_search's
+    # rows carry real match-context text too, not just doc_id/score/heading/subheading. Every
+    # reranker call site in this repo should be able to use a candidate's own row["text"]
+    # instead of a separate whole-document refetch (see instant/rerank.py); previously
+    # raw_search was the one gap forcing that refetch.
+    highlight = {"fields": {"fullcontent": {
+        "fragment_size": _ES_HIGHLIGHT_FRAGMENT_CHARS, "number_of_fragments": 1,
+    }}, "pre_tags": [""], "post_tags": [""]}
     if page_size is not None:
         response = await client.search(
             index=client.index, query=field_query, size=page_size, from_=(page - 1) * page_size,
+            highlight=highlight,
         )
     else:
-        response = await client.search(index=client.index, query=field_query, size=limit)
+        response = await client.search(index=client.index, query=field_query, size=limit, highlight=highlight)
     results = []
     for hit in response["hits"]["hits"]:
         source = hit["_source"]
+        fragments = hit.get("highlight", {}).get("fullcontent")
         results.append({
             "doc_id": source["id"],
             "score": hit["_score"],
             "heading": source.get("heading", ""),
             "subheading": source.get("subheading", ""),
+            "text": trim_to_token_budget(strip_tags_to_text(fragments[0])) if fragments else "",
         })
     return results
 

@@ -8,7 +8,7 @@ from retrieval_api.intent_eval import check_intent_case, load_intent_cases, tall
 
 def test_repository_intent_filter_dataset_has_cases_and_unique_ids():
     root = Path(__file__).parents[3]
-    cases = load_intent_cases(root / "evals" / "intent_filter_cases.json")
+    cases = load_intent_cases(root / "evals" / "datasets" / "intent_filter_cases.json")
 
     assert len(cases) >= 12
     assert len({case["id"] for case in cases}) == len(cases)
@@ -16,7 +16,7 @@ def test_repository_intent_filter_dataset_has_cases_and_unique_ids():
 
 def test_repository_intent_filter_dataset_covers_every_category():
     root = Path(__file__).parents[3]
-    cases = load_intent_cases(root / "evals" / "intent_filter_cases.json")
+    cases = load_intent_cases(root / "evals" / "datasets" / "intent_filter_cases.json")
 
     covered = {category for case in cases for category in case["expected_categories"]}
     assert covered == {"acts", "rules", "caselaws", "articles", "commentary", "tariff"}

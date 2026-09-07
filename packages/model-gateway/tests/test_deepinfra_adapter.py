@@ -77,6 +77,34 @@ async def test_rerank_returns_scores_in_input_order():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_rerank_includes_instruction_field_when_provided():
+    route = respx.post("https://api.deepinfra.com/v1/inference/rerank-model").mock(
+        return_value=httpx.Response(200, json={"scores": [0.9, 0.2]})
+    )
+    adapter = DeepInfraAdapter(api_key="k")
+
+    await adapter.rerank("rerank-model", "query", ["doc a", "doc b"], instruction="rank by X")
+
+    assert json.loads(route.calls.last.request.content) == {
+        "queries": ["query"], "documents": ["doc a", "doc b"], "instruction": "rank by X",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_rerank_omits_instruction_field_when_not_provided():
+    route = respx.post("https://api.deepinfra.com/v1/inference/rerank-model").mock(
+        return_value=httpx.Response(200, json={"scores": [0.9, 0.2]})
+    )
+    adapter = DeepInfraAdapter(api_key="k")
+
+    await adapter.rerank("rerank-model", "query", ["doc a", "doc b"])
+
+    assert "instruction" not in json.loads(route.calls.last.request.content)
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_chat_sends_explicit_max_tokens():
     # DeepInfra defaults an unset max_tokens to a value derived from the
     # largest models it serves (observed: 65536), which exceeds smaller

@@ -202,7 +202,7 @@ def main() -> None:
     )
     parser.add_argument("--gateway-url", default="http://localhost:8001")
     parser.add_argument("--model", default=None, help="Override the slm role's model")
-    parser.add_argument("--dataset", default="evals/slm_intent_cases.json")
+    parser.add_argument("--dataset", default="evals/datasets/slm_intent_cases.json")
     parser.add_argument(
         "--limit", type=int, default=None,
         help="Run only the first N cases of the dataset (e.g. --limit 10 out of 50 total). "

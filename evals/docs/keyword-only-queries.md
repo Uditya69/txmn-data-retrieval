@@ -1,7 +1,7 @@
 # Keyword-only probe: ES BM25 exact-match vs Milvus dense
 
 `keyword_only_cases.json` is the machine-readable source of truth (regenerated
-live from ES by `evals/keyword_only_probe.py` — do not hand-edit); this file
+live from ES by `evals/scripts/keyword_only_probe.py` — do not hand-edit); this file
 mirrors it for humans. Unlike the other eval sets, this one is intentionally
 disposable/regenerable rather than hand-curated.
 
@@ -58,7 +58,7 @@ independent data point for "dense misses obvious things."
 ## Regenerating
 
 ```
-uv run python evals/keyword_only_probe.py --gateway-url http://localhost:8001
+uv run python evals/scripts/keyword_only_probe.py --gateway-url http://localhost:8001
 ```
 
 Rewrites `keyword_only_cases.json`, `keyword_only_results.json`, and

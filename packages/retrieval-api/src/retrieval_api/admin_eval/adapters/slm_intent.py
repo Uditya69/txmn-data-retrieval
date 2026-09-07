@@ -5,7 +5,7 @@ from retrieval_api.ai_mode.intent import extract_intent
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.slm_intent_eval import check_categories, check_filters, check_rewrite, load_cases
 
-DATASET_PATH = Path("evals/slm_intent_cases.json")
+DATASET_PATH = Path("evals/datasets/slm_intent_cases.json")
 
 
 async def run(gateway_url: str, limit: int | None) -> AsyncIterator[dict]:
