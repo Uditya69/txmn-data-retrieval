@@ -10,7 +10,7 @@ a flaky local vLLM endpoint - config resolving cleanly doesn't mean the model be
 is actually answering.
 
 Usage (from repo root):
-    uv run python evals/preflight.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/preflight.py --gateway-url http://localhost:8001
 
 Exits 0 if every check passes, 1 otherwise - safe to gate a headless run script on.
 """

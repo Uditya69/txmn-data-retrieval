@@ -14,13 +14,13 @@ query (near-tied by score, confirmed live against ES on 2026-08-25) - any of
 those three counts as a correct answer for the Milvus-side check.
 
 Two things happen when this is run:
-  1. Builds/refreshes evals/keyword_only_cases.json from live ES (source of truth).
+  1. Builds/refreshes evals/datasets/keyword_only_cases.json from live ES (source of truth).
   2. Immediately runs Milvus dense-only search (query_embed -> Voyage, straight
      dense_vector search, no ES/sparse/rerank/RRF) against MILVUS_COLLECTIONS and
      records the best rank among the 3 gold doc_ids.
 
 Usage:
-    uv run python evals/keyword_only_probe.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/keyword_only_probe.py --gateway-url http://localhost:8001
 """
 import argparse
 import asyncio
@@ -36,7 +36,8 @@ from retrieval_api.ai_mode.retrieve import _flatten
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.retrieval_eval import doc_rank
 
-EVALS_DIR = Path(__file__).parent
+DATASETS_DIR = Path(__file__).parent.parent / "datasets"
+RESULTS_DIR = Path(__file__).parent.parent / "results"
 LIMIT = 20
 
 # Strict 1-3 word keyword-only queries - no case names, no descriptive text,
@@ -121,8 +122,8 @@ async def _run(args) -> None:
     gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=False)
     try:
         cases = await build_cases(es_client)
-        (EVALS_DIR / "keyword_only_cases.json").write_text(json.dumps(cases, indent=2))
-        print(f"Built {len(cases)} keyword-only cases from live ES -> evals/keyword_only_cases.json")
+        (DATASETS_DIR / "keyword_only_cases.json").write_text(json.dumps(cases, indent=2))
+        print(f"Built {len(cases)} keyword-only cases from live ES -> evals/datasets/keyword_only_cases.json")
 
         results = []
         for case in cases:
@@ -133,8 +134,8 @@ async def _run(args) -> None:
         await es_client.close()
         milvus_client.close()
 
-    json_path = EVALS_DIR / "keyword_only_results.json"
-    csv_path = EVALS_DIR / "keyword_only_results.csv"
+    json_path = RESULTS_DIR / "keyword_only_results.json"
+    csv_path = RESULTS_DIR / "keyword_only_results.csv"
     json_path.write_text(json.dumps(results, indent=2))
     write_csv(results, csv_path)
 

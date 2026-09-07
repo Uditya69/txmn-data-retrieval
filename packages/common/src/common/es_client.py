@@ -721,7 +721,7 @@ def _wrap_function_score(field_query: dict) -> dict:
     Both were patched below (every function gated behind `{"range": {field: {"gt": 0}}}`,
     turning missing/zero into a neutral 1x instead of a score-killing near-zero) and verified
     fixed on the live index. But a full head-to-head Instant-mode eval run (53-query set,
-    `evals/retrieval_cases.json`) with the patched formula still active (21/53 passed) versus
+    `evals/datasets/retrieval_cases.json`) with the patched formula still active (21/53 passed) versus
     the same run with this function_score wrapper skipped entirely (42/53 passed - pure BM25
     text relevance, no boost) showed boosting is net-negative even fully patched: the
     multiplicative documenttypeboost x court_boost x landmarkruling stack still routinely
@@ -1232,34 +1232,55 @@ async def raw_search(
     # And now that boosting is off altogether, the original motivation (skip the boost for these
     # docs) is moot too: there's no boost being computed for anyone to skip.
     # _source filtering (2026-09-07): this loop below only ever reads id/heading/subheading
-    # off each hit, but without an explicit `source` filter ES returns the FULL document -
-    # including `fullcontent` (a judgment's entire text, can run tens of KB) - for every one
-    # of `limit`/`page_size` hits. Root-caused a real, reproducible intermittent
-    # ConnectionTimeout on a live long-phrase citation query: ES's own `took` was 16ms (the
-    # query itself is cheap), but the unfiltered response body was large enough that transfer
-    # over the network to this remote node blew the client's ~10s default timeout on 3 of 4
-    # tries - a short/section-shaped query usually matches shorter documents and stayed under
-    # it, making the failure look query-specific rather than infra-wide. Adding this filter
-    # (already applied to raw_search_grouped's top_hits sub-agg below, just never mirrored
-    # here) cut the same query's response to ~5KB and 0.05-0.15s, consistently. Real source's
-    # own GetSearchResult (GlobalSearchResearch.cs:658-678) always source-filters too - this
-    # was a straight gap in the port, not a deliberate omission.
+    # (plus, below, the highlight-derived text) off each hit, but without an explicit
+    # `source` filter ES returns the FULL document - including `fullcontent` (a judgment's
+    # entire text, can run tens of KB) - for every one of `limit`/`page_size` hits.
+    # Root-caused a real, reproducible intermittent ConnectionTimeout on a live long-phrase
+    # citation query: ES's own `took` was 16ms (the query itself is cheap), but the
+    # unfiltered response body was large enough that transfer over the network to this
+    # remote node blew the client's ~10s default timeout on 3 of 4 tries - a short/
+    # section-shaped query usually matches shorter documents and stayed under it, making the
+    # failure look query-specific rather than infra-wide. Adding this filter (already applied
+    # to raw_search_grouped's top_hits sub-agg below, just never mirrored here) cut the same
+    # query's response to ~5KB and 0.05-0.15s, consistently. Real source's own GetSearchResult
+    # (GlobalSearchResearch.cs:658-678) always source-filters too - this was a straight gap in
+    # the port, not a deliberate omission.
+    #
+    # Compatible with the highlight request below despite excluding fullcontent from
+    # `_source` here - ES computes highlights from the document's actual stored data
+    # server-side, independent of the `_source` response filter (that filter only controls
+    # what's serialized back into the client-facing `_source` object). keyword_mode_search
+    # above already relies on exactly this: `_source=["id"]` with `highlight` on fullcontent
+    # in the same call, shipped and working.
     source_fields = ["id", "heading", "subheading"]
+    # Same highlight shape keyword_mode_search/sparse_fallback_search already use (oversized
+    # fragment_size, trim_to_token_budget does the real cutting) - added here so raw_search's
+    # rows carry real match-context text too, not just doc_id/score/heading/subheading. Every
+    # reranker call site in this repo should be able to use a candidate's own row["text"]
+    # instead of a separate whole-document refetch (see instant/rerank.py); previously
+    # raw_search was the one gap forcing that refetch.
+    highlight = {"fields": {"fullcontent": {
+        "fragment_size": _ES_HIGHLIGHT_FRAGMENT_CHARS, "number_of_fragments": 1,
+    }}, "pre_tags": [""], "post_tags": [""]}
     if page_size is not None:
         response = await client.search(
             index=client.index, query=field_query, size=page_size, from_=(page - 1) * page_size,
-            _source=source_fields,
+            _source=source_fields, highlight=highlight,
         )
     else:
-        response = await client.search(index=client.index, query=field_query, size=limit, _source=source_fields)
+        response = await client.search(
+            index=client.index, query=field_query, size=limit, _source=source_fields, highlight=highlight,
+        )
     results = []
     for hit in response["hits"]["hits"]:
         source = hit["_source"]
+        fragments = hit.get("highlight", {}).get("fullcontent")
         results.append({
             "doc_id": source["id"],
             "score": hit["_score"],
             "heading": source.get("heading", ""),
             "subheading": source.get("subheading", ""),
+            "text": trim_to_token_budget(strip_tags_to_text(fragments[0])) if fragments else "",
         })
     return results
 

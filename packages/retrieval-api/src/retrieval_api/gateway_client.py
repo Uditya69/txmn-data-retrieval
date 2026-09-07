@@ -73,10 +73,13 @@ class GatewayClient:
 
     async def rerank(
         self, role: str, query: str, documents: list[str], model: str | None = None,
+        instruction: str | None = None,
     ) -> list[float]:
         body = {"role": role, "query": query, "documents": documents}
         if model is not None:
             body["model"] = model
+        if instruction is not None:
+            body["instruction"] = instruction
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{self._base_url}/v1/rerank",

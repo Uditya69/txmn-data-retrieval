@@ -8,7 +8,7 @@ from retrieval_api.collection_routing_eval import check_routing_case, load_routi
 
 def test_repository_routing_dataset_has_cases_and_unique_ids():
     root = Path(__file__).parents[3]
-    cases = load_routing_cases(root / "evals" / "collection_routing_cases.json")
+    cases = load_routing_cases(root / "evals" / "datasets" / "collection_routing_cases.json")
 
     assert len(cases) >= 12
     assert len({case["id"] for case in cases}) == len(cases)
@@ -16,7 +16,7 @@ def test_repository_routing_dataset_has_cases_and_unique_ids():
 
 def test_repository_routing_dataset_has_both_confident_and_vague_cases():
     root = Path(__file__).parents[3]
-    cases = load_routing_cases(root / "evals" / "collection_routing_cases.json")
+    cases = load_routing_cases(root / "evals" / "datasets" / "collection_routing_cases.json")
 
     expects = {case["expect"] for case in cases}
     assert expects == {"confident", "vague"}
@@ -24,7 +24,7 @@ def test_repository_routing_dataset_has_both_confident_and_vague_cases():
 
 def test_repository_routing_dataset_vague_cases_expect_empty_categories():
     root = Path(__file__).parents[3]
-    cases = load_routing_cases(root / "evals" / "collection_routing_cases.json")
+    cases = load_routing_cases(root / "evals" / "datasets" / "collection_routing_cases.json")
 
     for case in cases:
         if case["expect"] == "vague":

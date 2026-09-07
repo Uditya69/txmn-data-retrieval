@@ -5,17 +5,17 @@
 # redirect output to a log file, track it by PID.
 #
 # Usage:
-#   evals/run_headless.sh start <name> -- <command...>
-#   evals/run_headless.sh status <name>
-#   evals/run_headless.sh stop <name>
+#   evals/scripts/run_headless.sh start <name> -- <command...>
+#   evals/scripts/run_headless.sh status <name>
+#   evals/scripts/run_headless.sh stop <name>
 #
 # Example:
-#   evals/run_headless.sh start slm-intent -- \
+#   evals/scripts/run_headless.sh start slm-intent -- \
 #     uv run python -m retrieval_api.slm_intent_eval \
-#       --dataset evals/slm_intent_cases.json \
+#       --dataset evals/datasets/slm_intent_cases.json \
 #       --output .eval-results/slm-intent.jsonl --resume
-#   evals/run_headless.sh status slm-intent
-#   evals/run_headless.sh stop slm-intent
+#   evals/scripts/run_headless.sh status slm-intent
+#   evals/scripts/run_headless.sh stop slm-intent
 
 set -euo pipefail
 

@@ -1,6 +1,7 @@
 # packages/retrieval-api/tests/test_instant_search.py
 from unittest.mock import AsyncMock
 import pytest
+from retrieval_api.instant.rerank import _RERANK_INSTRUCTION
 from retrieval_api.instant.search import run_instant
 
 
@@ -321,18 +322,18 @@ async def test_run_instant_rerank_true_calls_cross_encoder_and_unions_es_and_mil
     import retrieval_api.instant.search as search_module
 
     async def fake_raw_search(client, query, limit=20, boost=False, boost_source="sum", page=1, page_size=None):
-        return [{"doc_id": "d1", "score": 4.2, "heading": "h1", "subheading": "s1"}]
+        return [{"doc_id": "d1", "score": 4.2, "heading": "h1", "subheading": "s1", "text": "full text for d1"}]
 
     async def fake_hybrid_search(client, collections, dense_vector, sparse_query_text, doc_id_allowlist=None, limit=50):
-        return {"ruling": [{"chunk_id": "d2::ruling::0", "doc_id": "d2", "text": "t", "score": 0.9}]}
-
-    async def fake_fetch_fulltext_batch(client, doc_ids):
-        return {doc_id: f"full text for {doc_id}" for doc_id in doc_ids}
+        return {"ruling": [{"chunk_id": "d2::ruling::0", "doc_id": "d2", "text": "full text for d2", "score": 0.9}]}
 
     monkeypatch.setattr(search_module, "raw_search", fake_raw_search)
     monkeypatch.setattr(search_module, "hybrid_search", fake_hybrid_search)
+    # d1 (ES-only, no chunk_id) triggers rerank.py's own Milvus-chunk-enrichment lookup -
+    # a separately-bound import (see CLAUDE.md's monkeypatch+direct-import gotcha), so it
+    # needs its own patch. Returns nothing found, so d1 keeps its original ES text below.
     import retrieval_api.instant.rerank as rerank_module
-    monkeypatch.setattr(rerank_module, "fetch_fulltext_batch", fake_fetch_fulltext_batch)
+    monkeypatch.setattr(rerank_module, "hybrid_search", AsyncMock(return_value={}))
 
     gateway = AsyncMock()
     gateway.embed.return_value = [0.1, 0.2]
@@ -348,7 +349,8 @@ async def test_run_instant_rerank_true_calls_cross_encoder_and_unions_es_and_mil
     assert {row["doc_id"] for row in result["reranked"]} == {"d1", "d2"}
     assert all("rerank_score" in row for row in result["reranked"])
     gateway.rerank.assert_awaited_once_with(
-        role="reranker", query="q", documents=["full text for d1", "full text for d2"],
+        role="reranker", query="q", documents=["full text for d1", "full text for d2"], model=None,
+        instruction=_RERANK_INSTRUCTION,
     )
 
 

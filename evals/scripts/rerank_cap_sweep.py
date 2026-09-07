@@ -18,7 +18,7 @@ Usage (from repo root, gateway running via docker compose):
 
     2. Sweep caps against that cache (fast - reranker calls only):
 
-        uv run python evals/rerank_cap_sweep.py --cache-dir .rerank-cache \\
+        uv run python evals/scripts/rerank_cap_sweep.py --cache-dir .rerank-cache \\
             --caps 100,50,25,20,10 --gateway-url http://localhost:8001
 
     Both commands must agree on --slm-model/--reranker-model/--sparse/--no-sparse
@@ -143,7 +143,7 @@ async def _run(args) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Sweep AI Mode's reranker candidate cap against cached pre-rerank data")
-    parser.add_argument("--dataset", type=Path, default=Path("evals/retrieval_cases.json"))
+    parser.add_argument("--dataset", type=Path, default=Path("evals/datasets/retrieval_cases.json"))
     parser.add_argument("--cache-dir", type=Path, required=True, help="stage cache populated by `retrieval-eval --cache-dir ...`")
     parser.add_argument("--caps", default=",".join(str(c) for c in DEFAULT_CAPS), help="comma-separated cap values, e.g. 100,50,25,20,10")
     parser.add_argument("--slm-model", help="must match the value used to populate --cache-dir")

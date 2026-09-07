@@ -105,6 +105,22 @@ def test_rerank_route(monkeypatch):
     assert response.json() == {"scores": [0.9, 0.1]}
 
 
+def test_rerank_route_forwards_instruction_to_adapter(monkeypatch):
+    fake_adapter = AsyncMock()
+    fake_adapter.rerank.return_value = [0.9, 0.1]
+    monkeypatch.setattr(routes_module, "get_adapter", lambda provider: fake_adapter)
+    monkeypatch.setattr(routes_module, "ROLE_MODEL_MAP", {"reranker": "rerank-model"})
+    monkeypatch.setattr(routes_module, "ROLE_PROVIDER_MAP", {"reranker": "deepinfra"})
+
+    client = TestClient(app)
+    client.post(
+        "/v1/rerank",
+        json={"role": "reranker", "query": "q", "documents": ["a", "b"], "instruction": "rank by X"},
+    )
+
+    fake_adapter.rerank.assert_awaited_once_with("rerank-model", "q", ["a", "b"], instruction="rank by X")
+
+
 def test_rerank_route_returns_empty_scores_without_calling_adapter_when_documents_empty(monkeypatch):
     """DeepInfra's rerank endpoint 422s on an empty documents list ("the number of
     queries and documents must be the same"), which used to surface as an unhandled 500.
@@ -183,4 +199,4 @@ def test_rerank_route_uses_override_model_when_provided(monkeypatch):
         json={"role": "reranker", "query": "q", "documents": ["a", "b"], "model": "candidate-reranker"},
     )
 
-    fake_adapter.rerank.assert_awaited_once_with("candidate-reranker", "q", ["a", "b"])
+    fake_adapter.rerank.assert_awaited_once_with("candidate-reranker", "q", ["a", "b"], instruction=None)

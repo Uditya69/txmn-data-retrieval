@@ -1,5 +1,5 @@
 """Generates real, pipeline-derived persona snapshots for the rigorous keyword-
-expansion eval (evals/keyword_expansion_rigorous_eval.py).
+expansion eval (evals/scripts/keyword_expansion_rigorous_eval.py).
 
 Writes synthetic query events through the REAL persona pipeline
 (extract_query_understanding -> embed -> record_query_event, same path
@@ -12,8 +12,8 @@ prefixed "eval-persona-" - QA/dev environment, per project owner's explicit
 go-ahead (2026-09-02) to use this DB directly and clean up after.
 
 Usage:
-    uv run python evals/build_persona_test_snapshots.py --gateway-url http://localhost:8001
-    uv run python evals/build_persona_test_snapshots.py --cleanup   # deletes all eval-persona-* data
+    uv run python evals/scripts/build_persona_test_snapshots.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/build_persona_test_snapshots.py --cleanup   # deletes all eval-persona-* data
 """
 import argparse
 import asyncio
@@ -31,7 +31,7 @@ from persona.repository import get_current_snapshot, record_query_event
 from retrieval_api.ai_mode.persona_signal import extract_query_understanding
 from retrieval_api.gateway_client import GatewayClient
 
-EVALS_DIR = Path(__file__).parent
+RESULTS_DIR = Path(__file__).parent.parent / "results"
 _BASE_DAY = datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)
 # Rich signals so 4 distinct-day events clear ACTIVE_THRESHOLD (0.35) with
 # 2-corroborating-session hysteresis at each upward transition (discovered ->
@@ -83,7 +83,7 @@ async def _run(args) -> None:
         }
 
     client.close()
-    out_path = EVALS_DIR / "persona_test_snapshots.json"
+    out_path = RESULTS_DIR / "persona_test_snapshots.json"
     out_path.write_text(json.dumps(results, indent=2))
     print(f"\nWrote {out_path}")
 

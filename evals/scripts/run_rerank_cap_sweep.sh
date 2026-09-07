@@ -6,8 +6,8 @@
 # a second run reuses whatever's already cached instead of redoing it.
 #
 # Usage (from repo root):
-#   evals/run_rerank_cap_sweep.sh
-#   CAPS=100,50,25,20,10,5 GATEWAY_URL=http://localhost:8001 evals/run_rerank_cap_sweep.sh
+#   evals/scripts/run_rerank_cap_sweep.sh
+#   CAPS=100,50,25,20,10,5 GATEWAY_URL=http://localhost:8001 evals/scripts/run_rerank_cap_sweep.sh
 #
 # Env vars (all optional):
 #   GATEWAY_URL   - model-gateway base URL (default: whatever GatewaySettings resolves to)
@@ -15,7 +15,7 @@
 #   CAPS          - comma-separated cap values (default: rerank_cap_sweep.py's own default)
 #   SLM_MODEL / RERANKER_MODEL / SPARSE - must match between runs against the same CACHE_DIR
 set -euo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 CACHE_DIR="${CACHE_DIR:-.rerank-cache}"
 mkdir -p .eval-results
@@ -44,7 +44,7 @@ uv run retrieval-eval \
 
 echo
 echo "== Step 2/2: sweeping reranker caps against ${CACHE_DIR} (reranker calls only) =="
-uv run python evals/rerank_cap_sweep.py \
+uv run python evals/scripts/rerank_cap_sweep.py \
   --cache-dir "$CACHE_DIR" \
   "${CAPS_ARGS[@]}" "${GATEWAY_ARGS[@]}" "${SLM_ARGS[@]}" "${RERANKER_ARGS[@]}" "${SPARSE_ARGS[@]}" \
   2>&1 | tee .eval-results/sweep.log

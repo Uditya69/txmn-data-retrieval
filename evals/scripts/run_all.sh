@@ -4,19 +4,19 @@
 # delimiters - for the copy-paste-out-of-SSH workflow instead of scp/rsync.
 #
 # Usage:
-#   bash evals/run_all.sh [output-dir]
+#   bash evals/scripts/run_all.sh [output-dir]
 #
 # output-dir defaults to .eval-results (gitignored scratch space). Pass a real path to
 # write straight into a kept, dated eval-results/ folder instead - the dir is created
 # if it doesn't exist:
-#   bash evals/run_all.sh eval-results/2026-09-01/03-full-sweep
+#   bash evals/scripts/run_all.sh eval-results/2026-09-01/03-full-sweep
 #
 # Headless (survives SSH disconnect):
-#   tmux new -d -s full-sweep 'bash evals/run_all.sh eval-results/2026-09-01/03-full-sweep'
+#   tmux new -d -s full-sweep 'bash evals/scripts/run_all.sh eval-results/2026-09-01/03-full-sweep'
 #   tmux attach -t full-sweep   # watch it / see the printed JSON later
 #
 # Override the gateway URL if it's not the default:
-#   GATEWAY_URL=http://localhost:8001 bash evals/run_all.sh eval-results/2026-09-01/03-full-sweep
+#   GATEWAY_URL=http://localhost:8001 bash evals/scripts/run_all.sh eval-results/2026-09-01/03-full-sweep
 
 set -uo pipefail
 

@@ -5,7 +5,7 @@ from retrieval_api.ai_mode.intent import extract_intent
 from retrieval_api.collection_routing_eval import check_routing_case, load_routing_cases
 from retrieval_api.gateway_client import GatewayClient
 
-DATASET_PATH = Path("evals/collection_routing_cases.json")
+DATASET_PATH = Path("evals/datasets/collection_routing_cases.json")
 
 
 async def run(gateway_url: str, limit: int | None) -> AsyncIterator[dict]:

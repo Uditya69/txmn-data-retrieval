@@ -3,7 +3,7 @@
 This is a diagnostic retrieval benchmark built from the source case-law JSON files in
 `/Users/uditya/dev/taxmann/data-extraction-pipeline/data`, plus gold docs mined directly
 from the live indexed corpus for the pairs added since. It contains 71 queries grouped
-into 24 matched pairs (`evals/retrieval_cases.json` is the machine-readable source of
+into 24 matched pairs (`evals/datasets/retrieval_cases.json` is the machine-readable source of
 truth; this document mirrors it). Pairs 1-21 target the same gold document with a direct
 lexical-signal query and an indirect factual/legal paraphrase, each also carrying a third
 `adversarial` leg (a noisy variant - typos, telegraphic/Hinglish phrasing, acronym-only

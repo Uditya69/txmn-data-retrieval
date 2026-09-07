@@ -76,6 +76,7 @@ class RerankRequest(BaseModel):
     query: str
     documents: list[str]
     model: str | None = None
+    instruction: str | None = None
 
 
 @router.post("/v1/chat")
@@ -134,9 +135,9 @@ async def rerank(req: RerankRequest, request: Request):
         name=f"rerank:{req.role}",
         model=model,
         input={"query": req.query, "documents": req.documents},
-        metadata={"provider": provider, "num_documents": len(req.documents)},
+        metadata={"provider": provider, "num_documents": len(req.documents), "instruction": req.instruction},
         trace_context=_trace_context_from_headers(request),
     ) as generation:
-        scores = await get_adapter(provider).rerank(model, req.query, req.documents)
+        scores = await get_adapter(provider).rerank(model, req.query, req.documents, instruction=req.instruction)
         generation.update(output=scores)
     return {"scores": scores}

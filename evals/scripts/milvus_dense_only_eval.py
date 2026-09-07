@@ -5,17 +5,17 @@ searches Milvus's dense_vector field directly across all collections - no ES, no
 sparse pass, no RRF fusion, no reranker. Answers one question: with nothing but a
 straight embed-and-cosine-search, where does the gold doc_id land?
 
-Pulls cases from evals/retrieval_cases.json (case law) and evals/statutory_cases.json
-(acts/rules/articles/commentary), class in {direct, indirect} only (adversarial
-excluded - out of scope for this pass). To hit the requested ~60-70% direct mix
-(the two source datasets are ~50/50 direct/indirect on their own), all direct cases
-are kept and indirect cases are subsampled by id order.
+Pulls cases from evals/datasets/retrieval_cases.json (case law) and
+evals/datasets/statutory_cases.json (acts/rules/articles/commentary), class in
+{direct, indirect} only (adversarial excluded - out of scope for this pass). To hit
+the requested ~60-70% direct mix (the two source datasets are ~50/50 direct/indirect
+on their own), all direct cases are kept and indirect cases are subsampled by id order.
 
 Usage (from repo root, gateway running via docker compose):
-    uv run python evals/milvus_dense_only_eval.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/milvus_dense_only_eval.py --gateway-url http://localhost:8001
 
-Writes evals/milvus_dense_only_results.csv (one row per query) and
-evals/milvus_dense_only_results.json (full detail, top-20 hits per query).
+Writes evals/results/milvus_dense_only_results.csv (one row per query) and
+evals/results/milvus_dense_only_results.json (full detail, top-20 hits per query).
 """
 import argparse
 import asyncio
@@ -30,7 +30,8 @@ from retrieval_api.ai_mode.retrieve import _flatten
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.retrieval_eval import doc_rank
 
-EVALS_DIR = Path(__file__).parent
+DATASETS_DIR = Path(__file__).parent.parent / "datasets"
+RESULTS_DIR = Path(__file__).parent.parent / "results"
 TOP_K_RECORDED = 20
 INDIRECT_SAMPLE_STEP = 2  # keep every other indirect case -> ~65% direct overall
 
@@ -38,8 +39,8 @@ INDIRECT_SAMPLE_STEP = 2  # keep every other indirect case -> ~65% direct overal
 def load_mixed_cases() -> list[dict]:
     cases = []
     for dataset, path in (
-        ("caselaw", EVALS_DIR / "retrieval_cases.json"),
-        ("statutory", EVALS_DIR / "statutory_cases.json"),
+        ("caselaw", DATASETS_DIR / "retrieval_cases.json"),
+        ("statutory", DATASETS_DIR / "statutory_cases.json"),
     ):
         for case in json.loads(path.read_text()):
             if case["class"] in ("direct", "indirect"):
@@ -131,8 +132,8 @@ async def _run(args) -> None:
     finally:
         milvus_client.close()
 
-    json_path = EVALS_DIR / "milvus_dense_only_results.json"
-    csv_path = EVALS_DIR / "milvus_dense_only_results.csv"
+    json_path = RESULTS_DIR / "milvus_dense_only_results.json"
+    csv_path = RESULTS_DIR / "milvus_dense_only_results.csv"
     json_path.write_text(json.dumps(results, indent=2))
     write_csv(results, csv_path)
 

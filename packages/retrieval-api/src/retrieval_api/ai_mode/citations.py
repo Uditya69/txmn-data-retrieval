@@ -26,7 +26,7 @@ async def prefetch_citations(es_client, candidates: list[dict], top_n_docs: int 
 # the top-N by rrf_score before reranking avoids that risk essentially for free: rrf_merge
 # already sorts candidates by combined dense+sparse rank, and only the reranker's own top 5
 # (elbow_cutoff, _MAX_CHUNKS) ever survive downstream anyway. Lowered from 100 to 20
-# (2026-09-03) after evals/rerank_cap_sweep.py swept 100/50/25/20/10 against the (by-then)
+# (2026-09-03) after evals/scripts/rerank_cap_sweep.py swept 100/50/25/20/10 against the (by-then)
 # 71-query eval set, cached pre-rerank so only the reranker call varied per cap: recall@pass_at
 # was flat-to-slightly-better at 20 vs 100 in two separate runs (58/71 both times vs 56-57/71
 # at 100), while cutting average reranker latency ~2.5x (1954ms vs 5037ms/query). Cap=10 showed

@@ -75,11 +75,24 @@ class DeepInfraAdapter:
             usage = data.get("usage") or {}
             return data["data"][0]["embedding"], _openai_usage_details(usage)
 
-    async def rerank(self, model: str, query: str, documents: list[str]) -> list[float]:
+    async def rerank(
+        self, model: str, query: str, documents: list[str], instruction: str | None = None,
+    ) -> list[float]:
+        # Qwen3-Reranker (this repo's only DeepInfra reranker model) is instruction-tuned -
+        # its own model card documents a top-level "instruction" field on this same
+        # /inference/{model} endpoint that gets woven into the query-side prompt server-side
+        # (template: "<Instruct>: {instruction}\n<Query>: {query}"), and recommends passing
+        # a task-specific one rather than relying on its generic default ("Given a web search
+        # query, retrieve relevant passages that answer the query") - DeepInfra's own docs
+        # cite a 1-5% relevance drop from skipping this. Omitted entirely (not sent as null)
+        # when the caller passes none, so the model's own default behavior is unchanged.
+        payload = {"queries": [query], "documents": documents}
+        if instruction is not None:
+            payload["instruction"] = instruction
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{_BASE_URL}/inference/{model}",
-                json={"queries": [query], "documents": documents},
+                json=payload,
                 headers=self._headers,
             )
             response.raise_for_status()

@@ -3,7 +3,7 @@ path SLM expansion (retrieval_api.ai_mode.keyword_expansion.expand_keyword_terms
 
 Fixes the three main weaknesses of the earlier quick probe
 (keyword_expansion_probe.py):
-  1. Non-circular: persona_context comes from evals/persona_test_snapshots.json,
+  1. Non-circular: persona_context comes from evals/results/persona_test_snapshots.json,
      which is the REAL render_persona_context() output of REAL pipeline-derived
      topics (build_persona_test_snapshots.py) - not text authored to match the
      gold-generation hints below.
@@ -18,7 +18,7 @@ authored hint terms - never copied from the persona text), same "gold from
 live ES" convention as keyword_only_probe.py.
 
 Usage:
-    uv run python evals/keyword_expansion_rigorous_eval.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/keyword_expansion_rigorous_eval.py --gateway-url http://localhost:8001
 """
 import argparse
 import asyncio
@@ -52,7 +52,7 @@ async def _with_retries(coro_fn, *args, **kwargs):
 from retrieval_api.gateway_client import GatewayClient
 from retrieval_api.retrieval_eval import doc_rank
 
-EVALS_DIR = Path(__file__).parent
+RESULTS_DIR = Path(__file__).parent.parent / "results"
 LIMIT = 20
 PASS_AT = 5
 RUNS_PER_CASE = 3
@@ -141,7 +141,7 @@ async def _run(args) -> None:
     es_client = get_es_client(settings)
     gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=False)
 
-    personas = json.loads((EVALS_DIR / "persona_test_snapshots.json").read_text())
+    personas = json.loads((RESULTS_DIR / "persona_test_snapshots.json").read_text())
     personas = {k: v["persona_context"] for k, v in personas.items() if v["persona_context"]}
     missing = [k for k in QUERY_SPECS if k not in personas]
     if missing:
@@ -152,7 +152,7 @@ async def _run(args) -> None:
     # calls. Write the partial report to disk after every case and, on the next
     # invocation, skip any (section, key) already present there instead of
     # redoing it - a crash costs at most one in-flight case, not the whole run.
-    checkpoint_path = EVALS_DIR / "keyword_expansion_rigorous_results.partial.json"
+    checkpoint_path = RESULTS_DIR / "keyword_expansion_rigorous_results.partial.json"
     if checkpoint_path.exists():
         report = json.loads(checkpoint_path.read_text())
         print(f"Resuming from checkpoint {checkpoint_path} (sections so far: "
@@ -226,7 +226,7 @@ async def _run(args) -> None:
     print(f"after (mismatched persona):     {mismatch_hits}/{mismatch_n} run-hits @pass_at={PASS_AT} "
           f"| wrong-topic leakage: {total_leaks}/{mismatch_n} runs")
 
-    out_path = EVALS_DIR / "keyword_expansion_rigorous_results.json"
+    out_path = RESULTS_DIR / "keyword_expansion_rigorous_results.json"
     out_path.write_text(json.dumps(report, indent=2))
     checkpoint_path.unlink(missing_ok=True)
     print(f"\nWrote {out_path}")

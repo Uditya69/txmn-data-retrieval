@@ -868,7 +868,7 @@ async def extract_intent(
         # setting, revert to 0.6. Determinism across identical calls (the original reason for
         # pinning near-zero - collections_for_intent() routing depends on a stable "intent"
         # list) is not guaranteed at either setting; re-evaluate against
-        # evals/intent_filter_cases.json before relying on this for routing-sensitive
+        # evals/datasets/intent_filter_cases.json before relying on this for routing-sensitive
         # comparisons. https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507
         temperature=0.1,
     )

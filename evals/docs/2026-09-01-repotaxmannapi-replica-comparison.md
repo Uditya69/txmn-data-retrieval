@@ -7,7 +7,7 @@ multiply-mode ES boost formula, wired behind `raw_search(..., boost_source: Lite
 unchanged (`"sum"`) — this doc records the comparison only, it does not make the
 promote/reject call.
 
-Both runs use `evals/retrieval_cases.json` (71 cases — grown since CLAUDE.md's earlier
+Both runs use `evals/datasets/retrieval_cases.json` (71 cases — grown since CLAUDE.md's earlier
 53-query figure), scoped to the ES `es` stage only (`--skip-synthesis --no-rerank
 --no-sparse`, `model-gateway` unreachable in this environment so dense/sparse/RRF/
 reranker stages are not meaningful here — see each run's raw output). Branch

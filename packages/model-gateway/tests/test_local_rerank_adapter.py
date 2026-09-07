@@ -45,6 +45,23 @@ async def test_rerank_sends_model_query_documents_and_bearer_auth():
 
 
 @pytest.mark.asyncio
+@respx.mock
+async def test_rerank_folds_instruction_into_query_text_via_qwen3_template():
+    # No dedicated instruction field on this endpoint's Cohere-compatible shape - folded
+    # into the query text instead, using Qwen3-Reranker's own documented format
+    # (its HF model card's format_instruction()).
+    route = respx.post("http://localhost:8001/v1/rerank").mock(
+        return_value=httpx.Response(200, json={"results": [{"index": 0, "relevance_score": 0.5}]})
+    )
+    adapter = LocalRerankAdapter(base_url="http://localhost:8001/v1", api_key="k")
+
+    await adapter.rerank("qwen3-reranker", "query text", ["doc a"], instruction="rank by X")
+
+    sent = json.loads(route.calls.last.request.content)
+    assert sent["query"] == "<Instruct>: rank by X\n<Query>: query text"
+
+
+@pytest.mark.asyncio
 async def test_chat_and_embed_are_not_supported():
     adapter = LocalRerankAdapter(base_url="http://localhost:8001/v1", api_key="k")
 
