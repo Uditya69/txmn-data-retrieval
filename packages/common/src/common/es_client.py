@@ -545,18 +545,12 @@ def _gst_tariff_latest_edition_filter(subgroup_id: str, latest_subsubgroup_id: s
     }
 
 
-# Additional unconditional group-membership should-boosts ported from SearchTextElastic.cs::
-# GetGlobalSearchQuery's positive OR-list (line 785, `CatIdsQuery && (...)`) - previously
-# entirely unported by either query builder in this repo. Real weights (15000-35000) scaled
-# by the same ~0.25 factor `_EDITION_BOOSTS_BY_INSTRUMENT_KIND` applied to its own real
-# weights (80000 -> 15000/20000) to preserve relative proportion under this repo's
-# should-clause scale, rather than reproducing `CatIdsQuery` itself (a per-document
-# category-membership gate this repo's query builders have no equivalent structure for).
-# Fire unconditionally (per-document subgroup membership only, no query-side gating) -
-# unlike Income-tax Act/Rules, these 5 don't need an instrument_kind-style gate to avoid
-# drowning out unrelated statutory-provision matches, since they're distinct, narrowly-scoped
-# subgroups (CGST/Companies-specific), not the bare-number-defaults-to-Income-tax case that
-# motivated gating there.
+# Group-membership should-boosts ported from SearchTextElastic.cs::GetGlobalSearchQuery's
+# positive OR-list (line 785, CatIdsQuery && (...)) - real, unscaled weights
+# (GlobalSearchResearch.cs:690-698/722), verbatim per the user's explicit copy-paste
+# instruction (2026-09-06 correction - a prior version scaled these ~0.25x, which is now
+# reverted). Fire unconditionally (per-document subgroup membership only, no query-side
+# gating).
 _STATIC_GROUP_MEMBERSHIP_BOOSTS = [
     (subgroup_id, boost) for subgroup_id, boost in _BOOST_CONFIG["static_group_membership_boosts"]["boosts"]
 ]
@@ -911,14 +905,38 @@ def _apply_boost(field_query: dict, chunks: list[dict]) -> dict:
     }
 
 
+def _and_of_or_groups(or_groups: list[list[dict]]) -> dict:
+    """AND together a field's per-token OR-groups (each itself OR'd internally) -
+    SearchTextElastic.cs's queryHeadingAnd &= (alt1 || alt2) pattern, repeated per token,
+    now reconstructed from build_should_clauses's per-field-tier output. A single OR-group
+    degenerates to that group directly (no wrapping needed) when there's only one token's
+    worth of contribution to this field - matches today's single-token-query behavior
+    exactly."""
+    wrapped = [
+        or_group[0] if len(or_group) == 1 else {"bool": {"should": or_group, "minimum_should_match": 1}}
+        for or_group in or_groups
+    ]
+    return wrapped[0] if len(wrapped) == 1 else {"bool": {"must": wrapped}}
+
+
 def _build_repotaxmannapi_field_query(query: str) -> dict:
     """The ported legacy .NET multiply-mode function_score - shared by build_query_preview
     (the "sum" vs "repotaxmannapi" branch) and raw_search_grouped (below), so the scored
     `query` half of both a flat search and a bucketed one can never drift apart. See
     raw_search's docstring for the group_id resolution this mirrors (first-classified-token-
-    wins, TaxmannQueryAnalizer.cs's SetPrimaryTag gate). NOT always FunctionScore, despite the
-    docstring's own name - see the whole-query-is-a-phrase branch near the end of this
-    function for the one shape that skips it entirely.
+    wins, TaxmannQueryAnalizer.cs's SetPrimaryTag gate).
+
+    ALWAYS FunctionScore (2026-09-06 correction) - verified directly against
+    GlobalSearchResearch.cs (repotaxmannapi/TaxmannAPI/Elastic/GlobalSearchResearch.cs:38-40,
+    599, 1016-1017): `searchContainer = stext.query` (the exact bool query
+    SearchTextElastic.cs builds - same should/must shape this function produces) is wrapped in
+    `.FunctionScore(...)` unconditionally, every single request, no branch anywhere that skips
+    it for a whole-quoted-phrase query. A prior version of this function had a
+    skip-FunctionScore-entirely branch for that shape, based on a single live trace of
+    `"571/Ahd/2016 vide order dated 02-04-2026"` that appeared to show a plain unwrapped
+    `bool` query - that trace was misread (or captured a stale/broken state): the real source
+    cannot structurally produce that shape. Removed; every return path here now goes through
+    `function_score`.
 
     _edition_exclusion_filter (2026-09-02): the real source's edition-exclusion mechanism
     (SearchTextElastic.cs::GetGlobalSearchQuery) applies to ALL global search regardless of
@@ -928,10 +946,15 @@ def _build_repotaxmannapi_field_query(query: str) -> dict:
     Income-tax Act 1961 yearly editions (live-verified 2026-09-02, re-checked against this
     builder specifically after the boost_source default flip made it reachable through the
     UI for the first time)."""
-    tokens = tokenize(query)
+    tokens = tokenize(query, is_global=True)
     phrase_tokens = [t for t in tokens if t.type == TokenType.PHRASE_WORD]
     other_tokens = [t for t in tokens if t.type != TokenType.PHRASE_WORD]
-    should = build_should_clauses(other_tokens, is_global=True, is_excus=False)
+    # Resolved once, up front, so both build_should_clauses calls below (should-list) and
+    # build_function_score_functions further down (functions stack) use the identical
+    # group_id - first-classified-token-wins, TaxmannQueryAnalizer.cs's SetPrimaryTag gate
+    # (see this function's own docstring, "group_id resolution").
+    group_id = next((t.group_id for t in tokens if t.group_id != "0"), "0")
+    per_field = build_should_clauses(other_tokens, is_global=True, is_excus=False, group_id=group_id)
     if phrase_tokens:
         # Double-quoted text in the search bar (e.g. `"section 52"`) is extracted by
         # `tokenize()` into PHRASE_WORD tokens (TaxmannQueryAnalizer.cs's quote-extraction,
@@ -939,48 +962,87 @@ def _build_repotaxmannapi_field_query(query: str) -> dict:
         # `.phrase_search` field variant + no analyzer, rendered via a second
         # `is_excus=True` call and merged in, since `build_should_clauses` renders an
         # entire call's tokens under one mode (see its docstring).
-        should.extend(build_should_clauses(phrase_tokens, is_global=True, is_excus=True))
+        phrase_per_field = build_should_clauses(phrase_tokens, is_global=True, is_excus=True, group_id=group_id)
+        for field, or_groups in phrase_per_field.items():
+            per_field.setdefault(field, []).extend(or_groups)
+
+    # Per-field AND-of-OR assembly (2026-09-06 restructure): each field-tier's own
+    # per-token OR-groups get ANDed together via `_and_of_or_groups`, then all field-tier
+    # results get OR'd together as the top-level `should` - matching SearchTextElastic.cs's
+    # queryFieldAnd/queryFieldOr accumulation exactly (see build_should_clauses's own
+    # docstring and the 2026-09-06 parity plan's Task 2). The special
+    # "_fullcontent_minus" key is popped out and applied as a must_not against the
+    # fullcontent field-tier (SearchTextElastic.cs:1169: queryFullcontentAnd &&
+    # queryFullcontentOr && !queryFullcontentMinusOr - the SUB-clause is a NEGATION of
+    # this field-tier's own contribution, not a positive boost - see Task 3).
+    minus_groups = per_field.pop("_fullcontent_minus", [])
+    should: list[dict] = []
+    for field, or_groups in per_field.items():
+        field_query = _and_of_or_groups(or_groups)
+        if field == "fullcontent" and minus_groups:
+            minus_query = _and_of_or_groups(minus_groups)
+            field_query = {"bool": {"must": [field_query], "must_not": [minus_query]}}
+        should.append(field_query)
+
     if not other_tokens and phrase_tokens:
         # Whole query is a double-quoted phrase (no unquoted tokens at all) - live-captured
-        # against the real production endpoint (2026-09-04, `"section 52"` and
-        # `"571/Ahd/2016 vide order dated 02-04-2026"`) shows two divergences from the
-        # general (mixed/unquoted) branch below, both needed together:
-        #
-        # 1. No FunctionScore wrap at all - plain `bool` query, no `documenttypeboost`/
-        #    `viewcount`/`court_boost`/`landmarkruling`/recency-ladder functions, no
-        #    `boost_mode: multiply`.
-        #
-        # 2. The 5 phrase-field clauses sit in their OWN nested `bool.must` entry, not
-        #    flattened into the same top-level `should` list as the static group-membership
-        #    boosts - real capture shows `bool.must: [{bool: {should: [5 phrase clauses]}},
-        #    {bool: {should: [exclusion-passthrough, group-boost]}}]`. This is load-bearing,
-        #    not cosmetic: ES defaults a bare `bool.should` (no sibling `must`/`filter`) to
-        #    `minimum_should_match: 1`, so flattening the group-boost `term` clauses into the
-        #    same should-list as the phrase clauses (as the general branch below does) lets a
-        #    document match the query via a group-boost clause ALONE, with zero text
-        #    relevance - reproduced live: `"571/Ahd/2016 vide order dated 02-04-2026"`
-        #    returned every GST Act section (each a member of the boosted CGST Act 2017
-        #    subgroup, score ~67000 from the boost alone, no phrase match at all) ranked
-        #    above the one real matching case (score ~6, genuinely phrase-matched). Putting
-        #    the phrase should-list inside its own `must` entry makes ES apply that same
-        #    default-1 rule to it alone (a real text match becomes mandatory), while the
-        #    static group boosts move to a plain top-level `should` - which ES makes
-        #    score-only, no minimum required, once a sibling `must` exists.
-        return {
+        # against the real production endpoint (2026-09-04,
+        # `"571/Ahd/2016 vide order dated 02-04-2026"`), the 5 phrase-field clauses sit in
+        # their OWN nested `bool.must` entry, not flattened into the same top-level `should`
+        # list as the static group-membership boosts - real capture shows
+        # `bool.must: [{bool: {should: [5 phrase clauses]}}, {bool: {should:
+        # [exclusion-passthrough, group-boost]}}]`. This is load-bearing, not cosmetic: ES
+        # defaults a bare `bool.should` (no sibling `must`/`filter`) to
+        # `minimum_should_match: 1`, so flattening the group-boost `term` clauses into the
+        # same should-list as the phrase clauses (as the general branch below does) lets a
+        # document match the query via a group-boost clause ALONE, with zero text relevance -
+        # reproduced live: `"571/Ahd/2016 vide order dated 02-04-2026"` returned every GST Act
+        # section (each a member of the boosted CGST Act 2017 subgroup, score ~67000 from the
+        # boost alone, no phrase match at all) ranked above the one real matching case (score
+        # ~6, genuinely phrase-matched). Putting the phrase should-list inside its own `must`
+        # entry makes ES apply that same default-1 rule to it alone (a real text match becomes
+        # mandatory), while the static group boosts move to a plain top-level `should` - which
+        # ES makes score-only, no minimum required, once a sibling `must` exists. Still wrapped
+        # in `function_score` below like every other shape (see this function's own docstring,
+        # 2026-09-06 correction) - only the inner bool shape differs from the general branch.
+        top_level_should = list(_static_group_should_clauses())
+        # GroupFilterquery, GlobalSearchResearch.cs:751-754: whenever a non-"0" group_id was
+        # resolved (this is repotaxmannapi's own global-search path, search.IsGlobal is always
+        # true here), boost documents whose groups.group.id matches it.
+        if group_id != "0":
+            top_level_should.append({"match_phrase": {"groups.group.id": {"query": group_id, "boost": 1000}}})
+        # Fallback act-url boost, GlobalSearchResearch.cs:755-758: when the tokenizer produced
+        # no usable tokens at all (every per-token query was null - `nullcount ==
+        # queries.Count`), boost groups.group.url == "act" instead of leaving the query
+        # entirely boost-less.
+        if not tokens:
+            top_level_should.append({"match": {"groups.group.url": {"query": "act", "boost": 1000}}})
+        bool_query = {
             "bool": {
                 "must": [{"bool": {"should": should, "minimum_should_match": 1}}],
-                "should": _static_group_should_clauses(),
+                "should": top_level_should,
                 "filter": [_edition_exclusion_filter(), *_additional_exclusion_filters()],
             },
         }
-    should.extend(_static_group_should_clauses())
-    bool_query = {
-        "bool": {
-            "should": should, "minimum_should_match": 1,
-            "filter": [_edition_exclusion_filter(), *_additional_exclusion_filters()],
-        },
-    }
-    group_id = next((t.group_id for t in tokens if t.group_id != "0"), "0")
+    else:
+        should.extend(_static_group_should_clauses())
+        # GroupFilterquery, GlobalSearchResearch.cs:751-754: whenever a non-"0" group_id was
+        # resolved (this is repotaxmannapi's own global-search path, search.IsGlobal is always
+        # true here), boost documents whose groups.group.id matches it.
+        if group_id != "0":
+            should.append({"match_phrase": {"groups.group.id": {"query": group_id, "boost": 1000}}})
+        # Fallback act-url boost, GlobalSearchResearch.cs:755-758: when the tokenizer produced
+        # no usable tokens at all (every per-token query was null - `nullcount ==
+        # queries.Count`), boost groups.group.url == "act" instead of leaving the query
+        # entirely boost-less.
+        if not tokens:
+            should.append({"match": {"groups.group.url": {"query": "act", "boost": 1000}}})
+        bool_query = {
+            "bool": {
+                "should": should, "minimum_should_match": 1,
+                "filter": [_edition_exclusion_filter(), *_additional_exclusion_filters()],
+            },
+        }
     return {
         "function_score": {
             "query": bool_query,

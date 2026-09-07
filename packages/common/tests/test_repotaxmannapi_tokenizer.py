@@ -466,3 +466,55 @@ def test_org_text_is_always_empty_matching_the_never_assigned_c_sharp_field():
     for query in ("hello", "APDIR", "223 ITR 1", "GOI"):
         for token in tokenize(query):
             assert token.org_text == ""
+
+
+def test_article_token_query_text_and_proximity_remapped_to_expertsopinion_under_global_search():
+    # TaxmannQueryAnalizer.cs:1968-1984, confirmed by direct read: rewrites QueryText to
+    # "EXPERTS OPINION" and Proximity to 2 (the EXPERTSOPINION dictionary entry's own
+    # values) - does NOT change the token's Type. Only fires when tokenize() is called
+    # with is_global=True AND is_article-without-is_country was set during scanning.
+    #
+    # 2026-09-07 correction: the real source's IsArticle tracking for the KEY_WORD case
+    # (cs:1621) fires ONLY on ProcessKeyWord's FAILURE path - never on success. "Article
+    # 21" (a plain number after ARTICLE) makes ProcessKeyWord SUCCEED (confirmed by direct
+    # trace of both the real C# at cs:1057-1190/1602-1611 and this port's own
+    # _process_key_word), so the real system's own EXPERTSOPINION remap never fires for
+    # that shape of query at all - a genuine, narrow real-source limitation, not a bug to
+    # route around. An earlier version of this test used "Article 21" and an earlier
+    # version of the port widened the KEY_WORD tracking to fire unconditionally to make
+    # that test pass - that was a real behavioral divergence from production, caught in
+    # task review and reverted. "Article ABC" (a non-numeral, non-roman-numeral next word)
+    # genuinely fails ProcessKeyWord, taking the real failure path and firing IsArticle
+    # exactly as cs:1621 specifies - confirmed by direct execution.
+    tokens_global = tokenize("Article ABC", is_global=True)
+    tokens_non_global = tokenize("Article ABC", is_global=False)
+
+    remapped = [t for t in tokens_global if t.query_text == "EXPERTS OPINION"]
+    assert len(remapped) == 1
+    assert remapped[0].proximity == 2
+    assert remapped[0].group_id == "111050000000000051"
+    # type is NOT rewritten - whatever KeyWord/SectionTypeFormat classification "Article"
+    # itself received stays unchanged
+    assert remapped[0].type != ""
+
+    assert not any(t.query_text == "EXPERTS OPINION" for t in tokens_non_global)
+
+
+def test_article_remap_does_not_fire_when_is_country_also_set():
+    # cs:1970: `if (IsArticle && !IsCountry)` - a query that also classifies a Country
+    # token suppresses the remap entirely, even under is_global=True. "AUSTRALIA" is a
+    # real element_type "56" (Country) dictionary key (confirmed live in
+    # repotaxmannapi_token_dictionary.json, 2026-09-06). Uses "Article ABC" for the same
+    # reason as the test above - see its comment.
+    tokens = tokenize("Article ABC Australia", is_global=True)
+    assert not any(t.query_text == "EXPERTS OPINION" for t in tokens)
+
+
+def test_article_remap_does_not_fire_for_a_numeral_next_word_matching_real_source_limitation():
+    # 2026-09-07: regression guard for the divergence found in task review. "Article 21"
+    # (a plain-number next word) makes ProcessKeyWord SUCCEED in the real source
+    # (cs:1057-1190), and the success branch (cs:1604-1611) has no IsArticle logic at all
+    # - so the real system's own EXPERTSOPINION remap never fires for this common query
+    # shape. This port must match that real limitation, not "fix" it.
+    tokens = tokenize("Article 21", is_global=True)
+    assert not any(t.query_text == "EXPERTS OPINION" for t in tokens)

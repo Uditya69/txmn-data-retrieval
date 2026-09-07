@@ -28,6 +28,8 @@ from common.es_client import (
     _FORMS_FORMTYPE_ID,
     _FORMS_LATEST_YEAR,
     fetch_doc_categories,
+    _static_group_should_clauses,
+    _and_of_or_groups,
 )
 from common.schemas import MASTERINFO_CITATION_FIELDS
 
@@ -373,26 +375,22 @@ async def test_raw_search_repotaxmannapi_double_quoted_text_uses_phrase_search_f
 
 
 @pytest.mark.asyncio
-async def test_raw_search_repotaxmannapi_whole_query_phrase_skips_function_score():
-    """Live-captured against the real production endpoint (2026-09-04): a search bar query
-    that is ENTIRELY one double-quoted phrase (e.g. `"section 52"`,
-    `"571/Ahd/2016 vide order dated 02-04-2026"`) never gets wrapped in FunctionScore at
-    all on the real system - plain `bool` query, no documenttypeboost/viewcount/court_boost/
-    landmarkruling/recency-ladder functions, no `boost_mode: multiply`. Regression guard for
-    the bug this caused here: a genuine phrase match (a real, low-thousands raw score) lost
-    to bare Act/Rule sections with zero should-clause relevance, because their
-    `documenttypeboost` field alone, multiplied through the (mostly empty) functions stack,
-    scored in the millions - reproduced live for `"571/Ahd/2016 vide order dated
-    02-04-2026"`, which returned only unrelated GST Act sections ahead of the one real
-    matching case."""
+async def test_raw_search_repotaxmannapi_whole_query_phrase_still_wraps_function_score():
+    """2026-09-06 correction: a search bar query that is ENTIRELY one double-quoted phrase
+    (e.g. `"section 52"`) IS wrapped in FunctionScore like every other query -
+    GlobalSearchResearch.cs wraps `searchContainer = stext.query` (the same bool query this
+    builds) in `.FunctionScore(...)` unconditionally, no branch anywhere skips it for this
+    shape. A prior version of this test asserted the opposite (no function_score at all) based
+    on a single trace that was misread - see `_build_repotaxmannapi_field_query`'s docstring."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(client, '"section 52"', limit=20, boost=True, boost_source="repotaxmannapi")
 
     query = client.search_calls[0]
-    assert "function_score" not in query
-    assert "bool" in query
-    text_should = query["bool"]["must"][0]["bool"]["should"]
+    assert "function_score" in query
+    bool_query = query["function_score"]["query"]
+    assert "bool" in bool_query
+    text_should = bool_query["bool"]["must"][0]["bool"]["should"]
     assert any(
         "match_phrase" in c and "heading.phrase_search" in c["match_phrase"]
         for c in text_should
@@ -401,18 +399,19 @@ async def test_raw_search_repotaxmannapi_whole_query_phrase_skips_function_score
 
 @pytest.mark.asyncio
 async def test_raw_search_repotaxmannapi_whole_query_phrase_requires_text_match():
-    """Regression guard for the second, structural half of the bug above: even after
-    dropping FunctionScore, a plain top-level `bool.should` mixing the 5 phrase-field
-    clauses with the static group-membership `term` boosts (all in one should-list under
-    `minimum_should_match: 1`) still let a document match via a group-boost clause ALONE -
-    ES's should-list-satisfies-the-query default doesn't care WHICH should clause matched.
-    Reproduced live: `"571/Ahd/2016 vide order dated 02-04-2026"` returned every GST Act
-    section (each a member of the boosted CGST Act 2017 subgroup, zero text relevance)
-    ranked above the one real matching case. The phrase-field should-list must sit in its
-    own `bool.must` entry (mandatory - ES's default `minimum_should_match: 1` for a should
-    list with no sibling must/filter) while the group boosts move to a plain top-level
-    `should` (score-only, no minimum, once a sibling `must` exists) - see the
-    implementation comment for the exact real-capture shape this mirrors."""
+    """Regression guard for the structural bug: a plain top-level `bool.should` mixing the 5
+    phrase-field clauses with the static group-membership `term` boosts (all in one
+    should-list under `minimum_should_match: 1`) let a document match via a group-boost
+    clause ALONE - ES's should-list-satisfies-the-query default doesn't care WHICH should
+    clause matched. Reproduced live: `"571/Ahd/2016 vide order dated 02-04-2026"` returned
+    every GST Act section (each a member of the boosted CGST Act 2017 subgroup, zero text
+    relevance) ranked above the one real matching case. The phrase-field should-list must sit
+    in its own `bool.must` entry (mandatory - ES's default `minimum_should_match: 1` for a
+    should list with no sibling must/filter) while the group boosts move to a plain top-level
+    `should` (score-only, no minimum, once a sibling `must` exists) - see the implementation
+    comment for the exact real-capture shape this mirrors. This bool query still sits inside
+    `function_score` (2026-09-06 correction - see the "still_wraps_function_score" test
+    above), so this test reaches into `query["function_score"]["query"]["bool"]`."""
     client = FakeAsyncES(search_hits=[])
 
     await raw_search(
@@ -420,12 +419,13 @@ async def test_raw_search_repotaxmannapi_whole_query_phrase_requires_text_match(
     )
 
     query = client.search_calls[0]
-    must = query["bool"]["must"]
+    bool_query = query["function_score"]["query"]["bool"]
+    must = bool_query["must"]
     assert len(must) == 1
     assert must[0]["bool"]["minimum_should_match"] == 1
     text_should = must[0]["bool"]["should"]
     assert all("match_phrase" in c for c in text_should), "must-clause should only hold text-relevance clauses"
-    top_level_should = query["bool"]["should"]
+    top_level_should = bool_query["should"]
     assert all("term" in c or "bool" in c for c in top_level_should)
     assert not any("match_phrase" in c for c in top_level_should), (
         "static group boosts must not sit alongside the mandatory text-match clause"
@@ -480,6 +480,62 @@ async def test_raw_search_repotaxmannapi_resolves_group_id_from_tokens():
         if "groups.group.id" in fn.get("filter", {}).get("match", {})
     )
     assert group_id_fn["filter"]["match"]["groups.group.id"]["query"] == "111050000000000064"
+
+
+def test_and_of_or_groups_ands_multiple_single_clause_or_groups_together():
+    """Direct unit test on `_and_of_or_groups` - the helper that assembles a field-tier's
+    per-token OR-groups into one AND-of-ORs clause (SearchTextElastic.cs's `queryHeadingAnd
+    &= (alt1 || alt2)` pattern, repeated per token). Regression guard: if this were reverted
+    to flat-OR semantics (flattening every OR-group's clauses into one should-list), this test
+    would fail, because the two synthetic clauses below would end up siblings in a single
+    `should` list (either one alone satisfying the query) instead of both being required via
+    `must`."""
+    clause1 = {"match_phrase": {"heading": {"query": "audit", "boost": 155000}}}
+    clause2 = {"match_phrase": {"heading": {"query": "REPORT", "boost": 155000}}}
+
+    result = _and_of_or_groups([[clause1], [clause2]])
+
+    assert result == {"bool": {"must": [clause1, clause2]}}
+
+
+@pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_multi_token_heading_clause_ands_tokens_together():
+    """Integration-level regression guard for the same `_and_of_or_groups` AND-of-OR-groups
+    assembly, but driven through a real multi-token query end to end (not just the synthetic
+    unit test above) - proves the AND structure actually appears in the real assembled ES
+    query, not only in an isolated call to the helper.
+
+    "audit report" tokenizes (verified via
+    `tokenize("audit report")`) into two separate tokens - "audit" (type TX) and "REPORT"
+    (type Z) - so `build_should_clauses` contributes one OR-group per token to the `heading`
+    field-tier, and `_and_of_or_groups` must AND them together. If `_and_of_or_groups` were
+    reverted to flat-OR semantics, the `heading` field-tier clause would be a flat `bool.should`
+    list instead of a `bool.must` list, and this test would fail."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "audit report", limit=20, boost=True, boost_source="repotaxmannapi")
+
+    query = client.search_calls[0]
+    should = query["function_score"]["query"]["bool"]["should"]
+    heading_clause = next(
+        c for c in should
+        if "bool" in c and "must" in c["bool"]
+        and any(
+            "match_phrase" in must_clause and "heading" in must_clause["match_phrase"]
+            for must_clause in c["bool"]["must"]
+        )
+    )
+    assert "must" in heading_clause["bool"]
+    assert len(heading_clause["bool"]["must"]) >= 2
+    heading_queries = set()
+    for must_clause in heading_clause["bool"]["must"]:
+        if "match_phrase" in must_clause and "heading" in must_clause["match_phrase"]:
+            heading_queries.add(must_clause["match_phrase"]["heading"]["query"])
+        elif "bool" in must_clause:
+            for inner in must_clause["bool"]["should"]:
+                heading_queries.add(inner["match_phrase"]["heading"]["query"])
+    assert "audit" in heading_queries
+    assert "REPORT" in heading_queries
 
 
 @pytest.mark.asyncio
@@ -2171,3 +2227,94 @@ async def test_fetch_doc_categories_commentary_topic_falls_back_to_subgroup_when
     results = await fetch_doc_categories(client, ["d1"])
 
     assert results["d1"]["commentary_topic"] == "Commentaries"
+
+
+def test_static_group_should_clauses_use_real_unscaled_weights():
+    """2026-09-06 correction: these were previously scaled ~0.25x from the real source's
+    literal weights (GlobalSearchResearch.cs:690-698/722) to fit this repo's should-clause
+    scale - the user's explicit instruction is byte-exact copy-paste, so this asserts the
+    real, unscaled numbers (repotaxmannapi_boost_config.json's own comment already recorded
+    the exact 0.25 scale factor used, making the real values recoverable: multiply each
+    current value by 4)."""
+    clauses = _static_group_should_clauses()
+    boosts_by_subgroup = {
+        c["term"]["groups.group.subgroup.id"]["value"]: c["term"]["groups.group.subgroup.id"]["boost"]
+        for c in clauses if "term" in c
+    }
+    assert boosts_by_subgroup["111050000000017082"] == 35000  # CGST 2017
+    assert boosts_by_subgroup["111050000000011411"] == 25000  # Companies Act 2013
+    assert boosts_by_subgroup["111050000000017185"] == 16000
+    assert boosts_by_subgroup["111050000000012771"] == 15000
+    assert boosts_by_subgroup["111050000000017818"] == 15000
+    finance_act_clause = next(c for c in clauses if "bool" in c)
+    assert finance_act_clause["bool"]["boost"] == 30000
+
+
+@pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_adds_group_id_boost_should_clause_when_resolved():
+    """GlobalSearchResearch.cs:751-754: search.IsGlobal && iGroupID not in ("", "0") ->
+    match_phrase(groups.group.id == iGroupID, boost 1000)."""
+    client = FakeAsyncES(search_hits=[])
+    await raw_search(client, "Section 52 of Companies Act", limit=20, boost=True, boost_source="repotaxmannapi")
+    query = client.search_calls[0]
+    bool_query = query["function_score"]["query"]["bool"]
+    group_id_clauses = [
+        c for c in bool_query["should"]
+        if "match_phrase" in c and "groups.group.id" in c["match_phrase"]
+        and c["match_phrase"]["groups.group.id"].get("boost") == 1000
+    ]
+    assert len(group_id_clauses) == 1
+
+
+@pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_falls_back_to_act_url_boost_when_no_tokens_produced():
+    """GlobalSearchResearch.cs:755-758: when every per-token query is null (nullcount ==
+    queries.Count), fall back to match(groups.group.url == "act", boost 1000). A query
+    that tokenizes to nothing usable (e.g. all stop words) triggers this."""
+    client = FakeAsyncES(search_hits=[])
+    await raw_search(client, "the of and", limit=20, boost=True, boost_source="repotaxmannapi")  # all stop words
+    query = client.search_calls[0]
+    bool_query = query["function_score"]["query"]["bool"]
+    fallback_clauses = [
+        c for c in bool_query["should"]
+        if "match" in c and "groups.group.url" in c["match"]
+        and c["match"]["groups.group.url"].get("boost") == 1000
+    ]
+    assert len(fallback_clauses) == 1
+
+
+@pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_section_minus_clause_is_an_exclusion_not_a_boost():
+    """SearchTextElastic.cs:1169: `queryFullcontentAnd && queryFullcontentOr &&
+    !queryFullcontentMinusOr` - the "SUB " + query fullcontent clause is a NEGATION
+    (excludes documents whose fullcontent contains a sub-section back-reference to this
+    section number), not a positive should-boost. A prior version of this code added it as
+    a positive `should` clause with boost 1 - this is the regression guard."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "Section 92C", limit=20, boost=True, boost_source="repotaxmannapi")
+
+    query = client.search_calls[0]
+    bool_query = query["function_score"]["query"]["bool"]
+    fullcontent_entries = [
+        c for c in bool_query["should"]
+        if "bool" in c and "must_not" in c.get("bool", {})
+    ]
+    assert len(fullcontent_entries) == 1, "expected exactly one fullcontent tier with a must_not exclusion"
+    must_not = fullcontent_entries[0]["bool"]["must_not"]
+    assert len(must_not) == 1
+    minus_clause = must_not[0]
+    # The minus clause is a bool structure with should clauses for variants (with/without zero-padding)
+    assert "bool" in minus_clause
+    sub_should = minus_clause["bool"]["should"]
+    assert len(sub_should) > 0
+    # Verify at least one match_phrase for SUB SECTION exists
+    sub_clauses = [c for c in sub_should if "match_phrase" in c]
+    assert any("SUB SECTION 92C" in c["match_phrase"]["fullcontent"]["query"] for c in sub_clauses), \
+        "expected at least one match_phrase clause containing 'SUB SECTION 92C'"
+    # confirm it is NOT also present as a positive should clause anywhere
+    assert not any(
+        "match_phrase" in c and "SUB SECTION 92C" in c["match_phrase"].get("fullcontent", {}).get("query", "")
+        for c in bool_query["should"]
+        if "bool" not in c
+    )

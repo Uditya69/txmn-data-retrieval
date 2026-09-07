@@ -43,21 +43,21 @@
   },
 
   "static_group_membership_boosts": {
-    "_comment": "Unconditional per-document group-membership should-boosts ported from SearchTextElastic.cs::GetGlobalSearchQuery's positive OR-list (line 785). Real weights (16000-35000) scaled by the same ~0.25 factor edition_boosts_by_instrument_kind applies to its own real weights (80000 -> 15000/20000). [subgroup_id, boost] pairs.",
+    "_comment": "Unconditional per-document group-membership should-boosts ported from SearchTextElastic.cs::GetGlobalSearchQuery's positive OR-list (line 785). Real, unscaled weights (GlobalSearchResearch.cs:690-698/722) - 2026-09-06 correction, a prior version scaled these ~0.25x to fit this repo's should-clause scale, reverted per explicit user instruction to copy-paste real production logic exactly. [subgroup_id, boost] pairs.",
     "boosts": [
-      ["111050000000017082", 8750.0],
-      ["111050000000011411", 6250.0],
-      ["111050000000017185", 4000.0],
-      ["111050000000012771", 3750.0],
-      ["111050000000017818", 3750.0]
+      ["111050000000017082", 35000.0],
+      ["111050000000011411", 25000.0],
+      ["111050000000017185", 16000.0],
+      ["111050000000012771", 15000.0],
+      ["111050000000017818", 15000.0]
     ]
   },
 
   "finance_act_general": {
-    "_comment": "Finance Act (general) current-edition should-boost (FinanceActBoostquery, real weight 30000 scaled to 7500). NOT a hard exclusion - see docs/pending-data-followups.md / es_client.py's 2026-09-03 correction note for why an earlier version wrongly excluded every non-current-year edition.",
+    "_comment": "Finance Act (general) current-edition should-boost (FinanceActBoostquery, real weight 30000 - 2026-09-06 correction, un-scaled from a prior 7500). NOT a hard exclusion - see docs/pending-data-followups.md / es_client.py's 2026-09-03 correction note for why an earlier version wrongly excluded every non-current-year edition.",
     "subgroup_id": "111050000000010567",
     "current_year": "2025",
-    "boost": 7500.0
+    "boost": 30000.0
   },
 
   "group_signal_should_boosts": {

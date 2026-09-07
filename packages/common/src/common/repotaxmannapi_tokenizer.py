@@ -301,8 +301,15 @@ class _Analyzer:
     stateful - GetElement()/BackTrack() advance and rewind a shared cursor across many
     mutually-recursive helper methods, exactly as in the original."""
 
-    def __init__(self, search_text: str) -> None:
+    def __init__(self, search_text: str, is_global: bool = False) -> None:
         # TaxmannQueryAnalizer.cs:114-193 (constructor)
+        self.is_global = is_global
+        # TaxmannQueryAnalizer.cs:1553-1554 - IsArticle/IsCountry locals inside
+        # ProcessorQuery. This port constructs a fresh _Analyzer once per tokenize() call
+        # and calls process_query() exactly once on it, so per-instance attributes are the
+        # correct equivalent scope.
+        self.is_article = False
+        self.is_country = False
         text = search_text.strip()
         # Line 126: collapse "A - B" (dash surrounded by alnum, with optional spaces) to "A B".
         text = re.sub(r"(?<=[A-Za-z0-9])\s*-\s*(?=[A-Za-z0-9])", " ", text)
@@ -783,6 +790,8 @@ class _Analyzer:
                             _get_key_proximity(r_text), group_id=entry["group_id"],
                         ),
                     )
+                    if r_text.upper().startswith("ARTICLE"):  # cs:1600
+                        self.is_article = True
 
                 elif element_code == ElementType.KEY_WORD:
                     ok, s_result = self._process_key_word(r_text)
@@ -806,6 +815,8 @@ class _Analyzer:
                                 _get_key_proximity(r_text), group_id=entry["group_id"],
                             ),
                         )
+                        if r_text.upper().startswith("ARTICLE"):  # cs:1621
+                            self.is_article = True
 
                 elif element_code == ElementType.KEY_WORD_TYPE2:
                     ok, s_result, oth_text = self._process_key_word_type2(r_text)
@@ -839,6 +850,8 @@ class _Analyzer:
                                 oth_text, TokenType.KEY_WORD, 1, group_id=entry["group_id"],
                             ),
                         )
+                        if r_text.upper().startswith("ARTICLE"):  # cs:1645
+                            self.is_article = True
 
                 elif element_code == ElementType.KEY_WORD_HIGH_COURT:
                     ok, s_result = self._process_key_word_high_court(r_text)
@@ -907,6 +920,7 @@ class _Analyzer:
                             _get_key_proximity(r_text), group_id=entry["group_id"],
                         ),
                     )
+                    self.is_country = True  # cs:~1697
 
                 elif element_code == ElementType.STOP_WORD:
                     pass
@@ -1154,6 +1168,27 @@ class _Analyzer:
                 self._create_token(phrase, TokenType.PHRASE_WORD, ProximityDefault.PHRASE),
             )
 
+        if self.is_global and self.is_article and not self.is_country:
+            # TaxmannQueryAnalizer.cs:1968-1984: rewrite QueryText/Proximity (NOT Type) to
+            # the "EXPERTSOPINION" dictionary entry's own values for every token whose
+            # QueryText starts with "ARTICLE", and reset that token's group_id to
+            # EXPERTSOPINION's own group_id (this port's per-token equivalent of the real
+            # source's query-level ReSetPrimaryTag("EXPERTSOPINION") - see this module's own
+            # docstring on the per-token group_id deviation).
+            expertsopinion_text = _get_key_search_text("EXPERTSOPINION")
+            expertsopinion_proximity = _get_key_proximity("EXPERTSOPINION")
+            expertsopinion_entry = classify_token("EXPERTSOPINION")
+            expertsopinion_group_id = (
+                expertsopinion_entry["group_id"] if expertsopinion_entry else "0"
+            )
+            for i, tok in enumerate(tokens):
+                if tok.query_text.upper().startswith("ARTICLE"):
+                    tokens[i] = RepotaxmannapiToken(
+                        query_text=expertsopinion_text, query_date=tok.query_date,
+                        org_text=tok.org_text, type=tok.type, or_in=tok.or_in,
+                        proximity=expertsopinion_proximity, group_id=expertsopinion_group_id,
+                    )
+
         return tokens
 
 
@@ -1166,10 +1201,14 @@ def classify_token_case_sensitive(word: str) -> TokenDictEntry | None:
     return load_repotaxmannapi_token_dictionary().get(word) if word.isupper() else None
 
 
-def tokenize(query: str) -> list[RepotaxmannapiToken]:
+def tokenize(query: str, is_global: bool = False) -> list[RepotaxmannapiToken]:
     """Entry point: full port of `new TaxmannQueryAnalizer(query)` followed by a single
-    `ProcessorQuery()` call (TaxmannQueryAnalizer.cs:114-193, 1542-1999)."""
-    analyzer = _Analyzer(query)
+    `ProcessorQuery()` call (TaxmannQueryAnalizer.cs:114-193, 1542-1999). `is_global`
+    (2026-09-06): threads through the real source's `isGlobalSearch` field - gates the
+    ARTICLE->EXPERTSOPINION remap pass (TaxmannQueryAnalizer.cs:1968-1984). Defaults to
+    False so every existing caller keeps today's behavior unchanged; only `es_client.py`'s
+    repotaxmannapi global-search path passes True."""
+    analyzer = _Analyzer(query, is_global=is_global)
     return analyzer.process_query()
 
 

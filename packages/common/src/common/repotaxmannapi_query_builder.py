@@ -89,6 +89,23 @@ from common.repotaxmannapi_tokenizer import (
     TokenType,
 )
 
+
+def _normalize_query_text(raw: str) -> tuple[str, str]:
+    """SearchTextElastic.cs:848-860 (pipe-split branch) / :935-947 (non-pipe branches,
+    identical logic on qt.QueryText instead of a pipe-alternative). Returns
+    (query, query_searchboosttext) - two independently-normalized strings: `query` feeds
+    heading/subheading/headnotestext/fullcontent, `query_searchboosttext` feeds
+    searchboosttext only (a separate, oppositely-directed rewrite)."""
+    lowered = raw.lower()
+    if "taxmann com" in lowered:
+        query = lowered.replace("taxmann com", "taxmann.com")
+    elif "compcase" in lowered:
+        query = lowered.replace("compcase", "comp case")
+    else:
+        query = raw
+    query_searchboosttext = raw.lower().replace("taxmann.com", "taxmann com") if "taxmann.com" in lowered else raw
+    return query, query_searchboosttext
+
 # Real C# POCO property is `f.headnotestext` (no underscore) - that's what SearchTextElastic.cs
 # actually names it, and NEST's `.Field(f => f.headnotestext)` resolves to whatever ES field
 # name their own index maps that property to. THIS repo's own live index
@@ -103,9 +120,10 @@ _HEADNOTES_TEXT_FIELD = "headnotes_text"
 
 # Field -> boost, non-Excus (`.phrase_search` suffix, analyzer dropped) default "else"
 # branch of GetQuery. Verbatim from SearchTextElastic.cs:1086-1103 (heading, subheading,
-# searchboosttext, headnotestext, fullcontent respectively - headnotestext here uses only
-# the primary 65000 tier at line 1094; the file also ORs in a secondary 50000 tier at
-# line 1096 for non-"NZ" token types, which is out of scope - see module docstring).
+# searchboosttext, headnotestext, fullcontent respectively - headnotestext here carries
+# only the primary 65000 tier at line 1094; the secondary 50000/slop-100 tier ORed in at
+# line 1096 for non-"NZ" token types is added separately in build_should_clauses's
+# default-branch loop, see the comment there).
 _PHRASE_BOOSTS_STANDARD = {
     "heading": 155000,  # SearchTextElastic.cs:1086
     "subheading": 80000,  # SearchTextElastic.cs:1087
@@ -124,15 +142,22 @@ _SNOWBALL_ANALYZER_FIELDS = frozenset(_PHRASE_BOOSTS_STANDARD.keys())
 # same correction as _PHRASE_BOOSTS_STANDARD["fullcontent"] above.
 _SUB_EXCLUSION_BOOST = 1
 
+# Constants_GetIdByName.CirNot (repotaxmannapi/TaxmannAPI/BL/Constants.cs) - same value as
+# common.repotaxmannapi_scoring's own _CIRNOT_GROUP_ID, independently re-cited here per this
+# module's convention of not importing another module's private constants across the port.
+_CIRNOT_GROUP_ID = "111050000000000057"
 
-def _tx_global_clauses(token: RepotaxmannapiToken) -> list[dict]:
+
+def _tx_global_clauses(token: RepotaxmannapiToken) -> dict[str, list[dict]]:
     """`isGlobalSearch == "yes" && QType == "TX"` branch, SearchTextElastic.cs:1010-1042.
     ORs together several boost tiers per field (heading/subheading/searchboosttext: two
     tiers each at slop `proximity - 4` and plain `proximity`; headnotestext: three tiers,
     the third fixed at slop 100; fullcontent: two tiers when the query text contains a
-    space, one otherwise) - modeled here as flat `should`-list entries per this module's
-    existing convention (see the plain default branch above, which already flattens its
-    own field tiers the same way rather than nesting AND/OR QueryContainer combinators).
+    space, one otherwise). Returns one OR-group per field, keyed by field name - this
+    token's own alternative boost tiers for that field, to be OR'd together and then ANDed
+    onto the running per-field-tier container `build_should_clauses` accumulates across all
+    tokens in the query (see that function's docstring and this module's 2026-09-06 parity
+    plan Task 2 for the restructure this shape supports).
 
     Not modeled (SearchTextElastic.cs:1021-1024): the `search.IsTopStory`/
     `search.IsTldSearch`-gated topstoryheading/tldheading tiers - this function has no
@@ -142,42 +167,43 @@ def _tx_global_clauses(token: RepotaxmannapiToken) -> list[dict]:
     tiers (:1029) - no such parameter exists here either (same documented gap as the
     SECTION-minus-clause note below), so the fullcontent tiers are always emitted.
     """
-    query = token.query_text  # normalization at SearchTextElastic.cs:935-947 not ported - see module docstring
-    should: list[dict] = []
+    query, query_sbt = _normalize_query_text(token.query_text)  # SearchTextElastic.cs:935-947
+    groups: dict[str, list[dict]] = {}
 
-    def _mp(field: str, boost: int, slop: int) -> dict:
+    def _mp(field: str, boost: int, slop: int, text: str = query) -> dict:
         return {
             "match_phrase": {
-                field: {"query": query, "boost": boost, "slop": slop, "analyzer": "snowball"}
+                field: {"query": text, "boost": boost, "slop": slop, "analyzer": "snowball"}
             }
         }
 
     # heading: SearchTextElastic.cs:1012-1014
-    should.append(_mp("heading", 155000, token.proximity - 4))
-    should.append(_mp("heading", 90000, token.proximity))
+    groups["heading"] = [_mp("heading", 155000, token.proximity - 4), _mp("heading", 90000, token.proximity)]
     # subheading: SearchTextElastic.cs:1015-1017
-    should.append(_mp("subheading", 80000, token.proximity - 4))
-    should.append(_mp("subheading", 75000, token.proximity))
-    # searchboosttext: SearchTextElastic.cs:1018-1020 (uses querySearchboosttext, which
-    # equals `query` here - see the normalization note above)
-    should.append(_mp("searchboosttext", 70000, token.proximity - 4))
-    should.append(_mp("searchboosttext", 67000, token.proximity))
+    groups["subheading"] = [_mp("subheading", 80000, token.proximity - 4), _mp("subheading", 75000, token.proximity)]
+    # searchboosttext: SearchTextElastic.cs:1018-1020 (uses querySearchboosttext - the
+    # oppositely-directed normalization, see `_normalize_query_text`)
+    groups["searchboosttext"] = [
+        _mp("searchboosttext", 70000, token.proximity - 4, query_sbt),
+        _mp("searchboosttext", 67000, token.proximity, query_sbt),
+    ]
     # headnotestext: SearchTextElastic.cs:1025-1028 (three tiers - Headnotes3's slop is
     # the fixed literal 100, not proximity-derived)
-    should.append(_mp(_HEADNOTES_TEXT_FIELD, 65000, token.proximity - 4))
-    should.append(_mp(_HEADNOTES_TEXT_FIELD, 60000, token.proximity))
-    should.append(_mp(_HEADNOTES_TEXT_FIELD, 50000, 100))
+    groups[_HEADNOTES_TEXT_FIELD] = [
+        _mp(_HEADNOTES_TEXT_FIELD, 65000, token.proximity - 4),
+        _mp(_HEADNOTES_TEXT_FIELD, 60000, token.proximity),
+        _mp(_HEADNOTES_TEXT_FIELD, 50000, 100),
+    ]
     # fullcontent: SearchTextElastic.cs:1029-1041
     if " " in query:
-        should.append(_mp("fullcontent", 100, token.proximity))
-        should.append(_mp("fullcontent", 1, 5000))
+        groups["fullcontent"] = [_mp("fullcontent", 100, token.proximity), _mp("fullcontent", 1, 5000)]
     else:
-        should.append(_mp("fullcontent", 1, 5000))
+        groups["fullcontent"] = [_mp("fullcontent", 1, 5000)]
 
-    return should
+    return groups
 
 
-def _pipe_split_clauses(token: RepotaxmannapiToken) -> list[dict]:
+def _pipe_split_clauses(token: RepotaxmannapiToken, group_id: str) -> dict[str, list[dict]]:
     """Pipe-separated ("|") OR-group branch, SearchTextElastic.cs:838-928. Splits
     `qt.QueryText` on '|' (verbatim `Split('|')` - no per-alternative trimming, so an
     alternative may keep leading/trailing whitespace from how it was joined, e.g. by
@@ -185,44 +211,60 @@ def _pipe_split_clauses(token: RepotaxmannapiToken) -> list[dict]:
     same field-tier clauses for EACH alternative, mirroring the identical clause
     construction present (verbatim, just combined via `|=` vs `&=`) in both the
     `if (isOver)` (877-895) and `else` (900-918) halves of the per-alternative
-    `ForEach` body - this function treats every alternative uniformly, per this module's
-    flat `should`-list convention (see `build_should_clauses`'s docstring on precedence).
+    `ForEach` body. Returns ONE OR-group per field for this token - the pipe-alternatives
+    (SearchTextElastic.cs:841's `qt.QueryText.Split('|')`) ARE the token's OR-group for
+    each field, matching every other branch's "this token's own alternatives are OR'd,
+    then ANDed onto the running per-field container across all tokens in the query"
+    pattern (see `build_should_clauses`'s docstring and this module's 2026-09-06 parity
+    plan Task 2 for the restructure this shape supports). Field keys match
+    `_PHRASE_BOOSTS_STANDARD`'s names plus `"searchheadingnumber"` when the CirNot
+    condition fires for any alternative, and `"_fullcontent_minus"` (not a real ES field
+    name - consumed specially by `es_client.py`'s assembly step, see Task 3) when the
+    SECTION-prefix minus-clause condition fires for any alternative.
 
     Not modeled: the cross-token `isOver`/`orCounter` stateful bookkeeping that groups
     each pipe-token's alternatives into their own `QueryContainer` OR-group and commits it
     to a list once the NEXT pipe-token starts (838-840, 861-876, 892-895, 915-919 in part)
     - that machinery exists to build nested AND-of-OR `QueryContainer` trees for the
-    Elasticsearch client library used by the C# (NEST), a shape this module's flat
-    `should`-list return type does not represent at all (nor does the plain default
-    branch this module already ported in Task 4, which also flattens away its own
-    `&=`/`AND` field combination). Also not modeled: `search.IsTopStory`/
+    Elasticsearch client library used by the C# (NEST); this function reconstructs the
+    per-token OR-group directly instead. Also not modeled: `search.IsTopStory`/
     `search.IsTldSearch`-gated tiers (880-883/903-906) and the `!search.isheadnoteToggle`
-    guard around the fullcontent tier (885/908) and the `searchheadingnumber`
-    `else if (qt.QType == "T1" && searchProcess.iGroupID == Constants_GetIdByName.CirNot)`
-    tier (892-894/915-917) - all three need parameters this function does not have,
-    same documented-gap pattern as elsewhere in this module. The `taxmann com`/`compcase`
-    query-text normalization (848-860) is likewise not ported - pre-existing gap, the
-    plain default branch never ported it either (see its own comment at query-text use).
+    guard around the fullcontent tier (885/908) - both need UI-toggle parameters this repo
+    has no equivalent concept of anywhere in its request flow, same documented-gap pattern
+    as elsewhere in this module. The `searchheadingnumber` tier IS modeled now (2026-09-06,
+    `else if (qt.QType == "T1" && searchProcess.iGroupID == Constants_GetIdByName.CirNot)`,
+    892-894/915-917) - `group_id` is per-query classification logic already resolved and
+    threaded through this whole call chain for `build_function_score_functions`
+    (`common.es_client._build_repotaxmannapi_field_query`'s own `group_id` variable), not a
+    UI toggle, so there was no real reason left to leave it as a gap once the field itself
+    (`searchheadingnumber`) was indexed. The `taxmann com`/`compcase` query-text
+    normalization (848-860) IS now ported (2026-09-06, Task 5) - see
+    `_normalize_query_text`, applied per pipe-alternative below.
     """
-    should: list[dict] = []
+    groups: dict[str, list[dict]] = {
+        "heading": [], "subheading": [], "searchboosttext": [], _HEADNOTES_TEXT_FIELD: [],
+        "fullcontent": [],
+    }
+    minus_group: list[dict] = []
+    searchheadingnumber_group: list[dict] = []
     for alt in token.query_text.split("|"):  # SearchTextElastic.cs:841
-        query = alt  # normalization at :848-860 not ported - see docstring above
-        should.append(
+        query, query_sbt = _normalize_query_text(alt)  # SearchTextElastic.cs:848-860
+        groups["heading"].append(
             {"match_phrase": {"heading": {
                 "query": query, "boost": 155000, "slop": token.proximity, "analyzer": "snowball",
             }}}
         )  # SearchTextElastic.cs:877/900
-        should.append(
+        groups["subheading"].append(
             {"match_phrase": {"subheading": {
                 "query": query, "boost": 80000, "slop": token.proximity, "analyzer": "snowball",
             }}}
         )  # SearchTextElastic.cs:878/901
-        should.append(
+        groups["searchboosttext"].append(
             {"match_phrase": {"searchboosttext": {
-                "query": query, "boost": 70000, "slop": token.proximity, "analyzer": "snowball",
+                "query": query_sbt, "boost": 70000, "slop": token.proximity, "analyzer": "snowball",
             }}}
-        )  # SearchTextElastic.cs:879/902 (querySearchboosttext == query - see docstring)
-        should.append(
+        )  # SearchTextElastic.cs:879/902 (querySearchboosttext - oppositely-directed rewrite)
+        groups[_HEADNOTES_TEXT_FIELD].append(
             {"match_phrase": {_HEADNOTES_TEXT_FIELD: {
                 "query": query, "boost": 65000, "slop": token.proximity, "analyzer": "snowball",
             }}}
@@ -233,7 +275,7 @@ def _pipe_split_clauses(token: RepotaxmannapiToken) -> list[dict]:
         # when proximity is still the untouched default, else the actual proximity,
         # regardless of token type.
         fc_slop = 10000 if token.proximity == ProximityDefault.DEFAULT_VALUE else token.proximity
-        should.append(
+        groups["fullcontent"].append(
             {"match_phrase": {"fullcontent": {
                 "query": query, "boost": 1, "slop": fc_slop, "analyzer": "snowball",
             }}}
@@ -244,29 +286,203 @@ def _pipe_split_clauses(token: RepotaxmannapiToken) -> list[dict]:
         # && !search.isheadnoteToggle` - third conjunct not evaluated here, same disclosed
         # gap as build_should_clauses's own SECTION-minus-clause block below.
         if token.type == "T1" and "SECTION " in query.strip():
-            should.append(
+            minus_group.append(
                 {"match_phrase": {"fullcontent": {
                     "query": f"SUB {query}", "boost": 1, "slop": token.proximity,
                     "analyzer": "snowball",
                 }}}
             )  # SearchTextElastic.cs:890/913
+        # searchheadingnumber tier, SearchTextElastic.cs:892-894/915-917. `else if` in the
+        # real source - mutually exclusive with the SECTION-minus-clause above, only
+        # reachable when this alternative did NOT match the "SECTION " prefix condition.
+        elif token.type == "T1" and group_id == _CIRNOT_GROUP_ID:
+            searchheadingnumber_group.append(
+                {"match_phrase": {"searchheadingnumber": {
+                    "query": query, "boost": 85000, "slop": token.proximity,
+                    "analyzer": "snowball",
+                }}}
+            )  # SearchTextElastic.cs:894/917
 
-    return should
+    result = {k: v for k, v in groups.items() if v}
+    if minus_group:
+        result["_fullcontent_minus"] = minus_group
+    if searchheadingnumber_group:
+        result["searchheadingnumber"] = searchheadingnumber_group
+    return result
+
+
+def _citation_clauses(token: RepotaxmannapiToken) -> dict[str, list[dict]]:
+    """`QType == "CT"` (citation) branch, SearchTextElastic.cs:1043-1066. Mirrors the plain
+    "else" default branch's heading/subheading/searchboosttext/fullcontent tiers (same
+    boosts, same fullcontent slop-override rule) but with only ONE headnotestext tier
+    (real source's `Headnotes1` only - no secondary 50000/slop-100 `Headnotes2` tier this
+    branch never builds one, unlike the default branch) plus one CT-specific addition:
+    `otherinfo.fullcitation.FirstOrDefault().name` at boost 155000 (same tier as heading),
+    analyzer snowball, slop `qt.QProximity` (SearchTextElastic.cs:1055, combined at
+    :1058/:1162 as a standalone top-level OR'd `queryCorrespondingCitation` block in the
+    real source). Returns one OR-group per field, keyed by field name - this token's own
+    (single-alternative, for this branch) OR-group per field, to be OR'd together and then
+    ANDed onto the running per-field-tier container `build_should_clauses` accumulates
+    across all tokens in the query (see that function's docstring). This is the
+    corresponding-citation cross-reference match a citation-shaped query (e.g.
+    `"571/Ahd/2016 vide order dated 02-04-2026"`) was missing entirely before this port -
+    `otherinfo.fullcitation.name` is already indexed on this repo's own ES index (see
+    common.es_client's otherinfo.* field usage), so this closes a real gap, not a
+    data-dependent one.
+
+    Not modeled (SearchTextElastic.cs:1049-1052): `search.IsTopStory`/`search.IsTldSearch`-
+    gated topstoryheading/tldheading tiers - same documented gap as `_tx_global_clauses`
+    and the plain default branch, no such parameters exist here.
+
+    `!search.isheadnoteToggle` guard around the fullcontent tier (:1059-1065) also not
+    modeled - same documented gap as build_should_clauses's own SECTION-minus-clause and
+    _tx_global_clauses' fullcontent tiers; the fullcontent tier is always emitted here."""
+    query, query_sbt = _normalize_query_text(token.query_text)  # SearchTextElastic.cs:935-947
+    groups: dict[str, list[dict]] = {
+        "heading": [{"match_phrase": {"heading": {
+            "query": query, "boost": 155000, "slop": token.proximity, "analyzer": "snowball",
+        }}}],  # SearchTextElastic.cs:1046
+        "subheading": [{"match_phrase": {"subheading": {
+            "query": query, "boost": 80000, "slop": token.proximity, "analyzer": "snowball",
+        }}}],  # SearchTextElastic.cs:1047
+        "searchboosttext": [{"match_phrase": {"searchboosttext": {
+            "query": query_sbt, "boost": 70000, "slop": token.proximity, "analyzer": "snowball",
+        }}}],  # SearchTextElastic.cs:1048
+        _HEADNOTES_TEXT_FIELD: [{"match_phrase": {_HEADNOTES_TEXT_FIELD: {
+            "query": query, "boost": 65000, "slop": token.proximity, "analyzer": "snowball",
+        }}}],  # SearchTextElastic.cs:1054 (Headnotes1 - no Headnotes2 tier for this branch)
+        "otherinfo.fullcitation.name": [{"match_phrase": {"otherinfo.fullcitation.name": {
+            "query": query, "boost": 155000, "slop": token.proximity, "analyzer": "snowball",
+        }}}],  # SearchTextElastic.cs:1055 (otherinfo.fullcitation.FirstOrDefault().name)
+    }
+    # fullcontent slop override, SearchTextElastic.cs:1061-1064 - same rule as the plain
+    # default branch's "Note on the fullcontent slop override" (module docstring).
+    if token.type == TokenType.TEXT:
+        fc_slop = 10000
+    elif token.proximity == ProximityDefault.DEFAULT_VALUE:
+        fc_slop = 10000
+    else:
+        fc_slop = token.proximity
+    groups["fullcontent"] = [{"match_phrase": {"fullcontent": {
+        "query": query, "boost": 1, "slop": fc_slop, "analyzer": "snowball",
+    }}}]  # SearchTextElastic.cs:1062/1064
+    return groups
+
+
+def _date_field_clauses(token: RepotaxmannapiToken) -> dict[str, list[dict]]:
+    """MT/DM/DT branches, SearchTextElastic.cs:948-1009 (verbatim-transcribed values -
+    independently re-confirmed against the brief's transcription during this task, see
+    task-7-report.md). Month/Day/Year derived directly from `token.query_date` (always
+    populated for these three token types per repotaxmannapi_tokenizer.py's _create_token)
+    rather than re-parsing token.query_text, since that's the same information the real
+    source's own text-split-then-dictionary-lookup produces, without the fragile round-trip.
+
+    Returns one OR-group (single-entry list) per field, keyed by field name - this token's
+    own clauses for `"documentdate"` (an ES `wildcard` query, boost 200000 - a NEW field-tier
+    this module didn't have a slot for before this task) plus the same
+    heading/subheading/searchboosttext/headnotestext/fullcontent boost tiers the plain
+    default branch models (SearchTextElastic.cs:1086-1103), but with MT/DM using a fixed
+    slop of 4 (cs:951/954/955/956 muss `Slop(4)`) and DT using `qt.QProximity` directly
+    (cs:1000-1005) - not the fullcontent-slop-override rule from the plain default branch,
+    which does not apply to any of these three branches.
+
+    Not modeled (disclosed gaps, same documented-gap pattern as elsewhere in this module):
+    - `search.IsTopStory`/`search.IsTldSearch`-gated topstoryheading/tldheading tiers present
+      in all three real branches (no such parameters exist here).
+    - DT's `querysearchhn`/`querysearchfcontent` side-containers (cs:999-1000) - these
+      duplicate the headnotestext/fullcontent tiers into separate real-source containers
+      that are later combined elsewhere; this port's field-key-based assembly doesn't need
+      the duplication, every non-empty field key already gets OR'd into the top-level
+      `should` regardless.
+    - DT's second fullcontent OR-alternative using the WHOLE original, unsplit search-bar
+      text (cs:1007, `queryFullcontentAnd |= MatchPhrase(..., Query(searchProcess.SearchTextOrg),
+      ...)`) - a value this per-token function has no access to. Only DT's single-alternative
+      fullcontent tier below is emitted; the SearchTextOrg-based second alternative is NOT.
+    """
+    assert token.query_date is not None
+    d = token.query_date
+    month2 = f"{d.month:02d}"  # MonthList()'s own values are already 2-digit, e.g. "01"
+    day2 = f"{d.day:02d}"
+    year = str(d.year)
+
+    if token.type == TokenType.MONTH_FMT:  # MT, cs:948-957
+        wildcard_value = f"{year}{month2}*"  # cs:951: Year + Month + "*" (year FIRST)
+        field_query = f"{month2} {year}"
+        slop = 4
+    elif token.type == TokenType.DATE_MONTH_FMT:  # DM, cs:958-967
+        wildcard_value = f"*{month2}{day2}"  # cs:961: "*" + Month + Day
+        field_query = f"{day2} {month2}"
+        slop = 4
+    else:  # DATE_FMT / DT, cs:988-1009
+        wildcard_value = f"{year}{month2}{day2}"  # cs:993: NO trailing "*" - exact value
+        field_query = token.query_text
+        slop = token.proximity
+
+    groups: dict[str, list[dict]] = {
+        "documentdate": [{"wildcard": {"documentdate": {"value": wildcard_value, "boost": 200000}}}],
+        "heading": [{"match_phrase": {"heading": {
+            "query": field_query, "boost": 155000, "slop": slop, "analyzer": "snowball",
+        }}}],
+        "subheading": [{"match_phrase": {"subheading": {
+            "query": field_query, "boost": 80000, "slop": slop, "analyzer": "snowball",
+        }}}],
+        "searchboosttext": [{"match_phrase": {"searchboosttext": {
+            "query": field_query, "boost": 70000, "slop": slop, "analyzer": "snowball",
+        }}}],
+        _HEADNOTES_TEXT_FIELD: [{"match_phrase": {_HEADNOTES_TEXT_FIELD: {
+            "query": field_query, "boost": 65000, "slop": slop, "analyzer": "snowball",
+        }}}],
+        "fullcontent": [{"match_phrase": {"fullcontent": {
+            "query": field_query, "boost": 1, "slop": slop, "analyzer": "snowball",
+        }}}],
+    }
+    return groups
 
 
 def build_should_clauses(
-    tokens: list[RepotaxmannapiToken], is_global: bool, is_excus: bool
-) -> list[dict]:
-    """Build the `should`-clause phrase-boost tiers for a list of tokens, mirroring
-    SearchTextElastic.cs's `GetQuery` - see module docstring for exactly which parts of
-    that method this covers and which it doesn't.
+    tokens: list[RepotaxmannapiToken], is_global: bool, is_excus: bool, group_id: str = "0",
+) -> dict[str, list[list[dict]]]:
+    """Build the per-field-tier AND-of-OR should-clause structure for a list of tokens,
+    mirroring SearchTextElastic.cs's `GetQuery` per-token loop (838-1206): for EACH field
+    (heading/subheading/searchboosttext/headnotes_text/fullcontent/searchheadingnumber/
+    otherinfo.fullcitation.name), this returns the list of per-token OR-groups that must
+    ALL be satisfied (AND) for that field-tier to contribute - each OR-group being one
+    token's own alternative boost tiers (1-3 entries), which need only ONE to match.
+    `es_client.py`'s assembly step (`_and_of_or_groups`) ANDs these OR-groups together per
+    field, then ORs the resulting per-field bool queries at the top level - this is the
+    exact structural change needed to match the real source's `queryHeadingAnd &= (heading1
+    || heading2)` (repeated per token, AND-accumulated) pattern, see the 2026-09-06 parity
+    plan's Task 2 for the full real-source citation this restructure is based on.
+
+    A field with an empty OR-group list means no token contributed to it at all (mirrors
+    the real source's untouched, always-true default QueryContainer - omit that field's
+    tier entirely from the final query, contributing nothing, rather than emitting a
+    vacuous match-everything clause). The special `"_fullcontent_minus"` key (not a real ES
+    field name) carries the SECTION-prefix minus-clause's own OR-groups, consumed specially
+    by `es_client.py`'s assembly step as a `must_not` against the `fullcontent` field-tier
+    (see Task 3), not folded into `fullcontent`'s own AND-of-OR list.
+
+    See module docstring for exactly which parts of `GetQuery` this covers and which it
+    doesn't.
+
+    `group_id` (2026-09-06): the query's resolved `groups.group.id`/`iGroupID` equivalent
+    (same value `common.es_client._build_repotaxmannapi_field_query` already computes and
+    passes to `build_function_score_functions`) - threaded through to `_pipe_split_clauses`
+    for its `searchheadingnumber` tier's CirNot check. Defaults to "0" (never equals the
+    real CirNot group id) so existing callers that don't pass it get identical behavior to
+    before this parameter existed.
 
     Per-token branch precedence mirrors the real `if (q.Length > 1) {...} else {...}`
     structure at SearchTextElastic.cs:842/929 followed by the QType `if`/`else if` chain
     inside the `else` (948-1107): a pipe-separated (`|`) token is dispatched to
     `_pipe_split_clauses` REGARDLESS of its type (the pipe check comes first, before any
-    QType check, for every token) - see `_pipe_split_clauses`. Otherwise, a `TX`-typed
-    token under `is_global=True` is dispatched to `_tx_global_clauses`
+    QType check, for every token) - see `_pipe_split_clauses`. Next, a `CT`-typed
+    (citation) token is dispatched to `_citation_clauses` (SearchTextElastic.cs:1043,
+    `qt.QType == "CT"` - its own unconditional branch in the real source, not gated behind
+    `is_global`/`is_excus` the way `TX`/`PH` are, since a citation-classified token is
+    never dispatched with `is_excus=True` in this repo's calling convention - see
+    `_citation_clauses`). Otherwise, a `TX`-typed token under `is_global=True` is
+    dispatched to `_tx_global_clauses`
     (SearchTextElastic.cs:1010, `searchProcess.isGlobalSearch == "yes" && qt.QType ==
     "TX"`, checked ahead of the "CT"/"PH"/else branches in the same chain) - UNLESS
     `is_excus` is set, in which case it is skipped in favor of the plain `isExcus`/PH
@@ -281,21 +497,46 @@ def build_should_clauses(
     not-excus) falls through to the plain "else"/`isExcus` logic below, unchanged from
     Task 4.
     """
-    should: list[dict] = []
     field_suffix = ".phrase_search" if is_excus else ""
+    result: dict[str, list[list[dict]]] = {}
+
+    def _add_group(field: str, or_group: list[dict]) -> None:
+        result.setdefault(field, []).append(or_group)
 
     for token in tokens:
         if "|" in token.query_text:
             # SearchTextElastic.cs:841-842: `qt.QueryText.Split('|')` - checked before
-            # any QType branch, for every token type.
-            should.extend(_pipe_split_clauses(token))
+            # any QType branch, for every token type (including MT/DM/DT below), per the
+            # real `if (q.Length > 1) {...} else {<QType switch>}` structure at 842/929 -
+            # a date token could theoretically be pipe-joined too (unlikely in practice),
+            # so this check still runs first, matching every other branch's precedence.
+            per_field = _pipe_split_clauses(token, group_id)
+            for field, or_group in per_field.items():
+                _add_group(field, or_group)
+            continue
+        if token.type in (TokenType.MONTH_FMT, TokenType.DATE_MONTH_FMT, TokenType.DATE_FMT):
+            # SearchTextElastic.cs:948/958/988: MT/DM/DT date-token branches, inside the
+            # QType `if`/`else if` chain of the pipe check's "else" (948-1107).
+            per_field = _date_field_clauses(token)
+            for field, or_group in per_field.items():
+                _add_group(field, or_group)
+            continue
+        if token.type == TokenType.CITATION:
+            # SearchTextElastic.cs:1043: `qt.QType == "CT"` - unconditional, no
+            # is_global/is_excus gate in the real source. See docstring above.
+            per_field = _citation_clauses(token)
+            for field, or_group in per_field.items():
+                _add_group(field, or_group)
             continue
         if is_global and not is_excus and token.type == TokenType.TEXT:
             # SearchTextElastic.cs:1010: `searchProcess.isGlobalSearch == "yes" &&
             # qt.QType == "TX"`. `not is_excus` guard: see docstring above.
-            should.extend(_tx_global_clauses(token))
+            per_field = _tx_global_clauses(token)
+            for field, or_group in per_field.items():
+                _add_group(field, or_group)
             continue
 
+        query, query_sbt = _normalize_query_text(token.query_text)  # SearchTextElastic.cs:935-947
         for field, boost in _PHRASE_BOOSTS_STANDARD.items():
             field_name = f"{field}{field_suffix}"
             if field == "fullcontent" and not is_excus:
@@ -316,13 +557,22 @@ def build_should_clauses(
             else:
                 slop = token.proximity
             match_phrase: dict = {
-                "query": token.query_text,
+                "query": query_sbt if field == "searchboosttext" else query,
                 "boost": boost,
                 "slop": slop,
             }
             if not is_excus and field in _SNOWBALL_ANALYZER_FIELDS:
                 match_phrase["analyzer"] = "snowball"
-            should.append({"match_phrase": {field_name: match_phrase}})
+            or_group = [{"match_phrase": {field_name: match_phrase}}]
+            # Secondary headnotestext OR-tier, SearchTextElastic.cs:1093-1097 - boost
+            # 50000, fixed slop 100, ORed with the primary tier for every token type
+            # except NUM_ALPHA_ZONE ("NZ").
+            if field == _HEADNOTES_TEXT_FIELD and not is_excus and token.type != TokenType.NUM_ALPHA_ZONE:
+                secondary: dict = {
+                    "query": query, "boost": 50000, "slop": 100, "analyzer": "snowball",
+                }
+                or_group.append({"match_phrase": {field_name: secondary}})
+            _add_group(field_name, or_group)
 
         # SECTION-prefix minus-clause: excludes documents where the section reference is
         # actually a sub-section back-reference. SearchTextElastic.cs:887-891, :910-914.
@@ -331,16 +581,17 @@ def build_should_clauses(
         # have access to `isheadnoteToggle` (no such parameter here) and so applies the
         # rule below unconditionally with respect to that third conjunct; see module
         # docstring "Note on the SECTION-prefix minus-clause condition" for the full
-        # disclosure.
-        if token.type == "T1" and "SECTION " in token.query_text:
+        # disclosure. Carried under the special "_fullcontent_minus" key (see this
+        # function's docstring) rather than folded into "fullcontent" itself.
+        if token.type == "T1" and "SECTION " in query:
             fullcontent_field = f"fullcontent{field_suffix}"
             minus_match_phrase: dict = {
-                "query": f"SUB {token.query_text}",
+                "query": f"SUB {query}",
                 "boost": _SUB_EXCLUSION_BOOST,
                 "slop": token.proximity,
             }
             if not is_excus:
                 minus_match_phrase["analyzer"] = "snowball"
-            should.append({"match_phrase": {fullcontent_field: minus_match_phrase}})
+            _add_group("_fullcontent_minus", [{"match_phrase": {fullcontent_field: minus_match_phrase}}])
 
-    return should
+    return result
