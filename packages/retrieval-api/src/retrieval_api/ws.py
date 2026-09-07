@@ -24,7 +24,7 @@ from semantic_cache.db import get_semantic_cache_collection, get_mongo_client as
 from semantic_cache.repository import lookup as cache_lookup, write as cache_write
 from retrieval_api.ai_mode.chat_signal import record_conversation_turn, record_retrieval_trace
 from retrieval_api.ai_mode.persona_signal import record_persona_signal
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.instant.search import run_instant
 from retrieval_api.ai_mode.pipeline import run_ai_mode
 
@@ -49,8 +49,8 @@ def _title_from_query(query: str) -> str:
     return f"{query[:_TITLE_MAX_LEN]}…" if len(query) > _TITLE_MAX_LEN else query
 
 
-def get_gateway_client(settings) -> GatewayClient:
-    return GatewayClient(base_url=settings.gateway_url)
+def get_gateway_client() -> GatewayClient:
+    return GatewayClient()
 
 
 def _resolve_user_id(access_token: str | None) -> str | None:
@@ -160,7 +160,7 @@ async def search(websocket: WebSocket):
     page_size = message.get("page_size")
     auto_route = message.get("auto_route", False) and settings.instant_mode_auto_route_enabled
     es_client = get_es_client(settings)
-    gateway = get_gateway_client(settings)
+    gateway = get_gateway_client()
     try:
         milvus_client = get_milvus_client(settings)
     except Exception:

@@ -7,10 +7,9 @@
 #
 # Usage (from repo root):
 #   evals/scripts/run_rerank_cap_sweep.sh
-#   CAPS=100,50,25,20,10,5 GATEWAY_URL=http://localhost:8001 evals/scripts/run_rerank_cap_sweep.sh
+#   CAPS=100,50,25,20,10,5 evals/scripts/run_rerank_cap_sweep.sh
 #
 # Env vars (all optional):
-#   GATEWAY_URL   - model-gateway base URL (default: whatever GatewaySettings resolves to)
 #   CACHE_DIR     - stage cache dir (default: .rerank-cache)
 #   CAPS          - comma-separated cap values (default: rerank_cap_sweep.py's own default)
 #   SLM_MODEL / RERANKER_MODEL / SPARSE - must match between runs against the same CACHE_DIR
@@ -19,9 +18,6 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 CACHE_DIR="${CACHE_DIR:-.rerank-cache}"
 mkdir -p .eval-results
-
-GATEWAY_ARGS=()
-[[ -n "${GATEWAY_URL:-}" ]] && GATEWAY_ARGS+=(--gateway-url "$GATEWAY_URL")
 
 SLM_ARGS=()
 [[ -n "${SLM_MODEL:-}" ]] && SLM_ARGS+=(--slm-model "$SLM_MODEL")
@@ -39,14 +35,14 @@ CAPS_ARGS=()
 echo "== Step 1/2: populating stage cache at ${CACHE_DIR} (ES/Milvus/SLM calls) =="
 uv run retrieval-eval \
   --cache-dir "$CACHE_DIR" --skip-synthesis --no-langfuse \
-  "${GATEWAY_ARGS[@]}" "${SLM_ARGS[@]}" "${RERANKER_ARGS[@]}" "${SPARSE_ARGS[@]}" \
+  "${SLM_ARGS[@]}" "${RERANKER_ARGS[@]}" "${SPARSE_ARGS[@]}" \
   2>&1 | tee .eval-results/populate.log
 
 echo
 echo "== Step 2/2: sweeping reranker caps against ${CACHE_DIR} (reranker calls only) =="
 uv run python evals/scripts/rerank_cap_sweep.py \
   --cache-dir "$CACHE_DIR" \
-  "${CAPS_ARGS[@]}" "${GATEWAY_ARGS[@]}" "${SLM_ARGS[@]}" "${RERANKER_ARGS[@]}" "${SPARSE_ARGS[@]}" \
+  "${CAPS_ARGS[@]}" "${SLM_ARGS[@]}" "${RERANKER_ARGS[@]}" "${SPARSE_ARGS[@]}" \
   2>&1 | tee .eval-results/sweep.log
 
 echo

@@ -9,7 +9,7 @@ from persona.db import get_mongo_client, get_persona_topics_collection
 from persona.prompt import render_persona_context
 from persona.repository import get_current_snapshot
 from retrieval_api.ai_mode.intent import build_lexicon_check, extract_intent
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 
 router = APIRouter()
 
@@ -31,7 +31,7 @@ async def get_intent_analysis(req: IntentAnalysisRequest):
     a real seeded user, with the gate/lookup outcome surfaced in the response instead of
     only being visible inside a full AI Mode trace."""
     settings = get_settings()
-    gateway = GatewayClient(base_url=settings.gateway_url)
+    gateway = GatewayClient()
 
     persona_found = False
     persona_context = ""

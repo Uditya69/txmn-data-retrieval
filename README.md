@@ -9,10 +9,10 @@ Reads from the Milvus (`aic` DB, 7 collections) and Elasticsearch stores populat
 
 ## Architecture
 
-Two services, docker-compose:
+One service:
 
-- **`model-gateway`** (`:8001`) — the only seam that knows about LLM/embedding/rerank providers. Routes: `/v1/chat`, `/v1/embed`, `/v1/rerank`, each keyed by a `role`. DeepInfra backs `slm`/`synthesis`/`reranker`. **`query_embed` is Voyage-only** — the Milvus corpus was embedded with Voyage by the ingestion pipeline, so query embeddings must land in the same vector space. Swapping that provider is not a config change, it means re-embedding the whole corpus.
 - **`retrieval-api`** (`:8000`) — FastAPI + WebSocket app. `/ws/search` dispatches Instant and AI Mode concurrently, sends Instant's result the moment it resolves, then AI Mode's `ai_mode_done`/`ai_mode_error`.
+- **`model_gateway`** — an in-process library (not a separate service) that `retrieval-api` imports directly: the only seam that knows about LLM/embedding/rerank providers. `GatewayClient` exposes `chat`/`embed`/`rerank`, each keyed by a `role`. DeepInfra backs `slm`/`synthesis`/`reranker`. **`query_embed` is Voyage-only** — the Milvus corpus was embedded with Voyage by the ingestion pipeline, so query embeddings must land in the same vector space. Swapping that provider is not a config change, it means re-embedding the whole corpus.
 
 Full design: [`docs/superpowers/specs/2026-08-03-retrieval-system-design.md`](docs/superpowers/specs/2026-08-03-retrieval-system-design.md)
 Build plan: [`docs/superpowers/plans/2026-08-03-retrieval-system.md`](docs/superpowers/plans/2026-08-03-retrieval-system.md)
@@ -23,8 +23,7 @@ Run the 53 corpus-backed direct/indirect/adversarial queries against ES, Milvus 
 Milvus sparse, rewritten retrieval, RRF, and the reranker:
 
 ```bash
-uv run retrieval-eval --gateway-url http://localhost:8001 \
-  --langfuse-base-url http://localhost:3030
+uv run retrieval-eval --langfuse-base-url http://localhost:3030
 ```
 
 Use `--query Q06`, `--class indirect`, `--class adversarial`, or
@@ -35,8 +34,7 @@ and its exact dataset snapshot under `.eval-results/`; `latest.json` and
 ```bash
 uv run retrieval-eval \
   --dataset .eval-results/20260806T123456Z-retrieval-eval.dataset.json \
-  --run-name rerun-old-dataset \
-  --gateway-url http://localhost:8001
+  --run-name rerun-old-dataset
 ```
 
 ## Packages
@@ -44,8 +42,8 @@ uv run retrieval-eval \
 ```
 packages/
   common/         # config, Milvus/ES client wrappers, schema constants
-  model-gateway/  # FastAPI: role -> provider/model routing (DeepInfra + Voyage adapters)
-  retrieval-api/  # FastAPI + WebSocket: Instant + AI Mode orchestration
+  model-gateway/  # library: role -> provider/model routing (DeepInfra + Voyage adapters)
+  retrieval-api/  # FastAPI + WebSocket: Instant + AI Mode orchestration, imports model_gateway directly
 ```
 
 ## Setup
@@ -64,10 +62,11 @@ uv run pytest
 Run the stack:
 
 ```bash
-docker compose up -d --build
+docker build -t retrieval-api .
+docker run --env-file .env -p 8000:8000 retrieval-api
 ```
 
-`model-gateway` on `http://localhost:8001`, `retrieval-api` on `http://localhost:8000`. `retrieval-api` reaches `model-gateway` by service name (`GATEWAY_URL=http://model-gateway:8001`), overridden in `docker-compose.yml` regardless of `.env`.
+Or for local dev with hot-reload (backend + web frontend together): `scripts/dev.sh`.
 
 ## Using `/ws/search`
 

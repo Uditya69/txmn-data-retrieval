@@ -58,10 +58,9 @@ independent data point for "dense misses obvious things."
 ## Regenerating
 
 ```
-uv run python evals/scripts/keyword_only_probe.py --gateway-url http://localhost:8001
+uv run python evals/scripts/keyword_only_probe.py
 ```
 
 Rewrites `keyword_only_cases.json`, `keyword_only_results.json`, and
-`keyword_only_results.csv`. Requires the model-gateway container running
-(`docker compose up -d model-gateway`) and live ES/Milvus connectivity from
-`.env`.
+`keyword_only_results.csv`. Requires live ES/Milvus connectivity and the
+model-gateway providers configured in `.env` to be reachable.

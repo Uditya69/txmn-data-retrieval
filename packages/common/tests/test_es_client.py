@@ -1271,7 +1271,6 @@ def test_get_es_client_reads_index_and_auth_from_settings():
         milvus_uri="http://milvus:19530", milvus_token="root:Milvus",
         es_uri="https://es:9200", es_username="elastic", es_password="secret",
         es_index="researchindex_aic_test", es_verify_certs=False,
-        gateway_url="http://model-gateway:8001",
     )
 
     client = get_es_client(settings)

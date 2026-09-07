@@ -18,7 +18,7 @@ authored hint terms - never copied from the persona text), same "gold from
 live ES" convention as keyword_only_probe.py.
 
 Usage:
-    uv run python evals/scripts/keyword_expansion_rigorous_eval.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/keyword_expansion_rigorous_eval.py
 """
 import argparse
 import asyncio
@@ -49,7 +49,7 @@ async def _with_retries(coro_fn, *args, **kwargs):
                 print(f"  (retry {attempt + 1}/{_MAX_RETRIES - 1} after {type(exc).__name__}: {exc}; waiting {delay:.0f}s)")
                 await asyncio.sleep(delay)
     raise last_exc
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.retrieval_eval import doc_rank
 
 RESULTS_DIR = Path(__file__).parent.parent / "results"
@@ -139,7 +139,7 @@ async def run_case(gateway, es_client, key: str, persona_context: str, gold_doc_
 async def _run(args) -> None:
     settings = get_settings()
     es_client = get_es_client(settings)
-    gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
 
     personas = json.loads((RESULTS_DIR / "persona_test_snapshots.json").read_text())
     personas = {k: v["persona_context"] for k, v in personas.items() if v["persona_context"]}
@@ -234,7 +234,6 @@ async def _run(args) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Rigorous persona-aware keyword-expansion eval")
-    parser.add_argument("--gateway-url", help="override GATEWAY_URL (use http://localhost:8001 when running from the host)")
     args = parser.parse_args()
     asyncio.run(_run(args))
 

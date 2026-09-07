@@ -9,7 +9,7 @@ from common.es_client import get_es_client, raw_search
 from common.milvus_client import get_milvus_client, hybrid_search
 from common.schemas import MILVUS_COLLECTIONS, collections_for_intent
 from retrieval_api.ai_mode.rerank import rerank_top_chunks
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.instant.rerank import rrf_merge_by_doc_id
 from retrieval_api.trace_utils import collection_trace
 
@@ -67,7 +67,7 @@ async def intent_only_search(req: IntentSearchRequest):
     collection subset via collections_for_intent(); omitted/empty searches all 11
     collections, matching AI Mode's own no-intent fallback."""
     settings = get_settings()
-    gateway = GatewayClient(base_url=settings.gateway_url)
+    gateway = GatewayClient()
     try:
         milvus_client = get_milvus_client(settings)
     except Exception:
@@ -102,7 +102,7 @@ async def hybrid_search_with_rerank(req: HybridSearchRequest):
     stage layered on (Instant mode's own "rerank" step is RRF only, no cross-encoder call).
     No Milvus sparse pass at all - dense is the only Milvus signal here."""
     settings = get_settings()
-    gateway = GatewayClient(base_url=settings.gateway_url)
+    gateway = GatewayClient()
     es_client = get_es_client(settings)
     try:
         milvus_client = get_milvus_client(settings)

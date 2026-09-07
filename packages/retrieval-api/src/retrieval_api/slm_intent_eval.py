@@ -17,7 +17,7 @@ from pathlib import Path
 
 from retrieval_api.ai_mode.intent import extract_intent
 from retrieval_api.eval_io import append_result, filter_pending, load_completed_ids, read_records
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 
 _VALID_EXPECT = {"confident", "vague"}
 
@@ -141,7 +141,7 @@ def print_slm_summary(records: list[dict]) -> None:
 
 
 async def run(
-    gateway_url: str, model: str | None, dataset_path: str | Path, limit: int | None,
+    model: str | None, dataset_path: str | Path, limit: int | None,
     output: Path | None = None, resume: bool = False,
 ) -> None:
     cases = load_cases(dataset_path)
@@ -150,7 +150,7 @@ async def run(
     records: list[dict] = read_records(output) if (output and resume) else []
     if output and resume:
         cases = filter_pending(cases, load_completed_ids(output))
-    gateway = GatewayClient(base_url=gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
 
     for case in cases:
         try:
@@ -200,7 +200,6 @@ def main() -> None:
         "search_query safety, intent category routing, and filter extraction - all "
         "three graded together per case."
     )
-    parser.add_argument("--gateway-url", default="http://localhost:8001")
     parser.add_argument("--model", default=None, help="Override the slm role's model")
     parser.add_argument("--dataset", default="evals/datasets/slm_intent_cases.json")
     parser.add_argument(
@@ -219,7 +218,7 @@ def main() -> None:
         return
     if args.resume and not args.output:
         parser.error("--resume requires --output")
-    asyncio.run(run(args.gateway_url, args.model, args.dataset, args.limit, output=args.output, resume=args.resume))
+    asyncio.run(run(args.model, args.dataset, args.limit, output=args.output, resume=args.resume))
 
 
 if __name__ == "__main__":

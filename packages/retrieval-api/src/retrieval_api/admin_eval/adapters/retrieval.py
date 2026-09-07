@@ -4,13 +4,13 @@ from typing import AsyncIterator
 from common.config import get_settings
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.retrieval_eval import evaluate_case, load_cases
 
 DATASET_PATH = Path("evals/datasets/retrieval_cases.json")
 
 
-async def run(gateway_url: str, limit: int | None) -> AsyncIterator[dict]:
+async def run(limit: int | None) -> AsyncIterator[dict]:
     cases = load_cases(DATASET_PATH)
     if limit:
         cases = cases[:limit]  # first-N slice - NOT the same as evaluate_case's own `limit` kwarg
@@ -19,7 +19,7 @@ async def run(gateway_url: str, limit: int | None) -> AsyncIterator[dict]:
     settings = get_settings()
     es_client = get_es_client(settings)
     milvus_client = get_milvus_client(settings)
-    gateway = GatewayClient(base_url=gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
     passed = 0
 
     try:

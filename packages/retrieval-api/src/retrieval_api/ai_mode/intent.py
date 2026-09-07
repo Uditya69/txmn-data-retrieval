@@ -8,7 +8,7 @@ from common.legal_lexicon import is_stopword
 from common.query_tokenizer import chunk_query, classify_query_shape, expand_query_synonyms
 from common.schema_context import build_schema_context
 from persona.prompt import RELEVANCE_INSTRUCTION
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 
 # Invariant: on_step implementations must not raise. The current only caller
 # (ws.py's emit_trace_step / _emit_trace_step) guarantees this by swallowing

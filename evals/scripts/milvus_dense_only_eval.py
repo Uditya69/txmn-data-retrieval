@@ -12,7 +12,7 @@ the requested ~60-70% direct mix (the two source datasets are ~50/50 direct/indi
 on their own), all direct cases are kept and indirect cases are subsampled by id order.
 
 Usage (from repo root, gateway running via docker compose):
-    uv run python evals/scripts/milvus_dense_only_eval.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/milvus_dense_only_eval.py
 
 Writes evals/results/milvus_dense_only_results.csv (one row per query) and
 evals/results/milvus_dense_only_results.json (full detail, top-20 hits per query).
@@ -27,7 +27,7 @@ from common.config import get_settings
 from common.milvus_client import get_milvus_client, hybrid_search
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.retrieve import _flatten
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.retrieval_eval import doc_rank
 
 DATASETS_DIR = Path(__file__).parent.parent / "datasets"
@@ -122,7 +122,7 @@ async def _run(args) -> None:
 
     settings = get_settings()
     milvus_client = get_milvus_client(settings)
-    gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
     try:
         results = []
         for index, case in enumerate(cases, start=1):
@@ -153,7 +153,6 @@ async def _run(args) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Milvus dense-only retrieval eval (no ES, no sparse, no rerank)")
     parser.add_argument("--limit", type=int, default=TOP_K_RECORDED, help="Milvus search limit per collection")
-    parser.add_argument("--gateway-url", help="override GATEWAY_URL (use http://localhost:8001 when running from the host)")
     args = parser.parse_args()
     asyncio.run(_run(args))
 

@@ -14,7 +14,6 @@ def test_settings_reads_from_env(monkeypatch):
     monkeypatch.setenv("MILVUS_URI", "http://milvus:19530")
     monkeypatch.setenv("MILVUS_TOKEN", "root:Milvus")
     monkeypatch.setenv("ES_URI", "http://es:9200")
-    monkeypatch.setenv("GATEWAY_URL", "http://model-gateway:8001")
     get_settings.cache_clear()
 
     settings = get_settings()
@@ -25,7 +24,6 @@ def test_settings_reads_from_env(monkeypatch):
     assert settings.es_username is None  # default
     assert settings.es_index == "taxmann_caselaw"  # default
     assert settings.es_verify_certs is True  # default
-    assert settings.gateway_url == "http://model-gateway:8001"
 
 
 def test_settings_reads_es_auth_and_index_overrides(monkeypatch):
@@ -37,7 +35,6 @@ def test_settings_reads_es_auth_and_index_overrides(monkeypatch):
     monkeypatch.setenv("ES_PASSWORD", "secret")
     monkeypatch.setenv("ES_INDEX", "researchindex_aic_test")
     monkeypatch.setenv("ES_VERIFY_CERTS", "false")
-    monkeypatch.setenv("GATEWAY_URL", "http://model-gateway:8001")
     get_settings.cache_clear()
 
     settings = get_settings()

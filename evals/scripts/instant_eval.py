@@ -21,7 +21,7 @@ with no natural seam to cache independently of the config being swept).
 
 Usage (from repo root, gateway running via docker compose):
 
-    uv run python evals/scripts/instant_eval.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/instant_eval.py
 
 Writes one timestamped result file per run under .eval-results/ plus a fixed
 .eval-results/instant_eval_latest.json pointing at the most recent run.
@@ -36,7 +36,7 @@ from pathlib import Path
 from common.config import get_settings
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.instant.search import run_instant
 from retrieval_api.retrieval_eval import _git_dirty, _git_revision, doc_rank, load_cases
 
@@ -111,7 +111,7 @@ async def _run(args) -> int:
     settings = get_settings()
     es_client = get_es_client(settings)
     milvus_client = get_milvus_client(settings)
-    gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
 
     created_at = datetime.now(timezone.utc)
     results = []
@@ -157,7 +157,6 @@ def main() -> None:
         help="matches run_instant()'s own default",
     )
     parser.add_argument("--reranker-model", help="override the DeepInfra model used for the reranker role (e.g. Qwen/Qwen3-Reranker-0.6B) - default is DEEPINFRA_RERANK_MODEL")
-    parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")
     parser.add_argument("--output", type=Path, help="exact result path; default creates a timestamped archive")
     args = parser.parse_args()
     raise SystemExit(asyncio.run(_run(args)))

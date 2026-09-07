@@ -3,14 +3,14 @@
 Before kicking off a 5-10 hour eval run against a local/self-hosted LLM, confirm the
 things that would otherwise fail loudly (or silently degrade) hours in: ES reachable
 and holding the configured index, every Milvus collection retrieval_eval.py expects
-present, and the model-gateway resolving + actually able to serve each role it needs
-(slm, reranker, synthesis, query_embed). The slm role additionally gets one real chat
-call (not just role resolution) since that's the role most likely to be sitting behind
-a flaky local vLLM endpoint - config resolving cleanly doesn't mean the model behind it
-is actually answering.
+present, and every model-gateway role resolving + actually able to serve each role it
+needs (slm, reranker, synthesis, query_embed). The slm role additionally gets one real
+chat call (not just role resolution) since that's the role most likely to be sitting
+behind a flaky local vLLM endpoint - config resolving cleanly doesn't mean the model
+behind it is actually answering.
 
 Usage (from repo root):
-    uv run python evals/scripts/preflight.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/preflight.py
 
 Exits 0 if every check passes, 1 otherwise - safe to gate a headless run script on.
 """
@@ -22,7 +22,7 @@ from common.config import get_settings
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
 from common.schemas import MILVUS_COLLECTIONS
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 
 _GATEWAY_ROLES = ["slm", "reranker", "synthesis", "query_embed"]
 
@@ -76,9 +76,9 @@ async def check_slm_live_call(gateway: GatewayClient) -> tuple[bool, str]:
     return True, f"responded in {elapsed:.1f}s: {response.strip()[:80]!r}"
 
 
-async def run(gateway_url: str, skip_llm_call: bool) -> bool:
+async def run(skip_llm_call: bool) -> bool:
     settings = get_settings()
-    gateway = GatewayClient(gateway_url or settings.gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
 
     checks = [
         ("elasticsearch", check_elasticsearch(settings)),
@@ -98,13 +98,12 @@ async def run(gateway_url: str, skip_llm_call: bool) -> bool:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Check ES/Milvus/gateway readiness before a long eval run")
-    parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")
     parser.add_argument(
         "--skip-llm-call", action="store_true",
         help="skip the one live chat call to the slm role (faster, but doesn't prove the model is actually answering)",
     )
     args = parser.parse_args()
-    ok = asyncio.run(run(args.gateway_url, args.skip_llm_call))
+    ok = asyncio.run(run(args.skip_llm_call))
     raise SystemExit(0 if ok else 1)
 
 

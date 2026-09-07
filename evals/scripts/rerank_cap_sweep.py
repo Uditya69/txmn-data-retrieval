@@ -14,12 +14,12 @@ Usage (from repo root, gateway running via docker compose):
        only here - this can be slow, run it once and reuse for every sweep):
 
         uv run retrieval-eval --cache-dir .rerank-cache --skip-synthesis \\
-            --no-langfuse --gateway-url http://localhost:8001
+            --no-langfuse
 
     2. Sweep caps against that cache (fast - reranker calls only):
 
         uv run python evals/scripts/rerank_cap_sweep.py --cache-dir .rerank-cache \\
-            --caps 100,50,25,20,10 --gateway-url http://localhost:8001
+            --caps 100,50,25,20,10
 
     Both commands must agree on --slm-model/--reranker-model/--sparse/--no-sparse
     (whatever isn't passed defaults the same way in both) - stage_cache_path()
@@ -41,7 +41,7 @@ from pathlib import Path
 
 from common.config import get_settings
 from retrieval_api.ai_mode.rerank import rerank_top_chunks
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.retrieval_eval import _git_dirty, _git_revision, doc_rank, load_cases, stage_cache_path
 
 DEFAULT_CAPS = [100, 50, 25, 20, 10]
@@ -93,7 +93,7 @@ async def _run(args) -> int:
     cases = load_cases(args.dataset)
     settings = get_settings()
     sparse_enabled = settings.milvus_sparse_enabled if args.sparse_enabled is None else args.sparse_enabled
-    gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
 
     caps = sorted({int(c) for c in args.caps.split(",")}, reverse=True)
     created_at = datetime.now(timezone.utc)
@@ -151,7 +151,6 @@ def main() -> None:
     sparse_group = parser.add_mutually_exclusive_group()
     sparse_group.add_argument("--sparse", dest="sparse_enabled", action="store_true", default=None)
     sparse_group.add_argument("--no-sparse", dest="sparse_enabled", action="store_false")
-    parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")
     parser.add_argument("--output", type=Path, help="exact result path; default creates a timestamped file under .eval-results/")
     args = parser.parse_args()
     raise SystemExit(asyncio.run(_run(args)))

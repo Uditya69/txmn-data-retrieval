@@ -12,7 +12,7 @@ from persona.prompt import render_persona_context
 from persona.repository import get_current_snapshot
 from retrieval_api.ai_mode.intent import build_lexicon_check
 from retrieval_api.ai_mode.pipeline import run_ai_mode
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 
 router = APIRouter()
 
@@ -34,7 +34,7 @@ async def get_ai_mode_analysis(req: AiModeAnalysisRequest):
     /v1/intent-analysis - this runs the whole pipeline (real ES/Milvus retrieval + LLM
     synthesis), not just the one classification call."""
     settings = get_settings()
-    gateway = GatewayClient(base_url=settings.gateway_url)
+    gateway = GatewayClient()
     es_client = get_es_client(settings)
     try:
         milvus_client = get_milvus_client(settings)

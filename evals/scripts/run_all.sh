@@ -14,30 +14,26 @@
 # Headless (survives SSH disconnect):
 #   tmux new -d -s full-sweep 'bash evals/scripts/run_all.sh eval-results/2026-09-01/03-full-sweep'
 #   tmux attach -t full-sweep   # watch it / see the printed JSON later
-#
-# Override the gateway URL if it's not the default:
-#   GATEWAY_URL=http://localhost:8001 bash evals/scripts/run_all.sh eval-results/2026-09-01/03-full-sweep
 
 set -uo pipefail
 
-GATEWAY_URL="${GATEWAY_URL:-http://localhost:8001}"
 OUT_DIR="${1:-.eval-results}"
 mkdir -p "$OUT_DIR"
 
 echo "=== running slm_intent_eval ==="
-uv run python -m retrieval_api.slm_intent_eval --gateway-url "$GATEWAY_URL" \
+uv run python -m retrieval_api.slm_intent_eval \
     --output "$OUT_DIR/slm-intent.jsonl" --resume
 
 echo "=== running collection_routing_eval ==="
-uv run python -m retrieval_api.collection_routing_eval --gateway-url "$GATEWAY_URL" \
+uv run python -m retrieval_api.collection_routing_eval \
     --output "$OUT_DIR/collection-routing.jsonl" --resume
 
 echo "=== running intent_eval ==="
-uv run python -m retrieval_api.intent_eval --gateway-url "$GATEWAY_URL" \
+uv run python -m retrieval_api.intent_eval \
     --output "$OUT_DIR/intent-filter.jsonl" --resume
 
 echo "=== running retrieval_eval ==="
-uv run python -m retrieval_api.retrieval_eval --gateway-url "$GATEWAY_URL" \
+uv run python -m retrieval_api.retrieval_eval \
     --jsonl-output "$OUT_DIR/retrieval.jsonl" --resume
 
 echo

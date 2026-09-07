@@ -7,7 +7,7 @@ from langfuse import get_client
 from common.current_law_facts import load_current_law_facts
 from persona.prompt import RELEVANCE_INSTRUCTION
 from retrieval_api.ai_mode.intent import OnStep
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 
 logger = logging.getLogger(__name__)
 

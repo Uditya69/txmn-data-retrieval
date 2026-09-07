@@ -28,7 +28,7 @@ async def test_run_yields_case_progress_and_done_events(monkeypatch):
 
     monkeypatch.setattr(adapter, "extract_intent", fake_extract_intent)
 
-    events = [event async for event in adapter.run("http://gateway", None)]
+    events = [event async for event in adapter.run(None)]
 
     case_events = [e for e in events if e["type"] == "case"]
     progress_events = [e for e in events if e["type"] == "progress"]
@@ -50,7 +50,7 @@ async def test_run_respects_limit(monkeypatch):
 
     monkeypatch.setattr(adapter, "extract_intent", fake_extract_intent)
 
-    events = [event async for event in adapter.run("http://gateway", 1)]
+    events = [event async for event in adapter.run(1)]
     case_events = [e for e in events if e["type"] == "case"]
     assert [c["id"] for c in case_events] == ["S01"]
 
@@ -69,7 +69,7 @@ async def test_run_yields_error_status_and_continues(monkeypatch):
 
     monkeypatch.setattr(adapter, "extract_intent", fake_extract_intent)
 
-    events = [event async for event in adapter.run("http://gateway", None)]
+    events = [event async for event in adapter.run(None)]
     case_events = [e for e in events if e["type"] == "case"]
     assert case_events[0]["status"] == "error"
     assert "gateway unreachable" in case_events[0]["detail"]["error"]

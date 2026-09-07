@@ -12,7 +12,7 @@ prefixed "eval-persona-" - QA/dev environment, per project owner's explicit
 go-ahead (2026-09-02) to use this DB directly and clean up after.
 
 Usage:
-    uv run python evals/scripts/build_persona_test_snapshots.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/build_persona_test_snapshots.py
     uv run python evals/scripts/build_persona_test_snapshots.py --cleanup   # deletes all eval-persona-* data
 """
 import argparse
@@ -29,7 +29,7 @@ from persona.db import get_mongo_client, get_persona_events_collection, get_pers
 from persona.prompt import render_persona_context
 from persona.repository import get_current_snapshot, record_query_event
 from retrieval_api.ai_mode.persona_signal import extract_query_understanding
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 
 RESULTS_DIR = Path(__file__).parent.parent / "results"
 _BASE_DAY = datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)
@@ -61,7 +61,7 @@ async def _run(args) -> None:
     client = get_mongo_client(persona_settings)
     events = get_persona_events_collection(client, persona_settings)
     topics_coll = get_persona_topics_collection(client, persona_settings)
-    gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
 
     # Topics are independent (distinct user_ids, no shared documents) - only the 4
     # events WITHIN a topic have a sequential dependency (each builds on the prior
@@ -106,7 +106,6 @@ async def _cleanup() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build/cleanup real pipeline-derived persona snapshots for eval")
-    parser.add_argument("--gateway-url", help="override GATEWAY_URL (use http://localhost:8001 when running from the host)")
     parser.add_argument("--cleanup", action="store_true", help="delete all eval-persona-* events/topics and exit")
     args = parser.parse_args()
     if args.cleanup:
