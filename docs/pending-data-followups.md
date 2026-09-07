@@ -131,26 +131,49 @@ indexed:
   2026-09-03 session and was already flagged there, not newly found) - and see the
   Comparative heading-dedup item below, found the same day as a related but distinct gap.
 
-## Confirmed genuinely dead - no substitute exists, not a future-proofing candidate
+## `masterinfo`/`masterinfo.info` - NOT genuinely dead, empty on OUR index only (corrected 2026-09-07)
 
-Live-checked 2026-09-03: `masterinfo`/`masterinfo.info` are **completely empty objects on
-every sampled document**, not just specific subfields. The real DTO's 3 remaining caselaw
-card fields read from this structure and have no substitute anywhere else in the index
-(checked `otherinfo.*` directly - only `judge`/`partyname`/`fullcitation`/`counselname`/
-`appealno`/`asstyr` exist there):
-- `InfavourOf` (`masterinfo.info.infavourof[].name`)
-- `CourtName` (`masterinfo.info.court[].shortName`) - note this is a DIFFERENT subfield
-  than the already-confirmed-dead `masterinfo.info.court.name`; both are equally absent
-  since the parent object itself is empty, but worth remembering the real field is
-  `.shortName` not `.name` if this is ever re-checked.
-- `AuthorName` (`masterinfo.info.authors[].name`, joined via `GetAuthorName`)
+**This section's original 2026-09-03 conclusion ("confirmed genuinely dead - no substitute
+exists... completely empty objects on every sampled document") is WRONG and superseded -
+do not trust it, kept below struck through for the record only.** It was checked only
+against this repo's own index (`researchindex_aic_test`); it was never cross-checked
+against prod's real live data until now.
 
-Unlike `is_unreported`/AAAModelReport/etc., these were NOT implemented ahead of data -
-there's no field to fetch at all, and no reasonable substitute the way `act_name`
-substitutes `groups.group.subgroup.name` for the (also dead) `masterinfo.info.act[].name`.
-Re-check `masterinfo`/`masterinfo.info` population generally if any new content type ever
-gets indexed - if it stops being universally empty, revisit all 3 of these fields together,
-not just whichever one prompted the re-check.
+**What's actually confirmed (2026-09-07, direct pull of prod's live ES `_source` for 3
+`documenttype=="act"` ids - `102120000000099179`/`...099180`/`...099184`, Income-tax Act
+2025 sections 148/149/153, alongside the same 3 ids from our own index for a byte-level
+diff):** `masterinfo`/`masterinfo.info` genuinely is `{}` in our index for all 3 - that
+part holds. But prod's real live document for the SAME ids has it fully populated:
+`masterinfo.info.act[]` (id/name/url, e.g. `"Income-Tax Act, 2025"`), `.section[]`
+(id/`actsectionyearid`/name/url, e.g. `"section-153"`), plus `actno`/`rule`/`state`/
+`classification` arrays (empty on these particular docs, but present as real arrays, not
+absent structure). **The field is real and populated in the actual production data model
+- it's simply missing from this repo's own index**, an ingestion gap in whatever
+populates `researchindex_aic_test`'s `masterinfo`, not a dead/unpopulated field in the
+underlying data itself.
+
+Narrower, now-open re-checks, not yet done:
+- The 3 sampled ids are all `documenttype=="act"` - confirms `masterinfo.info.act[]`/
+  `.section[]` are real and populated in prod for Act docs specifically. The original
+  claim was about 3 CASELAWS-specific card fields instead
+  (`InfavourOf`/`masterinfo.info.infavourof[].name`,
+  `CourtName`/`masterinfo.info.court[].shortName`,
+  `AuthorName`/`masterinfo.info.authors[].name`) - whether THOSE specific subfields are
+  similarly populated on a real prod CASELAWS document hasn't been checked yet. Same
+  structure, different content type, different sample needed before assuming they're
+  populated too.
+- `otherinfo.*` (`judge`/`partyname`/`fullcitation`/`counselname`/`appealno`/`asstyr`)
+  was checked as `masterinfo`'s substitute under the old (wrong) "genuinely dead"
+  framing - worth re-confirming whether `otherinfo.*` is itself real/populated in prod
+  too, or was its own separate live-data confirmation.
+
+This also means: this repo's own `masterinfo`-dependent should-clauses/citation joins
+that assumed dead data and were skipped/simplified on that basis are worth another look -
+check `common/es_client.py`'s own `masterinfo`-related comments (several reference this
+now-superseded "confirmed 0% populated" conclusion) before trusting any of them as still
+accurate. Also re-check whether this same our-index-vs-prod gap applies to any other field
+flagged "confirmed dead" elsewhere in this doc - none of those were cross-checked against
+prod's real data either, same blind spot as this one had.
 
 ## Consciously out of scope, not overlooked - a whole facet/filter/aggregation system in `GlobalSearchResearch.cs`
 
@@ -237,6 +260,61 @@ values, or the frontend's `card.heading`) - they're computed and exposed on
 `fetch_doc_categories`'s entry dict only. Wiring them into the actually-displayed title/
 snippet is a separate, deferred step - do that once real data exists to verify the
 transform is even correct, not before.
+
+## `formatteddocumentdate` frozen for `act`/`rule`/most `commentary` - shared upstream, NOT a replica-only staleness bug (corrected 2026-09-07)
+
+Confirmed live 2026-09-07, three ways - our primary index (`researchindex_aic_test`), the
+raw source data this repo's pipeline ingests from (`tm-dp/data/statutory/**/*.json`,
+sampled at scale), and (**new**, see correction below) a direct pull of prod's own live ES
+document for the same ids:
+
+- `documenttype=="act"`: 100% frozen at `2012-01-01` (83,309/83,309 in our index; same in
+  a 3,000-file source sample).
+- `documenttype=="rule"`: also 100% frozen, but at a DIFFERENT constant, `1900-01-01`
+  (3,000-file source sample) - a second, independently-broken content type, not
+  previously checked.
+- `commentary`: 66% frozen at `1900-01-01` (3,000-file source sample), remaining ~34% has
+  real varying dates - a partial version of the same bug.
+- `articles`, `tariff`, `caselaws`: clean, real varying dates (spot-checked, not
+  exhaustive).
+
+A real, varying, genuinely-usable date DOES exist in the very same source records under a
+different key, `lastpublished_date` (e.g. `2026-06-07`, `2024-03-15`, ... - real per-
+document last-publish dates) - unused for this purpose. `documentdate` (a second date-ish
+field, string-typed) carries the identical frozen values as `formatteddocumentdate`, not
+an independent signal.
+
+**CORRECTION (2026-09-07, same day - do not trust the superseded version of this note
+below the original session's `git blame`):** the original write-up of this item
+speculated "prod's live index almost certainly has real, varying dates for these
+documents" as the explanation for prod outranking our index on recency-sensitive queries.
+**That speculation was checked against real data and is wrong** - a direct pull of prod's
+own live ES document for 3 of these ids (`102120000000099179`/`...099180`/`...099184`,
+Income-tax Act 2025 sections 148/149/153) came back **byte-identical** to our own index's
+values: `formatteddocumentdate: 2012-01-01T00:00:00`, `documentdate:
+20120101^01-01-2012`, `lastpublished_date: 2026-06-06T00:00:00`, `created_date:
+1900-01-01T00:00:00` - all four fields, exact match. Prod is working with the identical
+frozen date on this doc and still gets no recency credit for it (`×1`, same as ours) -
+that is NOT what's producing prod's better ranking for it.
+
+So: this is confirmed as a genuine, shared upstream data-quality issue (present in
+`tm-dp/data/statutory`'s source records, present in prod's real live index, present in
+ours - not specific to this repo's replica or its ingestion), but it does **not** explain
+observed ranking gaps between our index and prod for these queries - something else
+(likely the *competing* case-law documents' `viewcount`/`court_boost`/`total_score`
+differing between corpora, not this doc's own date) accounts for that, still
+unidentified. Don't re-cite the disproven "prod probably has real dates" framing anywhere
+else in this repo's docs if it shows up - this is the correction of record.
+
+This remains worth fixing on its own merits regardless (a genuinely broken recency signal
+for the majority of statutory content, `act`+`rule`+`commentary`), just not framed as
+"why we lose to prod" anymore. Not something fixable in `common/es_client.py`/
+`repotaxmannapi_scoring.py` - the field choice there is correct and byte-matches
+`GlobalSearchResearch.cs:632-639`; the fix, if any, belongs wherever
+`formatteddocumentdate` gets populated for these content types (upstream of
+`tm-dp/data/statutory` - outside this repo entirely, not `data-extraction-pipeline`
+either, since the placeholder is already present in the source JSON that pipeline
+consumes).
 
 ## ES2 (`researchindex2024final_dev`) - separate index, not currently used for anything
 

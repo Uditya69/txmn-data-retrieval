@@ -92,6 +92,12 @@ discrepancy to reconcile.
 """
 
 _ACT_GROUP_ID = "111050000000000064"
+# Public alias - common.es_client's group_id resolution (_build_repotaxmannapi_field_query)
+# needs this same id for its own GetGroupID() fallback (see that function's docstring/
+# call site), a separate mechanism from this module's groupBoost/edition-subgroup Weight(...)
+# functions above but the identical real constant (SearchTextElastic.cs:435,
+# `objGroup.Add("acts", 111050000000000064)`, BL/Constants.cs:313 `ActGroupId`).
+ACT_GROUP_ID = _ACT_GROUP_ID
 _RULE_FORM_ID = "111050000000000026"
 # Verified live against this repo's own ES index in an earlier session (see
 # common.es_client._EDITION_BOOSTS_BY_INSTRUMENT_KIND for the sum-mode equivalent lookup) -

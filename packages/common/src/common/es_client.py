@@ -12,7 +12,7 @@ from common.query_tokenizer import (
 )
 from common.repotaxmannapi_boost_config import load_repotaxmannapi_boost_config
 from common.repotaxmannapi_query_builder import build_should_clauses
-from common.repotaxmannapi_scoring import build_function_score_functions
+from common.repotaxmannapi_scoring import ACT_GROUP_ID, build_function_score_functions
 from common.repotaxmannapi_tokenizer import TokenType, tokenize
 from common.schemas import (
     CATEGORY_DISPLAY_LABELS, ES_GROUP_FOR_COLLECTION, GROUP_DISPLAY_LABELS, MASTERINFO_CITATION_FIELDS,
@@ -954,6 +954,30 @@ def _build_repotaxmannapi_field_query(query: str) -> dict:
     # group_id - first-classified-token-wins, TaxmannQueryAnalizer.cs's SetPrimaryTag gate
     # (see this function's own docstring, "group_id resolution").
     group_id = next((t.group_id for t in tokens if t.group_id != "0"), "0")
+    # ACT_GROUP_ID fallback (2026-09-07 fix) - mirrors SearchTextElastic.cs:283-284 exactly,
+    # NOT a generic "nothing classified -> assume Acts" rule (that would be too broad - a
+    # multi-word query like "foo bar baz" leaves searchFields.Count > 1 in the real source
+    # and must NOT get this fallback, only the separate, already-ported "not tokens" ->
+    # groups.group.url=="act" boost further below when EVERY per-token query also came back
+    # null). The real gate is narrower and specific:
+    #   if (SearchProcess.searchFields.Count == 1 && SearchProcess.searchFields[0].QType == "N")
+    #       SearchProcess.iGroupID = SearchProcess.GetGroupID().ToString();  // "0" -> "acts"
+    # i.e. the ENTIRE query must tokenize to exactly one token, and that one token must be
+    # Numeric-typed (TokenType.NUMBER) - exactly a bare section/rule number with nothing else
+    # in the query ("148", "270A", ...). A bare number never matches the token dictionary
+    # (iTagNo stays "0"), so group_id would otherwise stay "0" here too, silently skipping
+    # every group_id-gated boost below (the w/w0/w1/wc groupBoost functions in
+    # build_function_score_functions, and the GroupFilterquery should-clause in the
+    # whole-quoted-phrase branch further down) for exactly this query shape. Verified live
+    # 2026-09-07 (hot_query_smoke_test.py): 8 of Taxmann's top-10 hot queries are bare
+    # section numbers - this was the actual reason our index buried the current Income-tax
+    # Act edition's own section text under unrelated recent case law for every one of them,
+    # not the multiply-mode boost formula itself (prod runs the identical BoostMode.Multiply
+    # on every query - re-verified against every *ElasticSearchResearch.cs controller, not
+    # just this one - and still ranks the Act section first, because it gets this same
+    # fallback and we didn't).
+    if group_id == "0" and len(tokens) == 1 and tokens[0].type == TokenType.NUMBER:
+        group_id = ACT_GROUP_ID
     per_field = build_should_clauses(other_tokens, is_global=True, is_excus=False, group_id=group_id)
     if phrase_tokens:
         # Double-quoted text in the search bar (e.g. `"section 52"`) is extracted by

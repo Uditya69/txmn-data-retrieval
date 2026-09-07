@@ -1,6 +1,7 @@
 import pytest
 from common.config import Settings
 from common.es_client import (
+    ACT_GROUP_ID,
     get_es_client,
     raw_search,
     raw_search_grouped,
@@ -378,6 +379,44 @@ async def test_raw_search_repotaxmannapi_whole_query_phrase_still_wraps_function
 
 
 @pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_bare_number_defaults_to_act_group():
+    """A bare, unrecognized section number ("148") never matches the token dictionary
+    (group_id stays "0" from tokenize() alone) - mirrors TaxmannQueryAnalizer.cs's own
+    narrow fallback (SearchTextElastic.cs:283-284): only when the ENTIRE query tokenizes to
+    exactly one token AND that token is Numeric-typed does group_id get resolved to
+    ACT_GROUP_ID (GetGroupID()'s "iTagNo=='0' -> acts" default) instead of staying "0".
+    Before this fix, group_id stayed "0" for every bare-number query, silently skipping the
+    groupBoost function_score weights (build_function_score_functions's w/w0/w1/wc) that
+    are supposed to prefer the current Income-tax Act edition - live-verified 2026-09-07
+    (hot_query_smoke_test.py): our index buried the Act's own section-148 text under
+    unrelated recent case law for exactly this reason, on 8 of Taxmann's top-10 hot queries."""
+    client = FakeAsyncES(search_hits=[])
+
+    await raw_search(client, "148", limit=20, boost=True, boost_source="repotaxmannapi")
+
+    query = client.search_calls[0]
+    functions = query["function_score"]["functions"]
+    # build_function_score_functions's group-scoped weight functions (w/w0) filter on
+    # groups.group.id/subgroup.id == group_id - assert at least one such filter now
+    # targets ACT_GROUP_ID rather than every group-scoped function being a no-op "0" filter.
+    group_filters = [
+        f for f in functions
+        if "filter" in f and _mentions_value(f["filter"], ACT_GROUP_ID)
+    ]
+    assert group_filters, "expected at least one function_score weight function gated on ACT_GROUP_ID"
+
+
+def _mentions_value(obj, value) -> bool:
+    """Small recursive helper - the exact nesting of a `filter` dict (term/bool/match) isn't
+    this test's concern, only whether `value` shows up as a leaf anywhere inside it."""
+    if isinstance(obj, dict):
+        return any(_mentions_value(v, value) for v in obj.values())
+    if isinstance(obj, list):
+        return any(_mentions_value(v, value) for v in obj)
+    return obj == value
+
+
+@pytest.mark.asyncio
 async def test_raw_search_repotaxmannapi_whole_query_phrase_requires_text_match():
     """Regression guard for the structural bug: a plain top-level `bool.should` mixing the 5
     phrase-field clauses with the static group-membership `term` boosts (all in one
@@ -406,6 +445,10 @@ async def test_raw_search_repotaxmannapi_whole_query_phrase_requires_text_match(
     text_should = must[0]["bool"]["should"]
     assert all("match_phrase" in c for c in text_should), "must-clause should only hold text-relevance clauses"
     top_level_should = bool_query["should"]
+    # This citation phrase tokenizes to multiple tokens (not the single-numeric-token shape
+    # SearchTextElastic.cs:283-284's ACT_GROUP_ID fallback gates on - see
+    # _build_repotaxmannapi_field_query's group_id resolution comment), so group_id stays
+    # "0" here and no GroupFilterquery clause is added - unaffected by the 2026-09-07 fix.
     assert all("term" in c or "bool" in c for c in top_level_should)
     assert not any("match_phrase" in c for c in top_level_should), (
         "static group boosts must not sit alongside the mandatory text-match clause"
