@@ -13,7 +13,8 @@ from persona.db import ensure_persona_indexes, get_mongo_client as get_persona_m
 from chat.config import get_chat_settings
 from chat.db import ensure_retrieval_traces_indexes, get_mongo_client as get_chat_mongo_client
 from chat.router import router as chat_router
-from retrieval_api.admin_eval.router import router as admin_eval_router
+from retrieval_api.admin.feature_flags import refresh_flag_overrides
+from retrieval_api.admin.router import router as admin_router
 from retrieval_api.ws import router
 from retrieval_api.documents import router as documents_router
 from retrieval_api.query_analysis import router as query_analysis_router
@@ -56,6 +57,10 @@ async def lifespan(app: FastAPI):
         await ensure_retrieval_traces_indexes(chat_client, chat_settings)
     except Exception:
         logger.exception("Failed to ensure retrieval-trace indexes at startup - continuing without them")
+    try:
+        await refresh_flag_overrides()
+    except Exception:
+        logger.exception("Failed to load feature-flag overrides at startup - continuing on env/code defaults")
     yield
 
 
@@ -72,4 +77,4 @@ app.include_router(mode_search_router)
 app.include_router(classifier_analysis_router)
 app.include_router(auth_router)
 app.include_router(chat_router)
-app.include_router(admin_eval_router)
+app.include_router(admin_router)

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Header, HTTPException, WebSocket
+from fastapi import APIRouter, Body, Header, HTTPException, WebSocket
 
-from retrieval_api.admin_eval.auth import is_valid_admin_token
-from retrieval_api.admin_eval.registry import SUITES
+from retrieval_api.admin.auth import is_valid_admin_token
+from retrieval_api.admin.feature_flags import FLAG_REGISTRY, describe_flags, set_flag_override
+from retrieval_api.admin.registry import SUITES
 
 router = APIRouter()
 
@@ -74,3 +75,20 @@ def get_eval_run(suite: str, x_admin_token: str | None = Header(default=None)):
     if suite not in SUITES:
         raise HTTPException(status_code=404)
     return _cache.get(suite)
+
+
+@router.get("/admin/api/flags")
+def get_flags(x_admin_token: str | None = Header(default=None)):
+    if not is_valid_admin_token(x_admin_token):
+        raise HTTPException(status_code=403)
+    return describe_flags()
+
+
+@router.post("/admin/api/flags/{name}")
+async def update_flag(name: str, value: bool | None = Body(embed=True), x_admin_token: str | None = Header(default=None)):
+    if not is_valid_admin_token(x_admin_token):
+        raise HTTPException(status_code=403)
+    if name not in FLAG_REGISTRY:
+        raise HTTPException(status_code=404)
+    await set_flag_override(name, value)
+    return next(row for row in describe_flags() if row["name"] == name)

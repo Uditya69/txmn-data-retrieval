@@ -12,6 +12,7 @@ from chat.db import (
     get_conversations_collection, get_retrieval_traces_collection, get_mongo_client as get_chat_mongo_client,
 )
 from common.config import get_settings
+from retrieval_api.admin.feature_flags import effective
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
 from common.query_tokenizer import strip_noise_characters
@@ -50,7 +51,10 @@ def _title_from_query(query: str) -> str:
 
 
 def get_gateway_client() -> GatewayClient:
-    return GatewayClient()
+    return GatewayClient(reasoning_overrides={
+        "slm": effective("slm_reasoning_enabled"),
+        "synthesis": effective("synthesis_reasoning_enabled"),
+    })
 
 
 def _resolve_user_id(access_token: str | None) -> str | None:
@@ -135,8 +139,8 @@ async def search(websocket: WebSocket):
     # instant_mode_rerank_enabled/instant_mode_rrf_enabled (env, default False/True) are
     # server-side kill switches on top of the client's own request - same
     # request-AND-server-flag pattern as auto_route below.
-    rrf = message.get("rrf", False) and settings.instant_mode_rrf_enabled
-    rerank = message.get("rerank", False) and settings.instant_mode_rerank_enabled
+    rrf = message.get("rrf", False) and effective("instant_mode_rrf_enabled")
+    rerank = message.get("rerank", False) and effective("instant_mode_rerank_enabled")
     # Instant mode's ES ranking-boost toggle (documenttypeboost/court_boost/landmarkruling/
     # recency/statutory-group signals, common/es_client.py::_apply_boost/
     # build_function_score_functions) - on by default (2026-09-02, explicit user override -
@@ -158,7 +162,7 @@ async def search(websocket: WebSocket):
     # exact flat-20 behavior (raw_search's page_size=None default).
     page = message.get("page", 1)
     page_size = message.get("page_size")
-    auto_route = message.get("auto_route", False) and settings.instant_mode_auto_route_enabled
+    auto_route = message.get("auto_route", False) and effective("instant_mode_auto_route_enabled")
     es_client = get_es_client(settings)
     gateway = get_gateway_client()
     try:
@@ -221,7 +225,7 @@ async def search(websocket: WebSocket):
     ai_mode_cache_key = f"ai_mode_boost_{boost}"
     try:
         cache_settings = get_semantic_cache_settings()
-        if cache_settings.semantic_cache_enabled:
+        if effective("semantic_cache_enabled"):
             cache_mongo_client = get_cache_mongo_client(cache_settings)
             cache_collection = get_semantic_cache_collection(cache_mongo_client, cache_settings)
     except Exception:
@@ -294,7 +298,7 @@ async def search(websocket: WebSocket):
                         gateway, es_client, milvus_client, query,
                         on_step=collect_instant_step, rrf=rrf, rerank=rerank,
                         auto_route=auto_route, boost=boost, boost_source=boost_source,
-                        milvus_sparse_enabled=settings.milvus_sparse_enabled,
+                        milvus_sparse_enabled=effective("milvus_sparse_enabled"),
                         page=page, page_size=page_size,
                     )
                 )
@@ -384,7 +388,7 @@ async def search(websocket: WebSocket):
                     ai_mode_message = {
                         "type": "ai_mode_done", "answer": ai_mode_result["answer"], "citations": ai_mode_result["citations"],
                     }
-                    if get_settings().expose_reasoning and ai_mode_result.get("reasoning"):
+                    if effective("expose_reasoning") and ai_mode_result.get("reasoning"):
                         ai_mode_message["reasoning"] = ai_mode_result["reasoning"]
                     await send(ai_mode_message)
 

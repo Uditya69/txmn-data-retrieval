@@ -1,6 +1,6 @@
 from langfuse import get_client
 
-from common.config import get_settings
+from retrieval_api.admin.feature_flags import effective
 from common.es_client import fetch_citations, keyword_mode_search
 from common.query_tokenizer import build_dense_sparse_query, chunk_query, classify_intent_mode
 from retrieval_api.ai_mode.intent import extract_intent, OnStep
@@ -61,7 +61,7 @@ async def run_ai_mode(
                 # legal keywords to broaden ES recall, without paying for (or risking) a full
                 # extract_intent()-style rewrite. Appended as extra OR terms, never replacing
                 # the cleaned anchor text above.
-                if get_settings().keyword_mode_expansion_enabled:
+                if effective("keyword_mode_expansion_enabled"):
                     with langfuse.start_as_current_observation(
                         as_type="chain", name="keyword-expansion", input={"query": keyword_query},
                     ) as span:
@@ -115,8 +115,8 @@ async def run_ai_mode(
                         gateway, milvus_client, es_client, intent_result["search_query"], doc_id_allowlist,
                         intent_result["intent"], on_step=on_step, boost=boost,
                         raw_query=intent_result["original_query"],
-                        milvus_sparse_enabled=get_settings().milvus_sparse_enabled,
-                        keyword_mode_expansion_enabled=get_settings().keyword_mode_expansion_enabled,
+                        milvus_sparse_enabled=effective("milvus_sparse_enabled"),
+                        keyword_mode_expansion_enabled=effective("keyword_mode_expansion_enabled"),
                     )
                     span.update(output={"num_candidates": len(candidates)})
 
@@ -125,7 +125,7 @@ async def run_ai_mode(
                 ) as span:
                     top_chunks, citations = await rerank_and_prefetch(
                         gateway, es_client, query, candidates, on_step=on_step,
-                        rerank_enabled=get_settings().ai_mode_rerank_enabled,
+                        rerank_enabled=effective("ai_mode_rerank_enabled"),
                     )
                     span.update(output={"num_top_chunks": len(top_chunks), "num_citations": len(citations)})
                 synth_search_query = intent_result["search_query"]

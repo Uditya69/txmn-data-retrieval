@@ -1,6 +1,6 @@
 import pytest
 
-import retrieval_api.admin_eval.adapters.collection_routing as adapter
+import retrieval_api.admin.adapters.collection_routing as adapter
 
 
 def _cases():

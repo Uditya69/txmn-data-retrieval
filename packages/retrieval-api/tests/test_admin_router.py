@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from retrieval_api.main import app
-import retrieval_api.admin_eval.router as router_module
+import retrieval_api.admin.router as router_module
 
 
 @pytest.fixture(autouse=True)

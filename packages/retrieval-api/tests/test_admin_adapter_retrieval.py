@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-import retrieval_api.admin_eval.adapters.retrieval as adapter
+import retrieval_api.admin.adapters.retrieval as adapter
 
 
 def _cases():

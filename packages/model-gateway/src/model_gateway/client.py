@@ -34,13 +34,19 @@ class GatewayClient:
     service boundary (and no trace-header forwarding) left to bridge.
     """
 
-    def __init__(self, trace_enabled: bool = True):
+    def __init__(self, trace_enabled: bool = True, reasoning_overrides: dict[str, bool] | None = None):
         self._trace_enabled = trace_enabled
         settings = get_gateway_settings()
         self._settings = settings
         self._role_model_map = build_role_model_map(settings)
         self._role_provider_map = build_role_provider_map(settings)
         self._role_reasoning_map = build_role_reasoning_map(settings)
+        # Callers that resolve slm/synthesis reasoning through a Mongo-backed
+        # feature-flag layer (see retrieval_api.admin.feature_flags) pass their
+        # merged env/Mongo/default values here rather than model-gateway reading
+        # Mongo itself - model-gateway has no Mongo dependency of its own.
+        if reasoning_overrides:
+            self._role_reasoning_map = {**self._role_reasoning_map, **reasoning_overrides}
 
     def _resolve(self, role: str) -> tuple[str, str]:
         if role not in self._role_model_map or role not in self._role_provider_map:

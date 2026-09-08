@@ -1,6 +1,6 @@
 import pytest
 
-from retrieval_api.admin_eval.auth import is_valid_admin_token
+from retrieval_api.admin.auth import is_valid_admin_token
 
 
 def test_rejects_when_admin_secret_unset(monkeypatch):

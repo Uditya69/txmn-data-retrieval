@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from common.config import get_settings
+from retrieval_api.admin.feature_flags import effective
 from common.es_client import get_es_client
 from common.milvus_client import get_milvus_client
 from persona.config import get_persona_settings
@@ -66,7 +67,7 @@ async def get_ai_mode_analysis(req: AiModeAnalysisRequest):
 
     try:
         result = await run_ai_mode(gateway, es_client, milvus_client, req.query, persona_context=persona_context)
-        if not settings.expose_reasoning:
+        if not effective("expose_reasoning"):
             result.pop("reasoning", None)
         return {
             **result,

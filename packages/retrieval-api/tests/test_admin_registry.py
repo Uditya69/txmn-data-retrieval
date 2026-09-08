@@ -1,6 +1,6 @@
 import logging
 
-from retrieval_api.admin_eval.registry import SUITES
+from retrieval_api.admin.registry import SUITES
 
 
 def test_all_suites_registered():

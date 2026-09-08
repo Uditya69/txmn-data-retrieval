@@ -1,6 +1,6 @@
 import pytest
 
-import retrieval_api.admin_eval.adapters.slm_intent as adapter
+import retrieval_api.admin.adapters.slm_intent as adapter
 
 
 def _cases():

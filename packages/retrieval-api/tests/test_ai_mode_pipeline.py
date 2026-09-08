@@ -668,7 +668,7 @@ async def test_run_ai_mode_keyword_path_appends_expanded_keywords_when_flag_enab
     async def fake_synthesize(gateway, es_client, query, top_chunks, citations, on_step=None, persona_context="", search_query=""):
         return {"answer": "a", "citations": citations}
 
-    monkeypatch.setattr(module, "get_settings", lambda: Mock(keyword_mode_expansion_enabled=True))
+    monkeypatch.setattr(module, "effective", lambda name: True)
     monkeypatch.setattr(module, "expand_keyword_terms", fake_expand_keyword_terms)
     monkeypatch.setattr(module, "keyword_mode_search", fake_keyword_mode_search)
     monkeypatch.setattr(module, "fetch_citations", fake_fetch_citations)

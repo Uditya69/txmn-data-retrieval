@@ -1,6 +1,6 @@
 import logging
 
-from retrieval_api.admin_eval.adapters import collection_routing, retrieval, slm_intent
+from retrieval_api.admin.adapters import collection_routing, retrieval, slm_intent
 
 # The Langfuse SDK's own logger emits "Authentication error"/"Context error"
 # warnings on every traced call when LANGFUSE_PUBLIC_KEY isn't set - third-party

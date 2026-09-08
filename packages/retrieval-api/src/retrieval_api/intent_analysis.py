@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from common.config import get_settings
+from retrieval_api.admin.feature_flags import effective
 from persona.config import get_persona_settings
 from persona.db import get_mongo_client, get_persona_topics_collection
 from persona.prompt import render_persona_context
@@ -56,7 +57,7 @@ async def get_intent_analysis(req: IntentAnalysisRequest):
             topic_count = None
 
     result = await extract_intent(gateway, req.query, persona_context=persona_context)
-    if not settings.expose_reasoning:
+    if not effective("expose_reasoning"):
         result.pop("reasoning", None)
 
     return {
