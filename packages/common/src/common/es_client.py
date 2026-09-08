@@ -1012,6 +1012,31 @@ def _build_repotaxmannapi_field_query(query: str) -> dict:
             field_query = {"bool": {"must": [field_query], "must_not": [minus_query]}}
         should.append(field_query)
 
+    # headnotestext supplemental clause (2026-09-07 fix, additive, NOT a replacement for
+    # the _HEADNOTES_TEXT_FIELD ("headnotes_text", underscore) tiers above - those stay
+    # untouched, still the byte-exact ported formula. Separate, real bug found this
+    # session: `headnotes_text` is a field THIS repo's own transform_full.py derives by
+    # joining raw["headnotes"][]["text"] (transform_full.py:91-93), which stops at
+    # "[In favour of X]" - the source XML's own <headnote> tag genuinely ends there too,
+    # confirmed against a real prod fullcontent pull. Real prod's own `headnotestext`
+    # field (no underscore) is DIFFERENT - not the raw <headnote> tag content at all, an
+    # enriched field their indexer builds separately (headnote text + a repeated copy +
+    # an appended `~~`-delimited keyword/metadata tail from the doc's other fields) - and
+    # that enriched value already exists in our raw ingestion source under the sibling
+    # key `headnotestext` too (confirmed against a real pre-index record), copied
+    # verbatim into our own ES index by transform_full.py's own `_UNWANTED`-but-indexed
+    # list (line ~52) - already live, right now, just never queried by anything.
+    # `headnotes_text.phrase_search` exists (mapped, snowball-analyzed); `headnotestext`
+    # has neither a `.phrase_search` sub-field nor a non-default analyzer (confirmed via
+    # `_mapping/field`) - adding a proper multi-field to it needs an ES mapping change +
+    # reindex, an infra change out of scope for a query-code fix. This clause is the safe,
+    # additive alternative: a plain `match` (no phrase, no analyzer override - works fine
+    # against `headnotestext`'s own default mapping) at the same 65000 boost the primary
+    # headnotes_text tier uses, so real prod's fuller content still contributes real score
+    # even though the ported per-token branch machinery above never touches this field.
+    if query.strip():
+        should.append({"match": {"headnotestext": {"query": query, "boost": 65000}}})
+
     if not other_tokens and phrase_tokens:
         # Whole query is a double-quoted phrase (no unquoted tokens at all) - live-captured
         # against the real production endpoint (2026-09-04,
