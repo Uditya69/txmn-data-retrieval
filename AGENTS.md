@@ -1,36 +1,50 @@
-# AGENTS.md
+# AGENTS.md (root)
 
-Instructions for coding agents working in this repo.
+Instructions for coding agents working at the top of this workspace. If you're already
+inside `BE/` or `FE/`, use that submodule's own `AGENTS.md`/`CLAUDE.md`/`README.md`
+instead — it's authoritative for anything about the actual product/code. This file only
+covers the structure and git lifecycle at this root level.
 
 ## Repo
 
-`retrieval-system` — Taxmann caselaw retrieval service. uv workspace; `model-gateway` is an in-process library, not a separate service — `retrieval-api` is the only deployable app. See `README.md` for architecture/setup, `docs/superpowers/specs/2026-08-03-retrieval-system-design.md` for full design.
+This root (`github.com/Uditya69/txmn-data-retrieval`, branch `dev`) is a **submodule
+workspace**, not a source repo. `BE/` and `FE/` are separate git repositories (see
+`.gitmodules`), each with their own remote, branch, and history:
 
-## Hard rules
+- `BE/` → `bitbucket.org/taxmannrevampteam/ai-intent-search`, branch `dev` — Python/uv backend
+- `FE/` → `bitbucket.org/taxmannrevampteam/ai-intent-search-frontend`, branch `master` — TypeScript/Vite frontend
 
-1. `query_embed` role must resolve to Voyage, never DeepInfra or another provider — the Milvus corpus was embedded with Voyage, mismatched embeddings silently corrupt search (no error, just wrong results). See `model-gateway/src/model_gateway/config.py::build_role_provider_map`.
-2. Milvus `sparse_vector` is server-computed BM25, never set client-side. Sparse queries pass `anns_field="sparse_vector"`, `data=[<raw text>]` — see `common/src/common/milvus_client.py`.
-3. No ranking fusion between ES and Milvus — `doc_id` is join-only.
-4. AI Mode queries all 7 Milvus collections every time, no intent-based routing.
-5. Python 3.11 only (`pymilvus`'s `grpcio` has no 3.14 wheel).
+Bitbucket is authoritative for real work on either half. This root repo only pins which
+`BE`/`FE` commit belongs together as one combined snapshot.
 
-## Gotchas already hit once — don't repeat
+## Hard rule
 
-- pydantic-settings matches env vars to uppercased field names, no prefix by default. If `.env.example` has `DEEPINFRA_CHAT_MODEL_SLM` the field must be named `deepinfra_chat_model_slm`, not `chat_model_slm`.
-- `from module import name` + `monkeypatch.setattr(module, "name", fake)` does NOT intercept calls made via the direct-imported name in a different module. Use `import module` and call `module.name(...)` at any call site you need to be mockable from outside.
-- Module-scope config construction (e.g. building a role→model map at import time) breaks test collection if required settings aren't in the environment. Check `packages/model-gateway/tests/conftest.py` for the pattern used to work around this.
+**Never commit source files at this root.** A `git status` here should only ever show a
+`BE`/`FE` pointer change, or an edit to this file/`CLAUDE.md`/`Makefile`. If you're
+about to edit actual product code and you're sitting at the root, `cd BE` or `cd FE`
+first — that submodule's own git history, remote, and rules apply from there on, as if
+it were the only repo checked out.
+
+## Workflow
+
+1. `cd BE` (or `FE`) → do the work → commit → `git push` (goes to Bitbucket, that
+   submodule's own `origin`). Standard single-repo workflow, nothing special.
+2. Back at root: `make bump-be` (or `make bump-fe`) to record the new commit as this
+   workspace's pinned pointer, and push the root repo to GitHub.
+3. To pull in already-pushed Bitbucket work without making changes of your own:
+   `make sync`.
+
+See root `CLAUDE.md` for the full explanation and `make status` for a combined view of
+all three repos (root + BE + FE) at once.
 
 ## Commands
 
 ```bash
-uv sync --all-packages                               # NOT bare `uv sync` - drops editable installs of workspace members
-uv run pytest                                        # aggregates all packages from repo root
-docker build -t retrieval-api .
-docker run --env-file .env -p 8000:8000 retrieval-api
+git submodule update --init --recursive   # after a fresh clone of this root repo
+make status                               # root + BE + FE status in one shot
+make bump-be / make bump-fe               # record a pushed BE/FE commit as this workspace's pointer
+make sync                                 # pull BE/FE to their tracked branch tips + bump both pointers
 ```
 
-## Conventions
-
-- Import names: `common`, `model_gateway`, `retrieval_api` (underscore). Distribution/package names in pyproject.toml: `common`, `model-gateway`, `retrieval-api` (dash for the latter two).
-- TDD throughout: every module has a paired test file, written failing-first.
-- `common/schemas.py`'s collection/chunking facts were verified against `data-extraction-pipeline`'s actual source code, not its docs (some of which are stale). Don't re-derive these from that repo's markdown.
+No tests, no dev server, no build runs from this root — `cd BE` or `cd FE` for those,
+each has its own toolchain (`uv` vs `npm`).

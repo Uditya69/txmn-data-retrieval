@@ -1,0 +1,8 @@
+[submodule "BE"]
+	path = BE
+	url = git@bitbucket.org:taxmannrevampteam/ai-intent-search.git
+	branch = dev
+[submodule "FE"]
+	path = FE
+	url = git@bitbucket.org:taxmannrevampteam/ai-intent-search-frontend.git
+	branch = master
