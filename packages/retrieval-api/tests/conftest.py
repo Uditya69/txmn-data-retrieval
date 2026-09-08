@@ -14,7 +14,23 @@ os.environ.setdefault("JWT_EXPIRY_MINUTES", "60")
 os.environ.setdefault("MILVUS_URI", "http://localhost:19530")
 os.environ.setdefault("MILVUS_TOKEN", "test-milvus-token")
 os.environ.setdefault("ES_URI", "http://localhost:9200")
-os.environ.setdefault("GATEWAY_URL", "http://localhost:8000")
+# Dummy env vars for model_gateway.GatewaySettings required fields - model_gateway.client
+# builds this lazily (on GatewayClient() construction, not at import time), but any test
+# that constructs a real GatewayClient() rather than mocking it needs these to resolve.
+# Mirrors packages/model-gateway/tests/conftest.py's own defaults - extend both if a new
+# required field is added.
+os.environ.setdefault("DEEPINFRA_API_KEY", "test-deepinfra-key")
+os.environ.setdefault("DEEPINFRA_CHAT_MODEL_SLM", "test-deepinfra-slm-model")
+os.environ.setdefault("DEEPINFRA_CHAT_MODEL_SYNTHESIS", "test-deepinfra-synthesis-model")
+os.environ.setdefault("DEEPINFRA_RERANK_MODEL", "test-rerank-model")
+os.environ.setdefault("VOYAGE_API_KEY", "test-voyage-key")
+os.environ.setdefault("VOYAGE_EMBED_MODEL", "test-voyage-embed-model")
+os.environ.setdefault("LOCAL_API_KEY", "test-local-key")
+os.environ.setdefault("LOCAL_BASE_URL", "http://localhost:8000/v1")
+os.environ.setdefault("LOCAL_CHAT_MODEL_SLM", "test-local-slm-model")
+os.environ.setdefault("LOCAL_CHAT_MODEL_SYNTHESIS", "test-local-synthesis-model")
+os.environ.setdefault("LOCAL_RERANK_BASE_URL", "http://localhost:8001/v1")
+os.environ.setdefault("LOCAL_RERANK_MODEL", "test-local-rerank-model")
 
 
 class FakePersonasCollection:

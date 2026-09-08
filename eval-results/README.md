@@ -30,16 +30,16 @@ keeping and comparing against later.
 
 ## Prerequisites (once per server)
 
-`model-gateway` must be running and reachable (retrieval-api itself is NOT required —
-none of the eval scripts call it):
+model-gateway is now an in-process library (`model_gateway`), not a separately running
+service — the eval scripts resolve providers/models straight from `.env` via
+`GatewaySettings`, same as retrieval-api itself does. No server to start first; just
+confirm the config resolves and the configured providers are actually reachable:
 
 ```bash
-tmux new -d -s gateway 'uv run --package model-gateway uvicorn model_gateway.main:app --host 0.0.0.0 --port 8001'
-uv run python evals/preflight.py --gateway-url http://localhost:8001
+uv run python evals/scripts/preflight.py
 ```
 
-All commands below assume `--gateway-url http://localhost:8001` and that you're at the
-repo root.
+All commands below assume you're at the repo root.
 
 ## Running one eval, headless
 
@@ -52,22 +52,22 @@ mkdir -p "$RUN"
 
 **SLM intent** (category + rewrite + filters, graded together):
 ```bash
-tmux new -d -s slm-intent "uv run python -m retrieval_api.slm_intent_eval --gateway-url http://localhost:8001 --output $RUN/slm-intent.jsonl --resume"
+tmux new -d -s slm-intent "uv run python -m retrieval_api.slm_intent_eval --output $RUN/slm-intent.jsonl --resume"
 ```
 
 **Collection routing** (category tag routing only):
 ```bash
-tmux new -d -s collection-routing "uv run python -m retrieval_api.collection_routing_eval --gateway-url http://localhost:8001 --output $RUN/collection-routing.jsonl --resume"
+tmux new -d -s collection-routing "uv run python -m retrieval_api.collection_routing_eval --output $RUN/collection-routing.jsonl --resume"
 ```
 
 **Intent filters** (exact-match filter + category extraction):
 ```bash
-tmux new -d -s intent-filter "uv run python -m retrieval_api.intent_eval --gateway-url http://localhost:8001 --output $RUN/intent-filter.jsonl --resume"
+tmux new -d -s intent-filter "uv run python -m retrieval_api.intent_eval --output $RUN/intent-filter.jsonl --resume"
 ```
 
 **Retrieval + synthesis** (ES/Milvus/RRF/reranker rank, citation validity):
 ```bash
-tmux new -d -s retrieval "uv run python -m retrieval_api.retrieval_eval --gateway-url http://localhost:8001 --jsonl-output $RUN/retrieval.jsonl --resume"
+tmux new -d -s retrieval "uv run python -m retrieval_api.retrieval_eval --jsonl-output $RUN/retrieval.jsonl --resume"
 ```
 Add `--skip-synthesis` to that last command to skip the (slowest) synthesis LLM call
 and just grade ES/Milvus/RRF/reranker rank.
@@ -79,7 +79,7 @@ Pass the run folder as its one argument — it creates the folder and writes eve
 `.jsonl` straight into it, no copying/renaming needed afterward:
 
 ```bash
-tmux new -d -s full-sweep 'bash evals/run_all.sh eval-results/YYYY-MM-DD/NN-full-sweep'
+tmux new -d -s full-sweep 'bash evals/scripts/run_all.sh eval-results/YYYY-MM-DD/NN-full-sweep'
 ```
 
 Omit the argument and it falls back to `.eval-results/` (gitignored scratch space) —

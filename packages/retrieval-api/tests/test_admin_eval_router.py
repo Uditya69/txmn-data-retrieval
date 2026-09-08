@@ -14,19 +14,19 @@ def _reset_router_state():
     router_module._cache.clear()
 
 
-async def _fake_suite_run(gateway_url, limit):
+async def _fake_suite_run(limit):
     yield {"type": "case", "id": "T1", "query": "q1", "status": "pass", "detail": {}}
     yield {"type": "progress", "done": 1, "total": 1, "percent": 100}
     yield {"type": "done", "summary": {"total": 1, "passed": 1}}
 
 
-async def _failing_suite_run(gateway_url, limit):
+async def _failing_suite_run(limit):
     if False:
         yield  # pragma: no cover - makes this an async generator
     raise FileNotFoundError("evals/routing_cases.json not found")
 
 
-async def _partial_then_failing_suite_run(gateway_url, limit):
+async def _partial_then_failing_suite_run(limit):
     yield {"type": "case", "id": "T1", "query": "q1", "status": "pass", "detail": {}}
     raise RuntimeError("boom")
 
@@ -36,7 +36,7 @@ CASES = [
 ]
 
 
-async def _limit_recording_suite_run(gateway_url, limit):
+async def _limit_recording_suite_run(limit):
     cases = CASES[:limit] if limit is not None else CASES
     for case in cases:
         yield {"type": "case", "id": case["id"], "query": case["query"], "status": "pass", "detail": {}}
@@ -77,7 +77,6 @@ def test_ws_rejects_already_running_suite(monkeypatch):
 def test_ws_streams_events_and_populates_cache(monkeypatch):
     monkeypatch.setattr(router_module, "is_valid_admin_token", lambda token: True)
     monkeypatch.setitem(router_module.SUITES, "fake_suite", {"name": "Fake", "run": _fake_suite_run})
-    monkeypatch.setattr(router_module, "get_settings", lambda: type("S", (), {"gateway_url": "http://gateway"})())
 
     client = TestClient(app)
     with client.websocket_connect("/ws/admin-eval") as ws:
@@ -119,7 +118,6 @@ def test_cache_read_rejects_wrong_token(monkeypatch):
 def test_ws_surfaces_run_level_exception_before_any_yield(monkeypatch):
     monkeypatch.setattr(router_module, "is_valid_admin_token", lambda token: True)
     monkeypatch.setitem(router_module.SUITES, "fake_suite", {"name": "Fake", "run": _failing_suite_run})
-    monkeypatch.setattr(router_module, "get_settings", lambda: type("S", (), {"gateway_url": "http://gateway"})())
 
     client = TestClient(app)
     with client.websocket_connect("/ws/admin-eval") as ws:
@@ -137,7 +135,6 @@ def test_ws_surfaces_run_level_exception_after_partial_yield(monkeypatch):
     monkeypatch.setitem(
         router_module.SUITES, "fake_suite", {"name": "Fake", "run": _partial_then_failing_suite_run}
     )
-    monkeypatch.setattr(router_module, "get_settings", lambda: type("S", (), {"gateway_url": "http://gateway"})())
 
     client = TestClient(app)
     with client.websocket_connect("/ws/admin-eval") as ws:
@@ -178,7 +175,6 @@ def test_cache_read_rejects_when_admin_secret_unset_real_predicate(monkeypatch):
 def test_ws_normalizes_invalid_limit_to_no_limit(monkeypatch, bad_limit):
     monkeypatch.setattr(router_module, "is_valid_admin_token", lambda token: True)
     monkeypatch.setitem(router_module.SUITES, "fake_suite", {"name": "Fake", "run": _limit_recording_suite_run})
-    monkeypatch.setattr(router_module, "get_settings", lambda: type("S", (), {"gateway_url": "http://gateway"})())
 
     client = TestClient(app)
     with client.websocket_connect("/ws/admin-eval") as ws:
@@ -193,7 +189,6 @@ def test_ws_normalizes_invalid_limit_to_no_limit(monkeypatch, bad_limit):
 def test_ws_applies_valid_limit(monkeypatch):
     monkeypatch.setattr(router_module, "is_valid_admin_token", lambda token: True)
     monkeypatch.setitem(router_module.SUITES, "fake_suite", {"name": "Fake", "run": _limit_recording_suite_run})
-    monkeypatch.setattr(router_module, "get_settings", lambda: type("S", (), {"gateway_url": "http://gateway"})())
 
     client = TestClient(app)
     with client.websocket_connect("/ws/admin-eval") as ws:

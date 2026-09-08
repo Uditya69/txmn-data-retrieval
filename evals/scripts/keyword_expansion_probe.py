@@ -12,7 +12,7 @@ Gold is regenerated live from ES each run (query + persona's Act/subject terms),
 "gold from live ES" convention as keyword_only_probe.py, not hand-fabricated doc_ids.
 
 Usage:
-    uv run python evals/scripts/keyword_expansion_probe.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/keyword_expansion_probe.py
 """
 import argparse
 import asyncio
@@ -23,7 +23,7 @@ from pathlib import Path
 from common.config import get_settings
 from common.es_client import get_es_client, keyword_mode_search, raw_search
 from retrieval_api.ai_mode.keyword_expansion import expand_keyword_terms
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.retrieval_eval import doc_rank
 
 RESULTS_DIR = Path(__file__).parent.parent / "results"
@@ -94,7 +94,7 @@ async def run_case(gateway: GatewayClient, es_client, case: dict, use_persona: b
 async def _run(args) -> None:
     settings = get_settings()
     es_client = get_es_client(settings)
-    gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
 
     supports_persona = "persona_context" in inspect.signature(expand_keyword_terms).parameters
     label = "after (persona-aware)" if supports_persona else "before (no persona support yet)"
@@ -123,7 +123,6 @@ async def _run(args) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Probe expand_keyword_terms persona-context impact")
-    parser.add_argument("--gateway-url", help="override GATEWAY_URL (use http://localhost:8001 when running from the host)")
     args = parser.parse_args()
     asyncio.run(_run(args))
 

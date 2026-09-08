@@ -11,7 +11,7 @@ client = TestClient(app)
 
 
 def _patch_common(monkeypatch, fake_run_ai_mode):
-    monkeypatch.setattr(ai_mode_analysis_module, "get_settings", lambda: Mock(gateway_url="http://gateway"))
+    monkeypatch.setattr(ai_mode_analysis_module, "get_settings", lambda: Mock())
     monkeypatch.setattr(ai_mode_analysis_module, "GatewayClient", lambda **_: AsyncMock())
     monkeypatch.setattr(ai_mode_analysis_module, "get_es_client", lambda *_: AsyncMock())
     monkeypatch.setattr(ai_mode_analysis_module, "get_milvus_client", lambda *_: Mock())
@@ -105,7 +105,7 @@ def test_ai_mode_analysis_closes_clients_on_success(monkeypatch):
     async def fake_run_ai_mode(gateway, es_client, milvus_client, query, on_step=None, persona_context=""):
         return {"ok": True, "answer": "answer", "citations": {}, "intent": []}
 
-    monkeypatch.setattr(ai_mode_analysis_module, "get_settings", lambda: Mock(gateway_url="http://gateway"))
+    monkeypatch.setattr(ai_mode_analysis_module, "get_settings", lambda: Mock())
     monkeypatch.setattr(ai_mode_analysis_module, "GatewayClient", lambda **_: AsyncMock())
     monkeypatch.setattr(ai_mode_analysis_module, "get_es_client", lambda *_: es_client)
     monkeypatch.setattr(ai_mode_analysis_module, "get_milvus_client", lambda *_: milvus_client)

@@ -21,7 +21,7 @@ async def test_run_marks_wrong_confident_tag_as_fail(monkeypatch):
 
     monkeypatch.setattr(adapter, "extract_intent", fake_extract_intent)
 
-    events = [event async for event in adapter.run("http://gateway", None)]
+    events = [event async for event in adapter.run(None)]
     case_events = [e for e in events if e["type"] == "case"]
     assert case_events[0]["status"] == "pass"
     assert case_events[0]["detail"]["outcome"] == "exact"
@@ -38,6 +38,6 @@ async def test_run_treats_safe_empty_as_pass(monkeypatch):
 
     monkeypatch.setattr(adapter, "extract_intent", fake_extract_intent)
 
-    events = [event async for event in adapter.run("http://gateway", None)]
+    events = [event async for event in adapter.run(None)]
     case_events = [e for e in events if e["type"] == "case"]
     assert all(c["status"] == "pass" for c in case_events)

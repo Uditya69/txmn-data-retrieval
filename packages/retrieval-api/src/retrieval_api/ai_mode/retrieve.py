@@ -12,7 +12,7 @@ from common.query_tokenizer import chunk_query
 from common.schemas import ES_GROUP_FOR_COLLECTION, SPARSE_VECTOR_COLLECTIONS, collections_for_intent
 from retrieval_api.ai_mode.intent import OnStep
 from retrieval_api.ai_mode.keyword_expansion import expand_keyword_terms
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.trace_utils import collection_trace
 
 # Synthetic "collection" bucket for the flag-off ES-wide sparse pass below - there's no

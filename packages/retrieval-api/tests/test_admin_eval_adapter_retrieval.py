@@ -15,7 +15,7 @@ def _cases():
 @pytest.mark.asyncio
 async def test_run_uses_reranker_rank_for_pass_fail(monkeypatch):
     monkeypatch.setattr(adapter, "load_cases", lambda path: _cases())
-    monkeypatch.setattr(adapter, "get_settings", lambda: type("S", (), {"gateway_url": "http://gateway"})())
+    monkeypatch.setattr(adapter, "get_settings", lambda: type("S", (), {})())
     fake_es = AsyncMock()
     fake_milvus = Mock()
     monkeypatch.setattr(adapter, "get_es_client", lambda settings: fake_es)
@@ -27,7 +27,7 @@ async def test_run_uses_reranker_rank_for_pass_fail(monkeypatch):
 
     monkeypatch.setattr(adapter, "evaluate_case", fake_evaluate_case)
 
-    events = [event async for event in adapter.run("http://gateway", None)]
+    events = [event async for event in adapter.run(None)]
     case_events = [e for e in events if e["type"] == "case"]
 
     assert case_events[0]["status"] == "pass"   # rank 2 <= pass_at 5
@@ -40,7 +40,7 @@ async def test_run_uses_reranker_rank_for_pass_fail(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_closes_clients_even_on_case_error(monkeypatch):
     monkeypatch.setattr(adapter, "load_cases", lambda path: _cases()[:1])
-    monkeypatch.setattr(adapter, "get_settings", lambda: type("S", (), {"gateway_url": "http://gateway"})())
+    monkeypatch.setattr(adapter, "get_settings", lambda: type("S", (), {})())
     fake_es = AsyncMock()
     fake_milvus = Mock()
     monkeypatch.setattr(adapter, "get_es_client", lambda settings: fake_es)
@@ -51,7 +51,7 @@ async def test_run_closes_clients_even_on_case_error(monkeypatch):
 
     monkeypatch.setattr(adapter, "evaluate_case", failing_evaluate_case)
 
-    events = [event async for event in adapter.run("http://gateway", None)]
+    events = [event async for event in adapter.run(None)]
     case_events = [e for e in events if e["type"] == "case"]
     assert case_events[0]["status"] == "error"
     fake_es.close.assert_awaited_once()

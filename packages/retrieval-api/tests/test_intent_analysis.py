@@ -11,7 +11,7 @@ client = TestClient(app)
 
 
 def _patch_gateway(monkeypatch):
-    monkeypatch.setattr(intent_analysis_module, "get_settings", lambda: AsyncMock(gateway_url="http://gateway"))
+    monkeypatch.setattr(intent_analysis_module, "get_settings", lambda: AsyncMock())
     monkeypatch.setattr(intent_analysis_module, "GatewayClient", lambda **_: AsyncMock())
 
 

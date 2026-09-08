@@ -6,7 +6,7 @@ from pathlib import Path
 from common.schemas import collections_for_intent
 from retrieval_api.ai_mode.intent import extract_intent
 from retrieval_api.eval_io import append_result, filter_pending, load_completed_ids, read_records
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 
 _VALID_EXPECT = {"confident", "vague"}
 
@@ -93,14 +93,14 @@ def print_routing_summary(records: list[dict]) -> None:
 
 
 async def run(
-    gateway_url: str, model: str | None, dataset_path: str | Path,
+    model: str | None, dataset_path: str | Path,
     output: Path | None = None, resume: bool = False,
 ) -> None:
     cases = load_routing_cases(dataset_path)
     records: list[dict] = read_records(output) if (output and resume) else []
     if output and resume:
         cases = filter_pending(cases, load_completed_ids(output))
-    gateway = GatewayClient(base_url=gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
 
     for case in cases:
         try:
@@ -142,7 +142,6 @@ def main() -> None:
         "expected category tag, or come back empty (safe search-all fallback) - never a "
         "confidently wrong non-empty tag."
     )
-    parser.add_argument("--gateway-url", default="http://localhost:8011")
     parser.add_argument("--model", default=None, help="Override the slm role's model")
     parser.add_argument("--dataset", default="evals/datasets/collection_routing_cases.json")
     parser.add_argument("--output", type=Path, help="append per-case results to this JSONL file as they complete")
@@ -154,7 +153,7 @@ def main() -> None:
         return
     if args.resume and not args.output:
         parser.error("--resume requires --output")
-    asyncio.run(run(args.gateway_url, args.model, args.dataset, output=args.output, resume=args.resume))
+    asyncio.run(run(args.model, args.dataset, output=args.output, resume=args.resume))
 
 
 if __name__ == "__main__":

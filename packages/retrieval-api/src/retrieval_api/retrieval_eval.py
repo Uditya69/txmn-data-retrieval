@@ -23,7 +23,7 @@ from retrieval_api.ai_mode.rerank import rerank_top_chunks
 from retrieval_api.ai_mode.retrieve import _flatten, rrf_merge
 from retrieval_api.ai_mode.synthesize import synthesize
 from retrieval_api.eval_io import append_result, filter_pending, load_completed_ids, read_records
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.score_cutoff import elbow_cutoff
 
 # doc_ids in this codebase are alphanumeric/hyphen/underscore tokens (e.g.
@@ -418,7 +418,7 @@ async def _run(args) -> int:
     sparse_enabled = settings.milvus_sparse_enabled if args.sparse_enabled is None else args.sparse_enabled
     es_client = get_es_client(settings)
     milvus_client = get_milvus_client(settings)
-    gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=not args.no_langfuse)
+    gateway = GatewayClient(trace_enabled=not args.no_langfuse)
     langfuse = get_client()
     try:
         results = read_records(args.jsonl_output) if args.jsonl_resume else []
@@ -522,7 +522,6 @@ def main() -> None:
     )
     parser.add_argument("--cache-dir", type=Path, help="cache ES/Milvus/intent/rerank stage output per (query id, slm_model, reranker_model, sparse_enabled) here, so runs that only vary synthesis_model skip straight to synthesis")
     parser.add_argument("--run-name", default="retrieval-eval")
-    parser.add_argument("--gateway-url", help="override GATEWAY_URL (useful when running outside Docker)")
     parser.add_argument("--langfuse-base-url", help="override LANGFUSE_BASE_URL for host-side runs")
     parser.add_argument("--output", type=Path, help="exact result path; default creates a timestamped archive")
     parser.add_argument("--no-langfuse", action="store_true")

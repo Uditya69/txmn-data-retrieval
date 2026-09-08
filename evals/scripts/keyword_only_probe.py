@@ -20,7 +20,7 @@ Two things happen when this is run:
      records the best rank among the 3 gold doc_ids.
 
 Usage:
-    uv run python evals/scripts/keyword_only_probe.py --gateway-url http://localhost:8001
+    uv run python evals/scripts/keyword_only_probe.py
 """
 import argparse
 import asyncio
@@ -33,7 +33,7 @@ from common.es_client import get_es_client, raw_search
 from common.milvus_client import get_milvus_client, hybrid_search
 from common.schemas import MILVUS_COLLECTIONS
 from retrieval_api.ai_mode.retrieve import _flatten
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.retrieval_eval import doc_rank
 
 DATASETS_DIR = Path(__file__).parent.parent / "datasets"
@@ -119,7 +119,7 @@ async def _run(args) -> None:
     settings = get_settings()
     es_client = get_es_client(settings)
     milvus_client = get_milvus_client(settings)
-    gateway = GatewayClient(args.gateway_url or settings.gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
     try:
         cases = await build_cases(es_client)
         (DATASETS_DIR / "keyword_only_cases.json").write_text(json.dumps(cases, indent=2))
@@ -148,7 +148,6 @@ async def _run(args) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ultra-short keyword-only ES-vs-Milvus-dense probe")
-    parser.add_argument("--gateway-url", help="override GATEWAY_URL (use http://localhost:8001 when running from the host)")
     args = parser.parse_args()
     asyncio.run(_run(args))
 

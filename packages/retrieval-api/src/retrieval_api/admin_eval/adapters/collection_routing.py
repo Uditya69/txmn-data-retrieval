@@ -3,17 +3,17 @@ from typing import AsyncIterator
 
 from retrieval_api.ai_mode.intent import extract_intent
 from retrieval_api.collection_routing_eval import check_routing_case, load_routing_cases
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 
 DATASET_PATH = Path("evals/datasets/collection_routing_cases.json")
 
 
-async def run(gateway_url: str, limit: int | None) -> AsyncIterator[dict]:
+async def run(limit: int | None) -> AsyncIterator[dict]:
     cases = load_routing_cases(DATASET_PATH)
     if limit:
         cases = cases[:limit]
     total = len(cases)
-    gateway = GatewayClient(base_url=gateway_url, trace_enabled=False)
+    gateway = GatewayClient(trace_enabled=False)
     passed = 0
 
     for i, case in enumerate(cases, start=1):

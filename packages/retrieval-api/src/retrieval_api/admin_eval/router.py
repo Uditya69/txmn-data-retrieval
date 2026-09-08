@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Header, HTTPException, WebSocket
 
-from common.config import get_settings
 from retrieval_api.admin_eval.auth import is_valid_admin_token
 from retrieval_api.admin_eval.registry import SUITES
 
@@ -51,10 +50,9 @@ async def admin_eval(websocket: WebSocket):
         return
 
     _running.add(suite)
-    gateway_url = get_settings().gateway_url
     cases: list[dict] = []
     try:
-        async for event in SUITES[suite]["run"](gateway_url, limit):
+        async for event in SUITES[suite]["run"](limit):
             if event["type"] == "case":
                 cases.append(event)
             await websocket.send_json(event)

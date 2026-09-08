@@ -1,4 +1,4 @@
-from retrieval_api.gateway_client import GatewayClient
+from model_gateway.client import GatewayClient
 from retrieval_api.score_cutoff import elbow_cutoff
 
 _MAX_CHUNKS = 5

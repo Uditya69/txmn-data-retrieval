@@ -4,7 +4,7 @@ Instructions for coding agents working in this repo.
 
 ## Repo
 
-`retrieval-system` — Taxmann caselaw retrieval service. uv workspace, Python 3.11, 3 packages: `common`, `model-gateway`, `retrieval-api`. Docker-compose stack. See `README.md` for architecture/setup, `docs/superpowers/specs/2026-08-03-retrieval-system-design.md` for full design.
+`retrieval-system` — Taxmann caselaw retrieval service. uv workspace; `model-gateway` is an in-process library, not a separate service — `retrieval-api` is the only deployable app. See `README.md` for architecture/setup, `docs/superpowers/specs/2026-08-03-retrieval-system-design.md` for full design.
 
 ## Hard rules
 
@@ -24,8 +24,9 @@ Instructions for coding agents working in this repo.
 
 ```bash
 uv sync --all-packages                               # NOT bare `uv sync` - drops editable installs of workspace members
-uv run pytest                                        # aggregates all 3 packages from repo root
-docker compose up -d --build                         # run the stack
+uv run pytest                                        # aggregates all packages from repo root
+docker build -t retrieval-api .
+docker run --env-file .env -p 8000:8000 retrieval-api
 ```
 
 ## Conventions

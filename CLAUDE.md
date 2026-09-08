@@ -49,7 +49,9 @@ Do not use Opus for subagents/reviewers in this repo (drains usage quota faster 
 
 `uv run pytest` from repo root aggregates all packages. Scope to one package with `uv run pytest packages/<name>/tests` if needed.
 
-`docker compose build` / `docker compose up -d --build` from repo root.
+One deployable service (`retrieval-api`; `model-gateway` is an in-process library, not a separate
+service/container). Single root `Dockerfile`: `docker build -t retrieval-api .` then
+`docker run --env-file .env -p 8000:8000 retrieval-api`. For local dev with hot-reload, `scripts/dev.sh`.
 
 ## If you're continuing implementation work
 
