@@ -3,8 +3,8 @@ import pytest
 from common.document_parser import parse_fullcontent, strip_tags_to_text
 
 
-def _text(s, bold=False, italic=False):
-    return {"type": "text", "text": s, "bold": bold, "italic": italic}
+def _text(s, bold=False, italic=False, highlight=False):
+    return {"type": "text", "text": s, "bold": bold, "italic": italic, "highlight": highlight}
 
 
 def test_parse_fullcontent_returns_empty_list_for_no_content_blocks():
@@ -138,6 +138,46 @@ def test_parse_fullcontent_skips_blank_paragraphs():
 def test_parse_fullcontent_raises_value_error_on_malformed_xml():
     with pytest.raises(ValueError):
         parse_fullcontent("<document><body><para>unclosed</body></document>")
+
+
+def test_parse_fullcontent_preserves_inline_mark_as_a_highlighted_span():
+    """`<mark>` is what fetch_highlighted_fullcontent's ES highlight_query
+    injects around real query matches (query-result-page parity with real
+    prod's server-side highlighting, repotaxmannapi's own `#~~@#`/`#@@~#`
+    placeholder-then-`researchdochighlight`-span swap) - parsed the same way
+    bold/italic already are, a plain ancestor-tracked formatting flag, not a
+    block type of its own."""
+    xml = "<document><body><para>Assessee filed a <mark>return</mark> under section 139.</para></body></document>"
+
+    blocks = parse_fullcontent(xml)
+
+    assert blocks == [{
+        "type": "paragraph",
+        "spans": [
+            _text("Assessee filed a "),
+            _text("return", highlight=True),
+            _text(" under section 139."),
+        ],
+    }]
+
+
+def test_parse_fullcontent_combines_highlight_with_bold_and_italic():
+    xml = (
+        "<document><body><para>"
+        "<b>Pankaj Jain, J.</b> - <i><mark>Ramana Dayaram Shetty</mark></i>"
+        "</para></body></document>"
+    )
+
+    blocks = parse_fullcontent(xml)
+
+    assert blocks == [{
+        "type": "paragraph",
+        "spans": [
+            _text("Pankaj Jain, J.", bold=True),
+            _text(" - "),
+            _text("Ramana Dayaram Shetty", italic=True, highlight=True),
+        ],
+    }]
 
 
 def test_parse_fullcontent_extracts_paragraphs_from_legacy_html_documents():

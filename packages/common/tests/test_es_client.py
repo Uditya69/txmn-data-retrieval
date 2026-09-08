@@ -8,6 +8,7 @@ from common.es_client import (
     resolve_doc_id_allowlist,
     fetch_citations,
     fetch_fullcontent,
+    fetch_highlighted_fullcontent,
     fetch_document_metadata,
     build_query_preview,
     _build_field_query,
@@ -1424,6 +1425,85 @@ async def test_fetch_fullcontent_returns_none_when_doc_not_found():
     client = FakeAsyncES(search_hits=[])
 
     result = await fetch_fullcontent(client, "missing")
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_highlighted_fullcontent_wraps_real_matches_in_mark_tags():
+    """Prod parity (repotaxmannapi's FileContentElasticSearchResearch.cs:118,
+    real server-side ES highlighting over the whole document, not a client-side
+    regex re-guess) - the document is selected by id alone (guarantees exactly
+    one hit regardless of whether `query` happens to match fullcontent at all),
+    highlighting is computed independently via `highlight_query` - a plain
+    `match` on fullcontent, verified byte-for-byte against the real source
+    (FileContentElasticSearchResearch.cs:71's `fcontentSearch`), not the full
+    fuzzy ranking query used elsewhere (that one's `fuzziness: AUTO` produced
+    confusing highlights unrelated-looking words are genuinely edit-distance-2
+    from a real query term - live-caught via Chrome, see this function's own
+    docstring)."""
+    client = FakeAsyncES(search_hits=[{
+        "_source": {"fullcontent": "<document><body><para>filed a return</para></body></document>"},
+        "highlight": {"fullcontent": ["<document><body><para>filed a <mark>return</mark></para></body></document>"]},
+    }])
+
+    result = await fetch_highlighted_fullcontent(client, "101010000000322113", "return")
+
+    assert result == "<document><body><para>filed a <mark>return</mark></para></body></document>"
+    assert client.search_calls[0] == {"term": {"id": "101010000000322113"}}
+    highlight = client.highlight_calls[0]
+    assert highlight["pre_tags"] == ["<mark>"]
+    assert highlight["post_tags"] == ["</mark>"]
+    assert highlight["fields"]["fullcontent"]["number_of_fragments"] == 1
+    assert highlight["fields"]["fullcontent"]["highlight_query"] == {"match": {"fullcontent": {"query": "return"}}}
+
+
+@pytest.mark.asyncio
+async def test_fetch_highlighted_fullcontent_uses_match_phrase_for_a_quoted_exact_search():
+    """Live-verified on real prod (taxmann.com/research, 2026-09-07): a plain
+    search ("section 148") highlights "section" and "148" as independent
+    words everywhere in the document; a quoted exact-phrase search
+    ('"section 148"') highlights ONLY the contiguous phrase "section 148" -
+    other bare "section"/"148" occurrences elsewhere in the same document are
+    left unhighlighted. A query wrapped in double quotes must switch
+    highlight_query from `match` (OR-of-words) to `match_phrase` (contiguous
+    match only), quotes stripped before querying."""
+    client = FakeAsyncES(search_hits=[{
+        "_source": {"fullcontent": "<document><body><para>notice under section 148</para></body></document>"},
+        "highlight": {"fullcontent": [
+            "<document><body><para>notice under <mark>section 148</mark></para></body></document>",
+        ]},
+    }])
+
+    result = await fetch_highlighted_fullcontent(client, "101010000000322113", '"section 148"')
+
+    assert result == "<document><body><para>notice under <mark>section 148</mark></para></body></document>"
+    highlight = client.highlight_calls[0]
+    assert highlight["fields"]["fullcontent"]["highlight_query"] == {
+        "match_phrase": {"fullcontent": {"query": "section 148"}},
+    }
+
+
+@pytest.mark.asyncio
+async def test_fetch_highlighted_fullcontent_falls_back_to_plain_fullcontent_when_nothing_matched():
+    """`highlight_query` finding zero matches (e.g. the doc was opened from a
+    card that matched on `heading`, not `fullcontent`) must not surface as a
+    missing document - fall back to the plain field, same as fetch_fullcontent
+    would return, so the reader still shows the document, just unhighlighted."""
+    client = FakeAsyncES(search_hits=[{
+        "_source": {"fullcontent": "<document><body><para>no overlap here</para></body></document>"},
+    }])
+
+    result = await fetch_highlighted_fullcontent(client, "101010000000322113", "unrelated query")
+
+    assert result == "<document><body><para>no overlap here</para></body></document>"
+
+
+@pytest.mark.asyncio
+async def test_fetch_highlighted_fullcontent_returns_none_when_doc_not_found():
+    client = FakeAsyncES(search_hits=[])
+
+    result = await fetch_highlighted_fullcontent(client, "missing", "return")
 
     assert result is None
 

@@ -17,6 +17,13 @@ _ITALIC_TAGS = {"i", "em"}
 # carry their own <b> in the source XML, but they read as case-report
 # structure rather than body text, so they're bolded like poc's XmlNode does.
 _BOLD_TAGS = {"b", "strong", "db_heading", "db_subheading", "dbs_act", "dbs_section", "db_counsela", "db_counselr"}
+# fetch_highlighted_fullcontent's ES highlight_query injects `<mark>` around
+# real query matches (prod parity - repotaxmannapi's own server-side highlight,
+# `#~~@#`/`#@@~#` swapped for `<span class="researchdochighlight">` there; here
+# ES is asked to emit `<mark>` directly since it's already well-formed XML, no
+# placeholder-swap step needed). A plain ancestor-tracked formatting flag, same
+# mechanism as bold/italic, not a block type of its own.
+_HIGHLIGHT_TAGS = {"mark"}
 
 
 def _is_legacy_html(content: str) -> bool:
@@ -90,20 +97,21 @@ def strip_tags_to_text(xml: str) -> str:
     return re.sub(r"\s+", " ", unescape(_TAG_RE.sub(" ", xml))).strip()
 
 
-def _text_span(text: str, bold: bool = False, italic: bool = False) -> dict:
-    return {"type": "text", "text": text, "bold": bold, "italic": italic}
+def _text_span(text: str, bold: bool = False, italic: bool = False, highlight: bool = False) -> dict:
+    return {"type": "text", "text": text, "bold": bold, "italic": italic, "highlight": highlight}
 
 
-def _walk_spans(element: ET.Element, bold: bool, italic: bool) -> list[dict]:
+def _walk_spans(element: ET.Element, bold: bool, italic: bool, highlight: bool = False) -> list[dict]:
     """Recursively builds an ordered list of spans from an element's mixed
-    content, tracking which <i>/<b> ancestors are currently active so
+    content, tracking which <i>/<b>/<mark> ancestors are currently active so
     formatting survives arbitrary nesting (e.g. bold text inside an
-    italicized citation). `<link href="...">` becomes its own span type
-    regardless of surrounding formatting - poc's corpus never combines
-    link with bold/italic, so this doesn't need to track both at once."""
+    italicized citation, or a highlighted match inside either). `<link
+    href="...">` becomes its own span type regardless of surrounding
+    formatting - poc's corpus never combines link with bold/italic/highlight,
+    so this doesn't need to track all three at once for links."""
     spans: list[dict] = []
     if element.text:
-        spans.append(_text_span(element.text, bold, italic))
+        spans.append(_text_span(element.text, bold, italic, highlight))
     for child in element:
         tag = child.tag
         if tag == "link" and "href" in child.attrib:
@@ -111,13 +119,15 @@ def _walk_spans(element: ET.Element, bold: bool, italic: bool) -> list[dict]:
             if text:
                 spans.append({"type": "link", "text": text, "doc_id": child.attrib["href"]})
         elif tag in _ITALIC_TAGS:
-            spans.extend(_walk_spans(child, bold, True))
+            spans.extend(_walk_spans(child, bold, True, highlight))
         elif tag in _BOLD_TAGS:
-            spans.extend(_walk_spans(child, True, italic))
+            spans.extend(_walk_spans(child, True, italic, highlight))
+        elif tag in _HIGHLIGHT_TAGS:
+            spans.extend(_walk_spans(child, bold, italic, True))
         else:
-            spans.extend(_walk_spans(child, bold, italic))
+            spans.extend(_walk_spans(child, bold, italic, highlight))
         if child.tail:
-            spans.append(_text_span(child.tail, bold, italic))
+            spans.append(_text_span(child.tail, bold, italic, highlight))
     return spans
 
 

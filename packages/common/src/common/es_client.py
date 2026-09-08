@@ -92,6 +92,10 @@ def _cap_group_shares(hits: list[dict], limit: int, group_cap: int) -> list[dict
 _ES_FALLBACK_LIMIT = 20
 _ES_FALLBACK_GROUP_CAP = 15
 _ES_HIGHLIGHT_FRAGMENT_CHARS = 6000  # oversized on purpose - trim_to_token_budget cuts to ~1024 tokens after
+# Document-reader highlighting (fetch_highlighted_fullcontent) needs the WHOLE
+# document as one fragment, not a short reranker snippet - mirrors real prod's
+# own FragmentSize(50000000) (FileContentElasticSearchResearch.cs:118).
+_ES_DOCUMENT_HIGHLIGHT_FRAGMENT_CHARS = 5_000_000
 
 # Operationally-variable years/current-editions/tuned-boost-weights behind every constant
 # below this point that reads from `_BOOST_CONFIG` - see data/repotaxmannapi_boost_config.json
@@ -1461,6 +1465,82 @@ async def fetch_fullcontent(client, doc_id: str) -> str | None:
     if not hits:
         return None
     return hits[0]["_source"]["fullcontent"]
+
+
+async def fetch_highlighted_fullcontent(client, doc_id: str, query: str) -> str | None:
+    """Document-reader parity with real prod's server-side highlighting
+    (repotaxmannapi/TaxmannAPI/Elastic/FileContentElasticSearchResearch.cs:118 -
+    `.Highlight(h => h.PreTags(...).PostTags(...).MaxAnalyzedOffset(1000000)
+    .Fields(f => f.Field(fullcontent).Type(Plain).NumberOfFragments(1)
+    .Fragmenter(Simple).FragmentSize(50000000)))`, then FileContent
+    ElasticSearchResearch.cs:1627-1628 swaps the placeholder pre/post tags for
+    `<span class="researchdochighlight">...</span>` before the response ever
+    leaves the server) - the whole document gets highlighted once, server-side,
+    using the real query's own analyzer/stemming, not the frontend re-guessing
+    with a naive word-split regex against whatever text it already has.
+
+    `<mark>`/`</mark>` used directly as the highlight tags rather than prod's
+    placeholder-then-swap dance - `<mark>` is already well-formed XML on its
+    own, no separate swap step needed before document_parser.parse_fullcontent
+    re-parses this as XML (see _HIGHLIGHT_TAGS there). `number_of_fragments: 1`
+    + a huge `fragment_size` mirrors prod's own "one fragment covering nearly
+    the whole document" shape - this is the reader view, not a search-result
+    snippet (contrast raw_search's own highlight call, a genuine short
+    fragment for the reranker).
+
+    The document is selected by `id` ALONE (guarantees exactly one hit
+    regardless of whether `query` happens to match `fullcontent` at all - a
+    card can rank on `heading`/`subheading` with zero fullcontent overlap);
+    `highlight_query` computes highlighting independently of what selected the
+    document.
+
+    A PLAIN `match` on `fullcontent`, not build_query_preview's full ranking
+    query - verified against the real source (FileContentElasticSearchResearch.
+    cs:71): `fcontentSearch.Match(m => m.Field(f => f.fullcontent).Query
+    (elasticFilterSearch.searchtext))` - no fuzziness, no should-clause fan-out
+    across a dozen fields/boosts. An earlier version of this function reused
+    build_query_preview(query, boost=False)'s "sum" ranking-query builder
+    instead, live-tested via Chrome: for query "section 148" it highlighted
+    "mention"/"mentioning" too - genuinely explainable (that builder's
+    multi_match carries `fuzziness: AUTO`, and "mention" is exactly
+    Levenshtein-distance 2 from "section", AUTO's allowed distance for a
+    7-letter term), but exactly the kind of confusing, seemingly-unrelated
+    highlight a reader has no way to make sense of. Prod's own highlight query
+    was never that broad to begin with - matching it exactly fixes this too.
+
+    Quoted query -> `match_phrase`, not `match` (2026-09-07 fix, live-verified
+    against real prod, taxmann.com/research): a plain search ("section 148")
+    highlights "section"/"148" as independent words everywhere in the
+    document; a quoted exact-phrase search ('"section 148"') highlights ONLY
+    the contiguous phrase - other bare "section"/"148" occurrences elsewhere
+    are left alone. `match` (OR-of-words) already reproduces the plain-search
+    case; a query wrapped in double quotes needs `match_phrase` instead,
+    quotes stripped before querying, or an exact-phrase search here would
+    still highlight individual words, same bug as the fuzzy-match one above."""
+    stripped = query.strip()
+    if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
+        field_query = {"match_phrase": {"fullcontent": {"query": stripped[1:-1]}}}
+    else:
+        field_query = {"match": {"fullcontent": {"query": query}}}
+    response = await client.search(
+        index=client.index, query={"term": {"id": doc_id}}, size=1,
+        _source=["fullcontent"],
+        highlight={
+            "fields": {"fullcontent": {
+                "type": "plain",
+                "number_of_fragments": 1,
+                "fragment_size": _ES_DOCUMENT_HIGHLIGHT_FRAGMENT_CHARS,
+                "highlight_query": field_query,
+            }},
+            "pre_tags": ["<mark>"],
+            "post_tags": ["</mark>"],
+        },
+    )
+    hits = response["hits"]["hits"]
+    if not hits:
+        return None
+    fragments = hits[0].get("highlight", {}).get("fullcontent")
+    return fragments[0] if fragments else hits[0]["_source"]["fullcontent"]
 
 
 async def fetch_document_metadata(client, doc_id: str) -> dict | None:
