@@ -464,7 +464,13 @@ async def test_raw_search_repotaxmannapi_whole_query_phrase_requires_text_match(
     assert len(must) == 1
     assert must[0]["bool"]["minimum_should_match"] == 1
     text_should = must[0]["bool"]["should"]
-    assert all("match_phrase" in c for c in text_should), "must-clause should only hold text-relevance clauses"
+    # "match" (not just "match_phrase") is also a legitimate text-relevance clause here
+    # since the 2026-09-07 headnotestext supplemental fix (see es_client.py) - a plain
+    # `match` against `headnotestext`, additive to the ported formula's own match_phrase
+    # tiers, not a group-boost clause the way `term`/bare `bool` clauses would be.
+    assert all("match_phrase" in c or "match" in c for c in text_should), (
+        "must-clause should only hold text-relevance clauses"
+    )
     top_level_should = bool_query["should"]
     # This citation phrase tokenizes to multiple tokens (not the single-numeric-token shape
     # SearchTextElastic.cs:283-284's ACT_GROUP_ID fallback gates on - see
@@ -2386,6 +2392,33 @@ async def test_raw_search_repotaxmannapi_adds_group_id_boost_should_clause_when_
         and c["match_phrase"]["groups.group.id"].get("boost") == 1000
     ]
     assert len(group_id_clauses) == 1
+
+
+@pytest.mark.asyncio
+async def test_raw_search_repotaxmannapi_adds_headnotestext_supplemental_clause():
+    """2026-09-07 fix: `headnotes_text` (underscore, the byte-exact ported field's own
+    name) is derived by this repo's own ingestion (transform_full.py) by joining
+    raw["headnotes"][]["text"] - which stops at "[In favour of X]", same place the
+    source XML's own <headnote> tag ends. Real prod's own `headnotestext` field (no
+    underscore) is a separately-enriched value (headnote + repeat + a `~~`-delimited
+    keyword/metadata tail) that already exists in our raw ingestion source under that
+    same sibling key, and is already copied verbatim into our live ES index by
+    transform_full.py's own _UNWANTED-but-indexed list - just never queried until now.
+    Additive: a plain `match` (no `.phrase_search` subfield or snowball analyzer -
+    neither exists on this field's mapping, confirmed live; adding them needs an ES
+    mapping change + reindex, out of scope here) at the same 65000 boost the ported
+    formula's own primary headnotes_text tier uses."""
+    client = FakeAsyncES(search_hits=[])
+    await raw_search(client, "section 149", limit=20, boost=True, boost_source="repotaxmannapi")
+    query = client.search_calls[0]
+    bool_query = query["function_score"]["query"]["bool"]
+    clauses = [
+        c for c in bool_query["should"]
+        if "match" in c and "headnotestext" in c["match"]
+    ]
+    assert len(clauses) == 1
+    assert clauses[0]["match"]["headnotestext"] == {"query": "section 149", "boost": 65000}
+    assert "analyzer" not in clauses[0]["match"]["headnotestext"]
 
 
 @pytest.mark.asyncio
