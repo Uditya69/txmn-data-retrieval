@@ -34,9 +34,24 @@ class GatewayClient:
     service boundary (and no trace-header forwarding) left to bridge.
     """
 
-    def __init__(self, trace_enabled: bool = True, reasoning_overrides: dict[str, bool] | None = None):
+    def __init__(
+        self, trace_enabled: bool = True, reasoning_overrides: dict[str, bool] | None = None,
+        chat_provider: str | None = None, rerank_provider: str | None = None,
+    ):
         self._trace_enabled = trace_enabled
         settings = get_gateway_settings()
+        # Same Mongo-backed feature-flag layer as reasoning_overrides below -
+        # a caller passes its merged env/Mongo/default provider choice here
+        # rather than model-gateway reading Mongo itself. model_copy (not a
+        # mutation) so the process-wide lru_cache'd settings singleton stays
+        # untouched for every other GatewayClient() construction.
+        provider_overrides = {}
+        if chat_provider is not None:
+            provider_overrides["chat_provider"] = chat_provider
+        if rerank_provider is not None:
+            provider_overrides["rerank_provider"] = rerank_provider
+        if provider_overrides:
+            settings = settings.model_copy(update=provider_overrides)
         self._settings = settings
         self._role_model_map = build_role_model_map(settings)
         self._role_provider_map = build_role_provider_map(settings)

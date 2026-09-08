@@ -85,10 +85,15 @@ def get_flags(x_admin_token: str | None = Header(default=None)):
 
 
 @router.post("/admin/api/flags/{name}")
-async def update_flag(name: str, value: bool | None = Body(embed=True), x_admin_token: str | None = Header(default=None)):
+async def update_flag(
+    name: str, value: bool | str | None = Body(embed=True), x_admin_token: str | None = Header(default=None),
+):
     if not is_valid_admin_token(x_admin_token):
         raise HTTPException(status_code=403)
     if name not in FLAG_REGISTRY:
         raise HTTPException(status_code=404)
-    await set_flag_override(name, value)
+    try:
+        await set_flag_override(name, value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return next(row for row in describe_flags() if row["name"] == name)

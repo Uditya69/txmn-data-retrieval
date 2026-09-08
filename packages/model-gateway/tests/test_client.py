@@ -199,3 +199,33 @@ async def test_chat_respects_role_reasoning_map(monkeypatch):
     fake_adapter.chat.assert_awaited_once_with(
         "default-model", [{"role": "user", "content": "hi"}], None, None, role="slm", reasoning_enabled=False,
     )
+
+
+def test_chat_provider_override_selects_the_matching_model_pair():
+    settings = client_module.get_gateway_settings()
+
+    local_map = GatewayClient(chat_provider="local")._role_model_map
+    deepinfra_map = GatewayClient(chat_provider="deepinfra")._role_model_map
+
+    assert local_map["slm"] == settings.local_chat_model_slm
+    assert local_map["synthesis"] == settings.local_chat_model_synthesis
+    assert deepinfra_map["slm"] == settings.deepinfra_chat_model_slm
+    assert deepinfra_map["synthesis"] == settings.deepinfra_chat_model_synthesis
+
+
+def test_rerank_provider_override_selects_the_matching_provider():
+    local_map = GatewayClient(rerank_provider="local_rerank")._role_provider_map
+    deepinfra_map = GatewayClient(rerank_provider="deepinfra")._role_provider_map
+
+    assert local_map["reranker"] == "local_rerank"
+    assert deepinfra_map["reranker"] == "deepinfra"
+
+
+def test_provider_overrides_leave_the_cached_settings_singleton_untouched():
+    original_chat_provider = client_module.get_gateway_settings().chat_provider
+    original_rerank_provider = client_module.get_gateway_settings().rerank_provider
+
+    GatewayClient(chat_provider="local", rerank_provider="local_rerank")
+
+    assert client_module.get_gateway_settings().chat_provider == original_chat_provider
+    assert client_module.get_gateway_settings().rerank_provider == original_rerank_provider

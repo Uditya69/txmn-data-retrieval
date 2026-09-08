@@ -61,7 +61,53 @@ def test_describe_flags_reports_default_env_mongo_and_effective(monkeypatch):
         "env_override": False,
         "mongo_override": False,
         "effective": False,
+        "options": None,
     }]
+
+
+def test_describe_flags_reports_options_for_string_valued_flags(monkeypatch):
+    monkeypatch.delenv("CHAT_PROVIDER", raising=False)
+    monkeypatch.setattr(
+        feature_flags, "FLAG_REGISTRY", {"chat_provider": lambda: "deepinfra"},
+    )
+    monkeypatch.setattr(feature_flags, "VALID_VALUES", {"chat_provider": {"deepinfra", "local"}})
+    rows = feature_flags.describe_flags()
+    assert rows == [{
+        "name": "chat_provider",
+        "default": "deepinfra",
+        "env_override": False,
+        "mongo_override": None,
+        "effective": "deepinfra",
+        "options": ["deepinfra", "local"],
+    }]
+
+
+@pytest.mark.asyncio
+async def test_set_flag_override_rejects_invalid_value_for_enum_flag(monkeypatch):
+    monkeypatch.setattr(
+        feature_flags, "FLAG_REGISTRY", {"chat_provider": lambda: "deepinfra"},
+    )
+    monkeypatch.setattr(feature_flags, "VALID_VALUES", {"chat_provider": {"deepinfra", "local"}})
+    with pytest.raises(ValueError):
+        await feature_flags.set_flag_override("chat_provider", "not-a-real-provider")
+
+
+@pytest.mark.asyncio
+async def test_set_flag_override_accepts_valid_string_value(monkeypatch):
+    monkeypatch.setattr(
+        feature_flags, "FLAG_REGISTRY", {"chat_provider": lambda: "deepinfra"},
+    )
+    monkeypatch.setattr(feature_flags, "VALID_VALUES", {"chat_provider": {"deepinfra", "local"}})
+    collection = AsyncMock()
+    collection.find_one.return_value = {"_id": "flags", "chat_provider": "local"}
+    monkeypatch.setattr(feature_flags, "get_flags_collection", lambda: collection)
+
+    await feature_flags.set_flag_override("chat_provider", "local")
+
+    collection.update_one.assert_awaited_once_with(
+        {"_id": "flags"}, {"$set": {"chat_provider": "local"}}, upsert=True,
+    )
+    assert feature_flags._mongo_overrides == {"chat_provider": "local"}
 
 
 @pytest.mark.asyncio

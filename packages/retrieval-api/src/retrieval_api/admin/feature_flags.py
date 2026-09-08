@@ -42,12 +42,23 @@ FLAG_REGISTRY = {
     "slm_reasoning_enabled": lambda: model_gateway.config.get_gateway_settings().slm_reasoning_enabled,
     "synthesis_reasoning_enabled": lambda: model_gateway.config.get_gateway_settings().synthesis_reasoning_enabled,
     "semantic_cache_enabled": lambda: semantic_cache.config.get_semantic_cache_settings().semantic_cache_enabled,
+    "chat_provider": lambda: model_gateway.config.get_gateway_settings().chat_provider,
+    "rerank_provider": lambda: model_gateway.config.get_gateway_settings().rerank_provider,
+}
+
+# String-valued flags are constrained to their known-good values - unlike the
+# bool flags, a garbage string here doesn't fail loudly (it just falls through
+# _get_adapter's else-branch to DeepInfra), so set_flag_override rejects
+# anything not in this list instead of trusting the admin UI's caller.
+VALID_VALUES: dict[str, set[str]] = {
+    "chat_provider": {"deepinfra", "local"},
+    "rerank_provider": {"deepinfra", "local_rerank"},
 }
 
 # Module-level cache of Mongo overrides - refreshed at startup and after every
 # admin write, so a read-path `effective()` call is a plain dict lookup, never
 # an awaited Mongo round trip.
-_mongo_overrides: dict[str, bool] = {}
+_mongo_overrides: dict[str, bool | str] = {}
 
 
 def _has_env_override(name: str) -> bool:
@@ -68,10 +79,12 @@ async def refresh_flag_overrides() -> None:
     _mongo_overrides = {k: v for k, v in doc.items() if k in FLAG_REGISTRY}
 
 
-async def set_flag_override(name: str, value: bool | None) -> None:
+async def set_flag_override(name: str, value: bool | str | None) -> None:
     """`value=None` clears the Mongo override, falling back to env/default."""
     if name not in FLAG_REGISTRY:
         raise KeyError(f"unknown flag {name!r}")
+    if value is not None and name in VALID_VALUES and value not in VALID_VALUES[name]:
+        raise ValueError(f"{value!r} is not a valid value for {name!r} - expected one of {VALID_VALUES[name]}")
     collection = get_flags_collection()
     if value is None:
         await collection.update_one({"_id": _FLAGS_DOC_ID}, {"$unset": {name: ""}}, upsert=True)
@@ -80,7 +93,7 @@ async def set_flag_override(name: str, value: bool | None) -> None:
     await refresh_flag_overrides()
 
 
-def effective(name: str) -> bool:
+def effective(name: str) -> bool | str:
     if name not in FLAG_REGISTRY:
         raise KeyError(f"unknown flag {name!r}")
     default_value = FLAG_REGISTRY[name]()
@@ -93,7 +106,9 @@ def effective(name: str) -> bool:
 
 def describe_flags() -> list[dict]:
     """One row per flag for the admin UI: default, whether an env var pins it,
-    the raw Mongo override (if any), and the resulting effective value."""
+    the raw Mongo override (if any), the resulting effective value, and (for
+    string-valued flags only) the closed set of values the UI should offer
+    instead of free text."""
     rows = []
     for name in FLAG_REGISTRY:
         rows.append({
@@ -102,5 +117,6 @@ def describe_flags() -> list[dict]:
             "env_override": _has_env_override(name),
             "mongo_override": _mongo_overrides.get(name),
             "effective": effective(name),
+            "options": sorted(VALID_VALUES[name]) if name in VALID_VALUES else None,
         })
     return rows

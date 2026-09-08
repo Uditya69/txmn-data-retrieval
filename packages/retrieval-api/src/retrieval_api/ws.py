@@ -51,10 +51,14 @@ def _title_from_query(query: str) -> str:
 
 
 def get_gateway_client() -> GatewayClient:
-    return GatewayClient(reasoning_overrides={
-        "slm": effective("slm_reasoning_enabled"),
-        "synthesis": effective("synthesis_reasoning_enabled"),
-    })
+    return GatewayClient(
+        reasoning_overrides={
+            "slm": effective("slm_reasoning_enabled"),
+            "synthesis": effective("synthesis_reasoning_enabled"),
+        },
+        chat_provider=effective("chat_provider"),
+        rerank_provider=effective("rerank_provider"),
+    )
 
 
 def _resolve_user_id(access_token: str | None) -> str | None:
