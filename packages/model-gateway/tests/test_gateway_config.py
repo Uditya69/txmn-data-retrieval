@@ -7,6 +7,13 @@ from model_gateway.config import (
 
 
 def _settings(**overrides):
+    # Every field with a code default (chat_provider, rerank_provider, the two
+    # reasoning flags) is pinned explicitly here, not left to GatewaySettings'
+    # own default - pydantic-settings still reads the real repo-root .env for
+    # any field not passed as an explicit kwarg, so an ambient CHAT_PROVIDER=
+    # local (or similar) in a dev's .env would otherwise leak into these
+    # "defaults" tests and fail them for a reason that has nothing to do with
+    # the code under test.
     defaults = dict(
         deepinfra_api_key="k",
         deepinfra_chat_model_slm="deepinfra-slm-model",
@@ -20,6 +27,10 @@ def _settings(**overrides):
         local_chat_model_synthesis="local-synthesis-model",
         local_rerank_base_url="http://localhost:8001/v1",
         local_rerank_model="local-rerank-model",
+        chat_provider="deepinfra",
+        rerank_provider="deepinfra",
+        slm_reasoning_enabled=True,
+        synthesis_reasoning_enabled=True,
     )
     defaults.update(overrides)
     return GatewaySettings(**defaults)
