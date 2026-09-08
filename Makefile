@@ -3,7 +3,7 @@
 # See CLAUDE.md / AGENTS.md at this same root for the full git lifecycle
 # explanation - this Makefile just wraps the commands described there.
 
-.PHONY: status update-submodules bump-be bump-fe sync push-root clone-check
+.PHONY: status update-submodules bump-be bump-fe sync push-root clone-check dev dev-be dev-fe
 
 # Status of the root repo plus both submodules in one shot.
 status:
@@ -45,3 +45,31 @@ sync:
 
 push-root:
 	git push origin dev
+
+# --- Local dev servers, hot-reload ------------------------------------------
+# CLAUDE.md at this root says not to run dev servers from here (no unified
+# toolchain, BE is uv/Python, FE is npm/Vite) - these targets are just thin
+# `cd`+run wrappers, same spirit as bump-be/bump-fe above, for convenience
+# when you want both sides up with one command. Real per-project dev docs
+# still live in BE/ and FE/'s own CLAUDE.md/README.
+
+# retrieval-api with uvicorn --reload (model-gateway runs in-process, no
+# separate command needed). BE/scripts/dev.sh also starts this but additionally
+# tries to run a `packages/web` frontend that no longer exists there (it moved
+# to FE/ in the BE/FE split) - use dev-be/dev-fe/dev here instead of that script.
+dev-be:
+	cd BE && uv run uvicorn retrieval_api.main:app --reload \
+		--reload-dir packages/retrieval-api/src --reload-dir packages/common/src \
+		--reload-dir packages/model-gateway/src --port 8010
+
+# Vite dev server with HMR. Installs node_modules first if missing.
+dev-fe:
+	cd FE && [ -d node_modules ] || npm install
+	cd FE && npm run dev
+
+# Both at once. Ctrl-C stops both (trap kills the background FE job, then the
+# foreground BE job exits with it).
+dev:
+	@trap 'kill %1 2>/dev/null' EXIT INT TERM; \
+	$(MAKE) dev-fe & \
+	$(MAKE) dev-be
